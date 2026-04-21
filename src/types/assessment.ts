@@ -2,6 +2,7 @@ export interface ActionNode {
   id: string;
   title: string;
   notes: string;
+  done: boolean;
 }
 
 export interface TargetNode {
