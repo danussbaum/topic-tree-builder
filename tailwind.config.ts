@@ -14,10 +14,16 @@ export default {
     },
     extend: {
       fontFamily: {
-        serif: ["Merriweather", "Georgia", "serif"],
-        sans: ["Inter", "system-ui", "sans-serif"],
+        sans: ["'Source Sans 3'", "system-ui", "sans-serif"],
       },
       colors: {
+        brand: "hsl(var(--brand))",
+        topbar: {
+          DEFAULT: "hsl(var(--topbar-background))",
+          foreground: "hsl(var(--topbar-foreground))",
+          active: "hsl(var(--topbar-active))",
+          "active-foreground": "hsl(var(--topbar-active-foreground))",
+        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

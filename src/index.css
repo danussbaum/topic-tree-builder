@@ -2,101 +2,99 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&family=Inter:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&display=swap');
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* socialweb-inspired design system. All colors HSL. */
 
 @layer base {
   :root {
-    /* Botanical Archive palette - warm stones + amber accent */
-    --background: 48 33% 97%;
-    --foreground: 30 12% 15%;
+    /* Surfaces */
+    --background: 0 0% 100%;
+    --foreground: 210 10% 18%;
 
     --card: 0 0% 100%;
-    --card-foreground: 30 12% 15%;
+    --card-foreground: 210 10% 18%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 30 12% 15%;
+    --popover-foreground: 210 10% 18%;
 
-    --primary: 30 14% 18%;
-    --primary-foreground: 48 33% 97%;
+    /* Primary = socialweb teal/green brand */
+    --primary: 168 73% 38%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 36 16% 93%;
-    --secondary-foreground: 30 14% 18%;
+    /* Secondary = light surface (toolbar / panel) */
+    --secondary: 210 15% 96%;
+    --secondary-foreground: 210 10% 18%;
 
-    --muted: 36 16% 93%;
-    --muted-foreground: 30 8% 45%;
+    --muted: 210 15% 95%;
+    --muted-foreground: 210 8% 45%;
 
-    --accent: 35 85% 48%;
-    --accent-foreground: 48 33% 97%;
+    /* Accent = darker forest green (active tab / sidebar selection) */
+    --accent: 158 32% 36%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 5 75% 52%;
-    --destructive-foreground: 48 33% 97%;
+    --destructive: 4 70% 50%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 35 18% 86%;
-    --input: 35 18% 86%;
-    --ring: 35 85% 48%;
+    --border: 210 14% 89%;
+    --input: 210 14% 89%;
+    --ring: 168 73% 38%;
 
-    --serif: 'Merriweather', Georgia, serif;
-    --sans: 'Inter', system-ui, sans-serif;
+    --radius: 0.25rem;
 
-    --radius: 0.5rem;
+    /* socialweb-style left navigation */
+    --sidebar-background: 158 28% 32%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 158 32% 26%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 158 32% 42%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 158 22% 26%;
+    --sidebar-ring: 168 73% 50%;
 
-    --sidebar-background: 0 0% 98%;
+    /* Top tab bar */
+    --topbar-background: 210 16% 94%;
+    --topbar-foreground: 210 10% 28%;
+    --topbar-active: 158 32% 36%;
+    --topbar-active-foreground: 0 0% 100%;
 
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Brand teal (logo) */
+    --brand: 173 70% 40%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
+    --background: 210 14% 10%;
+    --foreground: 210 14% 95%;
+    --card: 210 14% 12%;
+    --card-foreground: 210 14% 95%;
+    --popover: 210 14% 12%;
+    --popover-foreground: 210 14% 95%;
+    --primary: 168 65% 45%;
+    --primary-foreground: 210 14% 10%;
+    --secondary: 210 14% 16%;
+    --secondary-foreground: 210 14% 95%;
+    --muted: 210 14% 16%;
+    --muted-foreground: 210 10% 65%;
+    --accent: 158 32% 42%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 4 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 210 14% 22%;
+    --input: 210 14% 22%;
+    --ring: 168 65% 45%;
+    --sidebar-background: 158 22% 18%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 158 32% 26%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-accent: 158 32% 32%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 158 22% 14%;
+    --sidebar-ring: 168 65% 45%;
+    --topbar-background: 210 14% 14%;
+    --topbar-foreground: 210 14% 85%;
+    --topbar-active: 158 32% 36%;
+    --topbar-active-foreground: 0 0% 100%;
+    --brand: 173 70% 45%;
   }
 }
 
@@ -107,9 +105,6 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
-    font-family: var(--sans);
-  }
-  .font-serif {
-    font-family: var(--serif);
+    font-family: 'Source Sans 3', system-ui, sans-serif;
   }
 }
