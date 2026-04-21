@@ -27,24 +27,33 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 const seed: TopicNode[] = [
   {
     id: uid(),
-    title: "Alpine Meadows",
+    title: "Förderziele KJA",
     notes:
-      "Detailed observations on the unique flora found in high-altitude alpine environments.",
+      "Strukturierte Förderziele für die Kinder- und Jugendarbeit, gegliedert nach Leistungstypen und individuellen Massnahmen.",
     targets: [
       {
         id: uid(),
-        title: "Edelweiss Bloom Cycle",
-        notes: "Tracking the conditions and timing that influence blooming.",
+        title: "Betreuung und Wohnen 2025",
+        notes:
+          "Die Erreichung der gemeinsam erarbeiteten Ziele wird durch die beteiligten Personen beurteilt.",
         actions: [
           {
             id: uid(),
-            title: "Monitor soil pH levels",
-            notes: "Average pH is 5.5–6.0; requires good drainage.",
+            title: "LZ-1 IND-2: Ressourcen aktivieren",
+            notes:
+              "Die Aktivierung und Förderung des Systems sowie die Erreichung der gemeinsam erarbeiteten Ziele wurden gemeinsam reflektiert.",
           },
           {
             id: uid(),
-            title: "Record peak bloom date",
-            notes: "Peak bloom observed July 15th in 2023.",
+            title: "LZ-2 IND-1: Individuelle Kontaktregelung",
+            notes:
+              "Eine individuelle Kontaktregelung liegt vor und wurde kongruent umgesetzt.",
+          },
+          {
+            id: uid(),
+            title: "LZ-3 IND-2: Freizeitgestaltung fördern",
+            notes:
+              "Ein neues Freizeitprogramm wurde entwickelt und gefördert.",
           },
         ],
       },
