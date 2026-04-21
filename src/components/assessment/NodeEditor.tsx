@@ -1,5 +1,6 @@
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { ChevronRight } from "lucide-react";
 
 interface Props {
   kindLabel: string;
@@ -19,15 +20,23 @@ export function NodeEditor({
   onNotesChange,
 }: Props) {
   return (
-    <div className="max-w-3xl mx-auto p-8 lg:p-12">
-      <div className="mb-2 text-xs uppercase tracking-wider text-accent font-semibold">
-        {kindLabel}
-      </div>
-      <div className="mb-6 text-sm text-muted-foreground">
+    <div className="px-8 py-6 lg:px-12 lg:py-8 max-w-4xl">
+      {/* Breadcrumb-like row, socialweb style */}
+      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+        <span className="uppercase tracking-wide font-semibold text-accent">
+          {kindLabel}
+        </span>
+        <span className="text-border">·</span>
         {breadcrumbs.map((b, i) => (
-          <span key={i}>
-            {i > 0 && <span className="mx-2 text-border">/</span>}
-            <span className={i === breadcrumbs.length - 1 ? "text-foreground" : ""}>
+          <span key={i} className="flex items-center gap-2">
+            {i > 0 && <ChevronRight className="h-3 w-3 text-border" />}
+            <span
+              className={
+                i === breadcrumbs.length - 1
+                  ? "text-foreground font-medium"
+                  : "text-muted-foreground"
+              }
+            >
               {b}
             </span>
           </span>
@@ -38,18 +47,18 @@ export function NodeEditor({
         value={title}
         onChange={(e) => onTitleChange(e.target.value)}
         placeholder={`${kindLabel} title…`}
-        className="font-serif text-3xl font-bold border-0 border-b border-border rounded-none px-0 h-auto py-3 focus-visible:ring-0 focus-visible:border-accent shadow-none bg-transparent"
+        className="text-2xl font-semibold border-0 border-b border-border rounded-none px-0 h-auto py-3 focus-visible:ring-0 focus-visible:border-primary shadow-none bg-transparent"
       />
 
       <div className="mt-8">
-        <label className="text-sm font-medium text-muted-foreground block mb-2">
-          Notes
+        <label className="text-xs uppercase tracking-wide font-semibold text-muted-foreground block mb-2">
+          Freitext / Notizen
         </label>
         <Textarea
           value={notes}
           onChange={(e) => onNotesChange(e.target.value)}
-          placeholder="Add detailed observations, criteria, or freetext notes…"
-          className="min-h-[300px] bg-card border-border rounded-lg text-base leading-relaxed p-4"
+          placeholder="Detaillierte Beobachtungen, Kriterien oder Notizen erfassen…"
+          className="min-h-[320px] bg-card border-border rounded-sm text-base leading-relaxed p-4 focus-visible:ring-1 focus-visible:ring-primary"
         />
       </div>
     </div>
