@@ -367,6 +367,9 @@ const Index = () => {
 
         {/* Ribbon toolbar */}
         <div className="flex items-center gap-1 px-3 py-2 bg-secondary/60 border-b border-border">
+          <div className="flex items-center gap-1 pr-2 border-r border-border mr-1">
+            <ClientSidebarTrigger />
+          </div>
           <RibbonButton icon={Plus} label="Neu" onClick={addTopic} />
           <RibbonDivider />
           <RibbonButton icon={Filter} label="Filter" />
