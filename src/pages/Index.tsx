@@ -18,7 +18,8 @@ import {
   Download,
   Save,
 } from "lucide-react";
-import { ClientSidebar } from "@/components/assessment/ClientSidebar";
+import { ClientSidebar, ClientSidebarTrigger } from "@/components/assessment/ClientSidebar";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { TopicTree } from "@/components/assessment/TopicTree";
 import { NodeEditor } from "@/components/assessment/NodeEditor";
 import type { Client, Selection, TopicNode } from "@/types/assessment";
@@ -317,15 +318,16 @@ const Index = () => {
   }, [selection, client]);
 
   return (
-    <div className="min-h-dvh bg-background flex">
-      <ClientSidebar
-        clients={clients}
-        selectedClientId={selectedClientId}
-        onSelectClient={setSelectedClientId}
-        onAddClient={addClient}
-      />
+    <SidebarProvider>
+      <div className="min-h-dvh bg-background flex w-full">
+        <ClientSidebar
+          clients={clients}
+          selectedClientId={selectedClientId}
+          onSelectClient={setSelectedClientId}
+          onAddClient={addClient}
+        />
 
-      <main className="flex-1 min-w-0 flex flex-col">
+        <main className="flex-1 min-w-0 flex flex-col">
         {/* Top tab bar */}
         <div className="flex items-center bg-topbar text-topbar-foreground border-b border-border h-12 pr-2">
           <nav className="flex items-stretch h-full overflow-x-auto">
@@ -365,6 +367,9 @@ const Index = () => {
 
         {/* Ribbon toolbar */}
         <div className="flex items-center gap-1 px-3 py-2 bg-secondary/60 border-b border-border">
+          <div className="flex items-center gap-1 pr-2 border-r border-border mr-1">
+            <ClientSidebarTrigger />
+          </div>
           <RibbonButton icon={Plus} label="Neu" onClick={addTopic} />
           <RibbonDivider />
           <RibbonButton icon={Filter} label="Filter" />
@@ -442,6 +447,7 @@ const Index = () => {
         </div>
       </main>
     </div>
+    </SidebarProvider>
   );
 };
 
