@@ -20,7 +20,7 @@ export function NodeEditor({
   onNotesChange,
 }: Props) {
   return (
-    <div className="px-8 py-6 lg:px-12 lg:py-8 max-w-4xl">
+    <div className="max-w-3xl">
       {/* Breadcrumb-like row, socialweb style */}
       <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
         <span className="uppercase tracking-wide font-semibold text-accent">
