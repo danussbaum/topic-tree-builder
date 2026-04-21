@@ -444,6 +444,7 @@ const Index = () => {
         </div>
       </main>
     </div>
+    </SidebarProvider>
   );
 };
 
