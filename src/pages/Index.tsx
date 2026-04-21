@@ -1,5 +1,23 @@
 import { useMemo, useState } from "react";
-import { Sprout } from "lucide-react";
+import {
+  BookOpen,
+  CheckSquare,
+  Calendar,
+  FileText,
+  Workflow,
+  Files,
+  HeartPulse,
+  Network,
+  Star,
+  Users,
+  MoreHorizontal,
+  HelpCircle,
+  Plus,
+  Filter,
+  Printer,
+  Download,
+  Save,
+} from "lucide-react";
 import { TreeSidebar } from "@/components/assessment/TreeSidebar";
 import { NodeEditor } from "@/components/assessment/NodeEditor";
 import type { Selection, TopicNode } from "@/types/assessment";
@@ -206,38 +224,94 @@ const Index = () => {
         onDelete={removeNode}
       />
 
-      <main className="flex-1 min-w-0">
-        <header className="border-b border-border bg-card/60 backdrop-blur px-8 py-4 flex items-center gap-3">
-          <div className="h-9 w-9 rounded-lg bg-accent/15 text-accent flex items-center justify-center">
-            <Sprout className="h-5 w-5" />
+      <main className="flex-1 min-w-0 flex flex-col">
+        {/* Top tab bar (socialweb style) */}
+        <div className="flex items-center bg-topbar text-topbar-foreground border-b border-border h-12 pr-2">
+          <nav className="flex items-stretch h-full overflow-x-auto">
+            {[
+              { label: "Prozesse", icon: Workflow, active: true },
+              { label: "Journal", icon: BookOpen },
+              { label: "Aufgaben", icon: CheckSquare },
+              { label: "Termine", icon: Calendar },
+              { label: "Texte", icon: FileText },
+              { label: "Dateien", icon: Files },
+              { label: "Pflege", icon: HeartPulse },
+              { label: "Systeme", icon: Network },
+              { label: "Bewertungen", icon: Star },
+              { label: "Kontakte", icon: Users },
+              { label: "Weitere", icon: MoreHorizontal },
+            ].map((t) => (
+              <button
+                key={t.label}
+                className={
+                  "px-4 text-xs font-semibold uppercase tracking-wide flex items-center gap-2 border-r border-border transition-colors " +
+                  (t.active
+                    ? "bg-topbar-active text-topbar-active-foreground"
+                    : "hover:bg-secondary")
+                }
+              >
+                <t.icon className="h-4 w-4" />
+                {t.label}
+              </button>
+            ))}
+          </nav>
+          <div className="ml-auto flex items-center gap-1 pl-2">
+            <button className="p-2 rounded hover:bg-secondary text-muted-foreground" aria-label="Help">
+              <HelpCircle className="h-5 w-5" />
+            </button>
           </div>
-          <div>
-            <h1 className="font-serif text-xl font-bold text-primary leading-none">
-              Flora Archivist
-            </h1>
-            <p className="text-xs text-muted-foreground mt-1">
-              Hierarchical assessment workspace
-            </p>
-          </div>
-        </header>
+        </div>
 
-        {current ? (
-          <NodeEditor
-            kindLabel={current.kindLabel}
-            breadcrumbs={current.breadcrumbs}
-            title={current.title}
-            notes={current.notes}
-            onTitleChange={(v) => updateNode("title", v)}
-            onNotesChange={(v) => updateNode("notes", v)}
-          />
-        ) : (
-          <div className="p-12 text-center text-muted-foreground">
-            <p className="font-serif text-lg">Select a node from the tree to begin.</p>
-          </div>
-        )}
+        {/* Ribbon toolbar */}
+        <div className="flex items-center gap-1 px-3 py-2 bg-secondary/60 border-b border-border">
+          <RibbonButton icon={Plus} label="Neu" />
+          <RibbonDivider />
+          <RibbonButton icon={Filter} label="Filter" />
+          <RibbonButton icon={Save} label="Speichern" />
+          <RibbonDivider />
+          <RibbonButton icon={Printer} label="Drucken" />
+          <RibbonButton icon={Download} label="Export" />
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto bg-background">
+          {current ? (
+            <NodeEditor
+              kindLabel={current.kindLabel}
+              breadcrumbs={current.breadcrumbs}
+              title={current.title}
+              notes={current.notes}
+              onTitleChange={(v) => updateNode("title", v)}
+              onNotesChange={(v) => updateNode("notes", v)}
+            />
+          ) : (
+            <div className="p-12 text-center text-muted-foreground">
+              <p className="text-lg">Wählen Sie einen Knoten in der Baumstruktur.</p>
+            </div>
+          )}
+        </div>
       </main>
     </div>
   );
 };
+
+function RibbonButton({
+  icon: Icon,
+  label,
+}: {
+  icon: React.ElementType;
+  label: string;
+}) {
+  return (
+    <button className="flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 rounded hover:bg-secondary text-foreground/80 hover:text-foreground transition-colors min-w-[64px]">
+      <Icon className="h-5 w-5" />
+      <span className="text-[11px] font-medium">{label}</span>
+    </button>
+  );
+}
+
+function RibbonDivider() {
+  return <div className="w-px h-10 bg-border mx-1" />;
+}
 
 export default Index;
