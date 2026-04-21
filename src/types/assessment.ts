@@ -17,3 +17,8 @@ export interface TopicNode {
   notes: string;
   targets: TargetNode[];
 }
+
+export type Selection =
+  | { kind: "topic"; topicId: string }
+  | { kind: "target"; topicId: string; targetId: string }
+  | { kind: "action"; topicId: string; targetId: string; actionId: string };
