@@ -18,7 +18,8 @@ import {
   Download,
   Save,
 } from "lucide-react";
-import { ClientSidebar } from "@/components/assessment/ClientSidebar";
+import { ClientSidebar, ClientSidebarTrigger } from "@/components/assessment/ClientSidebar";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { TopicTree } from "@/components/assessment/TopicTree";
 import { NodeEditor } from "@/components/assessment/NodeEditor";
 import type { Client, Selection, TopicNode } from "@/types/assessment";
