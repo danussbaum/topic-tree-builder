@@ -318,15 +318,16 @@ const Index = () => {
   }, [selection, client]);
 
   return (
-    <div className="min-h-dvh bg-background flex">
-      <ClientSidebar
-        clients={clients}
-        selectedClientId={selectedClientId}
-        onSelectClient={setSelectedClientId}
-        onAddClient={addClient}
-      />
+    <SidebarProvider>
+      <div className="min-h-dvh bg-background flex w-full">
+        <ClientSidebar
+          clients={clients}
+          selectedClientId={selectedClientId}
+          onSelectClient={setSelectedClientId}
+          onAddClient={addClient}
+        />
 
-      <main className="flex-1 min-w-0 flex flex-col">
+        <main className="flex-1 min-w-0 flex flex-col">
         {/* Top tab bar */}
         <div className="flex items-center bg-topbar text-topbar-foreground border-b border-border h-12 pr-2">
           <nav className="flex items-stretch h-full overflow-x-auto">
