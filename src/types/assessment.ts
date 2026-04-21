@@ -18,6 +18,13 @@ export interface TopicNode {
   targets: TargetNode[];
 }
 
+export interface Client {
+  id: string;
+  firstName: string;
+  lastName: string;
+  topics: TopicNode[];
+}
+
 export type Selection =
   | { kind: "topic"; topicId: string }
   | { kind: "target"; topicId: string; targetId: string }
