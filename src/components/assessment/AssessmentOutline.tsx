@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { format } from "date-fns";
+import { de } from "date-fns/locale";
 import {
   Plus,
   Trash2,
@@ -8,6 +10,11 @@ import {
   XCircle,
   Circle,
   RotateCcw,
+  Sunrise,
+  Sun,
+  Sunset,
+  Moon,
+  CalendarIcon,
 } from "lucide-react";
 import {
   Dialog,
@@ -21,14 +28,38 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import type { ActionNode, ActionStatus, TopicNode } from "@/types/assessment";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import type {
+  ActionNode,
+  ActionStatus,
+  DayPart,
+  TopicNode,
+} from "@/types/assessment";
+import { DAY_PART_LABEL, DAY_PART_ORDER } from "@/types/assessment";
 import { cn } from "@/lib/utils";
 
 type ConfirmPayload =
-  | { status: "done_as_planned" }
-  | { status: "done_with_deviation"; actualMinutes: number; reason: string }
+  | { status: "done_as_planned"; observations?: string }
+  | { status: "done_with_deviation"; actualMinutes: number; reason: string; observations?: string }
   | { status: "not_done"; reason: string }
   | { status: "open" };
+
+type ActionField =
+  | "plannedMinutes"
+  | "actualMinutes"
+  | "reason"
+  | "dayPart"
+  | "validFrom"
+  | "validTo"
+  | "observations";
 
 interface Props {
   topics: TopicNode[];
@@ -50,7 +81,7 @@ interface Props {
     topicId: string,
     targetId: string,
     actionId: string,
-    field: "plannedMinutes" | "actualMinutes" | "reason",
+    field: ActionField,
     value: number | string | undefined,
   ) => void;
   onConfirmAction: (
@@ -71,6 +102,25 @@ interface DialogTarget {
   topicId: string;
   targetId: string;
   action: ActionNode;
+}
+
+const DAY_PART_ICONS: Record<DayPart, typeof Sunrise> = {
+  morning: Sunrise,
+  noon: Sun,
+  evening: Sunset,
+  night: Moon,
+};
+
+function groupActions(actions: ActionNode[]) {
+  const groups = new Map<DayPart | "none", ActionNode[]>();
+  for (const key of DAY_PART_ORDER) groups.set(key, []);
+  for (const a of actions) {
+    const key = (a.dayPart ?? "none") as DayPart | "none";
+    groups.get(key)!.push(a);
+  }
+  return DAY_PART_ORDER
+    .map((key) => ({ key, actions: groups.get(key)! }))
+    .filter((g) => g.actions.length > 0);
 }
 
 export function AssessmentOutline({
@@ -142,169 +192,84 @@ export function AssessmentOutline({
 
           {/* Targets */}
           <div className="mt-6 space-y-6 pl-6 border-l border-border ml-4">
-            {topic.targets.map((target, gi) => (
-              <div key={target.id} className="group/target">
-                <div className="flex items-start gap-3">
-                  <div className="text-base font-semibold text-foreground/50 leading-none pt-2 tabular-nums select-none">
-                    {ti + 1}.{gi + 1}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground mb-1">
-                      Ziel
+            {topic.targets.map((target, gi) => {
+              const groups = groupActions(target.actions);
+              return (
+                <div key={target.id} className="group/target">
+                  <div className="flex items-start gap-3">
+                    <div className="text-base font-semibold text-foreground/50 leading-none pt-2 tabular-nums select-none">
+                      {ti + 1}.{gi + 1}
                     </div>
-                    <input
-                      value={target.title}
-                      onChange={(e) =>
-                        onUpdateTarget(topic.id, target.id, "title", e.target.value)
-                      }
-                      placeholder="Zielbezeichnung…"
-                      className="w-full text-lg font-medium bg-transparent border-0 outline-none focus:ring-0 px-0 placeholder:text-muted-foreground/40"
-                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground mb-1">
+                        Ziel
+                      </div>
+                      <input
+                        value={target.title}
+                        onChange={(e) =>
+                          onUpdateTarget(topic.id, target.id, "title", e.target.value)
+                        }
+                        placeholder="Zielbezeichnung…"
+                        className="w-full text-lg font-medium bg-transparent border-0 outline-none focus:ring-0 px-0 placeholder:text-muted-foreground/40"
+                      />
+                    </div>
+                    <button
+                      onClick={() => onDeleteTarget(topic.id, target.id)}
+                      className="opacity-0 group-hover/target:opacity-100 p-1.5 hover:bg-destructive/10 hover:text-destructive rounded transition-opacity"
+                      aria-label="Ziel löschen"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   </div>
-                  <button
-                    onClick={() => onDeleteTarget(topic.id, target.id)}
-                    className="opacity-0 group-hover/target:opacity-100 p-1.5 hover:bg-destructive/10 hover:text-destructive rounded transition-opacity"
-                    aria-label="Ziel löschen"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
 
-                <div className="pl-6">
-                  <Notes
-                    value={target.notes}
-                    onChange={(v) => onUpdateTarget(topic.id, target.id, "notes", v)}
-                    placeholder="Freitext zum Ziel…"
-                    className="mt-2"
-                  />
+                  <div className="pl-6">
+                    <Notes
+                      value={target.notes}
+                      onChange={(v) => onUpdateTarget(topic.id, target.id, "notes", v)}
+                      placeholder="Freitext zum Ziel…"
+                      className="mt-2"
+                    />
 
-                  {/* Actions */}
-                  <ul className="mt-3 space-y-1">
-                    {target.actions.map((action) => (
-                      <li
-                        key={action.id}
-                        className="group/action flex items-start gap-3 py-2 px-2 -mx-2 rounded hover:bg-secondary/40"
-                      >
-                        <button
-                          onClick={() =>
-                            setDialogTarget({
-                              topicId: topic.id,
-                              targetId: target.id,
-                              action,
-                            })
-                          }
-                          className="mt-0.5"
-                          aria-label="Status ändern"
-                          title="Status ändern"
-                        >
-                          <StatusIcon status={action.status} />
-                        </button>
-                        <div className="flex-1 min-w-0">
-                          <input
-                            value={action.title}
-                            onChange={(e) =>
-                              onUpdateAction(
-                                topic.id,
-                                target.id,
-                                action.id,
-                                "title",
-                                e.target.value,
-                              )
-                            }
-                            placeholder="Massnahme…"
-                            className={cn(
-                              "w-full text-sm bg-transparent border-0 outline-none focus:ring-0 px-0 placeholder:text-muted-foreground/40",
-                              action.status === "done_as_planned" &&
-                                "line-through text-muted-foreground",
-                              action.status === "done_with_deviation" &&
-                                "line-through text-muted-foreground",
-                              action.status === "not_done" &&
-                                "line-through text-muted-foreground/70",
-                            )}
-                          />
-
-                          {/* Planned minutes + status meta line */}
-                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
-                            <label className="inline-flex items-center gap-1.5">
-                              <Clock className="h-3.5 w-3.5" />
-                              <span>geplant</span>
-                              <input
-                                type="number"
-                                min={0}
-                                step={5}
-                                value={action.plannedMinutes ?? ""}
-                                onChange={(e) =>
-                                  onUpdateActionField(
-                                    topic.id,
-                                    target.id,
-                                    action.id,
-                                    "plannedMinutes",
-                                    e.target.value === ""
-                                      ? undefined
-                                      : Math.max(0, Number(e.target.value)),
-                                  )
+                    {/* Actions grouped by dayPart */}
+                    <div className="mt-3 space-y-4">
+                      {groups.map((group) => (
+                        <div key={group.key}>
+                          <DayPartHeader part={group.key} />
+                          <ul className="mt-1 space-y-1">
+                            {group.actions.map((action) => (
+                              <ActionRow
+                                key={action.id}
+                                topicId={topic.id}
+                                targetId={target.id}
+                                action={action}
+                                onUpdateAction={onUpdateAction}
+                                onUpdateActionField={onUpdateActionField}
+                                onDeleteAction={onDeleteAction}
+                                onOpenDialog={() =>
+                                  setDialogTarget({
+                                    topicId: topic.id,
+                                    targetId: target.id,
+                                    action,
+                                  })
                                 }
-                                placeholder="–"
-                                className="w-14 bg-transparent border-b border-border focus:border-primary outline-none px-1 py-0 text-right tabular-nums"
                               />
-                              <span>Min</span>
-                            </label>
-
-                            <StatusBadge action={action} />
-                          </div>
-
-                          {(action.reason ||
-                            action.status === "done_with_deviation" ||
-                            action.status === "not_done") && (
-                            <div className="mt-1 text-xs text-muted-foreground italic">
-                              {action.status === "done_with_deviation" &&
-                                action.actualMinutes != null && (
-                                  <span className="not-italic mr-1 font-medium text-foreground/70">
-                                    {action.actualMinutes} Min tatsächlich:
-                                  </span>
-                                )}
-                              {action.reason}
-                            </div>
-                          )}
-
-                          <Notes
-                            value={action.notes}
-                            onChange={(v) =>
-                              onUpdateAction(
-                                topic.id,
-                                target.id,
-                                action.id,
-                                "notes",
-                                v,
-                              )
-                            }
-                            placeholder="Notiz hinzufügen…"
-                            compact
-                          />
+                            ))}
+                          </ul>
                         </div>
-                        <button
-                          onClick={() =>
-                            onDeleteAction(topic.id, target.id, action.id)
-                          }
-                          className="opacity-0 group-hover/action:opacity-100 p-1 hover:bg-destructive/10 hover:text-destructive rounded transition-opacity self-start mt-0.5"
-                          aria-label="Massnahme löschen"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                      ))}
+                    </div>
 
-                  <button
-                    onClick={() => onAddAction(topic.id, target.id)}
-                    className="mt-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Massnahme hinzufügen
-                  </button>
+                    <button
+                      onClick={() => onAddAction(topic.id, target.id)}
+                      className="mt-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Massnahme hinzufügen
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             <button
               onClick={() => onAddTarget(topic.id)}
@@ -342,6 +307,240 @@ export function AssessmentOutline({
         }}
       />
     </div>
+  );
+}
+
+function DayPartHeader({ part }: { part: DayPart | "none" }) {
+  if (part === "none") {
+    return (
+      <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/70">
+        <span className="h-px flex-1 bg-border" />
+        <span>Ohne Tageszeit</span>
+        <span className="h-px flex-1 bg-border" />
+      </div>
+    );
+  }
+  const Icon = DAY_PART_ICONS[part];
+  return (
+    <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest font-semibold text-accent">
+      <Icon className="h-3.5 w-3.5" />
+      <span>{DAY_PART_LABEL[part]}</span>
+      <span className="h-px flex-1 bg-border" />
+    </div>
+  );
+}
+
+function ActionRow({
+  topicId,
+  targetId,
+  action,
+  onUpdateAction,
+  onUpdateActionField,
+  onDeleteAction,
+  onOpenDialog,
+}: {
+  topicId: string;
+  targetId: string;
+  action: ActionNode;
+  onUpdateAction: Props["onUpdateAction"];
+  onUpdateActionField: Props["onUpdateActionField"];
+  onDeleteAction: Props["onDeleteAction"];
+  onOpenDialog: () => void;
+}) {
+  return (
+    <li className="group/action flex items-start gap-3 py-2 px-2 -mx-2 rounded hover:bg-secondary/40">
+      <button
+        onClick={onOpenDialog}
+        className="mt-0.5"
+        aria-label="Status ändern"
+        title="Status ändern"
+      >
+        <StatusIcon status={action.status} />
+      </button>
+      <div className="flex-1 min-w-0">
+        <input
+          value={action.title}
+          onChange={(e) =>
+            onUpdateAction(topicId, targetId, action.id, "title", e.target.value)
+          }
+          placeholder="Massnahme…"
+          className={cn(
+            "w-full text-sm bg-transparent border-0 outline-none focus:ring-0 px-0 placeholder:text-muted-foreground/40",
+            action.status === "done_as_planned" &&
+              "line-through text-muted-foreground",
+            action.status === "done_with_deviation" &&
+              "line-through text-muted-foreground",
+            action.status === "not_done" &&
+              "line-through text-muted-foreground/70",
+          )}
+        />
+
+        {/* Meta row: dayPart, planned minutes, validity, status */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
+          <Select
+            value={action.dayPart ?? "none"}
+            onValueChange={(v) =>
+              onUpdateActionField(
+                topicId,
+                targetId,
+                action.id,
+                "dayPart",
+                v === "none" ? undefined : v,
+              )
+            }
+          >
+            <SelectTrigger className="h-7 w-[120px] text-xs px-2 py-0">
+              <SelectValue placeholder="Tageszeit" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Keine Angabe</SelectItem>
+              <SelectItem value="morning">Morgen</SelectItem>
+              <SelectItem value="noon">Mittag</SelectItem>
+              <SelectItem value="evening">Abend</SelectItem>
+              <SelectItem value="night">Nacht</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <label className="inline-flex items-center gap-1.5">
+            <Clock className="h-3.5 w-3.5" />
+            <span>geplant</span>
+            <input
+              type="number"
+              min={0}
+              step={5}
+              value={action.plannedMinutes ?? ""}
+              onChange={(e) =>
+                onUpdateActionField(
+                  topicId,
+                  targetId,
+                  action.id,
+                  "plannedMinutes",
+                  e.target.value === ""
+                    ? undefined
+                    : Math.max(0, Number(e.target.value)),
+                )
+              }
+              placeholder="–"
+              className="w-14 bg-transparent border-b border-border focus:border-primary outline-none px-1 py-0 text-right tabular-nums"
+            />
+            <span>Min</span>
+          </label>
+
+          <DateField
+            label="Gültig ab"
+            required
+            value={action.validFrom}
+            onChange={(v) =>
+              onUpdateActionField(topicId, targetId, action.id, "validFrom", v)
+            }
+          />
+          <DateField
+            label="Gültig bis"
+            value={action.validTo}
+            onChange={(v) =>
+              onUpdateActionField(topicId, targetId, action.id, "validTo", v)
+            }
+          />
+
+          <StatusBadge action={action} />
+        </div>
+
+        {(action.reason ||
+          action.status === "done_with_deviation" ||
+          action.status === "not_done") && (
+          <div className="mt-1 text-xs text-muted-foreground italic">
+            {action.status === "done_with_deviation" &&
+              action.actualMinutes != null && (
+                <span className="not-italic mr-1 font-medium text-foreground/70">
+                  {action.actualMinutes} Min tatsächlich:
+                </span>
+              )}
+            {action.reason}
+          </div>
+        )}
+
+        {action.observations && (
+          <div className="mt-1 text-xs text-foreground/70">
+            <span className="font-medium">Beobachtungen:</span>{" "}
+            <span className="italic">{action.observations}</span>
+          </div>
+        )}
+
+        <Notes
+          value={action.notes}
+          onChange={(v) =>
+            onUpdateAction(topicId, targetId, action.id, "notes", v)
+          }
+          placeholder="Notiz hinzufügen…"
+          compact
+        />
+      </div>
+      <button
+        onClick={() => onDeleteAction(topicId, targetId, action.id)}
+        className="opacity-0 group-hover/action:opacity-100 p-1 hover:bg-destructive/10 hover:text-destructive rounded transition-opacity self-start mt-0.5"
+        aria-label="Massnahme löschen"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </button>
+    </li>
+  );
+}
+
+function DateField({
+  label,
+  value,
+  onChange,
+  required,
+}: {
+  label: string;
+  value?: string;
+  onChange: (v: string | undefined) => void;
+  required?: boolean;
+}) {
+  const date = value ? new Date(value) : undefined;
+  const missing = required && !value;
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "inline-flex items-center gap-1.5 px-2 h-7 rounded border border-border bg-transparent hover:bg-secondary/60 text-xs",
+            missing && "border-destructive/60 text-destructive",
+          )}
+        >
+          <CalendarIcon className="h-3.5 w-3.5" />
+          <span className="text-muted-foreground">{label}:</span>
+          <span className="text-foreground/80">
+            {date ? format(date, "dd.MM.yyyy", { locale: de }) : "–"}
+          </span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="single"
+          selected={date}
+          onSelect={(d) =>
+            onChange(d ? format(d, "yyyy-MM-dd") : undefined)
+          }
+          initialFocus
+          locale={de}
+          className={cn("p-3 pointer-events-auto")}
+        />
+        {!required && value && (
+          <div className="p-2 border-t border-border">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full"
+              onClick={() => onChange(undefined)}
+            >
+              Datum entfernen
+            </Button>
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -395,10 +594,10 @@ function ConfirmActionDialog({
   const [mode, setMode] = useState<ActionStatus | null>(null);
   const [actualMinutes, setActualMinutes] = useState<string>("");
   const [reason, setReason] = useState<string>("");
+  const [observations, setObservations] = useState<string>("");
 
   const open = target !== null;
 
-  // initialize when target changes
   useEffect(() => {
     if (target) {
       setMode(target.action.status === "open" ? null : target.action.status);
@@ -406,6 +605,7 @@ function ConfirmActionDialog({
         target.action.actualMinutes != null ? String(target.action.actualMinutes) : "",
       );
       setReason(target.action.reason ?? "");
+      setObservations(target.action.observations ?? "");
     }
   }, [target]);
 
@@ -413,13 +613,15 @@ function ConfirmActionDialog({
     setMode(null);
     setActualMinutes("");
     setReason("");
+    setObservations("");
     onClose();
   };
 
   const submit = () => {
     if (!target || !mode) return;
+    const obs = observations.trim() ? observations.trim() : undefined;
     if (mode === "done_as_planned") {
-      onConfirm({ status: "done_as_planned" });
+      onConfirm({ status: "done_as_planned", observations: obs });
     } else if (mode === "done_with_deviation") {
       const min = Number(actualMinutes);
       if (!Number.isFinite(min) || min < 0 || !reason.trim()) return;
@@ -427,6 +629,7 @@ function ConfirmActionDialog({
         status: "done_with_deviation",
         actualMinutes: min,
         reason: reason.trim(),
+        observations: obs,
       });
     } else if (mode === "not_done") {
       if (!reason.trim()) return;
@@ -435,9 +638,11 @@ function ConfirmActionDialog({
     setMode(null);
     setActualMinutes("");
     setReason("");
+    setObservations("");
   };
 
   const planned = target?.action.plannedMinutes;
+  const showObservations = mode === "done_as_planned" || mode === "done_with_deviation";
 
   return (
     <Dialog open={open} onOpenChange={(v) => (!v ? handleClose() : null)}>
@@ -520,6 +725,24 @@ function ConfirmActionDialog({
           </div>
         )}
 
+        {showObservations && (
+          <div className="space-y-1.5 pt-2 border-t border-border">
+            <Label htmlFor="observations">
+              Beobachtungen{" "}
+              <span className="text-xs font-normal text-muted-foreground">
+                (optional)
+              </span>
+            </Label>
+            <Textarea
+              id="observations"
+              rows={3}
+              value={observations}
+              onChange={(e) => setObservations(e.target.value)}
+              placeholder="Beobachtungen während der Durchführung…"
+            />
+          </div>
+        )}
+
         <DialogFooter className="gap-2 sm:justify-between">
           {target?.action.status !== "open" ? (
             <Button
@@ -529,6 +752,7 @@ function ConfirmActionDialog({
                 setMode(null);
                 setActualMinutes("");
                 setReason("");
+                setObservations("");
               }}
               className="gap-1.5"
             >
