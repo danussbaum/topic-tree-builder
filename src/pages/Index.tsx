@@ -232,7 +232,7 @@ const Index = () => {
     topicId: string,
     targetId: string,
     actionId: string,
-    field: "plannedMinutes" | "actualMinutes" | "reason",
+    field: "plannedMinutes" | "actualMinutes" | "reason" | "dayPart" | "validFrom" | "validTo" | "observations",
     value: number | string | undefined,
   ) => {
     updateClientTopics((topics) =>
