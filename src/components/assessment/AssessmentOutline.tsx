@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Plus,
   Trash2,
@@ -396,16 +396,18 @@ function ConfirmActionDialog({
   const [actualMinutes, setActualMinutes] = useState<string>("");
   const [reason, setReason] = useState<string>("");
 
-  // reset on open
   const open = target !== null;
+
   // initialize when target changes
-  if (target && mode === null) {
-    setMode(target.action.status === "open" ? null : target.action.status);
-    setActualMinutes(
-      target.action.actualMinutes != null ? String(target.action.actualMinutes) : "",
-    );
-    setReason(target.action.reason ?? "");
-  }
+  useEffect(() => {
+    if (target) {
+      setMode(target.action.status === "open" ? null : target.action.status);
+      setActualMinutes(
+        target.action.actualMinutes != null ? String(target.action.actualMinutes) : "",
+      );
+      setReason(target.action.reason ?? "");
+    }
+  }, [target]);
 
   const handleClose = () => {
     setMode(null);
