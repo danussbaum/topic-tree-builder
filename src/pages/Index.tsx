@@ -21,7 +21,7 @@ import {
 import { ClientSidebar, ClientSidebarTrigger } from "@/components/assessment/ClientSidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AssessmentOutline } from "@/components/assessment/AssessmentOutline";
-import type { Client, TopicNode } from "@/types/assessment";
+import type { ActionStatus, Client, TopicNode } from "@/types/assessment";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -48,6 +48,10 @@ const seedClients: Client[] = [
                 title: "LZ-1 IND-2: Ressourcen aktivieren",
                 notes:
                   "Die Aktivierung und Förderung des Systems wurde gemeinsam reflektiert.",
+                plannedMinutes: 45,
+                actualMinutes: 60,
+                reason: "Gespräch mit Familie länger als geplant.",
+                status: "done_with_deviation",
                 done: true,
               },
               {
@@ -55,6 +59,8 @@ const seedClients: Client[] = [
                 title: "LZ-2 IND-1: Individuelle Kontaktregelung",
                 notes:
                   "Eine individuelle Kontaktregelung liegt vor und wurde kongruent umgesetzt.",
+                plannedMinutes: 30,
+                status: "open",
                 done: false,
               },
             ],
@@ -152,7 +158,13 @@ const Index = () => {
                       ...tg,
                       actions: [
                         ...tg.actions,
-                        { id: uid(), title: "", notes: "", done: false },
+                        {
+                          id: uid(),
+                          title: "",
+                          notes: "",
+                          status: "open",
+                          done: false,
+                        },
                       ],
                     },
               ),
@@ -215,7 +227,13 @@ const Index = () => {
     );
   };
 
-  const toggleAction = (topicId: string, targetId: string, actionId: string) => {
+  const updateActionField = (
+    topicId: string,
+    targetId: string,
+    actionId: string,
+    field: "plannedMinutes" | "actualMinutes" | "reason",
+    value: number | string | undefined,
+  ) => {
     updateClientTopics((topics) =>
       topics.map((t) =>
         t.id !== topicId
@@ -228,8 +246,73 @@ const Index = () => {
                   : {
                       ...tg,
                       actions: tg.actions.map((a) =>
-                        a.id === actionId ? { ...a, done: !a.done } : a,
+                        a.id === actionId ? { ...a, [field]: value } : a,
                       ),
+                    },
+              ),
+            },
+      ),
+    );
+  };
+
+  const confirmAction = (
+    topicId: string,
+    targetId: string,
+    actionId: string,
+    payload:
+      | { status: "done_as_planned" }
+      | { status: "done_with_deviation"; actualMinutes: number; reason: string }
+      | { status: "not_done"; reason: string }
+      | { status: "open" },
+  ) => {
+    updateClientTopics((topics) =>
+      topics.map((t) =>
+        t.id !== topicId
+          ? t
+          : {
+              ...t,
+              targets: t.targets.map((tg) =>
+                tg.id !== targetId
+                  ? tg
+                  : {
+                      ...tg,
+                      actions: tg.actions.map((a) => {
+                        if (a.id !== actionId) return a;
+                        if (payload.status === "open") {
+                          return {
+                            ...a,
+                            status: "open",
+                            done: false,
+                            actualMinutes: undefined,
+                            reason: undefined,
+                          };
+                        }
+                        if (payload.status === "done_as_planned") {
+                          return {
+                            ...a,
+                            status: "done_as_planned",
+                            done: true,
+                            actualMinutes: a.plannedMinutes,
+                            reason: undefined,
+                          };
+                        }
+                        if (payload.status === "done_with_deviation") {
+                          return {
+                            ...a,
+                            status: "done_with_deviation",
+                            done: true,
+                            actualMinutes: payload.actualMinutes,
+                            reason: payload.reason,
+                          };
+                        }
+                        return {
+                          ...a,
+                          status: "not_done",
+                          done: true,
+                          actualMinutes: undefined,
+                          reason: payload.reason,
+                        };
+                      }),
                     },
               ),
             },
@@ -402,7 +485,8 @@ const Index = () => {
                   onUpdateTopic={updateTopic}
                   onUpdateTarget={updateTarget}
                   onUpdateAction={updateAction}
-                  onToggleAction={toggleAction}
+                  onUpdateActionField={updateActionField}
+                  onConfirmAction={confirmAction}
                   onAddTopic={addTopic}
                   onAddTarget={addTarget}
                   onAddAction={addAction}

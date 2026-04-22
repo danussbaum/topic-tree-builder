@@ -1,7 +1,21 @@
+export type ActionStatus =
+  | "open"
+  | "done_as_planned"
+  | "done_with_deviation"
+  | "not_done";
+
 export interface ActionNode {
   id: string;
   title: string;
   notes: string;
+  /** Geplante Zeit in Minuten */
+  plannedMinutes?: number;
+  /** Tatsächliche Zeit in Minuten (bei Abweichung) */
+  actualMinutes?: number;
+  /** Begründung bei Abweichung oder nicht durchgeführt */
+  reason?: string;
+  status: ActionStatus;
+  /** abgeleitet: alles ausser "open" zählt als erledigt für Statistiken */
   done: boolean;
 }
 
