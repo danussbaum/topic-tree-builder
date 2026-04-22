@@ -164,6 +164,7 @@ const Index = () => {
                           notes: "",
                           status: "open",
                           done: false,
+                          validFrom: new Date().toISOString().slice(0, 10),
                         },
                       ],
                     },
@@ -231,7 +232,7 @@ const Index = () => {
     topicId: string,
     targetId: string,
     actionId: string,
-    field: "plannedMinutes" | "actualMinutes" | "reason",
+    field: "plannedMinutes" | "actualMinutes" | "reason" | "dayPart" | "validFrom" | "validTo" | "observations",
     value: number | string | undefined,
   ) => {
     updateClientTopics((topics) =>
@@ -260,8 +261,8 @@ const Index = () => {
     targetId: string,
     actionId: string,
     payload:
-      | { status: "done_as_planned" }
-      | { status: "done_with_deviation"; actualMinutes: number; reason: string }
+      | { status: "done_as_planned"; observations?: string }
+      | { status: "done_with_deviation"; actualMinutes: number; reason: string; observations?: string }
       | { status: "not_done"; reason: string }
       | { status: "open" },
   ) => {
@@ -285,6 +286,7 @@ const Index = () => {
                             done: false,
                             actualMinutes: undefined,
                             reason: undefined,
+                            observations: undefined,
                           };
                         }
                         if (payload.status === "done_as_planned") {
@@ -294,6 +296,7 @@ const Index = () => {
                             done: true,
                             actualMinutes: a.plannedMinutes,
                             reason: undefined,
+                            observations: payload.observations,
                           };
                         }
                         if (payload.status === "done_with_deviation") {
@@ -303,6 +306,7 @@ const Index = () => {
                             done: true,
                             actualMinutes: payload.actualMinutes,
                             reason: payload.reason,
+                            observations: payload.observations,
                           };
                         }
                         return {
@@ -311,6 +315,7 @@ const Index = () => {
                           done: true,
                           actualMinutes: undefined,
                           reason: payload.reason,
+                          observations: undefined,
                         };
                       }),
                     },
