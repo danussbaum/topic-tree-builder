@@ -164,6 +164,7 @@ const Index = () => {
                           notes: "",
                           status: "open",
                           done: false,
+                          validFrom: new Date().toISOString().slice(0, 10),
                         },
                       ],
                     },
