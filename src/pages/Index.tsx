@@ -227,12 +227,12 @@ const Index = () => {
     );
   };
 
-  const updateActionField = <K extends "plannedMinutes" | "actualMinutes" | "reason">(
+  const updateActionField = (
     topicId: string,
     targetId: string,
     actionId: string,
-    field: K,
-    value: ActionNodeFieldValue<K>,
+    field: "plannedMinutes" | "actualMinutes" | "reason",
+    value: number | string | undefined,
   ) => {
     updateClientTopics((topics) =>
       topics.map((t) =>
