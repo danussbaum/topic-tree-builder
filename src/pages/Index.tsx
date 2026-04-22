@@ -21,7 +21,7 @@ import {
 import { ClientSidebar, ClientSidebarTrigger } from "@/components/assessment/ClientSidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AssessmentOutline } from "@/components/assessment/AssessmentOutline";
-import type { Client, TopicNode } from "@/types/assessment";
+import type { ActionStatus, Client, TopicNode } from "@/types/assessment";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -48,6 +48,10 @@ const seedClients: Client[] = [
                 title: "LZ-1 IND-2: Ressourcen aktivieren",
                 notes:
                   "Die Aktivierung und Förderung des Systems wurde gemeinsam reflektiert.",
+                plannedMinutes: 45,
+                actualMinutes: 60,
+                reason: "Gespräch mit Familie länger als geplant.",
+                status: "done_with_deviation",
                 done: true,
               },
               {
@@ -55,6 +59,8 @@ const seedClients: Client[] = [
                 title: "LZ-2 IND-1: Individuelle Kontaktregelung",
                 notes:
                   "Eine individuelle Kontaktregelung liegt vor und wurde kongruent umgesetzt.",
+                plannedMinutes: 30,
+                status: "open",
                 done: false,
               },
             ],
@@ -152,7 +158,13 @@ const Index = () => {
                       ...tg,
                       actions: [
                         ...tg.actions,
-                        { id: uid(), title: "", notes: "", done: false },
+                        {
+                          id: uid(),
+                          title: "",
+                          notes: "",
+                          status: "open",
+                          done: false,
+                        },
                       ],
                     },
               ),
