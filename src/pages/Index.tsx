@@ -15,13 +15,16 @@ import {
   Plus,
   Filter,
   Printer,
-  Download,
+    Download,
   Save,
+  ListTodo,
+  ClipboardCheck,
 } from "lucide-react";
 import { ClientSidebar, ClientSidebarTrigger } from "@/components/assessment/ClientSidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AssessmentOutline } from "@/components/assessment/AssessmentOutline";
 import type { ActionStatus, Client, TopicNode } from "@/types/assessment";
+import { cn } from "@/lib/utils";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -94,6 +97,10 @@ const seedClients: Client[] = [
 ];
 
 const Index = () => {
+  const [viewMode, setViewMode] = useState<"planning" | "confirmation">("planning");
+  const [selectedDate, setSelectedDate] = useState<string>(
+    new Date().toISOString().slice(0, 10),
+  );
   const [clients, setClients] = useState<Client[]>(seedClients);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(
     seedClients[0].id,
@@ -259,12 +266,13 @@ const Index = () => {
   const confirmAction = (
     topicId: string,
     targetId: string,
-    actionId: string,
+        actionId: string,
     payload:
       | { status: "done_as_planned"; observations?: string }
       | { status: "done_with_deviation"; actualMinutes: number; reason: string; observations?: string }
       | { status: "not_done"; reason: string }
       | { status: "open" },
+    date?: string,
   ) => {
     updateClientTopics((topics) =>
       topics.map((t) =>
@@ -279,43 +287,40 @@ const Index = () => {
                       ...tg,
                       actions: tg.actions.map((a) => {
                         if (a.id !== actionId) return a;
+                        
+                        // If no date provided, we might still want to support the old global status or just ignore
+                        if (!date) return a;
+
+                        const nextConfirmations = { ...(a.confirmations || {}) };
+
                         if (payload.status === "open") {
-                          return {
-                            ...a,
-                            status: "open",
-                            done: false,
-                            actualMinutes: undefined,
-                            reason: undefined,
-                            observations: undefined,
-                          };
-                        }
-                        if (payload.status === "done_as_planned") {
-                          return {
-                            ...a,
+                          delete nextConfirmations[date];
+                        } else if (payload.status === "done_as_planned") {
+                          nextConfirmations[date] = {
                             status: "done_as_planned",
                             done: true,
                             actualMinutes: a.plannedMinutes,
-                            reason: undefined,
                             observations: payload.observations,
                           };
-                        }
-                        if (payload.status === "done_with_deviation") {
-                          return {
-                            ...a,
+                        } else if (payload.status === "done_with_deviation") {
+                          nextConfirmations[date] = {
                             status: "done_with_deviation",
                             done: true,
                             actualMinutes: payload.actualMinutes,
                             reason: payload.reason,
                             observations: payload.observations,
                           };
+                        } else if (payload.status === "not_done") {
+                          nextConfirmations[date] = {
+                            status: "not_done",
+                            done: true,
+                            reason: payload.reason,
+                          };
                         }
+
                         return {
                           ...a,
-                          status: "not_done",
-                          done: true,
-                          actualMinutes: undefined,
-                          reason: payload.reason,
-                          observations: undefined,
+                          confirmations: nextConfirmations,
                         };
                       }),
                     },
@@ -436,6 +441,33 @@ const Index = () => {
             </div>
             <RibbonButton icon={Plus} label="Neues Thema" onClick={addTopic} />
             <RibbonDivider />
+            <div className="flex items-center gap-1 bg-background/50 p-1 rounded-md border border-border">
+              <button
+                onClick={() => setViewMode("planning")}
+                className={cn(
+                  "flex items-center gap-2 px-3 py-1.5 rounded text-xs font-medium transition-colors",
+                  viewMode === "planning"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                )}
+              >
+                <ListTodo className="h-4 w-4" />
+                Planung
+              </button>
+              <button
+                onClick={() => setViewMode("confirmation")}
+                className={cn(
+                  "flex items-center gap-2 px-3 py-1.5 rounded text-xs font-medium transition-colors",
+                  viewMode === "confirmation"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                )}
+              >
+                <ClipboardCheck className="h-4 w-4" />
+                Bestätigung
+              </button>
+            </div>
+            <RibbonDivider />
             <RibbonButton icon={Filter} label="Filter" />
             <RibbonButton icon={Save} label="Speichern" />
             <RibbonDivider />
@@ -485,7 +517,10 @@ const Index = () => {
                   )}
                 </div>
 
-                <AssessmentOutline
+                                <AssessmentOutline
+                  viewMode={viewMode}
+                  selectedDate={selectedDate}
+                  onSelectedDateChange={setSelectedDate}
                   topics={client.topics}
                   onUpdateTopic={updateTopic}
                   onUpdateTarget={updateTarget}

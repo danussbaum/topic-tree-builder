@@ -15,6 +15,8 @@ import {
   Sunset,
   Moon,
   CalendarIcon,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import {
   Dialog,
@@ -62,6 +64,9 @@ type ActionField =
   | "observations";
 
 interface Props {
+  viewMode: "planning" | "confirmation";
+  selectedDate: string;
+  onSelectedDateChange: (date: string) => void;
   topics: TopicNode[];
   onUpdateTopic: (topicId: string, field: "title" | "notes", value: string) => void;
   onUpdateTarget: (
@@ -84,11 +89,12 @@ interface Props {
     field: ActionField,
     value: number | string | undefined,
   ) => void;
-  onConfirmAction: (
+    onConfirmAction: (
     topicId: string,
     targetId: string,
     actionId: string,
     payload: ConfirmPayload,
+    date?: string,
   ) => void;
   onAddTarget: (topicId: string) => void;
   onAddAction: (topicId: string, targetId: string) => void;
@@ -124,6 +130,9 @@ function groupActions(actions: ActionNode[]) {
 }
 
 export function AssessmentOutline({
+  viewMode,
+  selectedDate,
+  onSelectedDateChange,
   topics,
   onUpdateTopic,
   onUpdateTarget,
@@ -138,6 +147,165 @@ export function AssessmentOutline({
   onDeleteAction,
 }: Props) {
   const [dialogTarget, setDialogTarget] = useState<DialogTarget | null>(null);
+
+  if (viewMode === "confirmation") {
+    const flatActions: Array<{
+      topic: TopicNode;
+      target: { id: string; title: string; notes: string };
+      action: ActionNode;
+    }> = [];
+
+    const selDate = new Date(selectedDate);
+
+    topics.forEach((topic) => {
+      topic.targets.forEach((target) => {
+        target.actions.forEach((action) => {
+          // Date Filtering
+          if (action.validFrom && new Date(action.validFrom) > selDate) return;
+          if (action.validTo && new Date(action.validTo) < selDate) return;
+          
+          flatActions.push({ topic, target, action });
+        });
+      });
+    });
+
+    const shiftDate = (days: number) => {
+      const d = new Date(selectedDate);
+      d.setDate(d.getDate() + days);
+      onSelectedDateChange(d.toISOString().slice(0, 10));
+    };
+
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between mb-6 bg-secondary/30 p-4 rounded-lg border border-border">
+          <div className="flex items-center gap-4">
+            <h2 className="text-xl font-semibold">Tagesbestätigung</h2>
+            <div className="flex items-center gap-1 bg-background border border-border rounded-md p-1">
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => shiftDate(-1)}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <DateField
+                label="Datum"
+                value={selectedDate}
+                onChange={(v) => v && onSelectedDateChange(v)}
+                required
+              />
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => shiftDate(1)}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+          <div className="text-sm text-muted-foreground bg-background px-3 py-1 rounded-full border border-border">
+            {flatActions.length} Massnahmen geplant
+          </div>
+        </div>
+
+        <div className="grid gap-3">
+          {flatActions.map(({ topic, target, action }) => {
+            const conf = action.confirmations?.[selectedDate];
+            const status = conf?.status || "open";
+            
+            return (
+              <button
+                key={action.id}
+                onClick={() =>
+                  setDialogTarget({
+                    topicId: topic.id,
+                    targetId: target.id,
+                    action: {
+                      ...action,
+                      status,
+                      actualMinutes: conf?.actualMinutes,
+                      reason: conf?.reason,
+                      observations: conf?.observations,
+                    },
+                  })
+                }
+                className={cn(
+                  "flex items-start gap-4 p-4 rounded-lg border transition-all text-left",
+                  status !== "open" 
+                    ? "bg-primary/5 border-primary/20 shadow-sm" 
+                    : "bg-card border-border hover:bg-secondary/40"
+                )}
+              >
+                <div className="mt-1">
+                  <StatusIcon status={status} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className={cn(
+                    "font-medium mb-1",
+                    status !== "open" && "text-foreground/70"
+                  )}>{action.title}</div>
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    <span className="font-medium text-primary/70">{topic.title}</span>
+                    <span className="text-border">|</span>
+                    <span>{target.title}</span>
+                  </div>
+                  
+                  <div className="flex flex-wrap items-center gap-3 mt-2 text-[11px] text-muted-foreground/80">
+                    {action.dayPart && (
+                      <div className="flex items-center gap-1">
+                        {(() => {
+                          const Icon = DAY_PART_ICONS[action.dayPart];
+                          return <Icon className="h-3 w-3" />;
+                        })()}
+                        {DAY_PART_LABEL[action.dayPart]}
+                      </div>
+                    )}
+                    {action.plannedMinutes && (
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {action.plannedMinutes} Min geplant
+                      </div>
+                    )}
+                    {status === "done_with_deviation" && conf?.actualMinutes != null && (
+                      <div className="flex items-center gap-1 text-accent font-medium">
+                        <Clock className="h-3 w-3" />
+                        {conf.actualMinutes} Min tatsächlich
+                      </div>
+                    )}
+                  </div>
+
+                  {(conf?.reason || conf?.observations) && (
+                    <div className="mt-2 space-y-1">
+                      {conf.reason && (
+                        <div className="text-xs italic text-destructive/80 line-clamp-2">
+                          <span className="not-italic font-semibold mr-1">Grund:</span>
+                          {conf.reason}
+                        </div>
+                      )}
+                      {conf.observations && (
+                        <div className="text-xs text-foreground/70 line-clamp-2 border-l-2 border-primary/20 pl-2">
+                          <span className="font-semibold mr-1">Beobachtung:</span>
+                          {conf.observations}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        <ConfirmActionDialog
+          target={dialogTarget}
+          onClose={() => setDialogTarget(null)}
+          onConfirm={(payload) => {
+            if (!dialogTarget) return;
+            onConfirmAction(
+              dialogTarget.topicId,
+              dialogTarget.targetId,
+              dialogTarget.action.id,
+              payload,
+              selectedDate
+            );
+            setDialogTarget(null);
+          }}
+        />
+      </div>
+    );
+  }
 
   if (topics.length === 0) {
     return (
@@ -237,8 +405,9 @@ export function AssessmentOutline({
                           <DayPartHeader part={group.key} />
                           <ul className="mt-1 space-y-1">
                             {group.actions.map((action) => (
-                              <ActionRow
+                                                            <ActionRow
                                 key={action.id}
+                                viewMode={viewMode}
                                 topicId={topic.id}
                                 targetId={target.id}
                                 action={action}
@@ -331,6 +500,7 @@ function DayPartHeader({ part }: { part: DayPart | "none" }) {
 }
 
 function ActionRow({
+  viewMode,
   topicId,
   targetId,
   action,
@@ -339,6 +509,7 @@ function ActionRow({
   onDeleteAction,
   onOpenDialog,
 }: {
+  viewMode: "planning" | "confirmation";
   topicId: string;
   targetId: string;
   action: ActionNode;
@@ -347,13 +518,16 @@ function ActionRow({
   onDeleteAction: Props["onDeleteAction"];
   onOpenDialog: () => void;
 }) {
-  return (
+    return (
     <li className="group/action flex items-start gap-3 py-2 px-2 -mx-2 rounded hover:bg-secondary/40">
       <button
-        onClick={onOpenDialog}
-        className="mt-0.5"
-        aria-label="Status ändern"
-        title="Status ändern"
+        onClick={viewMode === "planning" ? undefined : onOpenDialog}
+        className={cn(
+          "mt-0.5",
+          viewMode === "planning" ? "cursor-default" : "cursor-pointer"
+        )}
+        aria-label={viewMode === "planning" ? undefined : "Status ändern"}
+        title={viewMode === "planning" ? undefined : "Status ändern"}
       >
         <StatusIcon status={action.status} />
       </button>

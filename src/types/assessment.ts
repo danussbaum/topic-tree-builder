@@ -6,27 +6,35 @@ export type ActionStatus =
 
 export type DayPart = "morning" | "noon" | "evening" | "night";
 
+export interface ActionConfirmation {
+  status: ActionStatus;
+  actualMinutes?: number;
+  reason?: string;
+  observations?: string;
+  done: boolean;
+}
+
 export interface ActionNode {
   id: string;
   title: string;
   notes: string;
   /** Geplante Zeit in Minuten */
   plannedMinutes?: number;
-  /** Tatsächliche Zeit in Minuten (bei Abweichung) */
-  actualMinutes?: number;
-  /** Begründung bei Abweichung oder nicht durchgeführt */
-  reason?: string;
-  /** Optionale Beobachtungen bei Durchführung */
-  observations?: string;
   /** Tageszeit zur Gruppierung */
   dayPart?: DayPart;
   /** Gültig ab (ISO Datum, zwingend bei erfasster Massnahme) */
   validFrom?: string;
   /** Gültig bis (ISO Datum, optional) */
   validTo?: string;
+  /** History of confirmations by date (ISO yyyy-MM-dd) */
+  confirmations?: Record<string, ActionConfirmation>;
+  /** Default status/done if no confirmation for date exists */
   status: ActionStatus;
-  /** abgeleitet: alles ausser "open" zählt als erledigt für Statistiken */
   done: boolean;
+  // Deprecated fields moved to ActionConfirmation
+  actualMinutes?: number;
+  reason?: string;
+  observations?: string;
 }
 
 export interface TargetNode {
