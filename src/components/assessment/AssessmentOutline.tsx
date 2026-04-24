@@ -248,7 +248,13 @@ export function AssessmentOutline({
                     <span className="text-border">|</span>
                     <span>{target.title}</span>
                   </div>
-                  
+
+                  {action.description && (
+                    <div className="mt-2 text-xs text-foreground/80 whitespace-pre-wrap">
+                      {action.description}
+                    </div>
+                  )}
+
                   <div className="flex flex-wrap items-center gap-3 mt-2 text-[11px] text-muted-foreground/80">
                     {action.dayPart && (
                       <div className="flex items-center gap-1">
@@ -265,6 +271,12 @@ export function AssessmentOutline({
                         {action.plannedMinutes} Min geplant
                       </div>
                     )}
+                    {action.requiredPersons != null && action.requiredPersons > 0 && (
+                      <div className="flex items-center gap-1">
+                        <Users className="h-3 w-3" />
+                        {action.requiredPersons} {action.requiredPersons === 1 ? "Person" : "Personen"}
+                      </div>
+                    )}
                     {status === "done_with_deviation" && conf?.actualMinutes != null && (
                       <div className="flex items-center gap-1 text-accent font-medium">
                         <Clock className="h-3 w-3" />
@@ -273,12 +285,18 @@ export function AssessmentOutline({
                     )}
                   </div>
 
-                  {(conf?.reason || conf?.observations) && (
+                  {(conf?.reason || conf?.observations || conf?.results) && (
                     <div className="mt-2 space-y-1">
                       {conf.reason && (
                         <div className="text-xs italic text-destructive/80 line-clamp-2">
                           <span className="not-italic font-semibold mr-1">Grund:</span>
                           {conf.reason}
+                        </div>
+                      )}
+                      {conf.results && (
+                        <div className="text-xs text-foreground/80 line-clamp-2 border-l-2 border-accent/40 pl-2">
+                          <span className="font-semibold mr-1">Resultat:</span>
+                          {conf.results}
                         </div>
                       )}
                       {conf.observations && (
