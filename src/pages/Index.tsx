@@ -401,8 +401,8 @@ const Index = () => {
       <div className="min-h-dvh bg-background flex w-full">
         <ClientSidebar
           clients={clients}
-          selectedClientId={selectedClientId}
-          onSelectClient={setSelectedClientId}
+          selectedClientIds={selectedClientIds}
+          onToggleClient={toggleClient}
           onAddClient={addClient}
         />
 
@@ -452,7 +452,13 @@ const Index = () => {
             <div className="flex items-center gap-1 pr-2 border-r border-border mr-1">
               <ClientSidebarTrigger />
             </div>
-            <RibbonButton icon={Plus} label="Neues Thema" onClick={addTopic} />
+            <RibbonButton
+              icon={Plus}
+              label="Neues Thema"
+              onClick={() => {
+                if (selectedClients[0]) addTopic(selectedClients[0].id);
+              }}
+            />
             <RibbonDivider />
             <div className="flex items-center gap-1 bg-background/50 p-1 rounded-md border border-border">
               <button
@@ -490,63 +496,105 @@ const Index = () => {
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto bg-background">
-            {!client ? (
+            {selectedClients.length === 0 ? (
               <div className="p-12 text-center text-muted-foreground">
-                <p className="text-lg">Wählen Sie eine Klient/in in der Navigation.</p>
+                <p className="text-lg">Wählen Sie eine oder mehrere Klient/innen in der Navigation.</p>
               </div>
             ) : (
-              <div className="px-6 lg:px-10 py-6 max-w-4xl mx-auto">
-                {/* Client header */}
-                <div className="flex items-center gap-4 pb-5 mb-8 border-b border-border">
-                  <div className="h-14 w-14 rounded-full bg-primary/10 text-primary flex items-center justify-center text-lg font-semibold">
-                    {(client.firstName[0] ?? "") + (client.lastName[0] ?? "")}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs uppercase tracking-wide font-semibold text-accent mb-0.5">
-                      Klient/in
-                    </div>
-                    <div className="flex items-baseline gap-2">
-                      <input
-                        value={client.firstName}
-                        onChange={(e) => updateClientName("firstName", e.target.value)}
-                        className="text-2xl font-semibold bg-transparent border-0 outline-none focus:ring-0 px-0 w-auto min-w-[80px]"
-                      />
-                      <input
-                        value={client.lastName}
-                        onChange={(e) => updateClientName("lastName", e.target.value)}
-                        className="text-2xl font-semibold bg-transparent border-0 outline-none focus:ring-0 px-0 w-auto min-w-[80px]"
-                      />
-                    </div>
-                  </div>
-                  {stats.total > 0 && (
-                    <div className="text-right">
-                      <div className="text-xs uppercase tracking-wide text-muted-foreground font-semibold">
-                        Massnahmen
-                      </div>
-                      <div className="text-lg font-semibold text-foreground">
-                        {stats.done}<span className="text-muted-foreground">/{stats.total}</span>
+              <div className="px-6 lg:px-10 py-6 max-w-4xl mx-auto space-y-10">
+                {viewMode === "confirmation" && (
+                  <div className="flex items-center justify-between bg-secondary/30 p-4 rounded-lg border border-border sticky top-0 z-10">
+                    <div className="flex items-center gap-4">
+                      <h2 className="text-xl font-semibold">Tagesbestätigung</h2>
+                      <div className="flex items-center gap-1 bg-background border border-border rounded-md p-1">
+                        <button
+                          className="h-8 w-8 inline-flex items-center justify-center rounded hover:bg-secondary"
+                          onClick={() => shiftDate(-1)}
+                          aria-label="Vorheriger Tag"
+                        >
+                          ‹
+                        </button>
+                        <input
+                          type="date"
+                          value={selectedDate}
+                          onChange={(e) => setSelectedDate(e.target.value)}
+                          className="bg-transparent text-sm px-2 py-1 outline-none"
+                        />
+                        <button
+                          className="h-8 w-8 inline-flex items-center justify-center rounded hover:bg-secondary"
+                          onClick={() => shiftDate(1)}
+                          aria-label="Nächster Tag"
+                        >
+                          ›
+                        </button>
                       </div>
                     </div>
-                  )}
-                </div>
+                    <div className="text-sm text-muted-foreground">
+                      {selectedClients.length} Klient/in{selectedClients.length === 1 ? "" : "nen"}
+                    </div>
+                  </div>
+                )}
 
-                                <AssessmentOutline
-                  viewMode={viewMode}
-                  selectedDate={selectedDate}
-                  onSelectedDateChange={setSelectedDate}
-                  topics={client.topics}
-                  onUpdateTopic={updateTopic}
-                  onUpdateTarget={updateTarget}
-                  onUpdateAction={updateAction}
-                  onUpdateActionField={updateActionField}
-                  onConfirmAction={confirmAction}
-                  onAddTopic={addTopic}
-                  onAddTarget={addTarget}
-                  onAddAction={addAction}
-                  onDeleteTopic={deleteTopic}
-                  onDeleteTarget={deleteTarget}
-                  onDeleteAction={deleteAction}
-                />
+                {selectedClients.map((client) => (
+                  <section key={client.id} className="space-y-6">
+                    {/* Client header */}
+                    <div className="flex items-center gap-4 pb-5 border-b border-border">
+                      <div className="h-14 w-14 rounded-full bg-primary/10 text-primary flex items-center justify-center text-lg font-semibold">
+                        {(client.firstName[0] ?? "") + (client.lastName[0] ?? "")}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs uppercase tracking-wide font-semibold text-accent mb-0.5">
+                          Klient/in
+                        </div>
+                        <div className="flex items-baseline gap-2">
+                          <input
+                            value={client.firstName}
+                            onChange={(e) => updateClientName(client.id, "firstName", e.target.value)}
+                            className="text-2xl font-semibold bg-transparent border-0 outline-none focus:ring-0 px-0 w-auto min-w-[80px]"
+                          />
+                          <input
+                            value={client.lastName}
+                            onChange={(e) => updateClientName(client.id, "lastName", e.target.value)}
+                            className="text-2xl font-semibold bg-transparent border-0 outline-none focus:ring-0 px-0 w-auto min-w-[80px]"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <AssessmentOutline
+                      viewMode={viewMode}
+                      selectedDate={selectedDate}
+                      onSelectedDateChange={setSelectedDate}
+                      topics={client.topics}
+                      hideConfirmationHeader
+                      onUpdateTopic={(topicId, field, value) =>
+                        updateTopic(client.id, topicId, field, value)
+                      }
+                      onUpdateTarget={(topicId, targetId, field, value) =>
+                        updateTarget(client.id, topicId, targetId, field, value)
+                      }
+                      onUpdateAction={(topicId, targetId, actionId, field, value) =>
+                        updateAction(client.id, topicId, targetId, actionId, field, value)
+                      }
+                      onUpdateActionField={(topicId, targetId, actionId, field, value) =>
+                        updateActionField(client.id, topicId, targetId, actionId, field, value)
+                      }
+                      onConfirmAction={(topicId, targetId, actionId, payload, date) =>
+                        confirmAction(client.id, topicId, targetId, actionId, payload, date)
+                      }
+                      onAddTopic={() => addTopic(client.id)}
+                      onAddTarget={(topicId) => addTarget(client.id, topicId)}
+                      onAddAction={(topicId, targetId) => addAction(client.id, topicId, targetId)}
+                      onDeleteTopic={(topicId) => deleteTopic(client.id, topicId)}
+                      onDeleteTarget={(topicId, targetId) =>
+                        deleteTarget(client.id, topicId, targetId)
+                      }
+                      onDeleteAction={(topicId, targetId, actionId) =>
+                        deleteAction(client.id, topicId, targetId, actionId)
+                      }
+                    />
+                  </section>
+                ))}
               </div>
             )}
           </div>
