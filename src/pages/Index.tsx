@@ -102,18 +102,24 @@ const Index = () => {
     new Date().toISOString().slice(0, 10),
   );
   const [clients, setClients] = useState<Client[]>(seedClients);
-  const [selectedClientId, setSelectedClientId] = useState<string | null>(
+  const [selectedClientIds, setSelectedClientIds] = useState<string[]>([
     seedClients[0].id,
-  );
+  ]);
 
-  const client = clients.find((c) => c.id === selectedClientId) ?? null;
+  const selectedClients = clients.filter((c) => selectedClientIds.includes(c.id));
 
-  const updateClientTopics = (fn: (topics: TopicNode[]) => TopicNode[]) => {
-    if (!selectedClientId) return;
+  const toggleClient = (id: string) => {
+    setSelectedClientIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  };
+
+  const updateClientTopicsFor = (
+    clientId: string,
+    fn: (topics: TopicNode[]) => TopicNode[],
+  ) => {
     setClients((prev) =>
-      prev.map((c) =>
-        c.id === selectedClientId ? { ...c, topics: fn(c.topics) } : c,
-      ),
+      prev.map((c) => (c.id === clientId ? { ...c, topics: fn(c.topics) } : c)),
     );
   };
 
@@ -125,18 +131,18 @@ const Index = () => {
       topics: [],
     };
     setClients((prev) => [...prev, c]);
-    setSelectedClientId(c.id);
+    setSelectedClientIds((prev) => [...prev, c.id]);
   };
 
-  const addTopic = () => {
-    updateClientTopics((topics) => [
+  const addTopic = (clientId: string) => {
+    updateClientTopicsFor(clientId, (topics) => [
       ...topics,
       { id: uid(), title: "", notes: "", targets: [] },
     ]);
   };
 
-  const addTarget = (topicId: string) => {
-    updateClientTopics((topics) =>
+  const addTarget = (clientId: string, topicId: string) => {
+    updateClientTopicsFor(clientId, (topics) =>
       topics.map((t) =>
         t.id === topicId
           ? {
@@ -151,8 +157,8 @@ const Index = () => {
     );
   };
 
-  const addAction = (topicId: string, targetId: string) => {
-    updateClientTopics((topics) =>
+  const addAction = (clientId: string, topicId: string, targetId: string) => {
+    updateClientTopicsFor(clientId, (topics) =>
       topics.map((t) =>
         t.id !== topicId
           ? t
@@ -181,19 +187,25 @@ const Index = () => {
     );
   };
 
-  const updateTopic = (topicId: string, field: "title" | "notes", value: string) => {
-    updateClientTopics((topics) =>
+  const updateTopic = (
+    clientId: string,
+    topicId: string,
+    field: "title" | "notes",
+    value: string,
+  ) => {
+    updateClientTopicsFor(clientId, (topics) =>
       topics.map((t) => (t.id === topicId ? { ...t, [field]: value } : t)),
     );
   };
 
   const updateTarget = (
+    clientId: string,
     topicId: string,
     targetId: string,
     field: "title" | "notes",
     value: string,
   ) => {
-    updateClientTopics((topics) =>
+    updateClientTopicsFor(clientId, (topics) =>
       topics.map((t) =>
         t.id !== topicId
           ? t
@@ -208,13 +220,14 @@ const Index = () => {
   };
 
   const updateAction = (
+    clientId: string,
     topicId: string,
     targetId: string,
     actionId: string,
     field: "title" | "notes",
     value: string,
   ) => {
-    updateClientTopics((topics) =>
+    updateClientTopicsFor(clientId, (topics) =>
       topics.map((t) =>
         t.id !== topicId
           ? t
@@ -236,13 +249,21 @@ const Index = () => {
   };
 
   const updateActionField = (
+    clientId: string,
     topicId: string,
     targetId: string,
     actionId: string,
-    field: "plannedMinutes" | "actualMinutes" | "reason" | "dayPart" | "validFrom" | "validTo" | "observations",
+    field:
+      | "plannedMinutes"
+      | "actualMinutes"
+      | "reason"
+      | "dayPart"
+      | "validFrom"
+      | "validTo"
+      | "observations",
     value: number | string | undefined,
   ) => {
-    updateClientTopics((topics) =>
+    updateClientTopicsFor(clientId, (topics) =>
       topics.map((t) =>
         t.id !== topicId
           ? t
@@ -264,9 +285,10 @@ const Index = () => {
   };
 
   const confirmAction = (
+    clientId: string,
     topicId: string,
     targetId: string,
-        actionId: string,
+    actionId: string,
     payload:
       | { status: "done_as_planned"; observations?: string }
       | { status: "done_with_deviation"; actualMinutes: number; reason: string; observations?: string }
@@ -274,7 +296,7 @@ const Index = () => {
       | { status: "open" },
     date?: string,
   ) => {
-    updateClientTopics((topics) =>
+    updateClientTopicsFor(clientId, (topics) =>
       topics.map((t) =>
         t.id !== topicId
           ? t
@@ -287,8 +309,6 @@ const Index = () => {
                       ...tg,
                       actions: tg.actions.map((a) => {
                         if (a.id !== actionId) return a;
-                        
-                        // If no date provided, we might still want to support the old global status or just ignore
                         if (!date) return a;
 
                         const nextConfirmations = { ...(a.confirmations || {}) };
@@ -318,10 +338,7 @@ const Index = () => {
                           };
                         }
 
-                        return {
-                          ...a,
-                          confirmations: nextConfirmations,
-                        };
+                        return { ...a, confirmations: nextConfirmations };
                       }),
                     },
               ),
@@ -330,11 +347,11 @@ const Index = () => {
     );
   };
 
-  const deleteTopic = (topicId: string) =>
-    updateClientTopics((topics) => topics.filter((t) => t.id !== topicId));
+  const deleteTopic = (clientId: string, topicId: string) =>
+    updateClientTopicsFor(clientId, (topics) => topics.filter((t) => t.id !== topicId));
 
-  const deleteTarget = (topicId: string, targetId: string) =>
-    updateClientTopics((topics) =>
+  const deleteTarget = (clientId: string, topicId: string, targetId: string) =>
+    updateClientTopicsFor(clientId, (topics) =>
       topics.map((t) =>
         t.id !== topicId
           ? t
@@ -342,8 +359,13 @@ const Index = () => {
       ),
     );
 
-  const deleteAction = (topicId: string, targetId: string, actionId: string) =>
-    updateClientTopics((topics) =>
+  const deleteAction = (
+    clientId: string,
+    topicId: string,
+    targetId: string,
+    actionId: string,
+  ) =>
+    updateClientTopicsFor(clientId, (topics) =>
       topics.map((t) =>
         t.id !== topicId
           ? t
@@ -358,30 +380,21 @@ const Index = () => {
       ),
     );
 
-  const updateClientName = (field: "firstName" | "lastName", value: string) => {
-    if (!selectedClientId) return;
+  const updateClientName = (
+    clientId: string,
+    field: "firstName" | "lastName",
+    value: string,
+  ) => {
     setClients((prev) =>
-      prev.map((c) =>
-        c.id === selectedClientId ? { ...c, [field]: value } : c,
-      ),
+      prev.map((c) => (c.id === clientId ? { ...c, [field]: value } : c)),
     );
   };
 
-  // Stats: total / done actions
-  const stats = (() => {
-    if (!client) return { total: 0, done: 0 };
-    let total = 0,
-      done = 0;
-    client.topics.forEach((t) =>
-      t.targets.forEach((tg) =>
-        tg.actions.forEach((a) => {
-          total++;
-          if (a.done) done++;
-        }),
-      ),
-    );
-    return { total, done };
-  })();
+  const shiftDate = (days: number) => {
+    const d = new Date(selectedDate);
+    d.setDate(d.getDate() + days);
+    setSelectedDate(d.toISOString().slice(0, 10));
+  };
 
   return (
     <SidebarProvider>
