@@ -199,7 +199,7 @@ export function AssessmentOutline({
               </div>
             </div>
             <div className="text-sm text-muted-foreground bg-background px-3 py-1 rounded-full border border-border">
-              {flatActions.length} Massnahmen geplant
+              {flatActions.length} Handlungen geplant
             </div>
           </div>
         )}
@@ -437,7 +437,7 @@ export function AssessmentOutline({
                       className="mt-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
                     >
                       <Plus className="h-3.5 w-3.5" />
-                      Massnahme hinzufügen
+                      Handlung hinzufügen
                     </button>
                   </div>
                 </div>
@@ -541,7 +541,7 @@ function ActionRow({
           onChange={(e) =>
             onUpdateAction(topicId, targetId, action.id, "title", e.target.value)
           }
-          placeholder="Massnahme…"
+          placeholder="Handlung…"
           className={cn(
             "w-full text-sm bg-transparent border-0 outline-none focus:ring-0 px-0 placeholder:text-muted-foreground/40",
             action.status === "done_as_planned" &&
@@ -656,7 +656,7 @@ function ActionRow({
       <button
         onClick={() => onDeleteAction(topicId, targetId, action.id)}
         className="opacity-0 group-hover/action:opacity-100 p-1 hover:bg-destructive/10 hover:text-destructive rounded transition-opacity self-start mt-0.5"
-        aria-label="Massnahme löschen"
+        aria-label="Handlung löschen"
       >
         <Trash2 className="h-3.5 w-3.5" />
       </button>
@@ -826,9 +826,9 @@ function ConfirmActionDialog({
     <Dialog open={open} onOpenChange={(v) => (!v ? handleClose() : null)}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Massnahme bestätigen</DialogTitle>
+          <DialogTitle>Handlung bestätigen</DialogTitle>
           <DialogDescription className="line-clamp-2">
-            {target?.action.title || "Massnahme"}
+            {target?.action.title || "Handlung"}
             {planned != null && (
               <span className="ml-2 text-xs">· geplant {planned} Min</span>
             )}
@@ -844,7 +844,7 @@ function ConfirmActionDialog({
             description={
               planned != null
                 ? `Tatsächliche Zeit = geplante ${planned} Min`
-                : "Massnahme wie vorgesehen durchgeführt"
+                : "Handlung wie vorgesehen durchgeführt"
             }
           />
           <ChoiceRow
@@ -898,7 +898,7 @@ function ConfirmActionDialog({
               rows={3}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="Warum wurde die Massnahme nicht durchgeführt?"
+              placeholder="Warum wurde die Handlung nicht durchgeführt?"
             />
           </div>
         )}
