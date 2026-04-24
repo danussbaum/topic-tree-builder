@@ -411,7 +411,7 @@ const Index = () => {
           <div className="flex items-center bg-topbar text-topbar-foreground border-b border-border h-12 pr-2">
             <nav className="flex items-stretch h-full overflow-x-auto">
               {[
-                { label: "Massnahmenplan", icon: Workflow, active: true },
+                { label: "Handlungsplan", icon: Workflow, active: true },
                 { label: "Journal", icon: BookOpen },
                 { label: "Aufgaben", icon: CheckSquare },
                 { label: "Termine", icon: Calendar },
