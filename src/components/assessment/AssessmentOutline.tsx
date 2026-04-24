@@ -934,7 +934,18 @@ function ConfirmActionDialog({
             {planned != null && (
               <span className="ml-2 text-xs">· geplant {planned} Min</span>
             )}
+            {target?.action.requiredPersons != null && target.action.requiredPersons > 0 && (
+              <span className="ml-2 text-xs">
+                · {target.action.requiredPersons}{" "}
+                {target.action.requiredPersons === 1 ? "Person" : "Personen"} benötigt
+              </span>
+            )}
           </DialogDescription>
+          {target?.action.description && (
+            <div className="text-xs text-foreground/80 whitespace-pre-wrap pt-1 border-t border-border mt-2">
+              {target.action.description}
+            </div>
+          )}
         </DialogHeader>
 
         <div className="space-y-2">
@@ -1023,6 +1034,24 @@ function ConfirmActionDialog({
           </div>
         )}
 
+        {showResults && (
+          <div className="space-y-1.5 pt-2 border-t border-border">
+            <Label htmlFor="results">
+              Resultate{" "}
+              <span className="text-xs font-normal text-muted-foreground">
+                ({resultsRequired ? "zwingend" : "optional"})
+              </span>
+            </Label>
+            <Textarea
+              id="results"
+              rows={3}
+              value={results}
+              onChange={(e) => setResults(e.target.value)}
+              placeholder="Ergebnisse der Handlung…"
+            />
+          </div>
+        )}
+
         <DialogFooter className="gap-2 sm:justify-between">
           {target?.action.status !== "open" ? (
             <Button
@@ -1052,7 +1081,8 @@ function ConfirmActionDialog({
                 !mode ||
                 (mode === "done_with_deviation" &&
                   (actualMinutes === "" || !reason.trim())) ||
-                (mode === "not_done" && !reason.trim())
+                (mode === "not_done" && !reason.trim()) ||
+                (resultsRequired && !results.trim())
               }
             >
               Bestätigen
