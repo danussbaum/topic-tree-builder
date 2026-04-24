@@ -68,6 +68,7 @@ interface Props {
   selectedDate: string;
   onSelectedDateChange: (date: string) => void;
   topics: TopicNode[];
+  hideConfirmationHeader?: boolean;
   onUpdateTopic: (topicId: string, field: "title" | "notes", value: string) => void;
   onUpdateTarget: (
     topicId: string,
@@ -134,6 +135,7 @@ export function AssessmentOutline({
   selectedDate,
   onSelectedDateChange,
   topics,
+  hideConfirmationHeader,
   onUpdateTopic,
   onUpdateTarget,
   onUpdateAction,
@@ -177,28 +179,30 @@ export function AssessmentOutline({
 
     return (
       <div className="space-y-4">
-        <div className="flex items-center justify-between mb-6 bg-secondary/30 p-4 rounded-lg border border-border">
-          <div className="flex items-center gap-4">
-            <h2 className="text-xl font-semibold">Tagesbestätigung</h2>
-            <div className="flex items-center gap-1 bg-background border border-border rounded-md p-1">
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => shiftDate(-1)}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <DateField
-                label="Datum"
-                value={selectedDate}
-                onChange={(v) => v && onSelectedDateChange(v)}
-                required
-              />
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => shiftDate(1)}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+        {!hideConfirmationHeader && (
+          <div className="flex items-center justify-between mb-6 bg-secondary/30 p-4 rounded-lg border border-border">
+            <div className="flex items-center gap-4">
+              <h2 className="text-xl font-semibold">Tagesbestätigung</h2>
+              <div className="flex items-center gap-1 bg-background border border-border rounded-md p-1">
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => shiftDate(-1)}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <DateField
+                  label="Datum"
+                  value={selectedDate}
+                  onChange={(v) => v && onSelectedDateChange(v)}
+                  required
+                />
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => shiftDate(1)}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <div className="text-sm text-muted-foreground bg-background px-3 py-1 rounded-full border border-border">
+              {flatActions.length} Massnahmen geplant
             </div>
           </div>
-          <div className="text-sm text-muted-foreground bg-background px-3 py-1 rounded-full border border-border">
-            {flatActions.length} Massnahmen geplant
-          </div>
-        </div>
+        )}
 
         <div className="grid gap-3">
           {flatActions.map(({ topic, target, action }) => {
