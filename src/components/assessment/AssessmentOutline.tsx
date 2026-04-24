@@ -320,7 +320,7 @@ export function AssessmentOutline({
           className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-sm text-sm font-medium hover:bg-primary/90"
         >
           <Plus className="h-4 w-4" />
-          Erstes Thema hinzufügen
+          Ersten Schwerpunkt hinzufügen
         </button>
       </div>
     );
@@ -337,19 +337,19 @@ export function AssessmentOutline({
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-[10px] uppercase tracking-widest font-semibold text-accent mb-1">
-                Thema
+                Schwerpunkt
               </div>
               <input
                 value={topic.title}
                 onChange={(e) => onUpdateTopic(topic.id, "title", e.target.value)}
-                placeholder="Themenbezeichnung…"
+                placeholder="Bezeichnung des Schwerpunkts…"
                 className="w-full text-2xl font-semibold bg-transparent border-0 outline-none focus:ring-0 px-0 placeholder:text-muted-foreground/40"
               />
             </div>
             <button
               onClick={() => onDeleteTopic(topic.id)}
               className="opacity-0 group-hover/topic:opacity-100 p-1.5 hover:bg-destructive/10 hover:text-destructive rounded transition-opacity"
-              aria-label="Thema löschen"
+              aria-label="Schwerpunkt löschen"
             >
               <Trash2 className="h-4 w-4" />
             </button>
@@ -358,7 +358,7 @@ export function AssessmentOutline({
           <Notes
             value={topic.notes}
             onChange={(v) => onUpdateTopic(topic.id, "notes", v)}
-            placeholder="Freitext zum Thema…"
+            placeholder="Freitext zum Schwerpunkt…"
             className="mt-3"
           />
 
@@ -461,7 +461,7 @@ export function AssessmentOutline({
           className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-sm text-sm font-medium hover:bg-primary/90"
         >
           <Plus className="h-4 w-4" />
-          Neues Thema
+          Neuer Schwerpunkt
         </button>
       </div>
 
