@@ -23,7 +23,7 @@ import {
 import { ClientSidebar, ClientSidebarTrigger } from "@/components/assessment/ClientSidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AssessmentOutline } from "@/components/assessment/AssessmentOutline";
-import type { ActionStatus, Client, TopicNode } from "@/types/assessment";
+import type { Client, TopicNode } from "@/types/assessment";
 import { cn } from "@/lib/utils";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
