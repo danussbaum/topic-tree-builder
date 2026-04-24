@@ -411,7 +411,7 @@ const Index = () => {
           <div className="flex items-center bg-topbar text-topbar-foreground border-b border-border h-12 pr-2">
             <nav className="flex items-stretch h-full overflow-x-auto">
               {[
-                { label: "Prozesse", icon: Workflow, active: true },
+                { label: "Massnahmenplan", icon: Workflow, active: true },
                 { label: "Journal", icon: BookOpen },
                 { label: "Aufgaben", icon: CheckSquare },
                 { label: "Termine", icon: Calendar },
@@ -454,7 +454,8 @@ const Index = () => {
             </div>
             <RibbonButton
               icon={Plus}
-              label="Neues Thema"
+              label="Neuer Schwerpunkt"
+              disabled={viewMode === "confirmation" || selectedClients.length !== 1}
               onClick={() => {
                 if (selectedClients[0]) addTopic(selectedClients[0].id);
               }}
@@ -488,7 +489,6 @@ const Index = () => {
             </div>
             <RibbonDivider />
             <RibbonButton icon={Filter} label="Filter" />
-            <RibbonButton icon={Save} label="Speichern" />
             <RibbonDivider />
             <RibbonButton icon={Printer} label="Drucken" />
             <RibbonButton icon={Download} label="Export" />
@@ -546,16 +546,18 @@ const Index = () => {
                         <div className="text-xs uppercase tracking-wide font-semibold text-accent mb-0.5">
                           Klient/in
                         </div>
-                        <div className="flex items-baseline gap-2">
+                        <div className="flex items-baseline gap-1">
                           <input
                             value={client.firstName}
                             onChange={(e) => updateClientName(client.id, "firstName", e.target.value)}
-                            className="text-2xl font-semibold bg-transparent border-0 outline-none focus:ring-0 px-0 w-auto min-w-[80px]"
+                            style={{ width: `${Math.max(client.firstName.length, 1) + 1}ch` }}
+                            className="text-2xl font-semibold bg-transparent border-0 outline-none focus:ring-0 px-0"
                           />
                           <input
                             value={client.lastName}
                             onChange={(e) => updateClientName(client.id, "lastName", e.target.value)}
-                            className="text-2xl font-semibold bg-transparent border-0 outline-none focus:ring-0 px-0 w-auto min-w-[80px]"
+                            style={{ width: `${Math.max(client.lastName.length, 1) + 1}ch` }}
+                            className="text-2xl font-semibold bg-transparent border-0 outline-none focus:ring-0 px-0"
                           />
                         </div>
                       </div>
@@ -608,15 +610,18 @@ function RibbonButton({
   icon: Icon,
   label,
   onClick,
+  disabled,
 }: {
   icon: React.ElementType;
   label: string;
   onClick?: () => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
-      className="flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 rounded hover:bg-secondary text-foreground/80 hover:text-foreground transition-colors min-w-[64px]"
+      disabled={disabled}
+      className="flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 rounded hover:bg-secondary text-foreground/80 hover:text-foreground transition-colors min-w-[64px] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-foreground/80"
     >
       <Icon className="h-5 w-5" />
       <span className="text-[11px] font-medium">{label}</span>
