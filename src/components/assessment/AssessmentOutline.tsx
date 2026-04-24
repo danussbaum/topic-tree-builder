@@ -257,6 +257,13 @@ export function AssessmentOutline({
                     </div>
                   )}
 
+                  {action.aids && (
+                    <div className="mt-1 text-xs text-foreground/70">
+                      <span className="font-semibold">Hilfsmittel:</span>{" "}
+                      <span className="whitespace-pre-wrap">{action.aids}</span>
+                    </div>
+                  )}
+
                   <div className="flex flex-wrap items-center gap-3 mt-2 text-[11px] text-muted-foreground/80">
                     {action.dayPart && (
                       <div className="flex items-center gap-1">
@@ -966,6 +973,12 @@ function ConfirmActionDialog({
           {target?.action.description && (
             <div className="text-xs text-foreground/80 whitespace-pre-wrap pt-1 border-t border-border mt-2">
               {target.action.description}
+            </div>
+          )}
+          {target?.action.aids && (
+            <div className="text-xs text-foreground/70 pt-1">
+              <span className="font-semibold">Hilfsmittel:</span>{" "}
+              <span className="whitespace-pre-wrap">{target.action.aids}</span>
             </div>
           )}
         </DialogHeader>
