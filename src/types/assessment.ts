@@ -6,11 +6,14 @@ export type ActionStatus =
 
 export type DayPart = "morning" | "noon" | "evening" | "night";
 
+export type ResultsRequirement = "none" | "optional" | "required";
+
 export interface ActionConfirmation {
   status: ActionStatus;
   actualMinutes?: number;
   reason?: string;
   observations?: string;
+  results?: string;
   done: boolean;
 }
 
@@ -18,6 +21,12 @@ export interface ActionNode {
   id: string;
   title: string;
   notes: string;
+  /** Beschreibung der Handlung (Freitext) */
+  description?: string;
+  /** Benötigte Anzahl Personen für die Durchführung */
+  requiredPersons?: number;
+  /** Ob bei der Bestätigung Resultate erfasst werden müssen */
+  resultsRequirement?: ResultsRequirement;
   /** Geplante Zeit in Minuten */
   plannedMinutes?: number;
   /** Tageszeit zur Gruppierung */
@@ -35,6 +44,7 @@ export interface ActionNode {
   actualMinutes?: number;
   reason?: string;
   observations?: string;
+  results?: string;
 }
 
 export interface TargetNode {

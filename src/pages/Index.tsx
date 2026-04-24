@@ -260,7 +260,10 @@ const Index = () => {
       | "dayPart"
       | "validFrom"
       | "validTo"
-      | "observations",
+      | "observations"
+      | "description"
+      | "requiredPersons"
+      | "resultsRequirement",
     value: number | string | undefined,
   ) => {
     updateClientTopicsFor(clientId, (topics) =>
@@ -290,8 +293,8 @@ const Index = () => {
     targetId: string,
     actionId: string,
     payload:
-      | { status: "done_as_planned"; observations?: string }
-      | { status: "done_with_deviation"; actualMinutes: number; reason: string; observations?: string }
+      | { status: "done_as_planned"; observations?: string; results?: string }
+      | { status: "done_with_deviation"; actualMinutes: number; reason: string; observations?: string; results?: string }
       | { status: "not_done"; reason: string }
       | { status: "open" },
     date?: string,
@@ -321,6 +324,7 @@ const Index = () => {
                             done: true,
                             actualMinutes: a.plannedMinutes,
                             observations: payload.observations,
+                            results: payload.results,
                           };
                         } else if (payload.status === "done_with_deviation") {
                           nextConfirmations[date] = {
@@ -329,6 +333,7 @@ const Index = () => {
                             actualMinutes: payload.actualMinutes,
                             reason: payload.reason,
                             observations: payload.observations,
+                            results: payload.results,
                           };
                         } else if (payload.status === "not_done") {
                           nextConfirmations[date] = {
