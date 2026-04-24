@@ -263,7 +263,8 @@ const Index = () => {
       | "observations"
       | "description"
       | "requiredPersons"
-      | "resultsRequirement",
+      | "resultsRequirement"
+      | "aids",
     value: number | string | undefined,
   ) => {
     updateClientTopicsFor(clientId, (topics) =>

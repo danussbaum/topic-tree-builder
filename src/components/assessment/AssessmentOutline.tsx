@@ -65,7 +65,8 @@ type ActionField =
   | "observations"
   | "description"
   | "requiredPersons"
-  | "resultsRequirement";
+  | "resultsRequirement"
+  | "aids";
 
 interface Props {
   viewMode: "planning" | "confirmation";
