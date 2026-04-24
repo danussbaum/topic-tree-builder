@@ -626,6 +626,52 @@ function ActionRow({
             <span>Min</span>
           </label>
 
+          <label className="inline-flex items-center gap-1.5">
+            <Users className="h-3.5 w-3.5" />
+            <span>Personen</span>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={action.requiredPersons ?? ""}
+              onChange={(e) =>
+                onUpdateActionField(
+                  topicId,
+                  targetId,
+                  action.id,
+                  "requiredPersons",
+                  e.target.value === ""
+                    ? undefined
+                    : Math.max(1, Number(e.target.value)),
+                )
+              }
+              placeholder="–"
+              className="w-12 bg-transparent border-b border-border focus:border-primary outline-none px-1 py-0 text-right tabular-nums"
+            />
+          </label>
+
+          <Select
+            value={action.resultsRequirement ?? "none"}
+            onValueChange={(v) =>
+              onUpdateActionField(
+                topicId,
+                targetId,
+                action.id,
+                "resultsRequirement",
+                v,
+              )
+            }
+          >
+            <SelectTrigger className="h-7 w-[150px] text-xs px-2 py-0">
+              <SelectValue placeholder="Resultate" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Resultate: keine</SelectItem>
+              <SelectItem value="optional">Resultate: optional</SelectItem>
+              <SelectItem value="required">Resultate: zwingend</SelectItem>
+            </SelectContent>
+          </Select>
+
           <DateField
             label="Gültig ab"
             required
@@ -644,6 +690,27 @@ function ActionRow({
 
           <StatusBadge action={action} />
         </div>
+
+        <Textarea
+          value={action.description ?? ""}
+          onChange={(e) =>
+            onUpdateActionField(
+              topicId,
+              targetId,
+              action.id,
+              "description",
+              e.target.value,
+            )
+          }
+          placeholder="Beschreibung der Handlung…"
+          rows={1}
+          className="mt-1 w-full resize-none bg-transparent border-0 shadow-none px-0 focus-visible:ring-0 placeholder:text-muted-foreground/40 text-xs min-h-0 py-0.5 leading-relaxed"
+          onInput={(e) => {
+            const el = e.currentTarget;
+            el.style.height = "auto";
+            el.style.height = el.scrollHeight + "px";
+          }}
+        />
 
         {(action.reason ||
           action.status === "done_with_deviation" ||
