@@ -97,7 +97,7 @@ export function ClientSidebar({
                       {c.lastName}, {c.firstName}
                     </div>
                     <div className="text-[10px] opacity-70 truncate">
-                      {c.topics.length} Schwerpunkt{c.topics.length === 1 ? "" : "e"}
+                      {c.topics.length} Thema{c.topics.length === 1 ? "" : "en"}
                     </div>
                   </div>
                 )}
