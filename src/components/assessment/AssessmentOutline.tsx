@@ -49,8 +49,8 @@ import { DAY_PART_LABEL, DAY_PART_ORDER } from "@/types/assessment";
 import { cn } from "@/lib/utils";
 
 type ConfirmPayload =
-  | { status: "done_as_planned"; observations?: string }
-  | { status: "done_with_deviation"; actualMinutes: number; reason: string; observations?: string }
+  | { status: "done_as_planned"; observations?: string; results?: string }
+  | { status: "done_with_deviation"; actualMinutes: number; reason: string; observations?: string; results?: string }
   | { status: "not_done"; reason: string }
   | { status: "open" };
 
@@ -61,7 +61,10 @@ type ActionField =
   | "dayPart"
   | "validFrom"
   | "validTo"
-  | "observations";
+  | "observations"
+  | "description"
+  | "requiredPersons"
+  | "resultsRequirement";
 
 interface Props {
   viewMode: "planning" | "confirmation";
