@@ -1062,6 +1062,7 @@ function ConfirmActionDialog({
                 setActualMinutes("");
                 setReason("");
                 setObservations("");
+                setResults("");
               }}
               className="gap-1.5"
             >
