@@ -80,10 +80,10 @@ export function ClientSidebar({
                 key={c.id}
                 onClick={() => onToggleClient(c.id)}
                 className={cn(
-                  "w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-b border-sidebar-border/60",
+                  "w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-b border-sidebar-border/60 border-l-2",
                   selected
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                    : "hover:bg-sidebar-primary/70",
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground border-l-primary"
+                    : "border-l-transparent hover:bg-sidebar-primary/70",
                   collapsed && "justify-center px-2"
                 )}
                 title={collapsed ? `${c.lastName}, ${c.firstName}` : undefined}
