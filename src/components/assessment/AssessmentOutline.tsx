@@ -320,7 +320,7 @@ export function AssessmentOutline({
           className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-sm text-sm font-medium hover:bg-primary/90"
         >
           <Plus className="h-4 w-4" />
-          Erstes Thema hinzufügen
+          Ersten Schwerpunkt hinzufügen
         </button>
       </div>
     );
@@ -337,7 +337,7 @@ export function AssessmentOutline({
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-[10px] uppercase tracking-widest font-semibold text-accent mb-1">
-                Thema
+                Schwerpunkt
               </div>
               <input
                 value={topic.title}
