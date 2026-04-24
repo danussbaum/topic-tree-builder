@@ -862,6 +862,7 @@ function ConfirmActionDialog({
   const [actualMinutes, setActualMinutes] = useState<string>("");
   const [reason, setReason] = useState<string>("");
   const [observations, setObservations] = useState<string>("");
+  const [results, setResults] = useState<string>("");
 
   const open = target !== null;
 
@@ -873,6 +874,7 @@ function ConfirmActionDialog({
       );
       setReason(target.action.reason ?? "");
       setObservations(target.action.observations ?? "");
+      setResults(target.action.results ?? "");
     }
   }, [target]);
 
@@ -881,14 +883,23 @@ function ConfirmActionDialog({
     setActualMinutes("");
     setReason("");
     setObservations("");
+    setResults("");
     onClose();
   };
+
+  const resultsRequirement = target?.action.resultsRequirement ?? "none";
+  const showResults =
+    (mode === "done_as_planned" || mode === "done_with_deviation") &&
+    resultsRequirement !== "none";
+  const resultsRequired = showResults && resultsRequirement === "required";
 
   const submit = () => {
     if (!target || !mode) return;
     const obs = observations.trim() ? observations.trim() : undefined;
+    const res = results.trim() ? results.trim() : undefined;
+    if (resultsRequired && !res) return;
     if (mode === "done_as_planned") {
-      onConfirm({ status: "done_as_planned", observations: obs });
+      onConfirm({ status: "done_as_planned", observations: obs, results: res });
     } else if (mode === "done_with_deviation") {
       const min = Number(actualMinutes);
       if (!Number.isFinite(min) || min < 0 || !reason.trim()) return;
@@ -897,6 +908,7 @@ function ConfirmActionDialog({
         actualMinutes: min,
         reason: reason.trim(),
         observations: obs,
+        results: res,
       });
     } else if (mode === "not_done") {
       if (!reason.trim()) return;
@@ -906,6 +918,7 @@ function ConfirmActionDialog({
     setActualMinutes("");
     setReason("");
     setObservations("");
+    setResults("");
   };
 
   const planned = target?.action.plannedMinutes;
