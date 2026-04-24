@@ -23,6 +23,8 @@ export interface ActionNode {
   notes: string;
   /** Beschreibung der Handlung (Freitext) */
   description?: string;
+  /** Benötigte Hilfsmittel zur Durchführung (Freitext) */
+  aids?: string;
   /** Benötigte Anzahl Personen für die Durchführung */
   requiredPersons?: number;
   /** Ob bei der Bestätigung Resultate erfasst werden müssen */

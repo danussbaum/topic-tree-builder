@@ -65,7 +65,8 @@ type ActionField =
   | "observations"
   | "description"
   | "requiredPersons"
-  | "resultsRequirement";
+  | "resultsRequirement"
+  | "aids";
 
 interface Props {
   viewMode: "planning" | "confirmation";
@@ -253,6 +254,13 @@ export function AssessmentOutline({
                   {action.description && (
                     <div className="mt-2 text-xs text-foreground/80 whitespace-pre-wrap">
                       {action.description}
+                    </div>
+                  )}
+
+                  {action.aids && (
+                    <div className="mt-1 text-xs text-foreground/70">
+                      <span className="font-semibold">Hilfsmittel:</span>{" "}
+                      <span className="whitespace-pre-wrap">{action.aids}</span>
                     </div>
                   )}
 
@@ -712,6 +720,27 @@ function ActionRow({
           }}
         />
 
+        <Textarea
+          value={action.aids ?? ""}
+          onChange={(e) =>
+            onUpdateActionField(
+              topicId,
+              targetId,
+              action.id,
+              "aids",
+              e.target.value,
+            )
+          }
+          placeholder="Benötigte Hilfsmittel…"
+          rows={1}
+          className="mt-0.5 w-full resize-none bg-transparent border-0 shadow-none px-0 focus-visible:ring-0 placeholder:text-muted-foreground/40 text-xs min-h-0 py-0.5 leading-relaxed"
+          onInput={(e) => {
+            const el = e.currentTarget;
+            el.style.height = "auto";
+            el.style.height = el.scrollHeight + "px";
+          }}
+        />
+
         {(action.reason ||
           action.status === "done_with_deviation" ||
           action.status === "not_done") && (
@@ -944,6 +973,12 @@ function ConfirmActionDialog({
           {target?.action.description && (
             <div className="text-xs text-foreground/80 whitespace-pre-wrap pt-1 border-t border-border mt-2">
               {target.action.description}
+            </div>
+          )}
+          {target?.action.aids && (
+            <div className="text-xs text-foreground/70 pt-1">
+              <span className="font-semibold">Hilfsmittel:</span>{" "}
+              <span className="whitespace-pre-wrap">{target.action.aids}</span>
             </div>
           )}
         </DialogHeader>
