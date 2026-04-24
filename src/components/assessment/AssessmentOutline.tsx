@@ -17,6 +17,7 @@ import {
   CalendarIcon,
   ChevronLeft,
   ChevronRight,
+  Users,
 } from "lucide-react";
 import {
   Dialog,
@@ -49,8 +50,8 @@ import { DAY_PART_LABEL, DAY_PART_ORDER } from "@/types/assessment";
 import { cn } from "@/lib/utils";
 
 type ConfirmPayload =
-  | { status: "done_as_planned"; observations?: string }
-  | { status: "done_with_deviation"; actualMinutes: number; reason: string; observations?: string }
+  | { status: "done_as_planned"; observations?: string; results?: string }
+  | { status: "done_with_deviation"; actualMinutes: number; reason: string; observations?: string; results?: string }
   | { status: "not_done"; reason: string }
   | { status: "open" };
 
@@ -61,7 +62,11 @@ type ActionField =
   | "dayPart"
   | "validFrom"
   | "validTo"
-  | "observations";
+  | "observations"
+  | "description"
+  | "requiredPersons"
+  | "resultsRequirement"
+  | "aids";
 
 interface Props {
   viewMode: "planning" | "confirmation";
@@ -199,7 +204,7 @@ export function AssessmentOutline({
               </div>
             </div>
             <div className="text-sm text-muted-foreground bg-background px-3 py-1 rounded-full border border-border">
-              {flatActions.length} Massnahmen geplant
+              {flatActions.length} Handlungen geplant
             </div>
           </div>
         )}
@@ -245,7 +250,20 @@ export function AssessmentOutline({
                     <span className="text-border">|</span>
                     <span>{target.title}</span>
                   </div>
-                  
+
+                  {action.description && (
+                    <div className="mt-2 text-xs text-foreground/80 whitespace-pre-wrap">
+                      {action.description}
+                    </div>
+                  )}
+
+                  {action.aids && (
+                    <div className="mt-1 text-xs text-foreground/70">
+                      <span className="font-semibold">Hilfsmittel:</span>{" "}
+                      <span className="whitespace-pre-wrap">{action.aids}</span>
+                    </div>
+                  )}
+
                   <div className="flex flex-wrap items-center gap-3 mt-2 text-[11px] text-muted-foreground/80">
                     {action.dayPart && (
                       <div className="flex items-center gap-1">
@@ -262,6 +280,12 @@ export function AssessmentOutline({
                         {action.plannedMinutes} Min geplant
                       </div>
                     )}
+                    {action.requiredPersons != null && action.requiredPersons > 0 && (
+                      <div className="flex items-center gap-1">
+                        <Users className="h-3 w-3" />
+                        {action.requiredPersons} {action.requiredPersons === 1 ? "Person" : "Personen"}
+                      </div>
+                    )}
                     {status === "done_with_deviation" && conf?.actualMinutes != null && (
                       <div className="flex items-center gap-1 text-accent font-medium">
                         <Clock className="h-3 w-3" />
@@ -270,12 +294,18 @@ export function AssessmentOutline({
                     )}
                   </div>
 
-                  {(conf?.reason || conf?.observations) && (
+                  {(conf?.reason || conf?.observations || conf?.results) && (
                     <div className="mt-2 space-y-1">
                       {conf.reason && (
                         <div className="text-xs italic text-destructive/80 line-clamp-2">
                           <span className="not-italic font-semibold mr-1">Grund:</span>
                           {conf.reason}
+                        </div>
+                      )}
+                      {conf.results && (
+                        <div className="text-xs text-foreground/80 line-clamp-2 border-l-2 border-accent/40 pl-2">
+                          <span className="font-semibold mr-1">Resultat:</span>
+                          {conf.results}
                         </div>
                       )}
                       {conf.observations && (
@@ -320,7 +350,7 @@ export function AssessmentOutline({
           className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-sm text-sm font-medium hover:bg-primary/90"
         >
           <Plus className="h-4 w-4" />
-          Erstes Thema hinzufügen
+          Ersten Schwerpunkt hinzufügen
         </button>
       </div>
     );
@@ -337,19 +367,19 @@ export function AssessmentOutline({
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-[10px] uppercase tracking-widest font-semibold text-accent mb-1">
-                Thema
+                Schwerpunkt
               </div>
               <input
                 value={topic.title}
                 onChange={(e) => onUpdateTopic(topic.id, "title", e.target.value)}
-                placeholder="Themenbezeichnung…"
+                placeholder="Bezeichnung des Schwerpunkts…"
                 className="w-full text-2xl font-semibold bg-transparent border-0 outline-none focus:ring-0 px-0 placeholder:text-muted-foreground/40"
               />
             </div>
             <button
               onClick={() => onDeleteTopic(topic.id)}
               className="opacity-0 group-hover/topic:opacity-100 p-1.5 hover:bg-destructive/10 hover:text-destructive rounded transition-opacity"
-              aria-label="Thema löschen"
+              aria-label="Schwerpunkt löschen"
             >
               <Trash2 className="h-4 w-4" />
             </button>
@@ -358,7 +388,7 @@ export function AssessmentOutline({
           <Notes
             value={topic.notes}
             onChange={(v) => onUpdateTopic(topic.id, "notes", v)}
-            placeholder="Freitext zum Thema…"
+            placeholder="Freitext zum Schwerpunkt…"
             className="mt-3"
           />
 
@@ -437,7 +467,7 @@ export function AssessmentOutline({
                       className="mt-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
                     >
                       <Plus className="h-3.5 w-3.5" />
-                      Massnahme hinzufügen
+                      Handlung hinzufügen
                     </button>
                   </div>
                 </div>
@@ -461,7 +491,7 @@ export function AssessmentOutline({
           className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-sm text-sm font-medium hover:bg-primary/90"
         >
           <Plus className="h-4 w-4" />
-          Neues Thema
+          Neuer Schwerpunkt
         </button>
       </div>
 
@@ -540,8 +570,13 @@ function ActionRow({
           onChange={(e) =>
             onUpdateAction(topicId, targetId, action.id, "title", e.target.value)
           }
+<<<<<<< HEAD
           placeholder="Massnahme…"
                     className={cn(
+=======
+          placeholder="Handlung…"
+          className={cn(
+>>>>>>> be8930788569f3e3494571ea76179edbb18fe588
             "w-full text-sm bg-transparent border-0 outline-none focus:ring-0 px-0 placeholder:text-muted-foreground/40",
             viewMode === "confirmation" && action.status === "done_as_planned" &&
               "line-through text-muted-foreground",
@@ -603,6 +638,52 @@ function ActionRow({
             <span>Min</span>
           </label>
 
+          <label className="inline-flex items-center gap-1.5">
+            <Users className="h-3.5 w-3.5" />
+            <span>Personen</span>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={action.requiredPersons ?? ""}
+              onChange={(e) =>
+                onUpdateActionField(
+                  topicId,
+                  targetId,
+                  action.id,
+                  "requiredPersons",
+                  e.target.value === ""
+                    ? undefined
+                    : Math.max(1, Number(e.target.value)),
+                )
+              }
+              placeholder="–"
+              className="w-12 bg-transparent border-b border-border focus:border-primary outline-none px-1 py-0 text-right tabular-nums"
+            />
+          </label>
+
+          <Select
+            value={action.resultsRequirement ?? "none"}
+            onValueChange={(v) =>
+              onUpdateActionField(
+                topicId,
+                targetId,
+                action.id,
+                "resultsRequirement",
+                v,
+              )
+            }
+          >
+            <SelectTrigger className="h-7 w-[150px] text-xs px-2 py-0">
+              <SelectValue placeholder="Resultate" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Resultate: keine</SelectItem>
+              <SelectItem value="optional">Resultate: optional</SelectItem>
+              <SelectItem value="required">Resultate: zwingend</SelectItem>
+            </SelectContent>
+          </Select>
+
           <DateField
             label="Gültig ab"
             required
@@ -621,6 +702,48 @@ function ActionRow({
 
                     {viewMode === "confirmation" && <StatusBadge action={action} />}
         </div>
+
+        <Textarea
+          value={action.description ?? ""}
+          onChange={(e) =>
+            onUpdateActionField(
+              topicId,
+              targetId,
+              action.id,
+              "description",
+              e.target.value,
+            )
+          }
+          placeholder="Beschreibung der Handlung…"
+          rows={1}
+          className="mt-1 w-full resize-none bg-transparent border-0 shadow-none px-0 focus-visible:ring-0 placeholder:text-muted-foreground/40 text-xs min-h-0 py-0.5 leading-relaxed"
+          onInput={(e) => {
+            const el = e.currentTarget;
+            el.style.height = "auto";
+            el.style.height = el.scrollHeight + "px";
+          }}
+        />
+
+        <Textarea
+          value={action.aids ?? ""}
+          onChange={(e) =>
+            onUpdateActionField(
+              topicId,
+              targetId,
+              action.id,
+              "aids",
+              e.target.value,
+            )
+          }
+          placeholder="Benötigte Hilfsmittel…"
+          rows={1}
+          className="mt-0.5 w-full resize-none bg-transparent border-0 shadow-none px-0 focus-visible:ring-0 placeholder:text-muted-foreground/40 text-xs min-h-0 py-0.5 leading-relaxed"
+          onInput={(e) => {
+            const el = e.currentTarget;
+            el.style.height = "auto";
+            el.style.height = el.scrollHeight + "px";
+          }}
+        />
 
         {(action.reason ||
           action.status === "done_with_deviation" ||
@@ -655,7 +778,7 @@ function ActionRow({
       <button
         onClick={() => onDeleteAction(topicId, targetId, action.id)}
         className="opacity-0 group-hover/action:opacity-100 p-1 hover:bg-destructive/10 hover:text-destructive rounded transition-opacity self-start mt-0.5"
-        aria-label="Massnahme löschen"
+        aria-label="Handlung löschen"
       >
         <Trash2 className="h-3.5 w-3.5" />
       </button>
@@ -772,6 +895,7 @@ function ConfirmActionDialog({
   const [actualMinutes, setActualMinutes] = useState<string>("");
   const [reason, setReason] = useState<string>("");
   const [observations, setObservations] = useState<string>("");
+  const [results, setResults] = useState<string>("");
 
   const open = target !== null;
 
@@ -783,6 +907,7 @@ function ConfirmActionDialog({
       );
       setReason(target.action.reason ?? "");
       setObservations(target.action.observations ?? "");
+      setResults(target.action.results ?? "");
     }
   }, [target]);
 
@@ -791,14 +916,23 @@ function ConfirmActionDialog({
     setActualMinutes("");
     setReason("");
     setObservations("");
+    setResults("");
     onClose();
   };
+
+  const resultsRequirement = target?.action.resultsRequirement ?? "none";
+  const showResults =
+    (mode === "done_as_planned" || mode === "done_with_deviation") &&
+    resultsRequirement !== "none";
+  const resultsRequired = showResults && resultsRequirement === "required";
 
   const submit = () => {
     if (!target || !mode) return;
     const obs = observations.trim() ? observations.trim() : undefined;
+    const res = results.trim() ? results.trim() : undefined;
+    if (resultsRequired && !res) return;
     if (mode === "done_as_planned") {
-      onConfirm({ status: "done_as_planned", observations: obs });
+      onConfirm({ status: "done_as_planned", observations: obs, results: res });
     } else if (mode === "done_with_deviation") {
       const min = Number(actualMinutes);
       if (!Number.isFinite(min) || min < 0 || !reason.trim()) return;
@@ -807,6 +941,7 @@ function ConfirmActionDialog({
         actualMinutes: min,
         reason: reason.trim(),
         observations: obs,
+        results: res,
       });
     } else if (mode === "not_done") {
       if (!reason.trim()) return;
@@ -816,6 +951,7 @@ function ConfirmActionDialog({
     setActualMinutes("");
     setReason("");
     setObservations("");
+    setResults("");
   };
 
   const planned = target?.action.plannedMinutes;
@@ -825,13 +961,30 @@ function ConfirmActionDialog({
     <Dialog open={open} onOpenChange={(v) => (!v ? handleClose() : null)}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Massnahme bestätigen</DialogTitle>
+          <DialogTitle>Handlung bestätigen</DialogTitle>
           <DialogDescription className="line-clamp-2">
-            {target?.action.title || "Massnahme"}
+            {target?.action.title || "Handlung"}
             {planned != null && (
               <span className="ml-2 text-xs">· geplant {planned} Min</span>
             )}
+            {target?.action.requiredPersons != null && target.action.requiredPersons > 0 && (
+              <span className="ml-2 text-xs">
+                · {target.action.requiredPersons}{" "}
+                {target.action.requiredPersons === 1 ? "Person" : "Personen"} benötigt
+              </span>
+            )}
           </DialogDescription>
+          {target?.action.description && (
+            <div className="text-xs text-foreground/80 whitespace-pre-wrap pt-1 border-t border-border mt-2">
+              {target.action.description}
+            </div>
+          )}
+          {target?.action.aids && (
+            <div className="text-xs text-foreground/70 pt-1">
+              <span className="font-semibold">Hilfsmittel:</span>{" "}
+              <span className="whitespace-pre-wrap">{target.action.aids}</span>
+            </div>
+          )}
         </DialogHeader>
 
         <div className="space-y-2">
@@ -843,7 +996,7 @@ function ConfirmActionDialog({
             description={
               planned != null
                 ? `Tatsächliche Zeit = geplante ${planned} Min`
-                : "Massnahme wie vorgesehen durchgeführt"
+                : "Handlung wie vorgesehen durchgeführt"
             }
           />
           <ChoiceRow
@@ -897,7 +1050,7 @@ function ConfirmActionDialog({
               rows={3}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="Warum wurde die Massnahme nicht durchgeführt?"
+              placeholder="Warum wurde die Handlung nicht durchgeführt?"
             />
           </div>
         )}
@@ -920,6 +1073,24 @@ function ConfirmActionDialog({
           </div>
         )}
 
+        {showResults && (
+          <div className="space-y-1.5 pt-2 border-t border-border">
+            <Label htmlFor="results">
+              Resultate{" "}
+              <span className="text-xs font-normal text-muted-foreground">
+                ({resultsRequired ? "zwingend" : "optional"})
+              </span>
+            </Label>
+            <Textarea
+              id="results"
+              rows={3}
+              value={results}
+              onChange={(e) => setResults(e.target.value)}
+              placeholder="Ergebnisse der Handlung…"
+            />
+          </div>
+        )}
+
         <DialogFooter className="gap-2 sm:justify-between">
           {target?.action.status !== "open" ? (
             <Button
@@ -930,6 +1101,7 @@ function ConfirmActionDialog({
                 setActualMinutes("");
                 setReason("");
                 setObservations("");
+                setResults("");
               }}
               className="gap-1.5"
             >
@@ -949,7 +1121,8 @@ function ConfirmActionDialog({
                 !mode ||
                 (mode === "done_with_deviation" &&
                   (actualMinutes === "" || !reason.trim())) ||
-                (mode === "not_done" && !reason.trim())
+                (mode === "not_done" && !reason.trim()) ||
+                (resultsRequired && !results.trim())
               }
             >
               Bestätigen
