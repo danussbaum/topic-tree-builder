@@ -713,6 +713,27 @@ function ActionRow({
           }}
         />
 
+        <Textarea
+          value={action.aids ?? ""}
+          onChange={(e) =>
+            onUpdateActionField(
+              topicId,
+              targetId,
+              action.id,
+              "aids",
+              e.target.value,
+            )
+          }
+          placeholder="Benötigte Hilfsmittel…"
+          rows={1}
+          className="mt-0.5 w-full resize-none bg-transparent border-0 shadow-none px-0 focus-visible:ring-0 placeholder:text-muted-foreground/40 text-xs min-h-0 py-0.5 leading-relaxed"
+          onInput={(e) => {
+            const el = e.currentTarget;
+            el.style.height = "auto";
+            el.style.height = el.scrollHeight + "px";
+          }}
+        />
+
         {(action.reason ||
           action.status === "done_with_deviation" ||
           action.status === "not_done") && (
