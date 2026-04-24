@@ -523,18 +523,17 @@ function ActionRow({
   onOpenDialog: () => void;
 }) {
     return (
-    <li className="group/action flex items-start gap-3 py-2 px-2 -mx-2 rounded hover:bg-secondary/40">
-      <button
-        onClick={viewMode === "planning" ? undefined : onOpenDialog}
-        className={cn(
-          "mt-0.5",
-          viewMode === "planning" ? "cursor-default" : "cursor-pointer"
-        )}
-        aria-label={viewMode === "planning" ? undefined : "Status ändern"}
-        title={viewMode === "planning" ? undefined : "Status ändern"}
-      >
-        <StatusIcon status={action.status} />
-      </button>
+        <li className="group/action flex items-start gap-3 py-2 px-2 -mx-2 rounded hover:bg-secondary/40">
+      {viewMode === "confirmation" && (
+        <button
+          onClick={onOpenDialog}
+          className="mt-0.5 cursor-pointer"
+          aria-label="Status ändern"
+          title="Status ändern"
+        >
+          <StatusIcon status={action.status} />
+        </button>
+      )}
       <div className="flex-1 min-w-0">
         <input
           value={action.title}
@@ -542,13 +541,13 @@ function ActionRow({
             onUpdateAction(topicId, targetId, action.id, "title", e.target.value)
           }
           placeholder="Massnahme…"
-          className={cn(
+                    className={cn(
             "w-full text-sm bg-transparent border-0 outline-none focus:ring-0 px-0 placeholder:text-muted-foreground/40",
-            action.status === "done_as_planned" &&
+            viewMode === "confirmation" && action.status === "done_as_planned" &&
               "line-through text-muted-foreground",
-            action.status === "done_with_deviation" &&
+            viewMode === "confirmation" && action.status === "done_with_deviation" &&
               "line-through text-muted-foreground",
-            action.status === "not_done" &&
+            viewMode === "confirmation" && action.status === "not_done" &&
               "line-through text-muted-foreground/70",
           )}
         />
@@ -620,7 +619,7 @@ function ActionRow({
             }
           />
 
-          <StatusBadge action={action} />
+                    {viewMode === "confirmation" && <StatusBadge action={action} />}
         </div>
 
         {(action.reason ||
