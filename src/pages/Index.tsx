@@ -34,6 +34,8 @@ const todayLocalISO = () => {
   return `${year}-${month}-${day}`;
 };
 
+type ConfirmationPeriod = "day" | "week" | "month";
+
 interface ClientNameInputProps {
   value: string;
   label: string;
@@ -60,14 +62,16 @@ const ClientNameInput = ({ value, label, onChange }: ClientNameInputProps) => (
 const hasVisibleConfirmationItems = (
   client: Client,
   selectedDate: string,
+  period: ConfirmationPeriod,
   showConfirmed: boolean,
 ) => {
-  return getVisibleConfirmationItems(client, selectedDate, showConfirmed).length > 0;
+  return getVisibleConfirmationItems(client, selectedDate, period, showConfirmed).length > 0;
 };
 
 const getVisibleConfirmationItems = (
   client: Client,
   selectedDate: string,
+  period: ConfirmationPeriod,
   showConfirmed: boolean,
 ) => {
   const items: Array<{
@@ -82,7 +86,7 @@ const getVisibleConfirmationItems = (
         if (action.validFrom && action.validFrom > selectedDate) return;
         if (action.validTo && action.validTo < selectedDate) return;
 
-        const status = action.confirmations?.[selectedDate]?.status || "open";
+        const status = getStatusForPeriod(action, selectedDate, period);
         if (!showConfirmed && status !== "open") return;
 
         items.push({ topic, target, action });
@@ -91,6 +95,84 @@ const getVisibleConfirmationItems = (
   });
 
   return items;
+};
+
+const dateToISO = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const getWeekStartDate = (date: Date) => {
+  const result = new Date(date);
+  const day = result.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  result.setDate(result.getDate() + diff);
+  return result;
+};
+
+const getPeriodRange = (selectedDate: string, period: ConfirmationPeriod) => {
+  const date = new Date(`${selectedDate}T00:00:00`);
+  if (period === "day") {
+    return { start: selectedDate, end: selectedDate };
+  }
+  if (period === "week") {
+    const start = getWeekStartDate(date);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    return { start: dateToISO(start), end: dateToISO(end) };
+  }
+  const start = new Date(date.getFullYear(), date.getMonth(), 1);
+  const end = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+  return { start: dateToISO(start), end: dateToISO(end) };
+};
+
+const getStatusForPeriod = (
+  action: ActionNode,
+  selectedDate: string,
+  period: ConfirmationPeriod,
+) => {
+  if (period === "day") {
+    return action.confirmations?.[selectedDate]?.status || "open";
+  }
+
+  const { start, end } = getPeriodRange(selectedDate, period);
+  const entries = Object.entries(action.confirmations || {}).filter(
+    ([date, confirmation]) =>
+      date >= start && date <= end && confirmation.status !== "open",
+  );
+
+  if (entries.length === 0) return "open";
+
+  const latestEntry = entries.sort(([a], [b]) => b.localeCompare(a))[0];
+  return latestEntry?.[1].status || "open";
+};
+
+const getWeekValue = (selectedDate: string) => {
+  const date = new Date(`${selectedDate}T00:00:00`);
+  const start = getWeekStartDate(date);
+  const thursday = new Date(start);
+  thursday.setDate(start.getDate() + 3);
+  const firstThursday = new Date(thursday.getFullYear(), 0, 4);
+  const firstThursdayWeekStart = getWeekStartDate(firstThursday);
+  const diffInDays = Math.round(
+    (thursday.getTime() - firstThursdayWeekStart.getTime()) / 86400000,
+  );
+  const week = Math.floor(diffInDays / 7) + 1;
+  return `${thursday.getFullYear()}-W${String(week).padStart(2, "0")}`;
+};
+
+const weekValueToDate = (weekValue: string) => {
+  const [yearPart, weekPart] = weekValue.split("-W");
+  const year = Number(yearPart);
+  const week = Number(weekPart);
+  if (!year || !week) return todayLocalISO();
+
+  const jan4 = new Date(year, 0, 4);
+  const weekStart = getWeekStartDate(jan4);
+  weekStart.setDate(weekStart.getDate() + (week - 1) * 7);
+  return dateToISO(weekStart);
 };
 
 const seedClients: Client[] = [
@@ -164,6 +246,7 @@ const seedClients: Client[] = [
 const Index = () => {
   const [viewMode, setViewMode] = useState<"planning" | "confirmation">("planning");
   const [selectedDate, setSelectedDate] = useState<string>(todayLocalISO());
+  const [confirmationPeriod, setConfirmationPeriod] = useState<ConfirmationPeriod>("day");
   const [clients, setClients] = useState<Client[]>(seedClients);
   const [selectedClientIds, setSelectedClientIds] = useState<string[]>([
     seedClients[0].id,
@@ -174,7 +257,12 @@ const Index = () => {
   const visibleSelectedClients =
     viewMode === "confirmation"
       ? selectedClients.filter((client) =>
-          hasVisibleConfirmationItems(client, selectedDate, showConfirmed),
+          hasVisibleConfirmationItems(
+            client,
+            selectedDate,
+            confirmationPeriod,
+            showConfirmed,
+          ),
         )
       : selectedClients;
 
@@ -519,26 +607,42 @@ const Index = () => {
     );
   };
 
-  const shiftDate = (days: number) => {
+  const shiftDate = (step: number) => {
     const d = new Date(`${selectedDate}T00:00:00`);
-    d.setDate(d.getDate() + days);
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    setSelectedDate(`${year}-${month}-${day}`);
+    if (confirmationPeriod === "day") {
+      d.setDate(d.getDate() + step);
+    } else if (confirmationPeriod === "week") {
+      d.setDate(d.getDate() + step * 7);
+    } else {
+      d.setMonth(d.getMonth() + step);
+      d.setDate(1);
+    }
+    setSelectedDate(dateToISO(d));
   };
 
   const exportConfirmationExcel = () => {
     if (viewMode !== "confirmation") return;
 
+    const periodRange = getPeriodRange(selectedDate, confirmationPeriod);
+
     const rows = selectedClients.flatMap((client) =>
-      getVisibleConfirmationItems(client, selectedDate, showConfirmed).map(
+      getVisibleConfirmationItems(client, selectedDate, confirmationPeriod, showConfirmed).map(
         ({ topic, target, action }) => {
-          const confirmation = action.confirmations?.[selectedDate];
-          const status = confirmation?.status || "open";
+          const status = getStatusForPeriod(action, selectedDate, confirmationPeriod);
+          const { start, end } = periodRange;
+          const confirmationDate =
+            confirmationPeriod === "day"
+              ? selectedDate
+              : Object.keys(action.confirmations || {})
+                  .filter((date) => date >= start && date <= end)
+                  .sort((a, b) => b.localeCompare(a))[0] ?? selectedDate;
+          const confirmation = action.confirmations?.[confirmationDate];
 
           return {
-            Datum: selectedDate,
+            Datum:
+              confirmationPeriod === "day"
+                ? selectedDate
+                : `${start} bis ${end}`,
             "Klient/in": `${client.firstName} ${client.lastName}`.trim(),
             Schwerpunkt: topic.title,
             Ziel: target.title,
@@ -593,7 +697,7 @@ const Index = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `bestaetigungen_${selectedDate}.xlsx`;
+    link.download = `bestaetigungen_${confirmationPeriod}_${selectedDate}.xlsx`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -702,25 +806,96 @@ const Index = () => {
                 {viewMode === "confirmation" && (
                   <div className="flex items-center justify-between bg-secondary/30 p-4 rounded-lg border border-border sticky top-0 z-10">
                     <div className="flex items-center gap-4">
-                      <h2 className="text-xl font-semibold">Tagesbestätigung</h2>
+                      <h2 className="text-xl font-semibold">
+                        {confirmationPeriod === "day"
+                          ? "Tagesbestätigung"
+                          : confirmationPeriod === "week"
+                            ? "Wochenbestätigung"
+                            : "Monatsbestätigung"}
+                      </h2>
+                      <div className="flex items-center gap-1 bg-background border border-border rounded-md p-1">
+                        <button
+                          className={cn(
+                            "h-8 px-2 text-xs rounded",
+                            confirmationPeriod === "day"
+                              ? "bg-secondary text-foreground"
+                              : "hover:bg-secondary",
+                          )}
+                          onClick={() => setConfirmationPeriod("day")}
+                        >
+                          Tag
+                        </button>
+                        <button
+                          className={cn(
+                            "h-8 px-2 text-xs rounded",
+                            confirmationPeriod === "week"
+                              ? "bg-secondary text-foreground"
+                              : "hover:bg-secondary",
+                          )}
+                          onClick={() => setConfirmationPeriod("week")}
+                        >
+                          Woche
+                        </button>
+                        <button
+                          className={cn(
+                            "h-8 px-2 text-xs rounded",
+                            confirmationPeriod === "month"
+                              ? "bg-secondary text-foreground"
+                              : "hover:bg-secondary",
+                          )}
+                          onClick={() => setConfirmationPeriod("month")}
+                        >
+                          Monat
+                        </button>
+                      </div>
                       <div className="flex items-center gap-1 bg-background border border-border rounded-md p-1">
                         <button
                           className="h-8 w-8 inline-flex items-center justify-center rounded hover:bg-secondary"
                           onClick={() => shiftDate(-1)}
-                          aria-label="Vorheriger Tag"
+                          aria-label={
+                            confirmationPeriod === "day"
+                              ? "Vorheriger Tag"
+                              : confirmationPeriod === "week"
+                                ? "Vorherige Woche"
+                                : "Vorheriger Monat"
+                          }
                         >
                           ‹
                         </button>
-                        <input
-                          type="date"
-                          value={selectedDate}
-                          onChange={(e) => setSelectedDate(e.target.value)}
-                          className="bg-transparent text-sm px-2 py-1 outline-none"
-                        />
+                        {confirmationPeriod === "day" && (
+                          <input
+                            type="date"
+                            value={selectedDate}
+                            onChange={(e) => setSelectedDate(e.target.value)}
+                            className="bg-transparent text-sm px-2 py-1 outline-none"
+                          />
+                        )}
+                        {confirmationPeriod === "week" && (
+                          <input
+                            type="week"
+                            value={getWeekValue(selectedDate)}
+                            onChange={(e) => setSelectedDate(weekValueToDate(e.target.value))}
+                            className="bg-transparent text-sm px-2 py-1 outline-none"
+                          />
+                        )}
+                        {confirmationPeriod === "month" && (
+                          <input
+                            type="month"
+                            value={selectedDate.slice(0, 7)}
+                            onChange={(e) => setSelectedDate(`${e.target.value}-01`)}
+                            className="bg-transparent text-sm px-2 py-1 outline-none"
+                          />
+                        )}
                         <button
                           className="h-8 w-8 inline-flex items-center justify-center rounded hover:bg-secondary"
                           onClick={() => shiftDate(1)}
-                          aria-label="Nächster Tag"
+                          aria-label={
+                            confirmationPeriod === "day"
+                              ? "Nächster Tag"
+                              : confirmationPeriod === "week"
+                                ? "Nächste Woche"
+                                : "Nächster Monat"
+                          }
                         >
                           ›
                         </button>
@@ -770,6 +945,7 @@ const Index = () => {
                       viewMode={viewMode}
                       selectedDate={selectedDate}
                       onSelectedDateChange={setSelectedDate}
+                      confirmationPeriod={confirmationPeriod}
                       topics={client.topics}
                       hideConfirmationHeader
                       showConfirmed={showConfirmed}
