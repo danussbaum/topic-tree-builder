@@ -621,32 +621,20 @@ const Index = () => {
               }}
             />
             <RibbonDivider />
-            <div className="flex items-center gap-1 bg-background/50 p-1 rounded-md border border-border">
-              <button
-                onClick={() => setViewMode("planning")}
-                className={cn(
-                  "flex items-center gap-2 px-3 py-1.5 rounded text-xs font-medium transition-colors",
-                  viewMode === "planning"
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-                )}
-              >
-                <ListTodo className="h-4 w-4" />
-                Planung
-              </button>
-              <button
-                onClick={() => setViewMode("confirmation")}
-                className={cn(
-                  "flex items-center gap-2 px-3 py-1.5 rounded text-xs font-medium transition-colors",
-                  viewMode === "confirmation"
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-                )}
-              >
-                <ClipboardCheck className="h-4 w-4" />
-                Bestätigung
-              </button>
-            </div>
+            <RibbonButton
+              icon={ListTodo}
+              label="Planung"
+              onClick={() => setViewMode("planning")}
+              disabled={viewMode === "planning"}
+              active={viewMode === "planning"}
+            />
+            <RibbonButton
+              icon={ClipboardCheck}
+              label="Bestätigung"
+              onClick={() => setViewMode("confirmation")}
+              disabled={viewMode === "confirmation"}
+              active={viewMode === "confirmation"}
+            />
             <RibbonDivider />
             <RibbonButton icon={Filter} label="Filter" />
             <RibbonDivider />
@@ -782,17 +770,25 @@ function RibbonButton({
   label,
   onClick,
   disabled,
+  active,
 }: {
   icon: React.ElementType;
   label: string;
   onClick?: () => void;
   disabled?: boolean;
+  active?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      className="flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 rounded hover:bg-secondary text-foreground/80 hover:text-foreground transition-colors min-w-[64px] disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-foreground/80 disabled:cursor-not-allowed"
+      className={cn(
+        "flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 rounded transition-colors min-w-[64px]",
+        active
+          ? "bg-primary text-primary-foreground shadow-sm disabled:opacity-100"
+          : "text-foreground/80 hover:bg-secondary hover:text-foreground",
+        "disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-foreground/80 disabled:cursor-not-allowed",
+      )}
     >
       <Icon className="h-5 w-5" />
       <span className="text-[11px] font-medium">{label}</span>
