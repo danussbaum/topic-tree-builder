@@ -678,7 +678,7 @@ function DateField({
         <button
           type="button"
           className={cn(
-            "inline-flex items-center gap-1.5 px-2 h-7 rounded border border-border bg-transparent hover:bg-secondary/60 text-xs",
+            "inline-flex items-center gap-1.5 px-2 h-7 rounded border border-border bg-background hover:bg-secondary/60 text-xs",
             missing && "border-destructive/60 text-destructive",
           )}
         >
