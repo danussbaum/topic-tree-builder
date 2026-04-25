@@ -332,9 +332,6 @@ export function AssessmentOutline({
         <section key={topic.id} className="group/topic">
           {/* Topic header */}
           <div className="flex items-start gap-3 pb-2 border-b-2 border-primary/30">
-            <div className="text-3xl font-bold text-primary/40 leading-none pt-1 tabular-nums select-none">
-              {ti + 1}.
-            </div>
             <div className="flex-1 min-w-0">
               <div className="text-[10px] uppercase tracking-widest font-semibold text-accent mb-1">
                 Thema
@@ -369,9 +366,6 @@ export function AssessmentOutline({
               return (
                 <div key={target.id} className="group/target">
                   <div className="flex items-start gap-3">
-                    <div className="text-base font-semibold text-foreground/50 leading-none pt-2 tabular-nums select-none">
-                      {ti + 1}.{gi + 1}
-                    </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground mb-1">
                         Ziel
