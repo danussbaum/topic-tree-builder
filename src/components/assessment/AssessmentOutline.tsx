@@ -334,7 +334,7 @@ export function AssessmentOutline({
           <div className="flex items-start gap-3 pb-2 border-b-2 border-primary/30">
             <div className="flex-1 min-w-0">
               <div className="text-[10px] uppercase tracking-widest font-semibold text-accent mb-1">
-                Thema
+                Schwerpunkt
               </div>
               <input
                 value={topic.title}
