@@ -544,12 +544,14 @@ const Index = () => {
                           <input
                             value={client.firstName}
                             onChange={(e) => updateClientName(client.id, "firstName", e.target.value)}
-                            className="text-2xl font-semibold bg-transparent border-0 outline-none focus:ring-0 px-0 w-auto min-w-[80px]"
+                            size={Math.max(client.firstName.length, 1)}
+                            className="text-2xl font-semibold bg-transparent border-0 outline-none focus:ring-0 px-0"
                           />
                           <input
                             value={client.lastName}
                             onChange={(e) => updateClientName(client.id, "lastName", e.target.value)}
-                            className="text-2xl font-semibold bg-transparent border-0 outline-none focus:ring-0 px-0 w-auto min-w-[80px]"
+                            size={Math.max(client.lastName.length, 1)}
+                            className="text-2xl font-semibold bg-transparent border-0 outline-none focus:ring-0 px-0"
                           />
                         </div>
                       </div>
