@@ -523,32 +523,36 @@ function ActionRow({
   onOpenDialog: () => void;
 }) {
     return (
-    <li className="group/action flex items-start gap-3 py-2 px-2 -mx-2 rounded hover:bg-secondary/40">
-      <button
-        onClick={viewMode === "planning" ? undefined : onOpenDialog}
-        className={cn(
-          "mt-0.5",
-          viewMode === "planning" ? "cursor-default" : "cursor-pointer"
-        )}
-        aria-label={viewMode === "planning" ? undefined : "Status ändern"}
-        title={viewMode === "planning" ? undefined : "Status ändern"}
-      >
-        <StatusIcon status={action.status} />
-      </button>
+    <li className={cn(
+      "group/action flex items-start gap-3 rounded transition-colors",
+      viewMode === "planning"
+        ? "p-3 bg-secondary/30 border border-border hover:border-primary/40"
+        : "py-2 px-2 -mx-2 hover:bg-secondary/40"
+    )}>
+      {viewMode === "confirmation" && (
+        <button
+          onClick={onOpenDialog}
+          className="mt-0.5 cursor-pointer"
+          aria-label="Status ändern"
+          title="Status ändern"
+        >
+          <StatusIcon status={action.status} />
+        </button>
+      )}
       <div className="flex-1 min-w-0">
         <input
           value={action.title}
           onChange={(e) =>
             onUpdateAction(topicId, targetId, action.id, "title", e.target.value)
           }
-          placeholder="Massnahme…"
+          placeholder="Handlung…"
           className={cn(
-            "w-full text-sm bg-transparent border-0 outline-none focus:ring-0 px-0 placeholder:text-muted-foreground/40",
-            action.status === "done_as_planned" &&
+            "w-full text-sm font-medium bg-transparent border-0 outline-none focus:ring-0 px-0 placeholder:text-muted-foreground/40",
+            viewMode === "confirmation" && action.status === "done_as_planned" &&
               "line-through text-muted-foreground",
-            action.status === "done_with_deviation" &&
+            viewMode === "confirmation" && action.status === "done_with_deviation" &&
               "line-through text-muted-foreground",
-            action.status === "not_done" &&
+            viewMode === "confirmation" && action.status === "not_done" &&
               "line-through text-muted-foreground/70",
           )}
         />
