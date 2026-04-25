@@ -5,6 +5,7 @@ import {
   Plus,
   Trash2,
   Clock,
+  Users,
   CheckCircle2,
   AlertTriangle,
   XCircle,
@@ -49,13 +50,15 @@ import { DAY_PART_LABEL, DAY_PART_ORDER } from "@/types/assessment";
 import { cn } from "@/lib/utils";
 
 type ConfirmPayload =
-  | { status: "done_as_planned"; observations?: string }
-  | { status: "done_with_deviation"; actualMinutes: number; reason: string; observations?: string }
+  | { status: "done_as_planned"; result?: string; observations?: string }
+  | { status: "done_with_deviation"; actualMinutes: number; reason: string; result?: string; observations?: string }
   | { status: "not_done"; reason: string }
   | { status: "open" };
 
 type ActionField =
   | "plannedMinutes"
+  | "requiredPersons"
+  | "resultRequirement"
   | "actualMinutes"
   | "reason"
   | "dayPart"
@@ -81,7 +84,7 @@ interface Props {
     topicId: string,
     targetId: string,
     actionId: string,
-    field: "title" | "notes",
+    field: "title" | "notes" | "requiredResources",
     value: string,
   ) => void;
   onUpdateActionField: (
@@ -228,6 +231,7 @@ export function AssessmentOutline({
                       status,
                       actualMinutes: conf?.actualMinutes,
                       reason: conf?.reason,
+                      result: conf?.result,
                       observations: conf?.observations,
                     },
                   })
@@ -247,6 +251,18 @@ export function AssessmentOutline({
                     "font-medium mb-1",
                     status !== "open" && "text-foreground/70"
                   )}>{action.title}</div>
+                  {action.notes.trim() && (
+                    <div className="mt-1 text-xs text-foreground/70 whitespace-pre-wrap">
+                      <span className="font-medium">Beschreibung:</span>{" "}
+                      {action.notes}
+                    </div>
+                  )}
+                  {action.requiredResources?.trim() && (
+                    <div className="mt-1 text-xs text-foreground/70 whitespace-pre-wrap">
+                      <span className="font-medium">Hilfsmittel:</span>{" "}
+                      {action.requiredResources}
+                    </div>
+                  )}
                   <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
                     <span className="font-medium text-primary/70">{topic.title}</span>
                     <span className="text-border">|</span>
@@ -269,6 +285,13 @@ export function AssessmentOutline({
                         {action.plannedMinutes} Min geplant
                       </div>
                     )}
+                    {action.requiredPersons && (
+                      <div className="flex items-center gap-1">
+                        <Users className="h-3 w-3" />
+                        {action.requiredPersons}{" "}
+                        {action.requiredPersons === 1 ? "Person" : "Personen"}
+                      </div>
+                    )}
                     {status === "done_with_deviation" && conf?.actualMinutes != null && (
                       <div className="flex items-center gap-1 text-accent font-medium">
                         <Clock className="h-3 w-3" />
@@ -277,12 +300,20 @@ export function AssessmentOutline({
                     )}
                   </div>
 
-                  {(conf?.reason || conf?.observations) && (
+                  {(conf?.reason ||
+                    ((action.resultRequirement ?? "none") !== "none" && conf?.result) ||
+                    conf?.observations) && (
                     <div className="mt-2 space-y-1">
                       {conf.reason && (
                         <div className="text-xs italic text-destructive/80 line-clamp-2">
                           <span className="not-italic font-semibold mr-1">Grund:</span>
                           {conf.reason}
+                        </div>
+                      )}
+                      {(action.resultRequirement ?? "none") !== "none" && conf.result && (
+                        <div className="text-xs text-foreground/70 line-clamp-2 border-l-2 border-primary/20 pl-2">
+                          <span className="font-semibold mr-1">Resultat:</span>
+                          {conf.result}
                         </div>
                       )}
                       {conf.observations && (
@@ -321,7 +352,7 @@ export function AssessmentOutline({
   if (topics.length === 0) {
     return (
       <div className="border border-dashed border-border rounded-sm p-12 text-center text-muted-foreground">
-        <p className="mb-4">Noch keine Themen erfasst.</p>
+        <p className="mb-4">Noch keine Schwerpunkte erfasst.</p>
         <button
           onClick={onAddTopic}
           className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-sm text-sm font-medium hover:bg-primary/90"
@@ -558,6 +589,29 @@ function ActionRow({
           )}
         />
 
+        {viewMode === "planning" && (
+          <div className="mt-1 space-y-1">
+            <Notes
+              value={action.notes}
+              onChange={(v) =>
+                onUpdateAction(topicId, targetId, action.id, "notes", v)
+              }
+              placeholder="Beschreibung zur Handlung..."
+              className="text-foreground/70"
+              compact
+            />
+            <Notes
+              value={action.requiredResources ?? ""}
+              onChange={(v) =>
+                onUpdateAction(topicId, targetId, action.id, "requiredResources", v)
+              }
+              placeholder="Hilfsmittel zur Durchführung..."
+              className="text-foreground/70"
+              compact
+            />
+          </div>
+        )}
+
         {/* Meta row: dayPart, planned minutes, validity, status */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
           <Select
@@ -609,6 +663,53 @@ function ActionRow({
             <span>Min</span>
           </label>
 
+          <label className="inline-flex items-center gap-1.5">
+            <Users className="h-3.5 w-3.5" />
+            <span>Personen</span>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={action.requiredPersons ?? ""}
+              onChange={(e) => {
+                const value = Number(e.target.value);
+                onUpdateActionField(
+                  topicId,
+                  targetId,
+                  action.id,
+                  "requiredPersons",
+                  e.target.value === "" || !Number.isFinite(value)
+                    ? undefined
+                    : Math.max(1, Math.floor(value)),
+                );
+              }}
+              placeholder="-"
+              className="w-12 bg-background border border-border rounded focus:border-primary outline-none px-1.5 py-0.5 text-right tabular-nums"
+            />
+          </label>
+
+          <Select
+            value={action.resultRequirement ?? "none"}
+            onValueChange={(v) =>
+              onUpdateActionField(
+                topicId,
+                targetId,
+                action.id,
+                "resultRequirement",
+                v === "none" ? undefined : v,
+              )
+            }
+          >
+            <SelectTrigger className="h-7 w-[150px] text-xs px-2 py-0">
+              <SelectValue placeholder="Resultat" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Kein Resultat</SelectItem>
+              <SelectItem value="optional">Resultat optional</SelectItem>
+              <SelectItem value="required">Resultat zwingend</SelectItem>
+            </SelectContent>
+          </Select>
+
           <DateField
             label="Gültig ab"
             required
@@ -646,6 +747,29 @@ function ActionRow({
           <div className="mt-1 text-xs text-foreground/70">
             <span className="font-medium">Beobachtungen:</span>{" "}
             <span className="italic">{action.observations}</span>
+          </div>
+        )}
+
+        {viewMode === "confirmation" &&
+          (action.resultRequirement ?? "none") !== "none" &&
+          action.result && (
+          <div className="mt-1 text-xs text-foreground/70">
+            <span className="font-medium">Resultat:</span>{" "}
+            <span className="italic">{action.result}</span>
+          </div>
+        )}
+
+        {viewMode === "confirmation" && action.notes.trim() && (
+          <div className="mt-1 text-xs text-foreground/70 whitespace-pre-wrap">
+            <span className="font-medium">Beschreibung:</span>{" "}
+            {action.notes}
+          </div>
+        )}
+
+        {viewMode === "confirmation" && action.requiredResources?.trim() && (
+          <div className="mt-1 text-xs text-foreground/70 whitespace-pre-wrap">
+            <span className="font-medium">Hilfsmittel:</span>{" "}
+            {action.requiredResources}
           </div>
         )}
       </div>
@@ -768,6 +892,7 @@ function ConfirmActionDialog({
   const [mode, setMode] = useState<ActionStatus | null>(null);
   const [actualMinutes, setActualMinutes] = useState<string>("");
   const [reason, setReason] = useState<string>("");
+  const [result, setResult] = useState<string>("");
   const [observations, setObservations] = useState<string>("");
 
   const open = target !== null;
@@ -779,6 +904,7 @@ function ConfirmActionDialog({
         target.action.actualMinutes != null ? String(target.action.actualMinutes) : "",
       );
       setReason(target.action.reason ?? "");
+      setResult(target.action.result ?? "");
       setObservations(target.action.observations ?? "");
     }
   }, [target]);
@@ -787,15 +913,25 @@ function ConfirmActionDialog({
     setMode(null);
     setActualMinutes("");
     setReason("");
+    setResult("");
     setObservations("");
     onClose();
   };
 
   const submit = () => {
     if (!target || !mode) return;
+    const res = result.trim() ? result.trim() : undefined;
+    const resultRequirement = target.action.resultRequirement ?? "none";
+    if (
+      resultRequirement === "required" &&
+      (mode === "done_as_planned" || mode === "done_with_deviation") &&
+      !res
+    ) {
+      return;
+    }
     const obs = observations.trim() ? observations.trim() : undefined;
     if (mode === "done_as_planned") {
-      onConfirm({ status: "done_as_planned", observations: obs });
+      onConfirm({ status: "done_as_planned", result: res, observations: obs });
     } else if (mode === "done_with_deviation") {
       const min = Number(actualMinutes);
       if (!Number.isFinite(min) || min < 0 || !reason.trim()) return;
@@ -803,6 +939,7 @@ function ConfirmActionDialog({
         status: "done_with_deviation",
         actualMinutes: min,
         reason: reason.trim(),
+        result: res,
         observations: obs,
       });
     } else if (mode === "not_done") {
@@ -812,10 +949,19 @@ function ConfirmActionDialog({
     setMode(null);
     setActualMinutes("");
     setReason("");
+    setResult("");
     setObservations("");
   };
 
   const planned = target?.action.plannedMinutes;
+  const requiredPersons = target?.action.requiredPersons;
+  const description = target?.action.notes.trim();
+  const requiredResources = target?.action.requiredResources?.trim();
+  const resultRequirement = target?.action.resultRequirement ?? "none";
+  const showResult =
+    resultRequirement !== "none" &&
+    (mode === "done_as_planned" || mode === "done_with_deviation");
+  const resultRequired = resultRequirement === "required";
   const showObservations = mode === "done_as_planned" || mode === "done_with_deviation";
 
   return (
@@ -828,7 +974,24 @@ function ConfirmActionDialog({
             {planned != null && (
               <span className="ml-2 text-xs">· geplant {planned} Min</span>
             )}
+            {requiredPersons != null && (
+              <span className="ml-2 text-xs">
+                · {requiredPersons}{" "}
+                {requiredPersons === 1 ? "Person" : "Personen"}
+              </span>
+            )}
           </DialogDescription>
+          {description && (
+            <div className="text-sm text-muted-foreground whitespace-pre-wrap">
+              {description}
+            </div>
+          )}
+          {requiredResources && (
+            <div className="text-sm text-muted-foreground whitespace-pre-wrap">
+              <span className="font-medium text-foreground/80">Hilfsmittel:</span>{" "}
+              {requiredResources}
+            </div>
+          )}
         </DialogHeader>
 
         <div className="space-y-2">
@@ -899,6 +1062,24 @@ function ConfirmActionDialog({
           </div>
         )}
 
+        {showResult && (
+          <div className="space-y-1.5 pt-2 border-t border-border">
+            <Label htmlFor="result">
+              Resultat{" "}
+              <span className="text-xs font-normal text-muted-foreground">
+                ({resultRequired ? "zwingend" : "optional"})
+              </span>
+            </Label>
+            <Textarea
+              id="result"
+              rows={3}
+              value={result}
+              onChange={(e) => setResult(e.target.value)}
+              placeholder="Resultat der Handlung..."
+            />
+          </div>
+        )}
+
         {showObservations && (
           <div className="space-y-1.5 pt-2 border-t border-border">
             <Label htmlFor="observations">
@@ -926,6 +1107,7 @@ function ConfirmActionDialog({
                 setMode(null);
                 setActualMinutes("");
                 setReason("");
+                setResult("");
                 setObservations("");
               }}
               className="gap-1.5"
@@ -946,7 +1128,8 @@ function ConfirmActionDialog({
                 !mode ||
                 (mode === "done_with_deviation" &&
                   (actualMinutes === "" || !reason.trim())) ||
-                (mode === "not_done" && !reason.trim())
+                (mode === "not_done" && !reason.trim()) ||
+                (showResult && resultRequired && !result.trim())
               }
             >
               Bestätigen

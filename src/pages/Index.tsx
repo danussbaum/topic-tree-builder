@@ -51,6 +51,26 @@ const ClientNameInput = ({ value, label, onChange }: ClientNameInputProps) => (
   </span>
 );
 
+const hasVisibleConfirmationItems = (
+  client: Client,
+  selectedDate: string,
+  showConfirmed: boolean,
+) => {
+  const selDate = new Date(selectedDate);
+
+  return client.topics.some((topic) =>
+    topic.targets.some((target) =>
+      target.actions.some((action) => {
+        if (action.validFrom && new Date(action.validFrom) > selDate) return false;
+        if (action.validTo && new Date(action.validTo) < selDate) return false;
+
+        const status = action.confirmations?.[selectedDate]?.status || "open";
+        return showConfirmed || status === "open";
+      }),
+    ),
+  );
+};
+
 const seedClients: Client[] = [
   {
     id: uid(),
@@ -131,11 +151,27 @@ const Index = () => {
   const [showConfirmed, setShowConfirmed] = useState(false);
 
   const selectedClients = clients.filter((c) => selectedClientIds.includes(c.id));
+  const visibleSelectedClients =
+    viewMode === "confirmation"
+      ? selectedClients.filter((client) =>
+          hasVisibleConfirmationItems(client, selectedDate, showConfirmed),
+        )
+      : selectedClients;
 
   const toggleClient = (id: string) => {
     setSelectedClientIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
+  };
+
+  const toggleAllClients = () => {
+    setSelectedClientIds((prev) => {
+      const clientIds = clients.map((c) => c.id);
+      const allSelected =
+        clientIds.length > 0 && clientIds.every((id) => prev.includes(id));
+
+      return allSelected ? [] : clientIds;
+    });
   };
 
   const updateClientTopicsFor = (
@@ -248,7 +284,7 @@ const Index = () => {
     topicId: string,
     targetId: string,
     actionId: string,
-    field: "title" | "notes",
+    field: "title" | "notes" | "requiredResources",
     value: string,
   ) => {
     updateClientTopicsFor(clientId, (topics) =>
@@ -279,6 +315,8 @@ const Index = () => {
     actionId: string,
     field:
       | "plannedMinutes"
+      | "requiredPersons"
+      | "resultRequirement"
       | "actualMinutes"
       | "reason"
       | "dayPart"
@@ -314,8 +352,8 @@ const Index = () => {
     targetId: string,
     actionId: string,
     payload:
-      | { status: "done_as_planned"; observations?: string }
-      | { status: "done_with_deviation"; actualMinutes: number; reason: string; observations?: string }
+      | { status: "done_as_planned"; result?: string; observations?: string }
+      | { status: "done_with_deviation"; actualMinutes: number; reason: string; result?: string; observations?: string }
       | { status: "not_done"; reason: string }
       | { status: "open" },
     date?: string,
@@ -344,6 +382,7 @@ const Index = () => {
                             status: "done_as_planned",
                             done: true,
                             actualMinutes: a.plannedMinutes,
+                            result: payload.result,
                             observations: payload.observations,
                           };
                         } else if (payload.status === "done_with_deviation") {
@@ -352,6 +391,7 @@ const Index = () => {
                             done: true,
                             actualMinutes: payload.actualMinutes,
                             reason: payload.reason,
+                            result: payload.result,
                             observations: payload.observations,
                           };
                         } else if (payload.status === "not_done") {
@@ -427,6 +467,7 @@ const Index = () => {
           clients={clients}
           selectedClientIds={selectedClientIds}
           onToggleClient={toggleClient}
+          onToggleAllClients={toggleAllClients}
           onAddClient={addClient}
         />
 
@@ -567,7 +608,7 @@ const Index = () => {
                   </div>
                 )}
 
-                {selectedClients.map((client) => (
+                {visibleSelectedClients.map((client) => (
                   <section key={client.id} className="space-y-6">
                     {/* Client header */}
                     <div className="flex items-center gap-4 pb-5 border-b border-border">

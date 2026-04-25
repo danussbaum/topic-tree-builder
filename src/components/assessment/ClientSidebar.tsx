@@ -15,6 +15,7 @@ interface Props {
   clients: Client[];
   selectedClientIds: string[];
   onToggleClient: (id: string) => void;
+  onToggleAllClients: () => void;
   onAddClient: () => void;
 }
 
@@ -30,6 +31,7 @@ export function ClientSidebar({
   clients,
   selectedClientIds,
   onToggleClient,
+  onToggleAllClients,
   onAddClient,
 }: Props) {
   const [query, setQuery] = useState("");
@@ -39,6 +41,8 @@ export function ClientSidebar({
   const filtered = clients.filter((c) =>
     `${c.firstName} ${c.lastName}`.toLowerCase().includes(query.toLowerCase()),
   );
+  const allClientsSelected =
+    clients.length > 0 && clients.every((c) => selectedClientIds.includes(c.id));
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
@@ -58,17 +62,30 @@ export function ClientSidebar({
 
       <SidebarContent>
         {/* Section header */}
-        <button
-          className="flex items-center justify-between gap-2 px-3 py-2.5 border-b border-sidebar-border bg-sidebar-primary/60 hover:bg-sidebar-primary transition-colors w-full"
-          onClick={onAddClient}
-          title="Neue Klient/in hinzufügen"
-        >
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide">
+        <div className="flex items-center border-b border-sidebar-border bg-sidebar-primary/60">
+          <button
+            className={cn(
+              "min-w-0 flex-1 flex items-center gap-2 px-3 py-2.5 text-xs font-semibold uppercase tracking-wide hover:bg-sidebar-primary transition-colors",
+              collapsed && "justify-center px-2",
+            )}
+            onClick={onToggleAllClients}
+            title={allClientsSelected ? "Alle Klient/innen deselektieren" : "Alle Klient/innen selektieren"}
+            aria-pressed={allClientsSelected}
+          >
             <Users className="h-4 w-4 shrink-0" />
             {!collapsed && <span className="truncate">Klient/innen</span>}
-          </div>
-          {!collapsed && <Plus className="h-4 w-4 opacity-80 shrink-0" />}
-        </button>
+          </button>
+          {!collapsed && (
+            <button
+              className="p-2.5 hover:bg-sidebar-primary transition-colors"
+              onClick={onAddClient}
+              title="Neue Klient/in hinzufügen"
+              aria-label="Neue Klient/in hinzufügen"
+            >
+              <Plus className="h-4 w-4 opacity-80 shrink-0" />
+            </button>
+          )}
+        </div>
 
         {/* Client list */}
         <div className="py-1">

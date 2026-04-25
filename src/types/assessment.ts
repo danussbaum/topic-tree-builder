@@ -5,11 +5,13 @@ export type ActionStatus =
   | "not_done";
 
 export type DayPart = "morning" | "noon" | "evening" | "night";
+export type ResultRequirement = "none" | "optional" | "required";
 
 export interface ActionConfirmation {
   status: ActionStatus;
   actualMinutes?: number;
   reason?: string;
+  result?: string;
   observations?: string;
   done: boolean;
 }
@@ -18,8 +20,14 @@ export interface ActionNode {
   id: string;
   title: string;
   notes: string;
+  /** Hilfsmittel fuer die Durchfuehrung */
+  requiredResources?: string;
   /** Geplante Zeit in Minuten */
   plannedMinutes?: number;
+  /** Benoetigte Personen fuer die Durchfuehrung */
+  requiredPersons?: number;
+  /** Ob bei der Bestaetigung ein Resultat erfasst wird */
+  resultRequirement?: ResultRequirement;
   /** Tageszeit zur Gruppierung */
   dayPart?: DayPart;
   /** Gültig ab (ISO Datum, zwingend bei erfasster Handlung) */
@@ -34,6 +42,7 @@ export interface ActionNode {
   // Deprecated fields moved to ActionConfirmation
   actualMinutes?: number;
   reason?: string;
+  result?: string;
   observations?: string;
 }
 
