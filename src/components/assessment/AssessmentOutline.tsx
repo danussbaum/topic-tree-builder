@@ -69,6 +69,7 @@ interface Props {
   onSelectedDateChange: (date: string) => void;
   topics: TopicNode[];
   hideConfirmationHeader?: boolean;
+  showConfirmed?: boolean;
   onUpdateTopic: (topicId: string, field: "title" | "notes", value: string) => void;
   onUpdateTarget: (
     topicId: string,
@@ -136,6 +137,7 @@ export function AssessmentOutline({
   onSelectedDateChange,
   topics,
   hideConfirmationHeader,
+  showConfirmed = false,
   onUpdateTopic,
   onUpdateTarget,
   onUpdateAction,
@@ -165,7 +167,12 @@ export function AssessmentOutline({
           // Date Filtering
           if (action.validFrom && new Date(action.validFrom) > selDate) return;
           if (action.validTo && new Date(action.validTo) < selDate) return;
-          
+
+          // Hide confirmed when toggle off
+          const conf = action.confirmations?.[selectedDate];
+          const status = conf?.status || "open";
+          if (!showConfirmed && status !== "open") return;
+
           flatActions.push({ topic, target, action });
         });
       });

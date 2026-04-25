@@ -105,6 +105,7 @@ const Index = () => {
   const [selectedClientIds, setSelectedClientIds] = useState<string[]>([
     seedClients[0].id,
   ]);
+  const [showConfirmed, setShowConfirmed] = useState(false);
 
   const selectedClients = clients.filter((c) => selectedClientIds.includes(c.id));
 
@@ -529,8 +530,16 @@ const Index = () => {
                         </button>
                       </div>
                     </div>
-                    <div className="text-sm text-muted-foreground">
-                      {selectedClients.length} Klient/in{selectedClients.length === 1 ? "" : "nen"}
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={showConfirmed}
+                          onChange={(e) => setShowConfirmed(e.target.checked)}
+                          className="h-4 w-4 rounded border-border accent-primary"
+                        />
+                        Bestätigte anzeigen
+                      </label>
                     </div>
                   </div>
                 )}
@@ -544,12 +553,14 @@ const Index = () => {
                           <input
                             value={client.firstName}
                             onChange={(e) => updateClientName(client.id, "firstName", e.target.value)}
-                            className="text-2xl font-semibold bg-transparent border-0 outline-none focus:ring-0 px-0 w-auto min-w-[80px]"
+                            size={Math.max(client.firstName.length, 1)}
+                            className="text-2xl font-semibold bg-transparent border-0 outline-none focus:ring-0 px-0"
                           />
                           <input
                             value={client.lastName}
                             onChange={(e) => updateClientName(client.id, "lastName", e.target.value)}
-                            className="text-2xl font-semibold bg-transparent border-0 outline-none focus:ring-0 px-0 w-auto min-w-[80px]"
+                            size={Math.max(client.lastName.length, 1)}
+                            className="text-2xl font-semibold bg-transparent border-0 outline-none focus:ring-0 px-0"
                           />
                         </div>
                       </div>
@@ -561,6 +572,7 @@ const Index = () => {
                       onSelectedDateChange={setSelectedDate}
                       topics={client.topics}
                       hideConfirmationHeader
+                      showConfirmed={showConfirmed}
                       onUpdateTopic={(topicId, field, value) =>
                         updateTopic(client.id, topicId, field, value)
                       }
