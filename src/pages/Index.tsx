@@ -409,7 +409,11 @@ const Index = () => {
                   : {
                       ...tg,
                       actions: tg.actions.map((a) =>
-                        a.id === actionId ? { ...a, [field]: value } : a,
+                        a.id === actionId
+                          ? Object.keys(a.confirmations ?? {}).length > 0
+                            ? a
+                            : { ...a, [field]: value }
+                          : a,
                       ),
                     },
               ),
@@ -447,7 +451,11 @@ const Index = () => {
                   : {
                       ...tg,
                       actions: tg.actions.map((a) =>
-                        a.id === actionId ? { ...a, [field]: value } : a,
+                        a.id === actionId
+                          ? Object.keys(a.confirmations ?? {}).length > 0
+                            ? a
+                            : { ...a, [field]: value }
+                          : a,
                       ),
                     },
               ),
