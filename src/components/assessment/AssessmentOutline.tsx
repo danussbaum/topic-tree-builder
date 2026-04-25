@@ -70,6 +70,7 @@ interface Props {
   viewMode: "planning" | "confirmation";
   selectedDate: string;
   onSelectedDateChange: (date: string) => void;
+  confirmationPeriod?: "day" | "week" | "month";
   topics: TopicNode[];
   hideConfirmationHeader?: boolean;
   showConfirmed?: boolean;
@@ -138,6 +139,7 @@ export function AssessmentOutline({
   viewMode,
   selectedDate,
   onSelectedDateChange,
+  confirmationPeriod = "day",
   topics,
   hideConfirmationHeader,
   showConfirmed = false,
@@ -156,6 +158,57 @@ export function AssessmentOutline({
   const [dialogTarget, setDialogTarget] = useState<DialogTarget | null>(null);
 
   if (viewMode === "confirmation") {
+    const getPeriodRange = () => {
+      const current = new Date(`${selectedDate}T00:00:00`);
+      if (confirmationPeriod === "day") {
+        return { start: selectedDate, end: selectedDate };
+      }
+      if (confirmationPeriod === "week") {
+        const weekDay = current.getDay();
+        const diff = weekDay === 0 ? -6 : 1 - weekDay;
+        const start = new Date(current);
+        start.setDate(current.getDate() + diff);
+        const end = new Date(start);
+        end.setDate(start.getDate() + 6);
+        return {
+          start: format(start, "yyyy-MM-dd"),
+          end: format(end, "yyyy-MM-dd"),
+        };
+      }
+      const start = new Date(current.getFullYear(), current.getMonth(), 1);
+      const end = new Date(current.getFullYear(), current.getMonth() + 1, 0);
+      return {
+        start: format(start, "yyyy-MM-dd"),
+        end: format(end, "yyyy-MM-dd"),
+      };
+    };
+
+    const periodRange = getPeriodRange();
+    const getStatusForPeriod = (action: ActionNode) => {
+      if (confirmationPeriod === "day") {
+        return action.confirmations?.[selectedDate]?.status || "open";
+      }
+      const entries = Object.entries(action.confirmations || {}).filter(
+        ([date, confirmation]) =>
+          date >= periodRange.start &&
+          date <= periodRange.end &&
+          confirmation.status !== "open",
+      );
+      if (entries.length === 0) return "open";
+      const latestEntry = entries.sort(([a], [b]) => b.localeCompare(a))[0];
+      return latestEntry?.[1].status || "open";
+    };
+
+    const getConfirmationForPeriod = (action: ActionNode) => {
+      if (confirmationPeriod === "day") {
+        return action.confirmations?.[selectedDate];
+      }
+      const date = Object.keys(action.confirmations || {})
+        .filter((key) => key >= periodRange.start && key <= periodRange.end)
+        .sort((a, b) => b.localeCompare(a))[0];
+      return date ? action.confirmations?.[date] : undefined;
+    };
+
     const flatActions: Array<{
       topic: TopicNode;
       target: { id: string; title: string; notes: string };
@@ -170,8 +223,7 @@ export function AssessmentOutline({
           if (action.validTo && action.validTo < selectedDate) return;
 
           // Hide confirmed when toggle off
-          const conf = action.confirmations?.[selectedDate];
-          const status = conf?.status || "open";
+          const status = getStatusForPeriod(action);
           if (!showConfirmed && status !== "open") return;
 
           flatActions.push({ topic, target, action });
@@ -217,8 +269,8 @@ export function AssessmentOutline({
 
         <div className="grid gap-3">
           {flatActions.map(({ topic, target, action }) => {
-            const conf = action.confirmations?.[selectedDate];
-            const status = conf?.status || "open";
+            const conf = getConfirmationForPeriod(action);
+            const status = getStatusForPeriod(action);
             
             return (
               <button
