@@ -539,13 +539,7 @@ const Index = () => {
                   <section key={client.id} className="space-y-6">
                     {/* Client header */}
                     <div className="flex items-center gap-4 pb-5 border-b border-border">
-                      <div className="h-14 w-14 rounded-full bg-primary/10 text-primary flex items-center justify-center text-lg font-semibold">
-                        {(client.firstName[0] ?? "") + (client.lastName[0] ?? "")}
-                      </div>
                       <div className="min-w-0 flex-1">
-                        <div className="text-xs uppercase tracking-wide font-semibold text-accent mb-0.5">
-                          Klient/in
-                        </div>
                         <div className="flex items-baseline gap-2">
                           <input
                             value={client.firstName}

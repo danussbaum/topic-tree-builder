@@ -523,32 +523,36 @@ function ActionRow({
   onOpenDialog: () => void;
 }) {
     return (
-    <li className="group/action flex items-start gap-3 py-2 px-2 -mx-2 rounded hover:bg-secondary/40">
-      <button
-        onClick={viewMode === "planning" ? undefined : onOpenDialog}
-        className={cn(
-          "mt-0.5",
-          viewMode === "planning" ? "cursor-default" : "cursor-pointer"
-        )}
-        aria-label={viewMode === "planning" ? undefined : "Status ändern"}
-        title={viewMode === "planning" ? undefined : "Status ändern"}
-      >
-        <StatusIcon status={action.status} />
-      </button>
+    <li className={cn(
+      "group/action flex items-start gap-3 rounded transition-colors",
+      viewMode === "planning"
+        ? "p-3 bg-secondary/30 border border-border hover:border-primary/40"
+        : "py-2 px-2 -mx-2 hover:bg-secondary/40"
+    )}>
+      {viewMode === "confirmation" && (
+        <button
+          onClick={onOpenDialog}
+          className="mt-0.5 cursor-pointer"
+          aria-label="Status ändern"
+          title="Status ändern"
+        >
+          <StatusIcon status={action.status} />
+        </button>
+      )}
       <div className="flex-1 min-w-0">
         <input
           value={action.title}
           onChange={(e) =>
             onUpdateAction(topicId, targetId, action.id, "title", e.target.value)
           }
-          placeholder="Massnahme…"
+          placeholder="Handlung…"
           className={cn(
-            "w-full text-sm bg-transparent border-0 outline-none focus:ring-0 px-0 placeholder:text-muted-foreground/40",
-            action.status === "done_as_planned" &&
+            "w-full text-sm font-medium bg-transparent border-0 outline-none focus:ring-0 px-0 placeholder:text-muted-foreground/40",
+            viewMode === "confirmation" && action.status === "done_as_planned" &&
               "line-through text-muted-foreground",
-            action.status === "done_with_deviation" &&
+            viewMode === "confirmation" && action.status === "done_with_deviation" &&
               "line-through text-muted-foreground",
-            action.status === "not_done" &&
+            viewMode === "confirmation" && action.status === "not_done" &&
               "line-through text-muted-foreground/70",
           )}
         />
@@ -599,7 +603,7 @@ function ActionRow({
                 )
               }
               placeholder="–"
-              className="w-14 bg-transparent border-b border-border focus:border-primary outline-none px-1 py-0 text-right tabular-nums"
+              className="w-14 bg-background border border-border rounded focus:border-primary outline-none px-1.5 py-0.5 text-right tabular-nums"
             />
             <span>Min</span>
           </label>
@@ -620,10 +624,10 @@ function ActionRow({
             }
           />
 
-          <StatusBadge action={action} />
+          {viewMode === "confirmation" && <StatusBadge action={action} />}
         </div>
 
-        {(action.reason ||
+        {viewMode === "confirmation" && (action.reason ||
           action.status === "done_with_deviation" ||
           action.status === "not_done") && (
           <div className="mt-1 text-xs text-muted-foreground italic">
@@ -637,26 +641,17 @@ function ActionRow({
           </div>
         )}
 
-        {action.observations && (
+        {viewMode === "confirmation" && action.observations && (
           <div className="mt-1 text-xs text-foreground/70">
             <span className="font-medium">Beobachtungen:</span>{" "}
             <span className="italic">{action.observations}</span>
           </div>
         )}
-
-        <Notes
-          value={action.notes}
-          onChange={(v) =>
-            onUpdateAction(topicId, targetId, action.id, "notes", v)
-          }
-          placeholder="Notiz hinzufügen…"
-          compact
-        />
       </div>
       <button
         onClick={() => onDeleteAction(topicId, targetId, action.id)}
         className="opacity-0 group-hover/action:opacity-100 p-1 hover:bg-destructive/10 hover:text-destructive rounded transition-opacity self-start mt-0.5"
-        aria-label="Massnahme löschen"
+        aria-label="Handlung löschen"
       >
         <Trash2 className="h-3.5 w-3.5" />
       </button>
@@ -683,7 +678,7 @@ function DateField({
         <button
           type="button"
           className={cn(
-            "inline-flex items-center gap-1.5 px-2 h-7 rounded border border-border bg-transparent hover:bg-secondary/60 text-xs",
+            "inline-flex items-center gap-1.5 px-2 h-7 rounded border border-border bg-background hover:bg-secondary/60 text-xs",
             missing && "border-destructive/60 text-destructive",
           )}
         >
