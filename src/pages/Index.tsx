@@ -105,6 +105,7 @@ const Index = () => {
   const [selectedClientIds, setSelectedClientIds] = useState<string[]>([
     seedClients[0].id,
   ]);
+  const [showConfirmed, setShowConfirmed] = useState(false);
 
   const selectedClients = clients.filter((c) => selectedClientIds.includes(c.id));
 
