@@ -74,7 +74,6 @@ export function ClientSidebar({
         <div className="py-1">
           {filtered.map((c) => {
             const selected = selectedClientIds.includes(c.id);
-            const initials = `${c.firstName[0] ?? ""}${c.lastName[0] ?? ""}`.toUpperCase();
             return (
               <button
                 key={c.id}
@@ -88,9 +87,6 @@ export function ClientSidebar({
                 )}
                 title={collapsed ? `${c.lastName}, ${c.firstName}` : undefined}
               >
-                <div className="h-7 w-7 rounded-full bg-sidebar-accent/40 flex items-center justify-center text-[10px] font-semibold shrink-0">
-                  {initials}
-                </div>
                 {!collapsed && (
                   <div className="min-w-0">
                     <div className="text-sm font-medium truncate">
