@@ -431,10 +431,38 @@ const Index = () => {
     );
   };
 
-  const deleteTopic = (clientId: string, topicId: string) =>
-    updateClientTopicsFor(clientId, (topics) => topics.filter((t) => t.id !== topicId));
+  const deleteTopic = (clientId: string, topicId: string) => {
+    const client = clients.find((c) => c.id === clientId);
+    const topic = client?.topics.find((t) => t.id === topicId);
+    const hasTargets = (topic?.targets.length ?? 0) > 0;
 
-  const deleteTarget = (clientId: string, topicId: string, targetId: string) =>
+    if (
+      hasTargets &&
+      !window.confirm(
+        "Dieser Schwerpunkt enthält Ziele. Beim Löschen werden alle verknüpften Daten ebenfalls gelöscht. Möchten Sie fortfahren?",
+      )
+    ) {
+      return;
+    }
+
+    updateClientTopicsFor(clientId, (topics) => topics.filter((t) => t.id !== topicId));
+  };
+
+  const deleteTarget = (clientId: string, topicId: string, targetId: string) => {
+    const client = clients.find((c) => c.id === clientId);
+    const topic = client?.topics.find((t) => t.id === topicId);
+    const target = topic?.targets.find((tg) => tg.id === targetId);
+    const hasActions = (target?.actions.length ?? 0) > 0;
+
+    if (
+      hasActions &&
+      !window.confirm(
+        "Dieses Ziel enthält Handlungen. Beim Löschen werden alle verknüpften Daten ebenfalls gelöscht. Möchten Sie fortfahren?",
+      )
+    ) {
+      return;
+    }
+
     updateClientTopicsFor(clientId, (topics) =>
       topics.map((t) =>
         t.id !== topicId
@@ -442,13 +470,29 @@ const Index = () => {
           : { ...t, targets: t.targets.filter((tg) => tg.id !== targetId) },
       ),
     );
+  };
 
   const deleteAction = (
     clientId: string,
     topicId: string,
     targetId: string,
     actionId: string,
-  ) =>
+  ) => {
+    const client = clients.find((c) => c.id === clientId);
+    const topic = client?.topics.find((t) => t.id === topicId);
+    const target = topic?.targets.find((tg) => tg.id === targetId);
+    const action = target?.actions.find((a) => a.id === actionId);
+    const hasConfirmedActions = Object.keys(action?.confirmations ?? {}).length > 0;
+
+    if (
+      hasConfirmedActions &&
+      !window.confirm(
+        "Diese geplante Handlung hat bereits bestätigte Einträge. Beim Löschen werden alle verknüpften Daten ebenfalls gelöscht. Möchten Sie fortfahren?",
+      )
+    ) {
+      return;
+    }
+
     updateClientTopicsFor(clientId, (topics) =>
       topics.map((t) =>
         t.id !== topicId
@@ -463,6 +507,7 @@ const Index = () => {
             },
       ),
     );
+  };
 
   const updateClientName = (
     clientId: string,
