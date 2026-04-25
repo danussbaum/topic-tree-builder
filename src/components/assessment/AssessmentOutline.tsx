@@ -692,128 +692,254 @@ function ActionRow({
           </div>
         )}
 
-        {/* Meta row: dayPart, planned minutes, validity, status */}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
-          <Select
-            value={action.dayPart ?? "none"}
-            disabled={isLocked}
-            onValueChange={(v) =>
-              onUpdateActionField(
-                topicId,
-                targetId,
-                action.id,
-                "dayPart",
-                v === "none" ? undefined : v,
-              )
-            }
-          >
-            <SelectTrigger className="h-7 w-[120px] text-xs px-2 py-0">
-              <SelectValue placeholder="Tageszeit" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Keine Angabe</SelectItem>
-              <SelectItem value="morning">Morgen</SelectItem>
-              <SelectItem value="noon">Mittag</SelectItem>
-              <SelectItem value="evening">Abend</SelectItem>
-              <SelectItem value="night">Nacht</SelectItem>
-            </SelectContent>
-          </Select>
+        {/* Meta fields */}
+        {viewMode === "planning" ? (
+          <div className="mt-2 grid grid-cols-1 gap-2 text-xs text-muted-foreground md:grid-cols-3">
+            <div className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1.5">
+              <span className="shrink-0 text-muted-foreground">Tageszeit</span>
+              <Select
+                value={action.dayPart ?? "none"}
+                disabled={isLocked}
+                onValueChange={(v) =>
+                  onUpdateActionField(
+                    topicId,
+                    targetId,
+                    action.id,
+                    "dayPart",
+                    v === "none" ? undefined : v,
+                  )
+                }
+              >
+                <SelectTrigger className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0">
+                  <SelectValue placeholder="Keine Angabe" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Keine Angabe</SelectItem>
+                  <SelectItem value="morning">Morgen</SelectItem>
+                  <SelectItem value="noon">Mittag</SelectItem>
+                  <SelectItem value="evening">Abend</SelectItem>
+                  <SelectItem value="night">Nacht</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-          <label className="inline-flex items-center gap-1.5">
-            <Clock className="h-3.5 w-3.5" />
-            <span>geplant</span>
-            <input
-              type="number"
-              min={0}
-              step={5}
+            <label className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1.5">
+              <Clock className="h-3.5 w-3.5 shrink-0" />
+              <span className="shrink-0">geplant</span>
+              <input
+                type="number"
+                min={0}
+                step={5}
+                disabled={isLocked}
+                value={action.plannedMinutes ?? ""}
+                onChange={(e) =>
+                  onUpdateActionField(
+                    topicId,
+                    targetId,
+                    action.id,
+                    "plannedMinutes",
+                    e.target.value === ""
+                      ? undefined
+                      : Math.max(0, Number(e.target.value)),
+                  )
+                }
+                placeholder="–"
+                className="h-7 w-full min-w-0 bg-transparent border border-border rounded focus:border-primary outline-none px-2 py-0.5 text-right tabular-nums"
+              />
+              <span className="shrink-0">Min</span>
+            </label>
+
+            <label className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1.5">
+              <Users className="h-3.5 w-3.5 shrink-0" />
+              <span className="shrink-0">Personen</span>
+              <input
+                type="number"
+                min={1}
+                step={1}
+                disabled={isLocked}
+                value={action.requiredPersons ?? ""}
+                onChange={(e) => {
+                  const value = Number(e.target.value);
+                  onUpdateActionField(
+                    topicId,
+                    targetId,
+                    action.id,
+                    "requiredPersons",
+                    e.target.value === "" || !Number.isFinite(value)
+                      ? undefined
+                      : Math.max(1, Math.floor(value)),
+                  );
+                }}
+                placeholder="-"
+                className="h-7 w-full min-w-0 bg-transparent border border-border rounded focus:border-primary outline-none px-2 py-0.5 text-right tabular-nums"
+              />
+            </label>
+
+            <div className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1.5">
+              <span className="shrink-0 text-muted-foreground">Resultat</span>
+              <Select
+                value={action.resultRequirement ?? "none"}
+                disabled={isLocked}
+                onValueChange={(v) =>
+                  onUpdateActionField(
+                    topicId,
+                    targetId,
+                    action.id,
+                    "resultRequirement",
+                    v === "none" ? undefined : v,
+                  )
+                }
+              >
+                <SelectTrigger className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0">
+                  <SelectValue placeholder="Kein Resultat" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Kein Resultat</SelectItem>
+                  <SelectItem value="optional">Resultat optional</SelectItem>
+                  <SelectItem value="required">Resultat zwingend</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <DateField
+              label="Gültig ab"
+              required
               disabled={isLocked}
-              value={action.plannedMinutes ?? ""}
-              onChange={(e) =>
+              value={action.validFrom}
+              onChange={(v) =>
+                onUpdateActionField(topicId, targetId, action.id, "validFrom", v)
+              }
+              className="w-full"
+            />
+            <DateField
+              label="Gültig bis"
+              disabled={isLocked}
+              value={action.validTo}
+              onChange={(v) =>
+                onUpdateActionField(topicId, targetId, action.id, "validTo", v)
+              }
+              className="w-full"
+            />
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
+            <Select
+              value={action.dayPart ?? "none"}
+              disabled={isLocked}
+              onValueChange={(v) =>
                 onUpdateActionField(
                   topicId,
                   targetId,
                   action.id,
-                  "plannedMinutes",
-                  e.target.value === ""
-                    ? undefined
-                    : Math.max(0, Number(e.target.value)),
+                  "dayPart",
+                  v === "none" ? undefined : v,
                 )
               }
-              placeholder="–"
-              className="w-14 bg-background border border-border rounded focus:border-primary outline-none px-1.5 py-0.5 text-right tabular-nums"
-            />
-            <span>Min</span>
-          </label>
-
-          <label className="inline-flex items-center gap-1.5">
-            <Users className="h-3.5 w-3.5" />
-            <span>Personen</span>
-            <input
-              type="number"
-              min={1}
-              step={1}
+            >
+              <SelectTrigger className="h-7 w-[120px] text-xs px-2 py-0">
+                <SelectValue placeholder="Tageszeit" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Keine Angabe</SelectItem>
+                <SelectItem value="morning">Morgen</SelectItem>
+                <SelectItem value="noon">Mittag</SelectItem>
+                <SelectItem value="evening">Abend</SelectItem>
+                <SelectItem value="night">Nacht</SelectItem>
+              </SelectContent>
+            </Select>
+            <label className="inline-flex items-center gap-1.5">
+              <Clock className="h-3.5 w-3.5" />
+              <span>geplant</span>
+              <input
+                type="number"
+                min={0}
+                step={5}
+                disabled={isLocked}
+                value={action.plannedMinutes ?? ""}
+                onChange={(e) =>
+                  onUpdateActionField(
+                    topicId,
+                    targetId,
+                    action.id,
+                    "plannedMinutes",
+                    e.target.value === ""
+                      ? undefined
+                      : Math.max(0, Number(e.target.value)),
+                  )
+                }
+                placeholder="–"
+                className="w-14 bg-background border border-border rounded focus:border-primary outline-none px-1.5 py-0.5 text-right tabular-nums"
+              />
+              <span>Min</span>
+            </label>
+            <label className="inline-flex items-center gap-1.5">
+              <Users className="h-3.5 w-3.5" />
+              <span>Personen</span>
+              <input
+                type="number"
+                min={1}
+                step={1}
+                disabled={isLocked}
+                value={action.requiredPersons ?? ""}
+                onChange={(e) => {
+                  const value = Number(e.target.value);
+                  onUpdateActionField(
+                    topicId,
+                    targetId,
+                    action.id,
+                    "requiredPersons",
+                    e.target.value === "" || !Number.isFinite(value)
+                      ? undefined
+                      : Math.max(1, Math.floor(value)),
+                  );
+                }}
+                placeholder="-"
+                className="w-12 bg-background border border-border rounded focus:border-primary outline-none px-1.5 py-0.5 text-right tabular-nums"
+              />
+            </label>
+            <Select
+              value={action.resultRequirement ?? "none"}
               disabled={isLocked}
-              value={action.requiredPersons ?? ""}
-              onChange={(e) => {
-                const value = Number(e.target.value);
+              onValueChange={(v) =>
                 onUpdateActionField(
                   topicId,
                   targetId,
                   action.id,
-                  "requiredPersons",
-                  e.target.value === "" || !Number.isFinite(value)
-                    ? undefined
-                    : Math.max(1, Math.floor(value)),
-                );
-              }}
-              placeholder="-"
-              className="w-12 bg-background border border-border rounded focus:border-primary outline-none px-1.5 py-0.5 text-right tabular-nums"
+                  "resultRequirement",
+                  v === "none" ? undefined : v,
+                )
+              }
+            >
+              <SelectTrigger className="h-7 w-[150px] text-xs px-2 py-0">
+                <SelectValue placeholder="Resultat" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Kein Resultat</SelectItem>
+                <SelectItem value="optional">Resultat optional</SelectItem>
+                <SelectItem value="required">Resultat zwingend</SelectItem>
+              </SelectContent>
+            </Select>
+            <DateField
+              label="Gültig ab"
+              required
+              disabled={isLocked}
+              value={action.validFrom}
+              onChange={(v) =>
+                onUpdateActionField(topicId, targetId, action.id, "validFrom", v)
+              }
             />
-          </label>
+            <DateField
+              label="Gültig bis"
+              disabled={isLocked}
+              value={action.validTo}
+              onChange={(v) =>
+                onUpdateActionField(topicId, targetId, action.id, "validTo", v)
+              }
+            />
 
-          <Select
-            value={action.resultRequirement ?? "none"}
-            disabled={isLocked}
-            onValueChange={(v) =>
-              onUpdateActionField(
-                topicId,
-                targetId,
-                action.id,
-                "resultRequirement",
-                v === "none" ? undefined : v,
-              )
-            }
-          >
-            <SelectTrigger className="h-7 w-[150px] text-xs px-2 py-0">
-              <SelectValue placeholder="Resultat" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Kein Resultat</SelectItem>
-              <SelectItem value="optional">Resultat optional</SelectItem>
-              <SelectItem value="required">Resultat zwingend</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <DateField
-            label="Gültig ab"
-            required
-            disabled={isLocked}
-            value={action.validFrom}
-            onChange={(v) =>
-              onUpdateActionField(topicId, targetId, action.id, "validFrom", v)
-            }
-          />
-          <DateField
-            label="Gültig bis"
-            disabled={isLocked}
-            value={action.validTo}
-            onChange={(v) =>
-              onUpdateActionField(topicId, targetId, action.id, "validTo", v)
-            }
-          />
-
-          {viewMode === "confirmation" && <StatusBadge action={action} />}
-        </div>
+            <StatusBadge action={action} />
+          </div>
+        )}
 
         {viewMode === "confirmation" && (action.reason ||
           action.status === "done_with_deviation" ||
@@ -876,12 +1002,14 @@ function DateField({
   onChange,
   required,
   disabled,
+  className,
 }: {
   label: string;
   value?: string;
   onChange: (v: string | undefined) => void;
   required?: boolean;
   disabled?: boolean;
+  className?: string;
 }) {
   const date = value ? parseISO(value) : undefined;
   const missing = required && !value;
@@ -892,7 +1020,8 @@ function DateField({
           type="button"
           disabled={disabled}
           className={cn(
-            "inline-flex items-center gap-1.5 px-2 h-7 rounded border border-border bg-background hover:bg-secondary/60 text-xs",
+            "inline-flex h-7 items-center gap-1.5 rounded border border-border bg-background px-2 text-xs hover:bg-secondary/60",
+            className,
             disabled && "opacity-60 cursor-not-allowed hover:bg-background",
             missing && "border-destructive/60 text-destructive",
           )}
