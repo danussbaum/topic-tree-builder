@@ -530,8 +530,16 @@ const Index = () => {
                         </button>
                       </div>
                     </div>
-                    <div className="text-sm text-muted-foreground">
-                      {selectedClients.length} Klient/in{selectedClients.length === 1 ? "" : "nen"}
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={showConfirmed}
+                          onChange={(e) => setShowConfirmed(e.target.checked)}
+                          className="h-4 w-4 rounded border-border accent-primary"
+                        />
+                        Bestätigte anzeigen
+                      </label>
                     </div>
                   </div>
                 )}
