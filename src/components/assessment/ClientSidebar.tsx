@@ -109,9 +109,6 @@ export function ClientSidebar({
                     <div className="text-sm font-medium truncate">
                       {c.lastName}, {c.firstName}
                     </div>
-                    <div className="text-[10px] opacity-70 truncate">
-                      {c.topics.length} Schwerpunkt{c.topics.length === 1 ? "" : "en"}
-                    </div>
                   </div>
                 )}
               </button>
