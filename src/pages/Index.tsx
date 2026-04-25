@@ -80,11 +80,13 @@ const getVisibleConfirmationItems = (
     action: ActionNode;
   }> = [];
 
+  const { start, end } = getPeriodRange(selectedDate, period);
+
   client.topics.forEach((topic) => {
     topic.targets.forEach((target) => {
       target.actions.forEach((action) => {
-        if (action.validFrom && action.validFrom > selectedDate) return;
-        if (action.validTo && action.validTo < selectedDate) return;
+        if (action.validFrom && action.validFrom > end) return;
+        if (action.validTo && action.validTo < start) return;
 
         const status = getStatusForPeriod(action, selectedDate, period);
         if (!showConfirmed && status !== "open") return;
@@ -623,50 +625,40 @@ const Index = () => {
   const exportConfirmationExcel = () => {
     if (viewMode !== "confirmation") return;
 
-    const periodRange = getPeriodRange(selectedDate, confirmationPeriod);
-
     const rows = selectedClients.flatMap((client) =>
-      getVisibleConfirmationItems(client, selectedDate, confirmationPeriod, showConfirmed).map(
-        ({ topic, target, action }) => {
-          const status = getStatusForPeriod(action, selectedDate, confirmationPeriod);
-          const { start, end } = periodRange;
-          const confirmationDate =
-            confirmationPeriod === "day"
-              ? selectedDate
-              : Object.keys(action.confirmations || {})
-                  .filter((date) => date >= start && date <= end)
-                  .sort((a, b) => b.localeCompare(a))[0] ?? selectedDate;
-          const confirmation = action.confirmations?.[confirmationDate];
-
-          return {
-            Datum:
-              confirmationPeriod === "day"
-                ? selectedDate
-                : `${start} bis ${end}`,
-            "Klient/in": `${client.firstName} ${client.lastName}`.trim(),
-            Schwerpunkt: topic.title,
-            Ziel: target.title,
-            Handlung: action.title,
-            Beschreibung: action.notes,
-            Hilfsmittel: action.requiredResources ?? "",
-            Status:
-              status === "done_as_planned"
-                ? "Wie geplant durchgeführt"
-                : status === "done_with_deviation"
-                  ? "Mit Abweichung durchgeführt"
-                  : status === "not_done"
-                    ? "Nicht durchgeführt"
-                    : "Offen",
-            Grund: confirmation?.reason ?? "",
-            Resultat: confirmation?.result ?? "",
-            Beobachtungen: confirmation?.observations ?? "",
-            "Gültig ab": action.validFrom ?? "",
-            "Gültig bis": action.validTo ?? "",
-            "Tageszeit": action.dayPart ?? "",
-            "Minuten geplant": action.plannedMinutes ?? "",
-            "Minuten tatsächlich": confirmation?.actualMinutes ?? "",
-          };
-        },
+      client.topics.flatMap((topic) =>
+        topic.targets.flatMap((target) =>
+          target.actions.flatMap((action) =>
+            Object.entries(action.confirmations || {})
+              .filter(([, confirmation]) => confirmation.status !== "open")
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([confirmationDate, confirmation]) => ({
+                Datum: confirmationDate,
+                "Klient/in": `${client.firstName} ${client.lastName}`.trim(),
+                Schwerpunkt: topic.title,
+                Ziel: target.title,
+                Handlung: action.title,
+                Beschreibung: action.notes,
+                Hilfsmittel: action.requiredResources ?? "",
+                Status:
+                  confirmation.status === "done_as_planned"
+                    ? "Wie geplant durchgeführt"
+                    : confirmation.status === "done_with_deviation"
+                      ? "Mit Abweichung durchgeführt"
+                      : confirmation.status === "not_done"
+                        ? "Nicht durchgeführt"
+                        : "Offen",
+                Grund: confirmation.reason ?? "",
+                Resultat: confirmation.result ?? "",
+                Beobachtungen: confirmation.observations ?? "",
+                "Gültig ab": action.validFrom ?? "",
+                "Gültig bis": action.validTo ?? "",
+                "Tageszeit": action.dayPart ?? "",
+                "Minuten geplant": action.plannedMinutes ?? "",
+                "Minuten tatsächlich": confirmation.actualMinutes ?? "",
+              })),
+          ),
+        ),
       ),
     );
 
@@ -694,10 +686,19 @@ const Index = () => {
       headers: allHeaders,
       rows: rows.map((row) => allHeaders.map((header) => row[header as keyof typeof row] ?? "")),
     });
+    const periodLabel =
+      confirmationPeriod === "day"
+        ? selectedDate
+        : confirmationPeriod === "week"
+          ? (() => {
+              const [year, week] = getWeekValue(selectedDate).split("-W");
+              return `KW${week}-${year}`;
+            })()
+          : selectedDate.slice(0, 7);
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `bestaetigungen_${confirmationPeriod}_${selectedDate}.xlsx`;
+    link.download = `bestaetigungen_alle_${periodLabel}.xlsx`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -806,13 +807,6 @@ const Index = () => {
                 {viewMode === "confirmation" && (
                   <div className="flex items-center justify-between bg-secondary/30 p-4 rounded-lg border border-border sticky top-0 z-10">
                     <div className="flex items-center gap-4">
-                      <h2 className="text-xl font-semibold">
-                        {confirmationPeriod === "day"
-                          ? "Tagesbestätigung"
-                          : confirmationPeriod === "week"
-                            ? "Wochenbestätigung"
-                            : "Monatsbestätigung"}
-                      </h2>
                       <div className="flex items-center gap-1 bg-background border border-border rounded-md p-1">
                         <button
                           className={cn(

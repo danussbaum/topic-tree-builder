@@ -219,8 +219,8 @@ export function AssessmentOutline({
       topic.targets.forEach((target) => {
         target.actions.forEach((action) => {
           // Date Filtering
-          if (action.validFrom && action.validFrom > selectedDate) return;
-          if (action.validTo && action.validTo < selectedDate) return;
+          if (action.validFrom && action.validFrom > periodRange.end) return;
+          if (action.validTo && action.validTo < periodRange.start) return;
 
           // Hide confirmed when toggle off
           const status = getStatusForPeriod(action);
@@ -245,7 +245,6 @@ export function AssessmentOutline({
         {!hideConfirmationHeader && (
           <div className="flex items-center justify-between mb-6 bg-secondary/30 p-4 rounded-lg border border-border">
             <div className="flex items-center gap-4">
-              <h2 className="text-xl font-semibold">Tagesbestätigung</h2>
               <div className="flex items-center gap-1 bg-background border border-border rounded-md p-1">
                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => shiftDate(-1)}>
                   <ChevronLeft className="h-4 w-4" />
