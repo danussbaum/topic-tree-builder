@@ -798,12 +798,12 @@ const Index = () => {
             <RibbonButton icon={Filter} label="Filter" />
             <RibbonDivider />
             <RibbonButton
-              icon={Upload}
+              icon={Download}
               label="Import"
               disabled={viewMode === "confirmation"}
             />
             <RibbonButton
-              icon={Download}
+              icon={Upload}
               label="Export"
               onClick={exportConfirmationExcel}
               disabled={viewMode !== "confirmation"}
