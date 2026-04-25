@@ -1012,7 +1012,7 @@ function RibbonButton({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 rounded transition-colors min-w-[64px]",
+        "flex w-24 flex-col items-center justify-center gap-0.5 px-2 py-1.5 rounded transition-colors",
         active
           ? "bg-secondary text-foreground shadow-sm disabled:opacity-100"
           : "text-foreground/80 hover:bg-secondary hover:text-foreground",
@@ -1020,7 +1020,9 @@ function RibbonButton({
       )}
     >
       <Icon className="h-5 w-5" />
-      <span className="text-[11px] font-medium">{label}</span>
+      <span className="text-center text-[11px] font-medium leading-tight whitespace-normal break-words">
+        {label}
+      </span>
     </button>
   );
 }
