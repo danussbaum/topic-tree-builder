@@ -14,9 +14,7 @@ import {
   HelpCircle,
   Plus,
   Filter,
-  Printer,
-    Download,
-  
+  Download,
   ListTodo,
   ClipboardCheck,
 } from "lucide-react";
@@ -652,7 +650,6 @@ const Index = () => {
             <RibbonDivider />
             <RibbonButton icon={Filter} label="Filter" />
             <RibbonDivider />
-            <RibbonButton icon={Printer} label="Drucken" />
             <RibbonButton
               icon={Download}
               label="Export"
