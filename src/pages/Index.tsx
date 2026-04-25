@@ -72,7 +72,6 @@ const getVisibleConfirmationItems = (
   selectedDate: string,
   showConfirmed: boolean,
 ) => {
-  const selDate = new Date(selectedDate);
   const items: Array<{
     topic: TopicNode;
     target: { id: string; title: string; notes: string };
@@ -82,13 +81,8 @@ const getVisibleConfirmationItems = (
   client.topics.forEach((topic) => {
     topic.targets.forEach((target) => {
       target.actions.forEach((action) => {
-        if (action.validFrom && new Date(action.validFrom) > selDate) return;
-        if (action.validTo && new Date(action.validTo) < selDate) return;
-  return client.topics.some((topic) =>
-    topic.targets.some((target) =>
-      target.actions.some((action) => {
-        if (action.validFrom && action.validFrom > selectedDate) return false;
-        if (action.validTo && action.validTo < selectedDate) return false;
+        if (action.validFrom && action.validFrom > selectedDate) return;
+        if (action.validTo && action.validTo < selectedDate) return;
 
         const status = action.confirmations?.[selectedDate]?.status || "open";
         if (!showConfirmed && status !== "open") return;
