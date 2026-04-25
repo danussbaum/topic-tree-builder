@@ -234,6 +234,20 @@ export function AssessmentOutline({
       });
     });
 
+    const sortedFlatActions = [...flatActions].sort((left, right) => {
+      if (left.dueDate !== right.dueDate) {
+        return left.dueDate.localeCompare(right.dueDate);
+      }
+
+      const leftDayPartIndex = DAY_PART_ORDER.indexOf((left.action.dayPart ?? "none") as DayPart | "none");
+      const rightDayPartIndex = DAY_PART_ORDER.indexOf((right.action.dayPart ?? "none") as DayPart | "none");
+      if (leftDayPartIndex !== rightDayPartIndex) {
+        return leftDayPartIndex - rightDayPartIndex;
+      }
+
+      return left.action.title.localeCompare(right.action.title, "de", { sensitivity: "base" });
+    });
+
     const shiftDate = (days: number) => {
       const d = new Date(`${selectedDate}T00:00:00`);
       d.setDate(d.getDate() + days);
@@ -270,7 +284,7 @@ export function AssessmentOutline({
         )}
 
         <div className="grid gap-3">
-          {flatActions.map(({ topic, target, action, dueDate, status }) => {
+          {sortedFlatActions.map(({ topic, target, action, dueDate, status }) => {
             const conf = action.confirmations?.[dueDate];
 
             return (
@@ -302,15 +316,14 @@ export function AssessmentOutline({
                   <StatusIcon status={status} />
                 </div>
                 <div className="flex-1 min-w-0">
+                  <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary mb-2">
+                    <CalendarIcon className="h-3 w-3" />
+                    {format(parseISO(dueDate), "EEEE, dd.MM.yyyy", { locale: de })}
+                  </div>
                   <div className={cn(
                     "font-medium mb-1",
                     status !== "open" && "text-foreground/70"
                   )}>{action.title}</div>
-                  {confirmationPeriod !== "day" && (
-                    <div className="text-xs text-muted-foreground mb-1">
-                      Fällig am {format(parseISO(dueDate), "dd.MM.yyyy")}
-                    </div>
-                  )}
                   {action.notes.trim() && (
                     <div className="mt-1 text-xs text-foreground/70 whitespace-pre-wrap">
                       <span className="font-medium">Beschreibung:</span>{" "}
