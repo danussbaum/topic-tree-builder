@@ -113,6 +113,7 @@ interface Props {
 interface DialogTarget {
   topicId: string;
   targetId: string;
+  dueDate: string;
   action: ActionNode;
 }
 
@@ -184,35 +185,35 @@ export function AssessmentOutline({
     };
 
     const periodRange = getPeriodRange();
-    const getStatusForPeriod = (action: ActionNode) => {
-      if (confirmationPeriod === "day") {
-        return action.confirmations?.[selectedDate]?.status || "open";
-      }
-      const entries = Object.entries(action.confirmations || {}).filter(
-        ([date, confirmation]) =>
-          date >= periodRange.start &&
-          date <= periodRange.end &&
-          confirmation.status !== "open",
-      );
-      if (entries.length === 0) return "open";
-      const latestEntry = entries.sort(([a], [b]) => b.localeCompare(a))[0];
-      return latestEntry?.[1].status || "open";
+    const getStatusForDate = (action: ActionNode, date: string) => {
+      return action.confirmations?.[date]?.status || "open";
     };
 
-    const getConfirmationForPeriod = (action: ActionNode) => {
-      if (confirmationPeriod === "day") {
-        return action.confirmations?.[selectedDate];
+    const getDueDatesInPeriod = (action: ActionNode) => {
+      if (confirmationPeriod === "day") return [selectedDate];
+
+      const start = new Date(`${periodRange.start}T00:00:00`);
+      const end = new Date(`${periodRange.end}T00:00:00`);
+      const dueDates: string[] = [];
+      const current = new Date(start);
+
+      while (current <= end) {
+        const day = format(current, "yyyy-MM-dd");
+        if ((!action.validFrom || day >= action.validFrom) && (!action.validTo || day <= action.validTo)) {
+          dueDates.push(day);
+        }
+        current.setDate(current.getDate() + 1);
       }
-      const date = Object.keys(action.confirmations || {})
-        .filter((key) => key >= periodRange.start && key <= periodRange.end)
-        .sort((a, b) => b.localeCompare(a))[0];
-      return date ? action.confirmations?.[date] : undefined;
+
+      return dueDates;
     };
 
     const flatActions: Array<{
       topic: TopicNode;
       target: { id: string; title: string; notes: string };
       action: ActionNode;
+      dueDate: string;
+      status: ActionStatus;
     }> = [];
 
     topics.forEach((topic) => {
@@ -222,11 +223,12 @@ export function AssessmentOutline({
           if (action.validFrom && action.validFrom > periodRange.end) return;
           if (action.validTo && action.validTo < periodRange.start) return;
 
-          // Hide confirmed when toggle off
-          const status = getStatusForPeriod(action);
-          if (!showConfirmed && status !== "open") return;
-
-          flatActions.push({ topic, target, action });
+          const dueDates = getDueDatesInPeriod(action);
+          dueDates.forEach((dueDate) => {
+            const status = getStatusForDate(action, dueDate);
+            if (!showConfirmed && status !== "open") return;
+            flatActions.push({ topic, target, action, dueDate, status });
+          });
         });
       });
     });
@@ -267,17 +269,17 @@ export function AssessmentOutline({
         )}
 
         <div className="grid gap-3">
-          {flatActions.map(({ topic, target, action }) => {
-            const conf = getConfirmationForPeriod(action);
-            const status = getStatusForPeriod(action);
-            
+          {flatActions.map(({ topic, target, action, dueDate, status }) => {
+            const conf = action.confirmations?.[dueDate];
+
             return (
               <button
-                key={action.id}
+                key={`${action.id}-${dueDate}`}
                 onClick={() =>
                   setDialogTarget({
                     topicId: topic.id,
                     targetId: target.id,
+                    dueDate,
                     action: {
                       ...action,
                       status,
@@ -303,6 +305,11 @@ export function AssessmentOutline({
                     "font-medium mb-1",
                     status !== "open" && "text-foreground/70"
                   )}>{action.title}</div>
+                  {confirmationPeriod !== "day" && (
+                    <div className="text-xs text-muted-foreground mb-1">
+                      Fällig am {format(parseISO(dueDate), "dd.MM.yyyy")}
+                    </div>
+                  )}
                   {action.notes.trim() && (
                     <div className="mt-1 text-xs text-foreground/70 whitespace-pre-wrap">
                       <span className="font-medium">Beschreibung:</span>{" "}
@@ -392,7 +399,7 @@ export function AssessmentOutline({
               dialogTarget.targetId,
               dialogTarget.action.id,
               payload,
-              selectedDate
+              dialogTarget.dueDate
             );
             setDialogTarget(null);
           }}
@@ -506,6 +513,7 @@ export function AssessmentOutline({
                                   setDialogTarget({
                                     topicId: topic.id,
                                     targetId: target.id,
+                                    dueDate: selectedDate,
                                     action,
                                   })
                                 }
@@ -559,6 +567,7 @@ export function AssessmentOutline({
             dialogTarget.targetId,
             dialogTarget.action.id,
             payload,
+            dialogTarget.dueDate,
           );
           setDialogTarget(null);
         }}
