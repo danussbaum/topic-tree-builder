@@ -167,7 +167,12 @@ export function AssessmentOutline({
           // Date Filtering
           if (action.validFrom && new Date(action.validFrom) > selDate) return;
           if (action.validTo && new Date(action.validTo) < selDate) return;
-          
+
+          // Hide confirmed when toggle off
+          const conf = action.confirmations?.[selectedDate];
+          const status = conf?.status || "open";
+          if (!showConfirmed && status !== "open") return;
+
           flatActions.push({ topic, target, action });
         });
       });
