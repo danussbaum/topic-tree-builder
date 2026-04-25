@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 import {
   Plus,
@@ -162,14 +162,12 @@ export function AssessmentOutline({
       action: ActionNode;
     }> = [];
 
-    const selDate = new Date(selectedDate);
-
     topics.forEach((topic) => {
       topic.targets.forEach((target) => {
         target.actions.forEach((action) => {
           // Date Filtering
-          if (action.validFrom && new Date(action.validFrom) > selDate) return;
-          if (action.validTo && new Date(action.validTo) < selDate) return;
+          if (action.validFrom && action.validFrom > selectedDate) return;
+          if (action.validTo && action.validTo < selectedDate) return;
 
           // Hide confirmed when toggle off
           const conf = action.confirmations?.[selectedDate];
@@ -182,9 +180,12 @@ export function AssessmentOutline({
     });
 
     const shiftDate = (days: number) => {
-      const d = new Date(selectedDate);
+      const d = new Date(`${selectedDate}T00:00:00`);
       d.setDate(d.getDate() + days);
-      onSelectedDateChange(d.toISOString().slice(0, 10));
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      onSelectedDateChange(`${year}-${month}-${day}`);
     };
 
     return (
@@ -795,7 +796,7 @@ function DateField({
   onChange: (v: string | undefined) => void;
   required?: boolean;
 }) {
-  const date = value ? new Date(value) : undefined;
+  const date = value ? parseISO(value) : undefined;
   const missing = required && !value;
   return (
     <Popover>
