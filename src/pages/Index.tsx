@@ -455,6 +455,7 @@ const Index = () => {
             <RibbonButton
               icon={Plus}
               label="Neuer Schwerpunkt"
+              disabled={selectedClients.length !== 1 || viewMode === "confirmation"}
               onClick={() => {
                 if (selectedClients[0]) addTopic(selectedClients[0].id);
               }}
@@ -488,7 +489,6 @@ const Index = () => {
             </div>
             <RibbonDivider />
             <RibbonButton icon={Filter} label="Filter" />
-            <RibbonButton icon={Save} label="Speichern" />
             <RibbonDivider />
             <RibbonButton icon={Printer} label="Drucken" />
             <RibbonButton icon={Download} label="Export" />
@@ -602,15 +602,18 @@ function RibbonButton({
   icon: Icon,
   label,
   onClick,
+  disabled,
 }: {
   icon: React.ElementType;
   label: string;
   onClick?: () => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
-      className="flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 rounded hover:bg-secondary text-foreground/80 hover:text-foreground transition-colors min-w-[64px]"
+      disabled={disabled}
+      className="flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 rounded hover:bg-secondary text-foreground/80 hover:text-foreground transition-colors min-w-[64px] disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-foreground/80 disabled:cursor-not-allowed"
     >
       <Icon className="h-5 w-5" />
       <span className="text-[11px] font-medium">{label}</span>
