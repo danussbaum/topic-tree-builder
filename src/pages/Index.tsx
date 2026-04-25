@@ -785,7 +785,7 @@ function RibbonButton({
       className={cn(
         "flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 rounded transition-colors min-w-[64px]",
         active
-          ? "bg-primary text-primary-foreground shadow-sm disabled:opacity-100"
+          ? "bg-secondary text-foreground shadow-sm disabled:opacity-100"
           : "text-foreground/80 hover:bg-secondary hover:text-foreground",
         "disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-foreground/80 disabled:cursor-not-allowed",
       )}
