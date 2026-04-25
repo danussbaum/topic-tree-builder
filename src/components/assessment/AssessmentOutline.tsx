@@ -603,7 +603,7 @@ function ActionRow({
                 )
               }
               placeholder="–"
-              className="w-14 bg-transparent border-b border-border focus:border-primary outline-none px-1 py-0 text-right tabular-nums"
+              className="w-14 bg-background border border-border rounded focus:border-primary outline-none px-1.5 py-0.5 text-right tabular-nums"
             />
             <span>Min</span>
           </label>
@@ -624,10 +624,10 @@ function ActionRow({
             }
           />
 
-          <StatusBadge action={action} />
+          {viewMode === "confirmation" && <StatusBadge action={action} />}
         </div>
 
-        {(action.reason ||
+        {viewMode === "confirmation" && (action.reason ||
           action.status === "done_with_deviation" ||
           action.status === "not_done") && (
           <div className="mt-1 text-xs text-muted-foreground italic">
@@ -641,26 +641,17 @@ function ActionRow({
           </div>
         )}
 
-        {action.observations && (
+        {viewMode === "confirmation" && action.observations && (
           <div className="mt-1 text-xs text-foreground/70">
             <span className="font-medium">Beobachtungen:</span>{" "}
             <span className="italic">{action.observations}</span>
           </div>
         )}
-
-        <Notes
-          value={action.notes}
-          onChange={(v) =>
-            onUpdateAction(topicId, targetId, action.id, "notes", v)
-          }
-          placeholder="Notiz hinzufügen…"
-          compact
-        />
       </div>
       <button
         onClick={() => onDeleteAction(topicId, targetId, action.id)}
         className="opacity-0 group-hover/action:opacity-100 p-1 hover:bg-destructive/10 hover:text-destructive rounded transition-opacity self-start mt-0.5"
-        aria-label="Massnahme löschen"
+        aria-label="Handlung löschen"
       >
         <Trash2 className="h-3.5 w-3.5" />
       </button>
