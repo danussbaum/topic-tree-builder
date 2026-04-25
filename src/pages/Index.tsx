@@ -572,6 +572,7 @@ const Index = () => {
                       onSelectedDateChange={setSelectedDate}
                       topics={client.topics}
                       hideConfirmationHeader
+                      showConfirmed={showConfirmed}
                       onUpdateTopic={(topicId, field, value) =>
                         updateTopic(client.id, topicId, field, value)
                       }
