@@ -22,7 +22,7 @@ export interface ActionNode {
   plannedMinutes?: number;
   /** Tageszeit zur Gruppierung */
   dayPart?: DayPart;
-  /** Gültig ab (ISO Datum, zwingend bei erfasster Massnahme) */
+  /** Gültig ab (ISO Datum, zwingend bei erfasster Handlung) */
   validFrom?: string;
   /** Gültig bis (ISO Datum, optional) */
   validTo?: string;

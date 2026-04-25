@@ -38,7 +38,7 @@ const seedClients: Client[] = [
         id: uid(),
         title: "Förderziele KJA",
         notes:
-          "Strukturierte Förderziele für die Kinder- und Jugendarbeit, gegliedert nach Leistungstypen und individuellen Massnahmen.",
+          "Strukturierte Förderziele für die Kinder- und Jugendarbeit, gegliedert nach Leistungstypen und individuellen Handlungn.",
         targets: [
           {
             id: uid(),
@@ -411,7 +411,7 @@ const Index = () => {
           <div className="flex items-center bg-topbar text-topbar-foreground border-b border-border h-12 pr-2">
             <nav className="flex items-stretch h-full overflow-x-auto">
               {[
-                { label: "Prozesse", icon: Workflow, active: true },
+                { label: "Handlungsplanung", icon: Workflow, active: true },
                 { label: "Journal", icon: BookOpen },
                 { label: "Aufgaben", icon: CheckSquare },
                 { label: "Termine", icon: Calendar },
@@ -454,7 +454,7 @@ const Index = () => {
             </div>
             <RibbonButton
               icon={Plus}
-              label="Neues Thema"
+              label="Neuer Schwerpunkt"
               onClick={() => {
                 if (selectedClients[0]) addTopic(selectedClients[0].id);
               }}
