@@ -23,8 +23,9 @@ import {
 import { ClientSidebar, ClientSidebarTrigger } from "@/components/assessment/ClientSidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AssessmentOutline } from "@/components/assessment/AssessmentOutline";
-import type { Client, TopicNode } from "@/types/assessment";
+import type { ActionNode, Client, TopicNode } from "@/types/assessment";
 import { cn } from "@/lib/utils";
+import { createSimpleXlsxBlob } from "@/lib/xlsx";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const todayLocalISO = () => {
@@ -63,6 +64,26 @@ const hasVisibleConfirmationItems = (
   selectedDate: string,
   showConfirmed: boolean,
 ) => {
+  return getVisibleConfirmationItems(client, selectedDate, showConfirmed).length > 0;
+};
+
+const getVisibleConfirmationItems = (
+  client: Client,
+  selectedDate: string,
+  showConfirmed: boolean,
+) => {
+  const selDate = new Date(selectedDate);
+  const items: Array<{
+    topic: TopicNode;
+    target: { id: string; title: string; notes: string };
+    action: ActionNode;
+  }> = [];
+
+  client.topics.forEach((topic) => {
+    topic.targets.forEach((target) => {
+      target.actions.forEach((action) => {
+        if (action.validFrom && new Date(action.validFrom) > selDate) return;
+        if (action.validTo && new Date(action.validTo) < selDate) return;
   return client.topics.some((topic) =>
     topic.targets.some((target) =>
       target.actions.some((action) => {
@@ -70,10 +91,14 @@ const hasVisibleConfirmationItems = (
         if (action.validTo && action.validTo < selectedDate) return false;
 
         const status = action.confirmations?.[selectedDate]?.status || "open";
-        return showConfirmed || status === "open";
-      }),
-    ),
-  );
+        if (!showConfirmed && status !== "open") return;
+
+        items.push({ topic, target, action });
+      });
+    });
+  });
+
+  return items;
 };
 
 const seedClients: Client[] = [
@@ -466,6 +491,78 @@ const Index = () => {
     setSelectedDate(`${year}-${month}-${day}`);
   };
 
+  const exportConfirmationExcel = () => {
+    if (viewMode !== "confirmation") return;
+
+    const rows = selectedClients.flatMap((client) =>
+      getVisibleConfirmationItems(client, selectedDate, showConfirmed).map(
+        ({ topic, target, action }) => {
+          const confirmation = action.confirmations?.[selectedDate];
+          const status = confirmation?.status || "open";
+
+          return {
+            Datum: selectedDate,
+            "Klient/in": `${client.firstName} ${client.lastName}`.trim(),
+            Schwerpunkt: topic.title,
+            Ziel: target.title,
+            Handlung: action.title,
+            Beschreibung: action.notes,
+            Hilfsmittel: action.requiredResources ?? "",
+            Status:
+              status === "done_as_planned"
+                ? "Wie geplant durchgeführt"
+                : status === "done_with_deviation"
+                  ? "Mit Abweichung durchgeführt"
+                  : status === "not_done"
+                    ? "Nicht durchgeführt"
+                    : "Offen",
+            Grund: confirmation?.reason ?? "",
+            Resultat: confirmation?.result ?? "",
+            Beobachtungen: confirmation?.observations ?? "",
+            "Gültig ab": action.validFrom ?? "",
+            "Gültig bis": action.validTo ?? "",
+            "Tageszeit": action.dayPart ?? "",
+            "Minuten geplant": action.plannedMinutes ?? "",
+            "Minuten tatsächlich": confirmation?.actualMinutes ?? "",
+          };
+        },
+      ),
+    );
+
+    const allHeaders = [
+      "Datum",
+      "Klient/in",
+      "Schwerpunkt",
+      "Ziel",
+      "Handlung",
+      "Beschreibung",
+      "Hilfsmittel",
+      "Status",
+      "Grund",
+      "Resultat",
+      "Beobachtungen",
+      "Gültig ab",
+      "Gültig bis",
+      "Tageszeit",
+      "Minuten geplant",
+      "Minuten tatsächlich",
+    ];
+
+    const blob = createSimpleXlsxBlob({
+      sheetName: "Bestätigungen",
+      headers: allHeaders,
+      rows: rows.map((row) => allHeaders.map((header) => row[header as keyof typeof row] ?? "")),
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `bestaetigungen_${selectedDate}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <SidebarProvider>
       <div className="min-h-dvh bg-background flex w-full">
@@ -562,7 +659,12 @@ const Index = () => {
             <RibbonButton icon={Filter} label="Filter" />
             <RibbonDivider />
             <RibbonButton icon={Printer} label="Drucken" />
-            <RibbonButton icon={Download} label="Export" />
+            <RibbonButton
+              icon={Download}
+              label="Export"
+              onClick={exportConfirmationExcel}
+              disabled={viewMode !== "confirmation"}
+            />
           </div>
 
           {/* Content */}
