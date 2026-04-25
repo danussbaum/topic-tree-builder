@@ -15,6 +15,7 @@ import {
   Plus,
   Filter,
   Download,
+  Upload,
   ListTodo,
   ClipboardCheck,
 } from "lucide-react";
@@ -796,6 +797,11 @@ const Index = () => {
             <RibbonDivider />
             <RibbonButton icon={Filter} label="Filter" />
             <RibbonDivider />
+            <RibbonButton
+              icon={Upload}
+              label="Import"
+              disabled={viewMode === "confirmation"}
+            />
             <RibbonButton
               icon={Download}
               label="Export"
