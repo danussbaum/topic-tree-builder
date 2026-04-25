@@ -28,6 +28,13 @@ import { cn } from "@/lib/utils";
 import { createSimpleXlsxBlob } from "@/lib/xlsx";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
+const todayLocalISO = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
 
 interface ClientNameInputProps {
   value: string;
@@ -77,6 +84,11 @@ const getVisibleConfirmationItems = (
       target.actions.forEach((action) => {
         if (action.validFrom && new Date(action.validFrom) > selDate) return;
         if (action.validTo && new Date(action.validTo) < selDate) return;
+  return client.topics.some((topic) =>
+    topic.targets.some((target) =>
+      target.actions.some((action) => {
+        if (action.validFrom && action.validFrom > selectedDate) return false;
+        if (action.validTo && action.validTo < selectedDate) return false;
 
         const status = action.confirmations?.[selectedDate]?.status || "open";
         if (!showConfirmed && status !== "open") return;
@@ -159,9 +171,7 @@ const seedClients: Client[] = [
 
 const Index = () => {
   const [viewMode, setViewMode] = useState<"planning" | "confirmation">("planning");
-  const [selectedDate, setSelectedDate] = useState<string>(
-    new Date().toISOString().slice(0, 10),
-  );
+  const [selectedDate, setSelectedDate] = useState<string>(todayLocalISO());
   const [clients, setClients] = useState<Client[]>(seedClients);
   const [selectedClientIds, setSelectedClientIds] = useState<string[]>([
     seedClients[0].id,
@@ -473,9 +483,12 @@ const Index = () => {
   };
 
   const shiftDate = (days: number) => {
-    const d = new Date(selectedDate);
+    const d = new Date(`${selectedDate}T00:00:00`);
     d.setDate(d.getDate() + days);
-    setSelectedDate(d.toISOString().slice(0, 10));
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    setSelectedDate(`${year}-${month}-${day}`);
   };
 
   const exportConfirmationExcel = () => {
