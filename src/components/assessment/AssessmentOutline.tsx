@@ -199,7 +199,7 @@ export function AssessmentOutline({
               </div>
             </div>
             <div className="text-sm text-muted-foreground bg-background px-3 py-1 rounded-full border border-border">
-              {flatActions.length} Massnahmen geplant
+              {flatActions.length} Handlungn geplant
             </div>
           </div>
         )}
@@ -320,7 +320,7 @@ export function AssessmentOutline({
           className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-sm text-sm font-medium hover:bg-primary/90"
         >
           <Plus className="h-4 w-4" />
-          Erstes Thema hinzufügen
+          Ersten Schwerpunkt hinzufügen
         </button>
       </div>
     );
@@ -334,7 +334,7 @@ export function AssessmentOutline({
           <div className="flex items-start gap-3 pb-2 border-b-2 border-primary/30">
             <div className="flex-1 min-w-0">
               <div className="text-[10px] uppercase tracking-widest font-semibold text-accent mb-1">
-                Thema
+                Schwerpunkt
               </div>
               <input
                 value={topic.title}
@@ -346,7 +346,7 @@ export function AssessmentOutline({
             <button
               onClick={() => onDeleteTopic(topic.id)}
               className="opacity-0 group-hover/topic:opacity-100 p-1.5 hover:bg-destructive/10 hover:text-destructive rounded transition-opacity"
-              aria-label="Thema löschen"
+              aria-label="Schwerpunkt löschen"
             >
               <Trash2 className="h-4 w-4" />
             </button>
@@ -355,7 +355,7 @@ export function AssessmentOutline({
           <Notes
             value={topic.notes}
             onChange={(v) => onUpdateTopic(topic.id, "notes", v)}
-            placeholder="Freitext zum Thema…"
+            placeholder="Freitext zum Schwerpunkt…"
             className="mt-3"
           />
 
@@ -431,7 +431,7 @@ export function AssessmentOutline({
                       className="mt-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
                     >
                       <Plus className="h-3.5 w-3.5" />
-                      Massnahme hinzufügen
+                      Handlung hinzufügen
                     </button>
                   </div>
                 </div>
@@ -455,7 +455,7 @@ export function AssessmentOutline({
           className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-sm text-sm font-medium hover:bg-primary/90"
         >
           <Plus className="h-4 w-4" />
-          Neues Thema
+          Neuer Schwerpunkt
         </button>
       </div>
 
@@ -815,9 +815,9 @@ function ConfirmActionDialog({
     <Dialog open={open} onOpenChange={(v) => (!v ? handleClose() : null)}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Massnahme bestätigen</DialogTitle>
+          <DialogTitle>Handlung bestätigen</DialogTitle>
           <DialogDescription className="line-clamp-2">
-            {target?.action.title || "Massnahme"}
+            {target?.action.title || "Handlung"}
             {planned != null && (
               <span className="ml-2 text-xs">· geplant {planned} Min</span>
             )}
@@ -833,7 +833,7 @@ function ConfirmActionDialog({
             description={
               planned != null
                 ? `Tatsächliche Zeit = geplante ${planned} Min`
-                : "Massnahme wie vorgesehen durchgeführt"
+                : "Handlung wie vorgesehen durchgeführt"
             }
           />
           <ChoiceRow
@@ -887,7 +887,7 @@ function ConfirmActionDialog({
               rows={3}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="Warum wurde die Massnahme nicht durchgeführt?"
+              placeholder="Warum wurde die Handlung nicht durchgeführt?"
             />
           </div>
         )}
