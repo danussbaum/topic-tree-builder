@@ -28,6 +28,29 @@ import { cn } from "@/lib/utils";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
+interface ClientNameInputProps {
+  value: string;
+  label: string;
+  onChange: (value: string) => void;
+}
+
+const ClientNameInput = ({ value, label, onChange }: ClientNameInputProps) => (
+  <span className="relative inline-block align-baseline">
+    <span
+      className="invisible whitespace-pre text-2xl font-semibold"
+      aria-hidden="true"
+    >
+      {value || " "}
+    </span>
+    <input
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      aria-label={label}
+      className="absolute inset-0 w-full min-w-0 text-2xl font-semibold bg-transparent border-0 outline-none focus:ring-0 px-0"
+    />
+  </span>
+);
+
 const seedClients: Client[] = [
   {
     id: uid(),
@@ -549,18 +572,22 @@ const Index = () => {
                     {/* Client header */}
                     <div className="flex items-center gap-4 pb-5 border-b border-border">
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-baseline gap-2">
-                          <input
+                        <div className="flex items-baseline gap-0">
+                          <ClientNameInput
                             value={client.firstName}
-                            onChange={(e) => updateClientName(client.id, "firstName", e.target.value)}
-                            size={Math.max(client.firstName.length, 1)}
-                            className="text-2xl font-semibold bg-transparent border-0 outline-none focus:ring-0 px-0"
+                            label="Vorname"
+                            onChange={(value) => updateClientName(client.id, "firstName", value)}
                           />
-                          <input
+                          <span
+                            className="whitespace-pre text-2xl font-semibold"
+                            aria-hidden="true"
+                          >
+                            {" "}
+                          </span>
+                          <ClientNameInput
                             value={client.lastName}
-                            onChange={(e) => updateClientName(client.id, "lastName", e.target.value)}
-                            size={Math.max(client.lastName.length, 1)}
-                            className="text-2xl font-semibold bg-transparent border-0 outline-none focus:ring-0 px-0"
+                            label="Nachname"
+                            onChange={(value) => updateClientName(client.id, "lastName", value)}
                           />
                         </div>
                       </div>
