@@ -219,6 +219,7 @@ export function AssessmentOutline({
     topics.forEach((topic) => {
       topic.targets.forEach((target) => {
         target.actions.forEach((action) => {
+          if (!action.validFrom) return;
           // Date Filtering
           if (action.validFrom && action.validFrom > periodRange.end) return;
           if (action.validTo && action.validTo < periodRange.start) return;
@@ -615,7 +616,9 @@ function ActionRow({
   onDeleteAction: Props["onDeleteAction"];
   onOpenDialog: () => void;
 }) {
-    return (
+  const isLocked = Object.keys(action.confirmations ?? {}).length > 0;
+
+  return (
     <li className={cn(
       "group/action flex items-start gap-3 rounded transition-colors",
       viewMode === "planning"
@@ -635,6 +638,7 @@ function ActionRow({
       <div className="flex-1 min-w-0">
         <input
           value={action.title}
+          readOnly={viewMode === "confirmation" || isLocked}
           onChange={(e) =>
             onUpdateAction(topicId, targetId, action.id, "title", e.target.value)
           }
@@ -657,6 +661,7 @@ function ActionRow({
               onChange={(v) =>
                 onUpdateAction(topicId, targetId, action.id, "notes", v)
               }
+              disabled={isLocked}
               placeholder="Beschreibung zur Handlung..."
               className="text-foreground/70"
               compact
@@ -666,6 +671,7 @@ function ActionRow({
               onChange={(v) =>
                 onUpdateAction(topicId, targetId, action.id, "requiredResources", v)
               }
+              disabled={isLocked}
               placeholder="Hilfsmittel zur Durchführung..."
               className="text-foreground/70"
               compact
@@ -677,6 +683,7 @@ function ActionRow({
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
           <Select
             value={action.dayPart ?? "none"}
+            disabled={isLocked}
             onValueChange={(v) =>
               onUpdateActionField(
                 topicId,
@@ -706,6 +713,7 @@ function ActionRow({
               type="number"
               min={0}
               step={5}
+              disabled={isLocked}
               value={action.plannedMinutes ?? ""}
               onChange={(e) =>
                 onUpdateActionField(
@@ -731,6 +739,7 @@ function ActionRow({
               type="number"
               min={1}
               step={1}
+              disabled={isLocked}
               value={action.requiredPersons ?? ""}
               onChange={(e) => {
                 const value = Number(e.target.value);
@@ -751,6 +760,7 @@ function ActionRow({
 
           <Select
             value={action.resultRequirement ?? "none"}
+            disabled={isLocked}
             onValueChange={(v) =>
               onUpdateActionField(
                 topicId,
@@ -774,6 +784,7 @@ function ActionRow({
           <DateField
             label="Gültig ab"
             required
+            disabled={isLocked}
             value={action.validFrom}
             onChange={(v) =>
               onUpdateActionField(topicId, targetId, action.id, "validFrom", v)
@@ -781,6 +792,7 @@ function ActionRow({
           />
           <DateField
             label="Gültig bis"
+            disabled={isLocked}
             value={action.validTo}
             onChange={(v) =>
               onUpdateActionField(topicId, targetId, action.id, "validTo", v)
@@ -850,11 +862,13 @@ function DateField({
   value,
   onChange,
   required,
+  disabled,
 }: {
   label: string;
   value?: string;
   onChange: (v: string | undefined) => void;
   required?: boolean;
+  disabled?: boolean;
 }) {
   const date = value ? parseISO(value) : undefined;
   const missing = required && !value;
@@ -863,8 +877,10 @@ function DateField({
       <PopoverTrigger asChild>
         <button
           type="button"
+          disabled={disabled}
           className={cn(
             "inline-flex items-center gap-1.5 px-2 h-7 rounded border border-border bg-background hover:bg-secondary/60 text-xs",
+            disabled && "opacity-60 cursor-not-allowed hover:bg-background",
             missing && "border-destructive/60 text-destructive",
           )}
         >
@@ -878,6 +894,7 @@ function DateField({
       <PopoverContent className="w-auto p-0" align="start">
         <Calendar
           mode="single"
+          disabled={disabled}
           selected={date}
           onSelect={(d) =>
             onChange(d ? format(d, "yyyy-MM-dd") : undefined)
@@ -892,6 +909,7 @@ function DateField({
               variant="ghost"
               size="sm"
               className="w-full"
+              disabled={disabled}
               onClick={() => onChange(undefined)}
             >
               Datum entfernen
@@ -1241,16 +1259,19 @@ function Notes({
   placeholder,
   className,
   compact,
+  disabled,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder: string;
   className?: string;
   compact?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <Textarea
       value={value}
+      disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       rows={compact ? 1 : 2}
