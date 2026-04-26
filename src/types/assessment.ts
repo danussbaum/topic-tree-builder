@@ -8,6 +8,20 @@ export type DayPart = "morning" | "noon" | "evening" | "night";
 export type ActionCategory = "a" | "b" | "c";
 export type ResultRequirement = "none" | "optional" | "required";
 export type NumericComparisonOperator = "gt" | "lt" | "eq";
+export type RecurrenceType = "daily" | "weekly" | "monthly";
+export type MonthlyRecurrencePattern =
+  | "first_day"
+  | "first_monday"
+  | "last_day"
+  | "last_friday";
+export type Weekday =
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday"
+  | "sunday";
 
 export interface ConfirmationFilter {
   statuses: ActionStatus[];
@@ -55,6 +69,12 @@ export interface ActionNode {
   validFrom?: string;
   /** Gültig bis (ISO Datum, optional) */
   validTo?: string;
+  /** Wiederholung der Handlung (zwingend) */
+  recurrence?: RecurrenceType;
+  /** Wochentage bei wöchentlicher Wiederholung */
+  recurrenceWeekdays?: Weekday[];
+  /** Regel bei monatlicher Wiederholung */
+  recurrenceMonthlyPattern?: MonthlyRecurrencePattern;
   /** History of confirmations by date (ISO yyyy-MM-dd) */
   confirmations?: Record<string, ActionConfirmation>;
   /** Default status/done if no confirmation for date exists */

@@ -47,6 +47,8 @@ import type {
   ConfirmationFilter,
   DayPart,
   ActionCategory,
+  Weekday,
+  MonthlyRecurrencePattern,
   TopicNode,
 } from "@/types/assessment";
 import { DAY_PART_LABEL, DAY_PART_ORDER } from "@/types/assessment";
@@ -74,6 +76,9 @@ type ActionField =
   | "category"
   | "validFrom"
   | "validTo"
+  | "recurrence"
+  | "recurrenceWeekdays"
+  | "recurrenceMonthlyPattern"
   | "observations";
 
 interface Props {
@@ -105,7 +110,7 @@ interface Props {
     targetId: string,
     actionId: string,
     field: ActionField,
-    value: number | string | undefined,
+    value: number | string | string[] | undefined,
   ) => void;
     onConfirmAction: (
     topicId: string,
@@ -140,6 +145,61 @@ const CATEGORY_LABEL: Record<ActionCategory, string> = {
   a: "A",
   b: "B",
   c: "C",
+};
+
+const WEEKDAY_OPTIONS: Array<{ value: Weekday; label: string; dayIndex: number }> = [
+  { value: "monday", label: "Mo", dayIndex: 1 },
+  { value: "tuesday", label: "Di", dayIndex: 2 },
+  { value: "wednesday", label: "Mi", dayIndex: 3 },
+  { value: "thursday", label: "Do", dayIndex: 4 },
+  { value: "friday", label: "Fr", dayIndex: 5 },
+  { value: "saturday", label: "Sa", dayIndex: 6 },
+  { value: "sunday", label: "So", dayIndex: 0 },
+];
+
+const MONTHLY_PATTERN_OPTIONS: Array<{ value: MonthlyRecurrencePattern; label: string }> = [
+  { value: "first_day", label: "Erster Tag im Monat" },
+  { value: "first_monday", label: "Erster Montag im Monat" },
+  { value: "last_day", label: "Letzter Tag im Monat" },
+  { value: "last_friday", label: "Letzter Freitag im Monat" },
+];
+
+const isRecurringOnDate = (action: ActionNode, date: Date) => {
+  if (action.recurrence === "daily") return true;
+
+  if (action.recurrence === "weekly") {
+    return (action.recurrenceWeekdays ?? []).some((item) => {
+      const option = WEEKDAY_OPTIONS.find((opt) => opt.value === item);
+      return option?.dayIndex === date.getDay();
+    });
+  }
+
+  if (action.recurrence === "monthly") {
+    const pattern = action.recurrenceMonthlyPattern;
+    if (!pattern) return false;
+
+    const currentDay = date.getDate();
+    const dayOfWeek = date.getDay();
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstOfMonth = new Date(year, month, 1);
+    const lastOfMonth = new Date(year, month + 1, 0);
+
+    if (pattern === "first_day") return currentDay === 1;
+    if (pattern === "last_day") return currentDay === lastOfMonth.getDate();
+
+    if (pattern === "first_monday") {
+      const offset = (8 - firstOfMonth.getDay()) % 7;
+      return dayOfWeek === 1 && currentDay === 1 + offset;
+    }
+
+    if (pattern === "last_friday") {
+      const offset = (lastOfMonth.getDay() - 5 + 7) % 7;
+      return dayOfWeek === 5 && currentDay === lastOfMonth.getDate() - offset;
+    }
+  }
+
+  return false;
 };
 
 function groupActions(actions: ActionNode[]) {
@@ -209,7 +269,13 @@ export function AssessmentOutline({
     };
 
     const getDueDatesInPeriod = (action: ActionNode) => {
-      if (confirmationPeriod === "day") return [selectedDate];
+      if (!action.recurrence) return [];
+      if (confirmationPeriod === "day") {
+        const selected = new Date(`${selectedDate}T00:00:00`);
+        const isRecurringDay = isRecurringOnDate(action, selected);
+        if (!isRecurringDay) return [];
+        return [selectedDate];
+      }
 
       const start = new Date(`${periodRange.start}T00:00:00`);
       const end = new Date(`${periodRange.end}T00:00:00`);
@@ -218,7 +284,11 @@ export function AssessmentOutline({
 
       while (current <= end) {
         const day = format(current, "yyyy-MM-dd");
-        if ((!action.validFrom || day >= action.validFrom) && (!action.validTo || day <= action.validTo)) {
+        const isWithinRange =
+          (!action.validFrom || day >= action.validFrom) && (!action.validTo || day <= action.validTo);
+        const isRecurringDay = isRecurringOnDate(action, current);
+
+        if (isWithinRange && isRecurringDay) {
           dueDates.push(day);
         }
         current.setDate(current.getDate() + 1);
@@ -239,6 +309,7 @@ export function AssessmentOutline({
       topic.targets.forEach((target) => {
         target.actions.forEach((action) => {
           if (!action.validFrom) return;
+          if (!action.recurrence) return;
           // Date Filtering
           if (action.validFrom && action.validFrom > periodRange.end) return;
           if (action.validTo && action.validTo < periodRange.start) return;
@@ -669,6 +740,10 @@ function ActionRow({
   onOpenDialog: () => void;
 }) {
   const isLocked = Object.keys(action.confirmations ?? {}).length > 0;
+  const weeklyDaysMissing =
+    action.recurrence === "weekly" && (action.recurrenceWeekdays?.length ?? 0) === 0;
+  const monthlyPatternMissing =
+    action.recurrence === "monthly" && !action.recurrenceMonthlyPattern;
 
   return (
     <li className={cn(
@@ -886,6 +961,114 @@ function ActionRow({
               }
               className="w-full"
             />
+            <div
+              className={cn(
+                "flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1.5",
+                !action.recurrence && "border-destructive/60 text-destructive",
+              )}
+            >
+              <span className="shrink-0 text-muted-foreground">Wiederholung</span>
+              <Select
+                value={action.recurrence ?? "none"}
+                disabled={isLocked}
+                onValueChange={(v) =>
+                  onUpdateActionField(
+                    topicId,
+                    targetId,
+                    action.id,
+                    "recurrence",
+                    v === "none" ? undefined : v,
+                  )
+                }
+              >
+                <SelectTrigger className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0">
+                  <SelectValue placeholder="Wählen…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Keine Angabe</SelectItem>
+                  <SelectItem value="daily">Täglich</SelectItem>
+                  <SelectItem value="weekly">Wöchentlich</SelectItem>
+                  <SelectItem value="monthly">Monatlich</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {action.recurrence === "weekly" && (
+              <div
+                className={cn(
+                  "col-span-1 md:col-span-3 rounded border border-border bg-background px-2 py-1.5",
+                  weeklyDaysMissing && "border-destructive/60",
+                )}
+              >
+                <div className="mb-1 text-muted-foreground">Wochentage</div>
+                <div className="flex flex-wrap gap-1">
+                  {WEEKDAY_OPTIONS.map((weekday) => {
+                    const isSelected = (action.recurrenceWeekdays ?? []).includes(weekday.value);
+                    return (
+                      <button
+                        key={weekday.value}
+                        type="button"
+                        disabled={isLocked}
+                        onClick={() => {
+                          const next = isSelected
+                            ? (action.recurrenceWeekdays ?? []).filter((value) => value !== weekday.value)
+                            : [...(action.recurrenceWeekdays ?? []), weekday.value];
+                          onUpdateActionField(
+                            topicId,
+                            targetId,
+                            action.id,
+                            "recurrenceWeekdays",
+                            next,
+                          );
+                        }}
+                        className={cn(
+                          "rounded border px-2 py-0.5 text-xs transition-colors",
+                          isSelected
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border hover:bg-secondary/60",
+                        )}
+                      >
+                        {weekday.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {action.recurrence === "monthly" && (
+              <div
+                className={cn(
+                  "col-span-1 md:col-span-3 rounded border border-border bg-background px-2 py-1.5",
+                  monthlyPatternMissing && "border-destructive/60",
+                )}
+              >
+                <div className="mb-1 text-muted-foreground">Monatliche Regel</div>
+                <Select
+                  value={action.recurrenceMonthlyPattern ?? "none"}
+                  disabled={isLocked}
+                  onValueChange={(v) =>
+                    onUpdateActionField(
+                      topicId,
+                      targetId,
+                      action.id,
+                      "recurrenceMonthlyPattern",
+                      v === "none" ? undefined : v,
+                    )
+                  }
+                >
+                  <SelectTrigger className="h-7 w-full text-xs px-2 py-0">
+                    <SelectValue placeholder="Wählen…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Keine Angabe</SelectItem>
+                    {MONTHLY_PATTERN_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">

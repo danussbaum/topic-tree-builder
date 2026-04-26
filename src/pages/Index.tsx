@@ -22,7 +22,12 @@ import {
 import { ClientSidebar, ClientSidebarTrigger } from "@/components/assessment/ClientSidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AssessmentOutline } from "@/components/assessment/AssessmentOutline";
-import type { ActionNode, Client, TopicNode } from "@/types/assessment";
+import type {
+  ActionNode,
+  Client,
+  TopicNode,
+  Weekday,
+} from "@/types/assessment";
 import {
   DEFAULT_ASSESSMENT_FILTER,
   matchesAssessmentFilter,
@@ -54,6 +59,53 @@ const OPERATOR_OPTIONS: Array<{ value: NumericComparison["op"]; label: ">" | "<"
 
 const INITIAL_CONFIRMATION_FILTER: AssessmentFilterModel = {
   statuses: ["open"],
+};
+
+const WEEKDAY_TO_INDEX: Record<Weekday, number> = {
+  monday: 1,
+  tuesday: 2,
+  wednesday: 3,
+  thursday: 4,
+  friday: 5,
+  saturday: 6,
+  sunday: 0,
+};
+
+const isRecurringOnDate = (action: ActionNode, date: Date) => {
+  if (action.recurrence === "daily") return true;
+
+  if (action.recurrence === "weekly") {
+    return (action.recurrenceWeekdays ?? []).some(
+      (weekday) => WEEKDAY_TO_INDEX[weekday] === date.getDay(),
+    );
+  }
+
+  if (action.recurrence === "monthly") {
+    const pattern = action.recurrenceMonthlyPattern;
+    if (!pattern) return false;
+
+    const currentDay = date.getDate();
+    const dayOfWeek = date.getDay();
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstOfMonth = new Date(year, month, 1);
+    const lastOfMonth = new Date(year, month + 1, 0);
+
+    if (pattern === "first_day") return currentDay === 1;
+    if (pattern === "last_day") return currentDay === lastOfMonth.getDate();
+
+    if (pattern === "first_monday") {
+      const offset = (8 - firstOfMonth.getDay()) % 7;
+      return dayOfWeek === 1 && currentDay === 1 + offset;
+    }
+
+    if (pattern === "last_friday") {
+      const offset = (lastOfMonth.getDay() - 5 + 7) % 7;
+      return dayOfWeek === 5 && currentDay === lastOfMonth.getDate() - offset;
+    }
+  }
+
+  return false;
 };
 
 interface ClientNameInputProps {
@@ -93,7 +145,12 @@ const getDueDatesInPeriod = (
   selectedDate: string,
   period: ConfirmationPeriod,
 ) => {
-  if (period === "day") return [selectedDate];
+  if (!action.recurrence) return [];
+
+  if (period === "day") {
+    const selected = new Date(`${selectedDate}T00:00:00`);
+    return isRecurringOnDate(action, selected) ? [selectedDate] : [];
+  }
 
   const { start, end } = getPeriodRange(selectedDate, period);
   const dueDates: string[] = [];
@@ -102,7 +159,11 @@ const getDueDatesInPeriod = (
 
   while (current <= endDate) {
     const day = dateToISO(current);
-    if ((!action.validFrom || day >= action.validFrom) && (!action.validTo || day <= action.validTo)) {
+    if (
+      (!action.validFrom || day >= action.validFrom) &&
+      (!action.validTo || day <= action.validTo) &&
+      isRecurringOnDate(action, current)
+    ) {
       dueDates.push(day);
     }
     current.setDate(current.getDate() + 1);
@@ -484,7 +545,6 @@ const Index = () => {
                           notes: "",
                           status: "open",
                           done: false,
-                          validFrom: new Date().toISOString().slice(0, 10),
                         },
                       ],
                     },
@@ -574,8 +634,11 @@ const Index = () => {
       | "category"
       | "validFrom"
       | "validTo"
+      | "recurrence"
+      | "recurrenceWeekdays"
+      | "recurrenceMonthlyPattern"
       | "observations",
-    value: number | string | undefined,
+    value: number | string | string[] | undefined,
   ) => {
     updateClientTopicsFor(clientId, (topics) =>
       topics.map((t) =>
