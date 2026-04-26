@@ -22,6 +22,7 @@ import {
 import { ClientSidebar, ClientSidebarTrigger } from "@/components/assessment/ClientSidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AssessmentOutline } from "@/components/assessment/AssessmentOutline";
+import { ConfirmationFilterPanel, type ConfirmationFilters, type ConfirmationPeriod } from "@/components/assessment/ConfirmationFilterPanel";
 import type { ActionNode, Client, TopicNode } from "@/types/assessment";
 import {
   DEFAULT_ASSESSMENT_FILTER,
@@ -40,7 +41,6 @@ const todayLocalISO = () => {
   return `${year}-${month}-${day}`;
 };
 
-type ConfirmationPeriod = "day" | "week" | "month";
 
 interface ClientNameInputProps {
   value: string;
@@ -230,17 +230,6 @@ const getWeekValue = (selectedDate: string) => {
   return `${thursday.getFullYear()}-W${String(week).padStart(2, "0")}`;
 };
 
-const weekValueToDate = (weekValue: string) => {
-  const [yearPart, weekPart] = weekValue.split("-W");
-  const year = Number(yearPart);
-  const week = Number(weekPart);
-  if (!year || !week) return todayLocalISO();
-
-  const jan4 = new Date(year, 0, 4);
-  const weekStart = getWeekStartDate(jan4);
-  weekStart.setDate(weekStart.getDate() + (week - 1) * 7);
-  return dateToISO(weekStart);
-};
 
 const seedClients: Client[] = [
   {
@@ -320,6 +309,10 @@ const Index = () => {
   ]);
   const [confirmationFilter, setConfirmationFilter] =
     useState<AssessmentFilterModel>(DEFAULT_ASSESSMENT_FILTER);
+  const [showConfirmed, setShowConfirmed] = useState(false);
+  const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [draftShowConfirmed, setDraftShowConfirmed] = useState(showConfirmed);
 
   const selectedClients = clients.filter((c) => selectedClientIds.includes(c.id));
   const visibleSelectedClients =
@@ -860,7 +853,10 @@ const Index = () => {
             <RibbonButton
               icon={ListTodo}
               label="Planung"
-              onClick={() => setViewMode("planning")}
+              onClick={() => {
+                setViewMode("planning");
+                setIsFilterOpen(false);
+              }}
               disabled={viewMode === "planning"}
               active={viewMode === "planning"}
             />
@@ -872,7 +868,19 @@ const Index = () => {
               active={viewMode === "confirmation"}
             />
             <RibbonDivider />
-            <RibbonButton icon={Filter} label="Filter" />
+            <RibbonButton
+              icon={Filter}
+              label="Filter"
+              onClick={() => setIsFilterPanelOpen(true)}
+              disabled={viewMode !== "confirmation"}
+              onClick={() => {
+                if (viewMode !== "confirmation") return;
+                setDraftShowConfirmed(showConfirmed);
+                setIsFilterOpen(true);
+              }}
+              disabled={viewMode === "planning"}
+              active={viewMode === "confirmation"}
+            />
             <RibbonDivider />
             <RibbonButton
               icon={Download}
@@ -889,6 +897,44 @@ const Index = () => {
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto bg-background">
+            {isFilterOpen && viewMode === "confirmation" && (
+              <div className="px-6 lg:px-10 pt-4 max-w-4xl mx-auto">
+                <div className="rounded-lg border border-border bg-background shadow-sm p-4 flex flex-col gap-4">
+                  <div>
+                    <h2 className="text-sm font-semibold">Filter</h2>
+                    <p className="text-xs text-muted-foreground">
+                      Änderungen werden erst nach „Anwenden“ übernommen.
+                    </p>
+                  </div>
+                  <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={draftShowConfirmed}
+                      onChange={(e) => setDraftShowConfirmed(e.target.checked)}
+                      className="h-4 w-4 rounded border-border accent-primary"
+                    />
+                    Bestätigte anzeigen
+                  </label>
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      className="h-9 px-3 rounded border border-border text-sm hover:bg-secondary"
+                      onClick={() => setIsFilterOpen(false)}
+                    >
+                      Abbrechen
+                    </button>
+                    <button
+                      className="h-9 px-3 rounded bg-primary text-primary-foreground text-sm hover:opacity-90"
+                      onClick={() => {
+                        setShowConfirmed(draftShowConfirmed);
+                        setIsFilterOpen(false);
+                      }}
+                    >
+                      Anwenden
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
             {selectedClients.length === 0 ? (
               <div className="p-12 text-center text-muted-foreground">
                 <p className="text-lg">Wählen Sie eine oder mehrere Klient/innen in der Navigation.</p>
@@ -898,40 +944,15 @@ const Index = () => {
                 {viewMode === "confirmation" && (
                   <div className="flex items-center justify-between bg-secondary/30 p-4 rounded-lg border border-border sticky top-0 z-10">
                     <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-1 bg-background border border-border rounded-md p-1">
-                        <button
-                          className={cn(
-                            "h-8 px-2 text-xs rounded",
-                            confirmationPeriod === "day"
-                              ? "bg-secondary text-foreground"
-                              : "hover:bg-secondary",
-                          )}
-                          onClick={() => setConfirmationPeriod("day")}
-                        >
-                          Tag
-                        </button>
-                        <button
-                          className={cn(
-                            "h-8 px-2 text-xs rounded",
-                            confirmationPeriod === "week"
-                              ? "bg-secondary text-foreground"
-                              : "hover:bg-secondary",
-                          )}
-                          onClick={() => setConfirmationPeriod("week")}
-                        >
-                          Woche
-                        </button>
-                        <button
-                          className={cn(
-                            "h-8 px-2 text-xs rounded",
-                            confirmationPeriod === "month"
-                              ? "bg-secondary text-foreground"
-                              : "hover:bg-secondary",
-                          )}
-                          onClick={() => setConfirmationPeriod("month")}
-                        >
-                          Monat
-                        </button>
+                      <div className="flex items-center gap-2 bg-background border border-border rounded-md px-3 py-2 text-sm">
+                        <span className="text-muted-foreground">Zeitraum:</span>
+                        <span className="font-medium">
+                          {confirmationPeriod === "day"
+                            ? "Tag"
+                            : confirmationPeriod === "week"
+                              ? "Woche"
+                              : "Monat"}
+                        </span>
                       </div>
                       <div className="flex items-center gap-1 bg-background border border-border rounded-md p-1">
                         <button
@@ -947,30 +968,13 @@ const Index = () => {
                         >
                           ‹
                         </button>
-                        {confirmationPeriod === "day" && (
-                          <input
-                            type="date"
-                            value={selectedDate}
-                            onChange={(e) => setSelectedDate(e.target.value)}
-                            className="bg-transparent text-sm px-2 py-1 outline-none"
-                          />
-                        )}
-                        {confirmationPeriod === "week" && (
-                          <input
-                            type="week"
-                            value={getWeekValue(selectedDate)}
-                            onChange={(e) => setSelectedDate(weekValueToDate(e.target.value))}
-                            className="bg-transparent text-sm px-2 py-1 outline-none"
-                          />
-                        )}
-                        {confirmationPeriod === "month" && (
-                          <input
-                            type="month"
-                            value={selectedDate.slice(0, 7)}
-                            onChange={(e) => setSelectedDate(`${e.target.value}-01`)}
-                            className="bg-transparent text-sm px-2 py-1 outline-none"
-                          />
-                        )}
+                        <span className="min-w-36 text-center text-sm px-2">
+                          {confirmationPeriod === "day"
+                            ? selectedDate
+                            : confirmationPeriod === "week"
+                              ? getWeekValue(selectedDate)
+                              : selectedDate.slice(0, 7)}
+                        </span>
                         <button
                           className="h-8 w-8 inline-flex items-center justify-center rounded hover:bg-secondary"
                           onClick={() => shiftDate(1)}
@@ -1003,6 +1007,10 @@ const Index = () => {
                         />
                         Bestätigte anzeigen
                       </label>
+                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                      {showConfirmed ? "Bestätigte inklusiv" : "Nur offene Einträge"}
+                    <div className="text-sm text-muted-foreground">
+                      Filter: {showConfirmed ? "Bestätigte sichtbar" : "Nur offene Einträge"}
                     </div>
                   </div>
                 )}
@@ -1072,6 +1080,21 @@ const Index = () => {
               </div>
             )}
           </div>
+
+          <ConfirmationFilterPanel
+            open={isFilterPanelOpen}
+            onOpenChange={setIsFilterPanelOpen}
+            initialFilters={{
+              selectedDate,
+              confirmationPeriod,
+              showConfirmed,
+            }}
+            onApply={(filters: ConfirmationFilters) => {
+              setSelectedDate(filters.selectedDate);
+              setConfirmationPeriod(filters.confirmationPeriod);
+              setShowConfirmed(filters.showConfirmed);
+            }}
+          />
         </main>
       </div>
     </SidebarProvider>
