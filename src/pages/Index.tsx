@@ -27,11 +27,14 @@ import {
   DEFAULT_ASSESSMENT_FILTER,
   matchesAssessmentFilter,
   type AssessmentFilterModel,
+  type NumericComparison,
 } from "@/types/assessment-filter";
 import { cn } from "@/lib/utils";
 import { createSimpleXlsxBlob } from "@/lib/xlsx";
-import { matchesConfirmationFilter } from "@/lib/confirmation-filter";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const todayLocalISO = () => {
@@ -44,13 +47,13 @@ const todayLocalISO = () => {
 
 type ConfirmationPeriod = "day" | "week" | "month";
 
-const OPERATOR_OPTIONS: Array<{ value: NumericComparisonOperator; label: ">" | "<" | "=" }> = [
+const OPERATOR_OPTIONS: Array<{ value: NumericComparison["op"]; label: ">" | "<" | "=" }> = [
   { value: "gt", label: ">" },
   { value: "lt", label: "<" },
   { value: "eq", label: "=" },
 ];
 
-const INITIAL_CONFIRMATION_FILTER: ConfirmationFilter = {
+const INITIAL_CONFIRMATION_FILTER: AssessmentFilterModel = {
   statuses: ["open"],
 };
 
@@ -83,38 +86,7 @@ const hasVisibleConfirmationItems = (
   period: ConfirmationPeriod,
   filterModel: AssessmentFilterModel,
 ) => {
-  return getVisibleConfirmationItems(client, selectedDate, period, filterModel).length > 0;
-};
-
-const getVisibleConfirmationItems = (
-  client: Client,
-  selectedDate: string,
-  period: ConfirmationPeriod,
-  filterModel: AssessmentFilterModel,
-) => {
-  const items: Array<{
-    topic: TopicNode;
-    target: { id: string; title: string; notes: string };
-    action: ActionNode;
-  }> = [];
-
-  const { start, end } = getPeriodRange(selectedDate, period);
-
-  client.topics.forEach((topic) => {
-    topic.targets.forEach((target) => {
-      target.actions.forEach((action) => {
-        if (action.validFrom && action.validFrom > end) return;
-        if (action.validTo && action.validTo < start) return;
-
-        const status = getStatusForPeriod(action, selectedDate, period);
-        if (!matchesAssessmentFilter({ action, status }, filterModel)) return;
-
-        items.push({ topic, target, action });
-      });
-    });
-  });
-
-  return items;
+  return getVisibleConfirmationRows(client, selectedDate, period, filterModel).length > 0;
 };
 
 const getDueDatesInPeriod = (
@@ -311,6 +283,8 @@ const Index = () => {
   ]);
   const [confirmationFilter, setConfirmationFilter] =
     useState<AssessmentFilterModel>(DEFAULT_ASSESSMENT_FILTER);
+  const [draftFilter, setDraftFilter] = useState<AssessmentFilterModel>(confirmationFilter);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   const selectedClients = clients.filter((c) => selectedClientIds.includes(c.id));
   const visibleSelectedClients =
@@ -1152,7 +1126,7 @@ const Index = () => {
                           ...prev,
                           plannedMinutes: prev.plannedMinutes
                             ? {
-                                op: value as NumericComparisonOperator,
+                                op: value as NumericComparison["op"],
                                 value: prev.plannedMinutes.value,
                               }
                             : undefined,
@@ -1194,7 +1168,7 @@ const Index = () => {
                           ...prev,
                           actualMinutes: prev.actualMinutes
                             ? {
-                                op: value as NumericComparisonOperator,
+                                op: value as NumericComparison["op"],
                                 value: prev.actualMinutes.value,
                               }
                             : undefined,
@@ -1261,7 +1235,7 @@ const Index = () => {
                 <Select
                   value={draftFilter.dayPart ?? "all"}
                   onValueChange={(value) =>
-                    setDraftFilter((prev) => ({ ...prev, dayPart: value === "all" ? undefined : value as ConfirmationFilter["dayPart"] }))
+                    setDraftFilter((prev) => ({ ...prev, dayPart: value === "all" ? undefined : value as AssessmentFilterModel["dayPart"] }))
                   }
                 >
                   <SelectTrigger><SelectValue placeholder="Tageszeit" /></SelectTrigger>
@@ -1316,7 +1290,7 @@ const Index = () => {
               <Select
                 value={draftFilter.result ?? "all"}
                 onValueChange={(value) =>
-                  setDraftFilter((prev) => ({ ...prev, result: value === "all" ? undefined : value as ConfirmationFilter["result"] }))
+                  setDraftFilter((prev) => ({ ...prev, result: value === "all" ? undefined : value as AssessmentFilterModel["result"] }))
                 }
               >
                 <SelectTrigger><SelectValue placeholder="Resultat" /></SelectTrigger>
