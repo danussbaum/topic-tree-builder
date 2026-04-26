@@ -42,6 +42,14 @@ const matchesNumericComparison = (value: number | undefined, comparison?: Numeri
   return value === comparison.value;
 };
 
+const matchesNumericRange = (value: number | undefined, range?: NumericRange) => {
+  if (!range || (range.min == null && range.max == null)) return true;
+  if (value == null) return false;
+  if (range.min != null && value < range.min) return false;
+  if (range.max != null && value > range.max) return false;
+  return true;
+};
+
 const getDifferenceMinutes = (plannedMinutes?: number, actualMinutes?: number) => {
   if (plannedMinutes == null || actualMinutes == null) return undefined;
   return actualMinutes - plannedMinutes;
