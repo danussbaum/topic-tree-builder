@@ -65,10 +65,10 @@ export const matchesAssessmentFilter = (
   if (!matchesNumericComparison(actualMinutes, filter.actualMinutes)) return false;
 
   const differenceMinutes = getDifferenceMinutes(plannedMinutes, actualMinutes);
-  if (filter.differenceMinutes != null && differenceMinutes !== filter.differenceMinutes) return false;
+  if (!matchesNumericRange(differenceMinutes, filter.differenceMinutes)) return false;
 
   const differencePercent = getDifferencePercent(plannedMinutes, actualMinutes);
-  if (filter.differencePercent != null && differencePercent !== filter.differencePercent) return false;
+  if (!matchesNumericRange(differencePercent, filter.differencePercent)) return false;
 
   if (filter.dayPart != null) {
     const dayPart = action.dayPart ?? "none";
