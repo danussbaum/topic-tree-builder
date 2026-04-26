@@ -953,7 +953,8 @@ const Index = () => {
             {viewMode === "confirmation" && isFilterOpen && (
               <div
                 ref={filterMenuRef}
-                className="absolute left-3 top-full z-40 mt-1 w-[46rem] max-w-[calc(100vw-2rem)] rounded-sm border border-border bg-background shadow-xl"
+                style={{ left: `${filterMenuLeft}px` }}
+                className="absolute top-full z-40 mt-1 w-[28rem] max-w-[calc(100vw-2rem)] rounded-sm border border-border bg-background shadow-xl"
               >
                 <div className="border-b border-border px-4 py-3 text-sm font-medium">
                   Filter
