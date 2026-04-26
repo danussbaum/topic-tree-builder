@@ -111,7 +111,7 @@ const buildXlsxBlob = (files: Array<{ path: string; content: string }>) => {
   writeUint32(endView, 16, localOffset);
   writeUint16(endView, 20, 0);
 
-  return new Blob([...localParts, ...centralParts, endRecord], {
+  return new Blob([...localParts, ...centralParts, endRecord] as BlobPart[], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
 };
