@@ -27,8 +27,26 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { ActionNode, Client, ConfirmationFilter, NumericComparisonOperator, TopicNode } from "@/types/assessment";
+import { ConfirmationFilterPanel, type ConfirmationFilters, type ConfirmationPeriod } from "@/components/assessment/ConfirmationFilterPanel";
+import type { ActionNode, Client, TopicNode } from "@/types/assessment";
+import {
+  DEFAULT_ASSESSMENT_FILTER,
+  matchesAssessmentFilter,
+  type AssessmentFilterModel,
+} from "@/types/assessment-filter";
 import { cn } from "@/lib/utils";
 import { createSimpleXlsxBlob } from "@/lib/xlsx";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+  getConfirmationFilterForShowConfirmed,
+  matchesConfirmationFilter,
+} from "@/lib/confirmationFilter";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const todayLocalISO = () => {
@@ -40,6 +58,24 @@ const todayLocalISO = () => {
 };
 
 type ConfirmationPeriod = "day" | "week" | "month";
+type FilterState = { statuses: ActionNode["status"][] };
+const allStatuses: ActionNode["status"][] = [
+  "open",
+  "done_as_planned",
+  "done_with_deviation",
+  "not_done",
+];
+const initialFilter: FilterState = { statuses: ["open"] };
+
+const OPERATOR_OPTIONS: Array<{ value: NumericComparisonOperator; label: ">" | "<" | "=" }> = [
+  { value: "gt", label: ">" },
+  { value: "lt", label: "<" },
+  { value: "eq", label: "=" },
+];
+
+const INITIAL_CONFIRMATION_FILTER: ConfirmationFilter = {
+  statuses: ["open"],
+};
 
 const OPERATOR_OPTIONS: Array<{ value: NumericComparisonOperator; label: ">" | "<" | "=" }> = [
   { value: "gt", label: ">" },
@@ -81,6 +117,57 @@ const hasVisibleConfirmationItems = (
   filter: ConfirmationFilter,
 ) => {
   return getVisibleConfirmationRows(client, selectedDate, period, filter).length > 0;
+  filter: FilterState,
+) => {
+  return getVisibleConfirmationItems(client, selectedDate, period, filter).length > 0;
+  filterModel: AssessmentFilterModel,
+) => {
+  return getVisibleConfirmationItems(client, selectedDate, period, filterModel).length > 0;
+};
+
+const getVisibleConfirmationItems = (
+  client: Client,
+  selectedDate: string,
+  period: ConfirmationPeriod,
+  filter: FilterState,
+  filterModel: AssessmentFilterModel,
+) => {
+  const items: Array<{
+    topic: TopicNode;
+    target: { id: string; title: string; notes: string };
+    action: ActionNode;
+  }> = [];
+
+  const { start, end } = getPeriodRange(selectedDate, period);
+  const filter = getConfirmationFilterForShowConfirmed(showConfirmed);
+
+  client.topics.forEach((topic) => {
+    topic.targets.forEach((target) => {
+      target.actions.forEach((action) => {
+        if (action.validFrom && action.validFrom > end) return;
+        if (action.validTo && action.validTo < start) return;
+
+        const status = getStatusForPeriod(action, selectedDate, period);
+        if (!filter.statuses.includes(status)) return;
+        if (
+          !matchesConfirmationFilter(
+            {
+              status,
+              plannedMinutes: action.plannedMinutes,
+            },
+            filter,
+          )
+        ) {
+          return;
+        }
+        if (!matchesAssessmentFilter({ action, status }, filterModel)) return;
+
+        items.push({ topic, target, action });
+      });
+    });
+  });
+
+  return items;
 };
 
 const getDueDatesInPeriod = (
@@ -111,6 +198,8 @@ const getVisibleConfirmationRows = (
   selectedDate: string,
   period: ConfirmationPeriod,
   filter: ConfirmationFilter,
+  filter: FilterState,
+  filterModel: AssessmentFilterModel,
 ) => {
   const rows: Array<{
     dueDate: string;
@@ -121,6 +210,7 @@ const getVisibleConfirmationRows = (
   }> = [];
 
   const { start, end } = getPeriodRange(selectedDate, period);
+  const filter = getConfirmationFilterForShowConfirmed(showConfirmed);
 
   client.topics.forEach((topic) => {
     topic.targets.forEach((target) => {
@@ -182,6 +272,23 @@ const getVisibleConfirmationRows = (
             }
           }
 
+          const status = action.confirmations?.[dueDate]?.status || "open";
+          if (!filter.statuses.includes(status)) return;
+          const confirmation = action.confirmations?.[dueDate];
+          const status = confirmation?.status || "open";
+          if (
+            !matchesConfirmationFilter(
+              {
+                status,
+                plannedMinutes: action.plannedMinutes,
+                actualMinutes: confirmation?.actualMinutes,
+              },
+              filter,
+            )
+          ) {
+            return;
+          }
+          if (!matchesAssessmentFilter({ action, status, confirmation }, filterModel)) return;
           rows.push({ dueDate, topic, target, action, status });
         });
       });
@@ -190,6 +297,8 @@ const getVisibleConfirmationRows = (
 
   return rows;
 };
+
+const HIDE_EMPTY_CONFIRMATION_CLIENT_SECTIONS = true;
 
 const dateToISO = (date: Date) => {
   const year = date.getFullYear();
@@ -253,17 +362,6 @@ const getWeekValue = (selectedDate: string) => {
   return `${thursday.getFullYear()}-W${String(week).padStart(2, "0")}`;
 };
 
-const weekValueToDate = (weekValue: string) => {
-  const [yearPart, weekPart] = weekValue.split("-W");
-  const year = Number(yearPart);
-  const week = Number(weekPart);
-  if (!year || !week) return todayLocalISO();
-
-  const jan4 = new Date(year, 0, 4);
-  const weekStart = getWeekStartDate(jan4);
-  weekStart.setDate(weekStart.getDate() + (week - 1) * 7);
-  return dateToISO(weekStart);
-};
 
 const seedClients: Client[] = [
   {
@@ -346,15 +444,40 @@ const Index = () => {
   const [draftFilter, setDraftFilter] =
     useState<ConfirmationFilter>(INITIAL_CONFIRMATION_FILTER);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [appliedFilter, setAppliedFilter] = useState<FilterState>(initialFilter);
+  const [draftFilter, setDraftFilter] = useState<FilterState>(initialFilter);
+  const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
+  const [confirmationFilter, setConfirmationFilter] =
+    useState<AssessmentFilterModel>(DEFAULT_ASSESSMENT_FILTER);
+  const [showConfirmed, setShowConfirmed] = useState(false);
+  const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [draftShowConfirmed, setDraftShowConfirmed] = useState(showConfirmed);
 
   const selectedClients = clients.filter((c) => selectedClientIds.includes(c.id));
+  const visibleConfirmationRowsByClient = selectedClients.map((client) => ({
+    client,
+    rows: getVisibleConfirmationRows(
+      client,
+      selectedDate,
+      confirmationPeriod,
+      showConfirmed,
+    ),
+  }));
+
+  const confirmationClientsForRender = HIDE_EMPTY_CONFIRMATION_CLIENT_SECTIONS
+    ? visibleConfirmationRowsByClient.filter(({ rows }) => rows.length > 0)
+    : visibleConfirmationRowsByClient;
+
   const visibleSelectedClients =
     viewMode === "confirmation"
+      ? confirmationClientsForRender.map(({ client }) => client)
       ? selectedClients.filter((client) =>
           hasVisibleConfirmationItems(
             client,
             selectedDate,
             confirmationPeriod,
+            appliedFilter,
             confirmationFilter,
           ),
         )
@@ -772,6 +895,7 @@ const Index = () => {
         client,
         selectedDate,
         confirmationPeriod,
+        appliedFilter,
         confirmationFilter,
       ).map(({ dueDate, topic, target, action, status }) => {
         const confirmation = action.confirmations?.[dueDate];
@@ -859,6 +983,27 @@ const Index = () => {
     URL.revokeObjectURL(url);
   };
 
+  const openFilterDialog = () => {
+    setDraftFilter(appliedFilter);
+    setIsFilterDialogOpen(true);
+  };
+
+  const cancelFilterDialog = () => {
+    setIsFilterDialogOpen(false);
+  };
+
+  const resetDraftFilter = () => {
+    setDraftFilter(initialFilter);
+  };
+
+  const applyDraftFilter = () => {
+    setAppliedFilter(draftFilter);
+    setIsFilterDialogOpen(false);
+  };
+
+  const draftShowsConfirmed = draftFilter.statuses.length > 1;
+  const appliedShowsConfirmed = appliedFilter.statuses.length > 1;
+
   return (
     <SidebarProvider>
       <div className="min-h-dvh bg-background flex w-full">
@@ -928,7 +1073,10 @@ const Index = () => {
             <RibbonButton
               icon={ListTodo}
               label="Planung"
-              onClick={() => setViewMode("planning")}
+              onClick={() => {
+                setViewMode("planning");
+                setIsFilterOpen(false);
+              }}
               disabled={viewMode === "planning"}
               active={viewMode === "planning"}
             />
@@ -945,6 +1093,19 @@ const Index = () => {
               label="Filter"
               disabled={viewMode === "planning"}
               onClick={openFilter}
+            <RibbonButton icon={Filter} label="Filter" onClick={openFilterDialog} />
+            <RibbonButton
+              icon={Filter}
+              label="Filter"
+              onClick={() => setIsFilterPanelOpen(true)}
+              disabled={viewMode !== "confirmation"}
+              onClick={() => {
+                if (viewMode !== "confirmation") return;
+                setDraftShowConfirmed(showConfirmed);
+                setIsFilterOpen(true);
+              }}
+              disabled={viewMode === "planning"}
+              active={viewMode === "confirmation"}
             />
             <RibbonDivider />
             <RibbonButton
@@ -962,6 +1123,44 @@ const Index = () => {
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto bg-background">
+            {isFilterOpen && viewMode === "confirmation" && (
+              <div className="px-6 lg:px-10 pt-4 max-w-4xl mx-auto">
+                <div className="rounded-lg border border-border bg-background shadow-sm p-4 flex flex-col gap-4">
+                  <div>
+                    <h2 className="text-sm font-semibold">Filter</h2>
+                    <p className="text-xs text-muted-foreground">
+                      Änderungen werden erst nach „Anwenden“ übernommen.
+                    </p>
+                  </div>
+                  <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={draftShowConfirmed}
+                      onChange={(e) => setDraftShowConfirmed(e.target.checked)}
+                      className="h-4 w-4 rounded border-border accent-primary"
+                    />
+                    Bestätigte anzeigen
+                  </label>
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      className="h-9 px-3 rounded border border-border text-sm hover:bg-secondary"
+                      onClick={() => setIsFilterOpen(false)}
+                    >
+                      Abbrechen
+                    </button>
+                    <button
+                      className="h-9 px-3 rounded bg-primary text-primary-foreground text-sm hover:opacity-90"
+                      onClick={() => {
+                        setShowConfirmed(draftShowConfirmed);
+                        setIsFilterOpen(false);
+                      }}
+                    >
+                      Anwenden
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
             {selectedClients.length === 0 ? (
               <div className="p-12 text-center text-muted-foreground">
                 <p className="text-lg">Wählen Sie eine oder mehrere Klient/innen in der Navigation.</p>
@@ -971,40 +1170,15 @@ const Index = () => {
                 {viewMode === "confirmation" && (
                   <div className="flex items-center justify-between bg-secondary/30 p-4 rounded-lg border border-border sticky top-0 z-10">
                     <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-1 bg-background border border-border rounded-md p-1">
-                        <button
-                          className={cn(
-                            "h-8 px-2 text-xs rounded",
-                            confirmationPeriod === "day"
-                              ? "bg-secondary text-foreground"
-                              : "hover:bg-secondary",
-                          )}
-                          onClick={() => setConfirmationPeriod("day")}
-                        >
-                          Tag
-                        </button>
-                        <button
-                          className={cn(
-                            "h-8 px-2 text-xs rounded",
-                            confirmationPeriod === "week"
-                              ? "bg-secondary text-foreground"
-                              : "hover:bg-secondary",
-                          )}
-                          onClick={() => setConfirmationPeriod("week")}
-                        >
-                          Woche
-                        </button>
-                        <button
-                          className={cn(
-                            "h-8 px-2 text-xs rounded",
-                            confirmationPeriod === "month"
-                              ? "bg-secondary text-foreground"
-                              : "hover:bg-secondary",
-                          )}
-                          onClick={() => setConfirmationPeriod("month")}
-                        >
-                          Monat
-                        </button>
+                      <div className="flex items-center gap-2 bg-background border border-border rounded-md px-3 py-2 text-sm">
+                        <span className="text-muted-foreground">Zeitraum:</span>
+                        <span className="font-medium">
+                          {confirmationPeriod === "day"
+                            ? "Tag"
+                            : confirmationPeriod === "week"
+                              ? "Woche"
+                              : "Monat"}
+                        </span>
                       </div>
                       <div className="flex items-center gap-1 bg-background border border-border rounded-md p-1">
                         <button
@@ -1020,30 +1194,13 @@ const Index = () => {
                         >
                           ‹
                         </button>
-                        {confirmationPeriod === "day" && (
-                          <input
-                            type="date"
-                            value={selectedDate}
-                            onChange={(e) => setSelectedDate(e.target.value)}
-                            className="bg-transparent text-sm px-2 py-1 outline-none"
-                          />
-                        )}
-                        {confirmationPeriod === "week" && (
-                          <input
-                            type="week"
-                            value={getWeekValue(selectedDate)}
-                            onChange={(e) => setSelectedDate(weekValueToDate(e.target.value))}
-                            className="bg-transparent text-sm px-2 py-1 outline-none"
-                          />
-                        )}
-                        {confirmationPeriod === "month" && (
-                          <input
-                            type="month"
-                            value={selectedDate.slice(0, 7)}
-                            onChange={(e) => setSelectedDate(`${e.target.value}-01`)}
-                            className="bg-transparent text-sm px-2 py-1 outline-none"
-                          />
-                        )}
+                        <span className="min-w-36 text-center text-sm px-2">
+                          {confirmationPeriod === "day"
+                            ? selectedDate
+                            : confirmationPeriod === "week"
+                              ? getWeekValue(selectedDate)
+                              : selectedDate.slice(0, 7)}
+                        </span>
                         <button
                           className="h-8 w-8 inline-flex items-center justify-center rounded hover:bg-secondary"
                           onClick={() => shiftDate(1)}
@@ -1061,6 +1218,33 @@ const Index = () => {
                     </div>
                     <div className="text-sm text-muted-foreground">
                       {confirmationFilter.statuses.length} Status ausgewählt
+                    <div className="flex items-center gap-3">
+                      <button
+                        className="h-9 px-3 rounded-md border border-border text-sm hover:bg-secondary"
+                        onClick={openFilterDialog}
+                      >
+                        Filter
+                      </button>
+                      <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={confirmationFilter.statuses.length > 1}
+                          onChange={(e) =>
+                            setConfirmationFilter((prev) => ({
+                              ...prev,
+                              statuses: e.target.checked
+                                ? ["open", "done_as_planned", "done_with_deviation", "not_done"]
+                                : ["open"],
+                            }))
+                          }
+                          className="h-4 w-4 rounded border-border accent-primary"
+                        />
+                        Bestätigte anzeigen
+                      </label>
+                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                      {showConfirmed ? "Bestätigte inklusiv" : "Nur offene Einträge"}
+                    <div className="text-sm text-muted-foreground">
+                      Filter: {showConfirmed ? "Bestätigte sichtbar" : "Nur offene Einträge"}
                     </div>
                   </div>
                 )}
@@ -1100,6 +1284,8 @@ const Index = () => {
                       hideConfirmationHeader
                       showConfirmed
                       confirmationFilter={confirmationFilter}
+                      showConfirmed={appliedShowsConfirmed}
+                      filterModel={confirmationFilter}
                       onUpdateTopic={(topicId, field, value) =>
                         updateTopic(client.id, topicId, field, value)
                       }
@@ -1131,6 +1317,66 @@ const Index = () => {
               </div>
             )}
           </div>
+
+          <Dialog open={isFilterDialogOpen} onOpenChange={(open) => (!open ? cancelFilterDialog() : null)}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Filter</DialogTitle>
+                <DialogDescription>
+                  Wählen Sie, ob nur offene oder auch bestätigte Handlungen angezeigt werden.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-2">
+                <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={draftShowsConfirmed}
+                    onChange={(e) =>
+                      setDraftFilter({ statuses: e.target.checked ? allStatuses : initialFilter.statuses })
+                    }
+                    className="h-4 w-4 rounded border-border accent-primary"
+                  />
+                  Bestätigte anzeigen
+                </label>
+              </div>
+              <DialogFooter className="gap-2 sm:justify-between">
+                <button
+                  className="h-9 px-3 rounded-md border border-border text-sm hover:bg-secondary"
+                  onClick={resetDraftFilter}
+                >
+                  Zurücksetzen
+                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    className="h-9 px-3 rounded-md border border-border text-sm hover:bg-secondary"
+                    onClick={cancelFilterDialog}
+                  >
+                    Abbrechen
+                  </button>
+                  <button
+                    className="h-9 px-3 rounded-md bg-primary text-primary-foreground text-sm hover:opacity-90"
+                    onClick={applyDraftFilter}
+                  >
+                    Anwenden
+                  </button>
+                </div>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          <ConfirmationFilterPanel
+            open={isFilterPanelOpen}
+            onOpenChange={setIsFilterPanelOpen}
+            initialFilters={{
+              selectedDate,
+              confirmationPeriod,
+              showConfirmed,
+            }}
+            onApply={(filters: ConfirmationFilters) => {
+              setSelectedDate(filters.selectedDate);
+              setConfirmationPeriod(filters.confirmationPeriod);
+              setShowConfirmed(filters.showConfirmed);
+            }}
+          />
         </main>
 
         <Dialog open={isFilterOpen} onOpenChange={(open) => (!open ? cancelFilter() : null)}>
@@ -1171,12 +1417,10 @@ const Index = () => {
                       onValueChange={(value) =>
                         setDraftFilter((prev) => ({
                           ...prev,
-                          plannedMinutes: prev.plannedMinutes
-                            ? {
-                                op: value as NumericComparisonOperator,
-                                value: prev.plannedMinutes.value,
-                              }
-                            : undefined,
+                          plannedMinutes: {
+                            op: value as NumericComparisonOperator,
+                            value: prev.plannedMinutes?.value ?? 0,
+                          },
                         }))
                       }
                     >
@@ -1213,12 +1457,10 @@ const Index = () => {
                       onValueChange={(value) =>
                         setDraftFilter((prev) => ({
                           ...prev,
-                          actualMinutes: prev.actualMinutes
-                            ? {
-                                op: value as NumericComparisonOperator,
-                                value: prev.actualMinutes.value,
-                              }
-                            : undefined,
+                          actualMinutes: {
+                            op: value as NumericComparisonOperator,
+                            value: prev.actualMinutes?.value ?? 0,
+                          },
                         }))
                       }
                     >
@@ -1258,7 +1500,7 @@ const Index = () => {
                     onChange={(e) =>
                       setOptionalNumber(
                         e.target.value,
-                        (num) => setDraftFilter((prev) => ({ ...prev, differenceMinutes: Math.abs(num) })),
+                        (num) => setDraftFilter((prev) => ({ ...prev, differenceMinutes: num })),
                         () => setDraftFilter((prev) => ({ ...prev, differenceMinutes: undefined })),
                       )
                     }
@@ -1270,7 +1512,7 @@ const Index = () => {
                     onChange={(e) =>
                       setOptionalNumber(
                         e.target.value,
-                        (num) => setDraftFilter((prev) => ({ ...prev, differencePercent: Math.abs(num) })),
+                        (num) => setDraftFilter((prev) => ({ ...prev, differencePercent: num })),
                         () => setDraftFilter((prev) => ({ ...prev, differencePercent: undefined })),
                       )
                     }
@@ -1321,10 +1563,7 @@ const Index = () => {
                     onChange={(e) =>
                       setOptionalNumber(
                         e.target.value,
-                        (num) => setDraftFilter((prev) => ({
-                          ...prev,
-                          persons: { kind: "exact", value: Math.max(0, Math.floor(num)) },
-                        })),
+                        (num) => setDraftFilter((prev) => ({ ...prev, persons: { kind: "exact", value: Math.floor(num) } })),
                         () => setDraftFilter((prev) => ({ ...prev, persons: { kind: "exact", value: 0 } })),
                       )
                     }

@@ -49,6 +49,14 @@ import type {
   TopicNode,
 } from "@/types/assessment";
 import { DAY_PART_LABEL, DAY_PART_ORDER } from "@/types/assessment";
+import {
+  getConfirmationFilterForShowConfirmed,
+  matchesConfirmationFilter,
+} from "@/lib/confirmationFilter";
+  DEFAULT_ASSESSMENT_FILTER,
+  matchesAssessmentFilter,
+  type AssessmentFilterModel,
+} from "@/types/assessment-filter";
 import { cn } from "@/lib/utils";
 
 type ConfirmPayload =
@@ -77,6 +85,7 @@ interface Props {
   hideConfirmationHeader?: boolean;
   showConfirmed?: boolean;
   confirmationFilter?: ConfirmationFilter;
+  filterModel?: AssessmentFilterModel;
   onUpdateTopic: (topicId: string, field: "title" | "notes", value: string) => void;
   onUpdateTarget: (
     topicId: string,
@@ -165,6 +174,7 @@ export function AssessmentOutline({
   hideConfirmationHeader,
   showConfirmed = false,
   confirmationFilter,
+  filterModel = DEFAULT_ASSESSMENT_FILTER,
   onUpdateTopic,
   onUpdateTarget,
   onUpdateAction,
@@ -206,9 +216,7 @@ export function AssessmentOutline({
     };
 
     const periodRange = getPeriodRange();
-    const getStatusForDate = (action: ActionNode, date: string) => {
-      return action.confirmations?.[date]?.status || "open";
-    };
+    const filter = getConfirmationFilterForShowConfirmed(showConfirmed);
 
     const getDueDatesInPeriod = (action: ActionNode) => {
       if (confirmationPeriod === "day") return [selectedDate];
@@ -247,8 +255,21 @@ export function AssessmentOutline({
 
           const dueDates = getDueDatesInPeriod(action);
           dueDates.forEach((dueDate) => {
+            const conf = action.confirmations?.[dueDate];
+            const status = conf?.status || "open";
+            if (
+              !matchesConfirmationFilter(
+                {
+                  status,
+                  plannedMinutes: action.plannedMinutes,
+                  actualMinutes: conf?.actualMinutes,
+                },
+                filter,
+              )
+            ) return;
+            const confirmation = action.confirmations?.[dueDate];
             const status = getStatusForDate(action, dueDate);
-            if (!showConfirmed && status !== "open") return;
+            if (!matchesAssessmentFilter({ action, status, confirmation }, filterModel)) return;
             flatActions.push({ topic, target, action, dueDate, status });
           });
         });
@@ -379,7 +400,7 @@ export function AssessmentOutline({
               </div>
             </div>
             <div className="text-sm text-muted-foreground bg-background px-3 py-1 rounded-full border border-border">
-              {filteredFlatActions.length} Handlungen geplant
+              {filteredFlatActions.length} Handlungn geplant
             </div>
           </div>
         )}
