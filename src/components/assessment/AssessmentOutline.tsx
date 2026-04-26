@@ -45,9 +45,18 @@ import type {
   ActionStatus,
   ConfirmationFilter,
   DayPart,
+  NumericComparisonOperator,
   TopicNode,
 } from "@/types/assessment";
 import { DAY_PART_LABEL, DAY_PART_ORDER } from "@/types/assessment";
+import {
+  getConfirmationFilterForShowConfirmed,
+  matchesConfirmationFilter,
+} from "@/lib/confirmationFilter";
+  DEFAULT_ASSESSMENT_FILTER,
+  matchesAssessmentFilter,
+  type AssessmentFilterModel,
+} from "@/types/assessment-filter";
 import { cn } from "@/lib/utils";
 import { matchesConfirmationFilter } from "@/lib/confirmation-filter";
 
@@ -77,6 +86,7 @@ interface Props {
   hideConfirmationHeader?: boolean;
   showConfirmed?: boolean;
   confirmationFilter?: ConfirmationFilter;
+  filterModel?: AssessmentFilterModel;
   onUpdateTopic: (topicId: string, field: "title" | "notes", value: string) => void;
   onUpdateTarget: (
     topicId: string,
@@ -139,6 +149,23 @@ function groupActions(actions: ActionNode[]) {
     .filter((g) => g.actions.length > 0);
 }
 
+const compareNumber = (
+  actual: number | undefined,
+  op: NumericComparisonOperator,
+  expected: number,
+) => {
+  if (actual == null || !Number.isFinite(actual)) return false;
+  if (op === "gt") return actual > expected;
+  if (op === "lt") return actual < expected;
+  return actual === expected;
+};
+
+const getDifferencePercent = (planned: number, difference: number) => {
+  if (difference === 0) return 0;
+  if (planned <= 0) return Number.POSITIVE_INFINITY;
+  return (difference / planned) * 100;
+};
+
 export function AssessmentOutline({
   viewMode,
   selectedDate,
@@ -148,6 +175,7 @@ export function AssessmentOutline({
   hideConfirmationHeader,
   showConfirmed = false,
   confirmationFilter,
+  filterModel = DEFAULT_ASSESSMENT_FILTER,
   onUpdateTopic,
   onUpdateTarget,
   onUpdateAction,
@@ -189,9 +217,7 @@ export function AssessmentOutline({
     };
 
     const periodRange = getPeriodRange();
-    const getStatusForDate = (action: ActionNode, date: string) => {
-      return action.confirmations?.[date]?.status || "open";
-    };
+    const filter = getConfirmationFilterForShowConfirmed(showConfirmed);
 
     const getDueDatesInPeriod = (action: ActionNode) => {
       if (confirmationPeriod === "day") return [selectedDate];
@@ -230,8 +256,21 @@ export function AssessmentOutline({
 
           const dueDates = getDueDatesInPeriod(action);
           dueDates.forEach((dueDate) => {
+            const conf = action.confirmations?.[dueDate];
+            const status = conf?.status || "open";
+            if (
+              !matchesConfirmationFilter(
+                {
+                  status,
+                  plannedMinutes: action.plannedMinutes,
+                  actualMinutes: conf?.actualMinutes,
+                },
+                filter,
+              )
+            ) return;
+            const confirmation = action.confirmations?.[dueDate];
             const status = getStatusForDate(action, dueDate);
-            if (!showConfirmed && status !== "open") return;
+            if (!matchesAssessmentFilter({ action, status, confirmation }, filterModel)) return;
             flatActions.push({ topic, target, action, dueDate, status });
           });
         });
@@ -244,7 +283,74 @@ export function AssessmentOutline({
       dueDate: string,
     ) => {
       if (!confirmationFilter) return true;
-      return matchesConfirmationFilter(action, status, dueDate, confirmationFilter);
+
+      if (!confirmationFilter.statuses.includes(status)) return false;
+
+      const conf = action.confirmations?.[dueDate];
+      const planned = action.plannedMinutes;
+      const actual = status === "done_as_planned"
+        ? planned
+        : conf?.actualMinutes;
+
+      if (
+        confirmationFilter.plannedMinutes &&
+        !compareNumber(
+          planned,
+          confirmationFilter.plannedMinutes.op,
+          confirmationFilter.plannedMinutes.value,
+        )
+      ) {
+        return false;
+      }
+
+      if (
+        confirmationFilter.actualMinutes &&
+        !compareNumber(
+          actual,
+          confirmationFilter.actualMinutes.op,
+          confirmationFilter.actualMinutes.value,
+        )
+      ) {
+        return false;
+      }
+
+      if (confirmationFilter.dayPart && (action.dayPart ?? "none") !== confirmationFilter.dayPart) {
+        return false;
+      }
+
+      if (confirmationFilter.persons) {
+        if (confirmationFilter.persons.kind === "none") {
+          if (action.requiredPersons !== undefined) return false;
+        } else if (action.requiredPersons !== confirmationFilter.persons.value) {
+          return false;
+        }
+      }
+
+      if (confirmationFilter.result) {
+        const hasResult = Boolean(conf?.result?.trim());
+        if (confirmationFilter.result === "none" && hasResult) return false;
+        if (confirmationFilter.result === "with_result" && !hasResult) return false;
+      }
+
+      const hasDiffFilter =
+        confirmationFilter.differenceMinutes !== undefined ||
+        confirmationFilter.differencePercent !== undefined;
+      if (hasDiffFilter) {
+        if (planned == null || actual == null) return false;
+        const diff = Math.abs(actual - planned);
+        if (
+          confirmationFilter.differenceMinutes !== undefined &&
+          diff !== confirmationFilter.differenceMinutes
+        ) {
+          return false;
+        }
+        if (confirmationFilter.differencePercent !== undefined) {
+          const pct = getDifferencePercent(planned, diff);
+          if (pct !== confirmationFilter.differencePercent) return false;
+        }
+      }
+
+      return true;
     };
 
     const filteredFlatActions = flatActions.filter(({ action, status, dueDate }) =>
@@ -295,7 +401,7 @@ export function AssessmentOutline({
               </div>
             </div>
             <div className="text-sm text-muted-foreground bg-background px-3 py-1 rounded-full border border-border">
-              {filteredFlatActions.length} Handlungen geplant
+              {filteredFlatActions.length} Handlungn geplant
             </div>
           </div>
         )}
