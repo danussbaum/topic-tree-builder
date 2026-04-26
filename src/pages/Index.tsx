@@ -25,6 +25,14 @@ import { AssessmentOutline } from "@/components/assessment/AssessmentOutline";
 import type { ActionNode, Client, TopicNode } from "@/types/assessment";
 import { cn } from "@/lib/utils";
 import { createSimpleXlsxBlob } from "@/lib/xlsx";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const todayLocalISO = () => {
@@ -36,6 +44,14 @@ const todayLocalISO = () => {
 };
 
 type ConfirmationPeriod = "day" | "week" | "month";
+type FilterState = { statuses: ActionNode["status"][] };
+const allStatuses: ActionNode["status"][] = [
+  "open",
+  "done_as_planned",
+  "done_with_deviation",
+  "not_done",
+];
+const initialFilter: FilterState = { statuses: ["open"] };
 
 interface ClientNameInputProps {
   value: string;
@@ -64,16 +80,16 @@ const hasVisibleConfirmationItems = (
   client: Client,
   selectedDate: string,
   period: ConfirmationPeriod,
-  showConfirmed: boolean,
+  filter: FilterState,
 ) => {
-  return getVisibleConfirmationItems(client, selectedDate, period, showConfirmed).length > 0;
+  return getVisibleConfirmationItems(client, selectedDate, period, filter).length > 0;
 };
 
 const getVisibleConfirmationItems = (
   client: Client,
   selectedDate: string,
   period: ConfirmationPeriod,
-  showConfirmed: boolean,
+  filter: FilterState,
 ) => {
   const items: Array<{
     topic: TopicNode;
@@ -90,7 +106,7 @@ const getVisibleConfirmationItems = (
         if (action.validTo && action.validTo < start) return;
 
         const status = getStatusForPeriod(action, selectedDate, period);
-        if (!showConfirmed && status !== "open") return;
+        if (!filter.statuses.includes(status)) return;
 
         items.push({ topic, target, action });
       });
@@ -127,7 +143,7 @@ const getVisibleConfirmationRows = (
   client: Client,
   selectedDate: string,
   period: ConfirmationPeriod,
-  showConfirmed: boolean,
+  filter: FilterState,
 ) => {
   const rows: Array<{
     dueDate: string;
@@ -148,7 +164,7 @@ const getVisibleConfirmationRows = (
         const dueDates = getDueDatesInPeriod(action, selectedDate, period);
         dueDates.forEach((dueDate) => {
           const status = action.confirmations?.[dueDate]?.status || "open";
-          if (!showConfirmed && status !== "open") return;
+          if (!filter.statuses.includes(status)) return;
           rows.push({ dueDate, topic, target, action, status });
         });
       });
@@ -312,7 +328,9 @@ const Index = () => {
   const [selectedClientIds, setSelectedClientIds] = useState<string[]>([
     seedClients[0].id,
   ]);
-  const [showConfirmed, setShowConfirmed] = useState(false);
+  const [appliedFilter, setAppliedFilter] = useState<FilterState>(initialFilter);
+  const [draftFilter, setDraftFilter] = useState<FilterState>(initialFilter);
+  const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
 
   const selectedClients = clients.filter((c) => selectedClientIds.includes(c.id));
   const visibleSelectedClients =
@@ -322,7 +340,7 @@ const Index = () => {
             client,
             selectedDate,
             confirmationPeriod,
-            showConfirmed,
+            appliedFilter,
           ),
         )
       : selectedClients;
@@ -697,7 +715,7 @@ const Index = () => {
         client,
         selectedDate,
         confirmationPeriod,
-        showConfirmed,
+        appliedFilter,
       ).map(({ dueDate, topic, target, action, status }) => {
         const confirmation = action.confirmations?.[dueDate];
         return {
@@ -784,6 +802,27 @@ const Index = () => {
     URL.revokeObjectURL(url);
   };
 
+  const openFilterDialog = () => {
+    setDraftFilter(appliedFilter);
+    setIsFilterDialogOpen(true);
+  };
+
+  const cancelFilterDialog = () => {
+    setIsFilterDialogOpen(false);
+  };
+
+  const resetDraftFilter = () => {
+    setDraftFilter(initialFilter);
+  };
+
+  const applyDraftFilter = () => {
+    setAppliedFilter(draftFilter);
+    setIsFilterDialogOpen(false);
+  };
+
+  const draftShowsConfirmed = draftFilter.statuses.length > 1;
+  const appliedShowsConfirmed = appliedFilter.statuses.length > 1;
+
   return (
     <SidebarProvider>
       <div className="min-h-dvh bg-background flex w-full">
@@ -865,7 +904,7 @@ const Index = () => {
               active={viewMode === "confirmation"}
             />
             <RibbonDivider />
-            <RibbonButton icon={Filter} label="Filter" />
+            <RibbonButton icon={Filter} label="Filter" onClick={openFilterDialog} />
             <RibbonDivider />
             <RibbonButton
               icon={Download}
@@ -980,15 +1019,12 @@ const Index = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={showConfirmed}
-                          onChange={(e) => setShowConfirmed(e.target.checked)}
-                          className="h-4 w-4 rounded border-border accent-primary"
-                        />
-                        Bestätigte anzeigen
-                      </label>
+                      <button
+                        className="h-9 px-3 rounded-md border border-border text-sm hover:bg-secondary"
+                        onClick={openFilterDialog}
+                      >
+                        Filter
+                      </button>
                     </div>
                   </div>
                 )}
@@ -1026,7 +1062,7 @@ const Index = () => {
                       confirmationPeriod={confirmationPeriod}
                       topics={client.topics}
                       hideConfirmationHeader
-                      showConfirmed={showConfirmed}
+                      showConfirmed={appliedShowsConfirmed}
                       onUpdateTopic={(topicId, field, value) =>
                         updateTopic(client.id, topicId, field, value)
                       }
@@ -1058,6 +1094,52 @@ const Index = () => {
               </div>
             )}
           </div>
+
+          <Dialog open={isFilterDialogOpen} onOpenChange={(open) => (!open ? cancelFilterDialog() : null)}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Filter</DialogTitle>
+                <DialogDescription>
+                  Wählen Sie, ob nur offene oder auch bestätigte Handlungen angezeigt werden.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-2">
+                <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={draftShowsConfirmed}
+                    onChange={(e) =>
+                      setDraftFilter({ statuses: e.target.checked ? allStatuses : initialFilter.statuses })
+                    }
+                    className="h-4 w-4 rounded border-border accent-primary"
+                  />
+                  Bestätigte anzeigen
+                </label>
+              </div>
+              <DialogFooter className="gap-2 sm:justify-between">
+                <button
+                  className="h-9 px-3 rounded-md border border-border text-sm hover:bg-secondary"
+                  onClick={resetDraftFilter}
+                >
+                  Zurücksetzen
+                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    className="h-9 px-3 rounded-md border border-border text-sm hover:bg-secondary"
+                    onClick={cancelFilterDialog}
+                  >
+                    Abbrechen
+                  </button>
+                  <button
+                    className="h-9 px-3 rounded-md bg-primary text-primary-foreground text-sm hover:opacity-90"
+                    onClick={applyDraftFilter}
+                  >
+                    Anwenden
+                  </button>
+                </div>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </main>
       </div>
     </SidebarProvider>
