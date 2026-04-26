@@ -100,6 +100,64 @@ const getVisibleConfirmationItems = (
   return items;
 };
 
+const getDueDatesInPeriod = (
+  action: ActionNode,
+  selectedDate: string,
+  period: ConfirmationPeriod,
+) => {
+  if (period === "day") return [selectedDate];
+
+  const { start, end } = getPeriodRange(selectedDate, period);
+  const dueDates: string[] = [];
+  const current = new Date(`${start}T00:00:00`);
+  const endDate = new Date(`${end}T00:00:00`);
+
+  while (current <= endDate) {
+    const day = dateToISO(current);
+    if ((!action.validFrom || day >= action.validFrom) && (!action.validTo || day <= action.validTo)) {
+      dueDates.push(day);
+    }
+    current.setDate(current.getDate() + 1);
+  }
+
+  return dueDates;
+};
+
+const getVisibleConfirmationRows = (
+  client: Client,
+  selectedDate: string,
+  period: ConfirmationPeriod,
+  showConfirmed: boolean,
+) => {
+  const rows: Array<{
+    dueDate: string;
+    topic: TopicNode;
+    target: { id: string; title: string; notes: string };
+    action: ActionNode;
+    status: ActionNode["status"];
+  }> = [];
+
+  const { start, end } = getPeriodRange(selectedDate, period);
+
+  client.topics.forEach((topic) => {
+    topic.targets.forEach((target) => {
+      target.actions.forEach((action) => {
+        if (action.validFrom && action.validFrom > end) return;
+        if (action.validTo && action.validTo < start) return;
+
+        const dueDates = getDueDatesInPeriod(action, selectedDate, period);
+        dueDates.forEach((dueDate) => {
+          const status = action.confirmations?.[dueDate]?.status || "open";
+          if (!showConfirmed && status !== "open") return;
+          rows.push({ dueDate, topic, target, action, status });
+        });
+      });
+    });
+  });
+
+  return rows;
+};
+
 const dateToISO = (date: Date) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -635,40 +693,39 @@ const Index = () => {
     if (viewMode !== "confirmation") return;
 
     const rows = selectedClients.flatMap((client) =>
-      client.topics.flatMap((topic) =>
-        topic.targets.flatMap((target) =>
-          target.actions.flatMap((action) =>
-            Object.entries(action.confirmations || {})
-              .filter(([, confirmation]) => confirmation.status !== "open")
-              .sort(([a], [b]) => a.localeCompare(b))
-              .map(([confirmationDate, confirmation]) => ({
-                Datum: confirmationDate,
-                "Klient/in": `${client.firstName} ${client.lastName}`.trim(),
-                Schwerpunkt: topic.title,
-                Ziel: target.title,
-                Handlung: action.title,
-                Beschreibung: action.notes,
-                Hilfsmittel: action.requiredResources ?? "",
-                Status:
-                  confirmation.status === "done_as_planned"
-                    ? "Wie geplant durchgeführt"
-                    : confirmation.status === "done_with_deviation"
-                      ? "Mit Abweichung durchgeführt"
-                      : confirmation.status === "not_done"
-                        ? "Nicht durchgeführt"
-                        : "Offen",
-                Grund: confirmation.reason ?? "",
-                Resultat: confirmation.result ?? "",
-                Beobachtungen: confirmation.observations ?? "",
-                "Gültig ab": action.validFrom ?? "",
-                "Gültig bis": action.validTo ?? "",
-                "Tageszeit": action.dayPart ?? "",
-                "Minuten geplant": action.plannedMinutes ?? "",
-                "Minuten tatsächlich": confirmation.actualMinutes ?? "",
-              })),
-          ),
-        ),
-      ),
+      getVisibleConfirmationRows(
+        client,
+        selectedDate,
+        confirmationPeriod,
+        showConfirmed,
+      ).map(({ dueDate, topic, target, action, status }) => {
+        const confirmation = action.confirmations?.[dueDate];
+        return {
+          Datum: dueDate,
+          "Klient/in": `${client.firstName} ${client.lastName}`.trim(),
+          Schwerpunkt: topic.title,
+          Ziel: target.title,
+          Handlung: action.title,
+          Beschreibung: action.notes,
+          Hilfsmittel: action.requiredResources ?? "",
+          Status:
+            status === "done_as_planned"
+              ? "Wie geplant durchgeführt"
+              : status === "done_with_deviation"
+                ? "Mit Abweichung durchgeführt"
+                : status === "not_done"
+                  ? "Nicht durchgeführt"
+                  : "Offen",
+          Grund: confirmation?.reason ?? "",
+          Resultat: confirmation?.result ?? "",
+          Beobachtungen: confirmation?.observations ?? "",
+          "Gültig ab": action.validFrom ?? "",
+          "Gültig bis": action.validTo ?? "",
+          "Tageszeit": action.dayPart ?? "",
+          "Minuten geplant": action.plannedMinutes ?? "",
+          "Minuten tatsächlich": confirmation?.actualMinutes ?? "",
+        };
+      }),
     );
 
     const allHeaders = [
