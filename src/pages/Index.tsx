@@ -934,6 +934,7 @@ const Index = () => {
                 disabled={viewMode === "planning"}
                 onClick={() => (isFilterOpen ? cancelFilter() : openFilter())}
                 active={isFilterOpen}
+                highlighted={isFilterActive}
               />
             </div>
             <RibbonDivider />
