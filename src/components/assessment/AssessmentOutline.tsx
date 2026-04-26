@@ -43,11 +43,13 @@ import { Calendar } from "@/components/ui/calendar";
 import type {
   ActionNode,
   ActionStatus,
+  ConfirmationFilter,
   DayPart,
   TopicNode,
 } from "@/types/assessment";
 import { DAY_PART_LABEL, DAY_PART_ORDER } from "@/types/assessment";
 import { cn } from "@/lib/utils";
+import { matchesConfirmationFilter } from "@/lib/confirmation-filter";
 
 type ConfirmPayload =
   | { status: "done_as_planned"; result?: string; observations?: string }
@@ -74,6 +76,7 @@ interface Props {
   topics: TopicNode[];
   hideConfirmationHeader?: boolean;
   showConfirmed?: boolean;
+  confirmationFilter?: ConfirmationFilter;
   onUpdateTopic: (topicId: string, field: "title" | "notes", value: string) => void;
   onUpdateTarget: (
     topicId: string,
@@ -144,6 +147,7 @@ export function AssessmentOutline({
   topics,
   hideConfirmationHeader,
   showConfirmed = false,
+  confirmationFilter,
   onUpdateTopic,
   onUpdateTarget,
   onUpdateAction,
@@ -234,7 +238,20 @@ export function AssessmentOutline({
       });
     });
 
-    const sortedFlatActions = [...flatActions].sort((left, right) => {
+    const matchesFilter = (
+      action: ActionNode,
+      status: ActionStatus,
+      dueDate: string,
+    ) => {
+      if (!confirmationFilter) return true;
+      return matchesConfirmationFilter(action, status, dueDate, confirmationFilter);
+    };
+
+    const filteredFlatActions = flatActions.filter(({ action, status, dueDate }) =>
+      matchesFilter(action, status, dueDate),
+    );
+
+    const sortedFlatActions = [...filteredFlatActions].sort((left, right) => {
       if (left.dueDate !== right.dueDate) {
         return left.dueDate.localeCompare(right.dueDate);
       }
@@ -278,7 +295,7 @@ export function AssessmentOutline({
               </div>
             </div>
             <div className="text-sm text-muted-foreground bg-background px-3 py-1 rounded-full border border-border">
-              {flatActions.length} Handlungn geplant
+              {filteredFlatActions.length} Handlungen geplant
             </div>
           </div>
         )}
