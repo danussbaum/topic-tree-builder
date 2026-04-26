@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   BookOpen,
   CheckSquare,
@@ -31,7 +31,6 @@ import {
 } from "@/types/assessment-filter";
 import { cn } from "@/lib/utils";
 import { createSimpleXlsxBlob } from "@/lib/xlsx";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -285,6 +284,7 @@ const Index = () => {
     useState<AssessmentFilterModel>(DEFAULT_ASSESSMENT_FILTER);
   const [draftFilter, setDraftFilter] = useState<AssessmentFilterModel>(confirmationFilter);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const filterMenuRef = useRef<HTMLDivElement | null>(null);
 
   const selectedClients = clients.filter((c) => selectedClientIds.includes(c.id));
   const visibleSelectedClients =
@@ -323,6 +323,35 @@ const Index = () => {
     setConfirmationFilter(draftFilter);
     setIsFilterOpen(false);
   };
+
+  useEffect(() => {
+    if (!isFilterOpen) return;
+
+    const closeMenu = () => {
+      setDraftFilter(confirmationFilter);
+      setIsFilterOpen(false);
+    };
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!filterMenuRef.current) return;
+      if (!filterMenuRef.current.contains(event.target as Node)) {
+        closeMenu();
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeMenu();
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isFilterOpen, confirmationFilter]);
 
   const toggleDraftStatus = (status: ActionNode["status"]) => {
     setDraftFilter((prev) => {
@@ -851,7 +880,8 @@ const Index = () => {
           </div>
 
           {/* Ribbon toolbar */}
-          <div className="flex items-center gap-1 px-3 py-2 bg-secondary/60 border-b border-border">
+          <div className="relative">
+            <div className="flex items-center gap-1 px-3 py-2 bg-secondary/60 border-b border-border">
             <div className="flex items-center gap-1 pr-2 border-r border-border mr-1">
               <ClientSidebarTrigger />
             </div>
@@ -883,7 +913,8 @@ const Index = () => {
               icon={Filter}
               label="Filter"
               disabled={viewMode === "planning"}
-              onClick={openFilter}
+              onClick={() => (isFilterOpen ? cancelFilter() : openFilter())}
+              active={isFilterOpen}
             />
             <RibbonDivider />
             <RibbonButton
@@ -897,6 +928,237 @@ const Index = () => {
               onClick={exportConfirmationExcel}
               disabled={viewMode !== "confirmation"}
             />
+            </div>
+
+            {viewMode === "confirmation" && isFilterOpen && (
+              <div
+                ref={filterMenuRef}
+                className="absolute left-3 top-full z-40 mt-1 w-[46rem] max-w-[calc(100vw-2rem)] rounded-sm border border-border bg-background shadow-xl"
+              >
+                <div className="border-b border-border px-4 py-3 text-sm font-medium">
+                  Filter
+                </div>
+
+                <div className="space-y-4 p-4 text-sm">
+                  <div className="space-y-2">
+                    <div className="font-medium">Status (ODER)</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { value: "open", label: "Offen" },
+                        { value: "done_as_planned", label: "Erledigt wie geplant" },
+                        { value: "done_with_deviation", label: "Erledigt mit Abweichung" },
+                        { value: "not_done", label: "Nicht durchgeführt" },
+                      ].map((item) => (
+                        <label key={item.value} className="inline-flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={draftFilter.statuses.includes(item.value as ActionNode["status"])}
+                            onChange={() => toggleDraftStatus(item.value as ActionNode["status"])}
+                            className="h-4 w-4 rounded border-border accent-primary"
+                          />
+                          {item.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <div className="font-medium">Minuten geplant</div>
+                      <div className="flex gap-2">
+                        <Select
+                          value={draftFilter.plannedMinutes?.op ?? "eq"}
+                          onValueChange={(value) =>
+                            setDraftFilter((prev) => ({
+                              ...prev,
+                              plannedMinutes: prev.plannedMinutes
+                                ? {
+                                    op: value as NumericComparison["op"],
+                                    value: prev.plannedMinutes.value,
+                                  }
+                                : undefined,
+                            }))
+                          }
+                        >
+                          <SelectTrigger className="w-16"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {OPERATOR_OPTIONS.map((op) => (
+                              <SelectItem key={op.value} value={op.value}>{op.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          type="number"
+                          value={draftFilter.plannedMinutes?.value ?? ""}
+                          onChange={(e) =>
+                            setOptionalNumber(
+                              e.target.value,
+                              (num) =>
+                                setDraftFilter((prev) => ({
+                                  ...prev,
+                                  plannedMinutes: { op: prev.plannedMinutes?.op ?? "eq", value: num },
+                                })),
+                              () => setDraftFilter((prev) => ({ ...prev, plannedMinutes: undefined })),
+                            )
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className="font-medium">Minuten tatsächlich</div>
+                      <div className="flex gap-2">
+                        <Select
+                          value={draftFilter.actualMinutes?.op ?? "eq"}
+                          onValueChange={(value) =>
+                            setDraftFilter((prev) => ({
+                              ...prev,
+                              actualMinutes: prev.actualMinutes
+                                ? {
+                                    op: value as NumericComparison["op"],
+                                    value: prev.actualMinutes.value,
+                                  }
+                                : undefined,
+                            }))
+                          }
+                        >
+                          <SelectTrigger className="w-16"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {OPERATOR_OPTIONS.map((op) => (
+                              <SelectItem key={op.value} value={op.value}>{op.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          type="number"
+                          value={draftFilter.actualMinutes?.value ?? ""}
+                          onChange={(e) =>
+                            setOptionalNumber(
+                              e.target.value,
+                              (num) =>
+                                setDraftFilter((prev) => ({
+                                  ...prev,
+                                  actualMinutes: { op: prev.actualMinutes?.op ?? "eq", value: num },
+                                })),
+                              () => setDraftFilter((prev) => ({ ...prev, actualMinutes: undefined })),
+                            )
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="font-medium">Differenz (UND): Minuten & Prozent</div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      <Input
+                        type="number"
+                        placeholder="Differenz Minuten (=)"
+                        value={draftFilter.differenceMinutes ?? ""}
+                        onChange={(e) =>
+                          setOptionalNumber(
+                            e.target.value,
+                            (num) => setDraftFilter((prev) => ({ ...prev, differenceMinutes: Math.abs(num) })),
+                            () => setDraftFilter((prev) => ({ ...prev, differenceMinutes: undefined })),
+                          )
+                        }
+                      />
+                      <Input
+                        type="number"
+                        placeholder="Differenz % (=)"
+                        value={draftFilter.differencePercent ?? ""}
+                        onChange={(e) =>
+                          setOptionalNumber(
+                            e.target.value,
+                            (num) => setDraftFilter((prev) => ({ ...prev, differencePercent: Math.abs(num) })),
+                            () => setDraftFilter((prev) => ({ ...prev, differencePercent: undefined })),
+                          )
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <Select
+                      value={draftFilter.dayPart ?? "all"}
+                      onValueChange={(value) =>
+                        setDraftFilter((prev) => ({ ...prev, dayPart: value === "all" ? undefined : value as AssessmentFilterModel["dayPart"] }))
+                      }
+                    >
+                      <SelectTrigger><SelectValue placeholder="Tageszeit" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Alle Tageszeiten</SelectItem>
+                        <SelectItem value="none">Keine Angabe</SelectItem>
+                        <SelectItem value="morning">Morgen</SelectItem>
+                        <SelectItem value="noon">Mittag</SelectItem>
+                        <SelectItem value="evening">Abend</SelectItem>
+                        <SelectItem value="night">Nacht</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    <Select
+                      value={draftFilter.persons?.kind ?? "all"}
+                      onValueChange={(value) =>
+                        setDraftFilter((prev) => ({
+                          ...prev,
+                          persons: value === "all" ? undefined : value === "none" ? { kind: "none" } : { kind: "exact", value: prev.persons?.kind === "exact" ? prev.persons.value : 0 },
+                        }))
+                      }
+                    >
+                      <SelectTrigger><SelectValue placeholder="Anzahl Personen" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Alle</SelectItem>
+                        <SelectItem value="none">Keine Angabe</SelectItem>
+                        <SelectItem value="exact">Genaue Anzahl</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    {draftFilter.persons?.kind === "exact" ? (
+                      <Input
+                        type="number"
+                        step={1}
+                        value={draftFilter.persons.value}
+                        onChange={(e) =>
+                          setOptionalNumber(
+                            e.target.value,
+                            (num) => setDraftFilter((prev) => ({
+                              ...prev,
+                              persons: { kind: "exact", value: Math.max(0, Math.floor(num)) },
+                            })),
+                            () => setDraftFilter((prev) => ({ ...prev, persons: { kind: "exact", value: 0 } })),
+                          )
+                        }
+                      />
+                    ) : (
+                      <div />
+                    )}
+                  </div>
+
+                  <Select
+                    value={draftFilter.result ?? "all"}
+                    onValueChange={(value) =>
+                      setDraftFilter((prev) => ({ ...prev, result: value === "all" ? undefined : value as AssessmentFilterModel["result"] }))
+                    }
+                  >
+                    <SelectTrigger><SelectValue placeholder="Resultat" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Alle</SelectItem>
+                      <SelectItem value="none">Kein Resultat</SelectItem>
+                      <SelectItem value="with_result">Mit Resultat</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center justify-between border-t border-border px-4 py-3">
+                  <div className="text-xs text-muted-foreground">Alle Kriterien sind mit UND verknüpft.</div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={cancelFilter}>Abbrechen</Button>
+                    <Button variant="outline" onClick={resetFilter}>Zurücksetzen</Button>
+                    <Button onClick={applyFilter}>Anwenden</Button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Content */}
@@ -1086,232 +1348,6 @@ const Index = () => {
           </div>
         </main>
 
-        <Dialog open={isFilterOpen} onOpenChange={(open) => (!open ? cancelFilter() : null)}>
-          <DialogContent className="sm:max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Filter</DialogTitle>
-            </DialogHeader>
-
-            <div className="space-y-4 text-sm">
-              <div className="space-y-2">
-                <div className="font-medium">Status (ODER)</div>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { value: "open", label: "Offen" },
-                    { value: "done_as_planned", label: "Erledigt wie geplant" },
-                    { value: "done_with_deviation", label: "Erledigt mit Abweichung" },
-                    { value: "not_done", label: "Nicht durchgeführt" },
-                  ].map((item) => (
-                    <label key={item.value} className="inline-flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={draftFilter.statuses.includes(item.value as ActionNode["status"])}
-                        onChange={() => toggleDraftStatus(item.value as ActionNode["status"])}
-                        className="h-4 w-4 rounded border-border accent-primary"
-                      />
-                      {item.label}
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <div className="font-medium">Minuten geplant</div>
-                  <div className="flex gap-2">
-                    <Select
-                      value={draftFilter.plannedMinutes?.op ?? "eq"}
-                      onValueChange={(value) =>
-                        setDraftFilter((prev) => ({
-                          ...prev,
-                          plannedMinutes: prev.plannedMinutes
-                            ? {
-                                op: value as NumericComparison["op"],
-                                value: prev.plannedMinutes.value,
-                              }
-                            : undefined,
-                        }))
-                      }
-                    >
-                      <SelectTrigger className="w-16"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {OPERATOR_OPTIONS.map((op) => (
-                          <SelectItem key={op.value} value={op.value}>{op.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Input
-                      type="number"
-                      value={draftFilter.plannedMinutes?.value ?? ""}
-                      onChange={(e) =>
-                        setOptionalNumber(
-                          e.target.value,
-                          (num) =>
-                            setDraftFilter((prev) => ({
-                              ...prev,
-                              plannedMinutes: { op: prev.plannedMinutes?.op ?? "eq", value: num },
-                            })),
-                          () => setDraftFilter((prev) => ({ ...prev, plannedMinutes: undefined })),
-                        )
-                      }
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <div className="font-medium">Minuten tatsächlich</div>
-                  <div className="flex gap-2">
-                    <Select
-                      value={draftFilter.actualMinutes?.op ?? "eq"}
-                      onValueChange={(value) =>
-                        setDraftFilter((prev) => ({
-                          ...prev,
-                          actualMinutes: prev.actualMinutes
-                            ? {
-                                op: value as NumericComparison["op"],
-                                value: prev.actualMinutes.value,
-                              }
-                            : undefined,
-                        }))
-                      }
-                    >
-                      <SelectTrigger className="w-16"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {OPERATOR_OPTIONS.map((op) => (
-                          <SelectItem key={op.value} value={op.value}>{op.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Input
-                      type="number"
-                      value={draftFilter.actualMinutes?.value ?? ""}
-                      onChange={(e) =>
-                        setOptionalNumber(
-                          e.target.value,
-                          (num) =>
-                            setDraftFilter((prev) => ({
-                              ...prev,
-                              actualMinutes: { op: prev.actualMinutes?.op ?? "eq", value: num },
-                            })),
-                          () => setDraftFilter((prev) => ({ ...prev, actualMinutes: undefined })),
-                        )
-                      }
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="font-medium">Differenz (UND): Minuten & Prozent</div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  <Input
-                    type="number"
-                    placeholder="Differenz Minuten (=)"
-                    value={draftFilter.differenceMinutes ?? ""}
-                    onChange={(e) =>
-                      setOptionalNumber(
-                        e.target.value,
-                        (num) => setDraftFilter((prev) => ({ ...prev, differenceMinutes: Math.abs(num) })),
-                        () => setDraftFilter((prev) => ({ ...prev, differenceMinutes: undefined })),
-                      )
-                    }
-                  />
-                  <Input
-                    type="number"
-                    placeholder="Differenz % (=)"
-                    value={draftFilter.differencePercent ?? ""}
-                    onChange={(e) =>
-                      setOptionalNumber(
-                        e.target.value,
-                        (num) => setDraftFilter((prev) => ({ ...prev, differencePercent: Math.abs(num) })),
-                        () => setDraftFilter((prev) => ({ ...prev, differencePercent: undefined })),
-                      )
-                    }
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <Select
-                  value={draftFilter.dayPart ?? "all"}
-                  onValueChange={(value) =>
-                    setDraftFilter((prev) => ({ ...prev, dayPart: value === "all" ? undefined : value as AssessmentFilterModel["dayPart"] }))
-                  }
-                >
-                  <SelectTrigger><SelectValue placeholder="Tageszeit" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Alle Tageszeiten</SelectItem>
-                    <SelectItem value="none">Keine Angabe</SelectItem>
-                    <SelectItem value="morning">Morgen</SelectItem>
-                    <SelectItem value="noon">Mittag</SelectItem>
-                    <SelectItem value="evening">Abend</SelectItem>
-                    <SelectItem value="night">Nacht</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <Select
-                  value={draftFilter.persons?.kind ?? "all"}
-                  onValueChange={(value) =>
-                    setDraftFilter((prev) => ({
-                      ...prev,
-                      persons: value === "all" ? undefined : value === "none" ? { kind: "none" } : { kind: "exact", value: prev.persons?.kind === "exact" ? prev.persons.value : 0 },
-                    }))
-                  }
-                >
-                  <SelectTrigger><SelectValue placeholder="Anzahl Personen" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Alle</SelectItem>
-                    <SelectItem value="none">Keine Angabe</SelectItem>
-                    <SelectItem value="exact">Genaue Anzahl</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                {draftFilter.persons?.kind === "exact" ? (
-                  <Input
-                    type="number"
-                    step={1}
-                    value={draftFilter.persons.value}
-                    onChange={(e) =>
-                      setOptionalNumber(
-                        e.target.value,
-                        (num) => setDraftFilter((prev) => ({
-                          ...prev,
-                          persons: { kind: "exact", value: Math.max(0, Math.floor(num)) },
-                        })),
-                        () => setDraftFilter((prev) => ({ ...prev, persons: { kind: "exact", value: 0 } })),
-                      )
-                    }
-                  />
-                ) : (
-                  <div />
-                )}
-              </div>
-
-              <Select
-                value={draftFilter.result ?? "all"}
-                onValueChange={(value) =>
-                  setDraftFilter((prev) => ({ ...prev, result: value === "all" ? undefined : value as AssessmentFilterModel["result"] }))
-                }
-              >
-                <SelectTrigger><SelectValue placeholder="Resultat" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Alle</SelectItem>
-                  <SelectItem value="none">Kein Resultat</SelectItem>
-                  <SelectItem value="with_result">Mit Resultat</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <DialogFooter className="sm:justify-between">
-              <div className="text-xs text-muted-foreground">Alle Kriterien sind mit UND verknüpft.</div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={cancelFilter}>Abbrechen</Button>
-                <Button variant="outline" onClick={resetFilter}>Zurücksetzen</Button>
-                <Button onClick={applyFilter}>Anwenden</Button>
-              </div>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </div>
     </SidebarProvider>
   );
