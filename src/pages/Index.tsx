@@ -313,6 +313,8 @@ const Index = () => {
     seedClients[0].id,
   ]);
   const [showConfirmed, setShowConfirmed] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [draftShowConfirmed, setDraftShowConfirmed] = useState(showConfirmed);
 
   const selectedClients = clients.filter((c) => selectedClientIds.includes(c.id));
   const visibleSelectedClients =
@@ -853,7 +855,10 @@ const Index = () => {
             <RibbonButton
               icon={ListTodo}
               label="Planung"
-              onClick={() => setViewMode("planning")}
+              onClick={() => {
+                setViewMode("planning");
+                setIsFilterOpen(false);
+              }}
               disabled={viewMode === "planning"}
               active={viewMode === "planning"}
             />
@@ -865,7 +870,17 @@ const Index = () => {
               active={viewMode === "confirmation"}
             />
             <RibbonDivider />
-            <RibbonButton icon={Filter} label="Filter" />
+            <RibbonButton
+              icon={Filter}
+              label="Filter"
+              onClick={() => {
+                if (viewMode !== "confirmation") return;
+                setDraftShowConfirmed(showConfirmed);
+                setIsFilterOpen(true);
+              }}
+              disabled={viewMode === "planning"}
+              active={viewMode === "confirmation"}
+            />
             <RibbonDivider />
             <RibbonButton
               icon={Download}
@@ -882,6 +897,44 @@ const Index = () => {
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto bg-background">
+            {isFilterOpen && viewMode === "confirmation" && (
+              <div className="px-6 lg:px-10 pt-4 max-w-4xl mx-auto">
+                <div className="rounded-lg border border-border bg-background shadow-sm p-4 flex flex-col gap-4">
+                  <div>
+                    <h2 className="text-sm font-semibold">Filter</h2>
+                    <p className="text-xs text-muted-foreground">
+                      Änderungen werden erst nach „Anwenden“ übernommen.
+                    </p>
+                  </div>
+                  <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={draftShowConfirmed}
+                      onChange={(e) => setDraftShowConfirmed(e.target.checked)}
+                      className="h-4 w-4 rounded border-border accent-primary"
+                    />
+                    Bestätigte anzeigen
+                  </label>
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      className="h-9 px-3 rounded border border-border text-sm hover:bg-secondary"
+                      onClick={() => setIsFilterOpen(false)}
+                    >
+                      Abbrechen
+                    </button>
+                    <button
+                      className="h-9 px-3 rounded bg-primary text-primary-foreground text-sm hover:opacity-90"
+                      onClick={() => {
+                        setShowConfirmed(draftShowConfirmed);
+                        setIsFilterOpen(false);
+                      }}
+                    >
+                      Anwenden
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
             {selectedClients.length === 0 ? (
               <div className="p-12 text-center text-muted-foreground">
                 <p className="text-lg">Wählen Sie eine oder mehrere Klient/innen in der Navigation.</p>
@@ -979,16 +1032,8 @@ const Index = () => {
                         </button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={showConfirmed}
-                          onChange={(e) => setShowConfirmed(e.target.checked)}
-                          className="h-4 w-4 rounded border-border accent-primary"
-                        />
-                        Bestätigte anzeigen
-                      </label>
+                    <div className="text-sm text-muted-foreground">
+                      Filter: {showConfirmed ? "Bestätigte sichtbar" : "Nur offene Einträge"}
                     </div>
                   </div>
                 )}
