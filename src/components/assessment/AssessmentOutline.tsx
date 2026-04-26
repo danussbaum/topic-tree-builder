@@ -48,6 +48,11 @@ import type {
   TopicNode,
 } from "@/types/assessment";
 import { DAY_PART_LABEL, DAY_PART_ORDER } from "@/types/assessment";
+import {
+  DEFAULT_ASSESSMENT_FILTER,
+  matchesAssessmentFilter,
+  type AssessmentFilterModel,
+} from "@/types/assessment-filter";
 import { cn } from "@/lib/utils";
 import { matchesConfirmationFilter } from "@/lib/confirmation-filter";
 
@@ -77,6 +82,7 @@ interface Props {
   hideConfirmationHeader?: boolean;
   showConfirmed?: boolean;
   confirmationFilter?: ConfirmationFilter;
+  filterModel?: AssessmentFilterModel;
   onUpdateTopic: (topicId: string, field: "title" | "notes", value: string) => void;
   onUpdateTarget: (
     topicId: string,
@@ -146,8 +152,7 @@ export function AssessmentOutline({
   confirmationPeriod = "day",
   topics,
   hideConfirmationHeader,
-  showConfirmed = false,
-  confirmationFilter,
+  filterModel = DEFAULT_ASSESSMENT_FILTER,
   onUpdateTopic,
   onUpdateTarget,
   onUpdateAction,
@@ -230,8 +235,9 @@ export function AssessmentOutline({
 
           const dueDates = getDueDatesInPeriod(action);
           dueDates.forEach((dueDate) => {
+            const confirmation = action.confirmations?.[dueDate];
             const status = getStatusForDate(action, dueDate);
-            if (!showConfirmed && status !== "open") return;
+            if (!matchesAssessmentFilter({ action, status, confirmation }, filterModel)) return;
             flatActions.push({ topic, target, action, dueDate, status });
           });
         });
