@@ -1,4 +1,10 @@
-import type { ActionConfirmation, ActionNode, ActionStatus, DayPart } from "@/types/assessment";
+import type {
+  ActionCategory,
+  ActionConfirmation,
+  ActionNode,
+  ActionStatus,
+  DayPart,
+} from "@/types/assessment";
 
 export type NumericComparison = {
   op: "gt" | "lt" | "eq";
@@ -19,6 +25,7 @@ export interface AssessmentFilterModel {
   differenceMinutes?: NumericRange;
   differencePercent?: NumericRange;
   dayPart?: DayPart | "none";
+  category?: ActionCategory | "none";
   persons?: PersonsFilter;
   result?: "none" | "with_result";
 }
@@ -81,6 +88,11 @@ export const matchesAssessmentFilter = (
   if (filter.dayPart != null) {
     const dayPart = action.dayPart ?? "none";
     if (dayPart !== filter.dayPart) return false;
+  }
+
+  if (filter.category != null) {
+    const category = action.category ?? "none";
+    if (category !== filter.category) return false;
   }
 
   if (filter.persons) {

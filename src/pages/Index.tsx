@@ -308,6 +308,7 @@ const Index = () => {
       f.differenceMinutes != null ||
       f.differencePercent != null ||
       f.dayPart != null ||
+      f.category != null ||
       f.persons != null ||
       f.result != null
     );
@@ -570,6 +571,7 @@ const Index = () => {
       | "actualMinutes"
       | "reason"
       | "dayPart"
+      | "category"
       | "validFrom"
       | "validTo"
       | "observations",
@@ -799,6 +801,7 @@ const Index = () => {
           "Gültig ab": action.validFrom ?? "",
           "Gültig bis": action.validTo ?? "",
           "Tageszeit": action.dayPart ?? "",
+          Kategorie: action.category ?? "",
           "Minuten geplant": action.plannedMinutes ?? "",
           "Minuten tatsächlich": confirmation?.actualMinutes ?? "",
         };
@@ -820,6 +823,7 @@ const Index = () => {
       "Gültig ab",
       "Gültig bis",
       "Tageszeit",
+      "Kategorie",
       "Minuten geplant",
       "Minuten tatsächlich",
     ];
@@ -1155,6 +1159,31 @@ const Index = () => {
                           <SelectItem value="noon">Mittag</SelectItem>
                           <SelectItem value="evening">Abend</SelectItem>
                           <SelectItem value="night">Nacht</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className="font-medium">Kategorie</div>
+                      <Select
+                        value={draftFilter.category ?? "all"}
+                        onValueChange={(value) =>
+                          setDraftFilter((prev) => ({
+                            ...prev,
+                            category:
+                              value === "all"
+                                ? undefined
+                                : (value as AssessmentFilterModel["category"]),
+                          }))
+                        }
+                      >
+                        <SelectTrigger><SelectValue placeholder="Kategorie" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Alle Kategorien</SelectItem>
+                          <SelectItem value="none">Keine Angabe</SelectItem>
+                          <SelectItem value="a">A</SelectItem>
+                          <SelectItem value="b">B</SelectItem>
+                          <SelectItem value="c">C</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
