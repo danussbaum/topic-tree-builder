@@ -1070,7 +1070,7 @@ const Index = () => {
                   </div>
 
                   <div className="space-y-3">
-                    <div className="font-medium">Differenz (UND): Minuten & Prozent</div>
+                    <div className="font-medium">Differenz geplant / tatsächlich (UND)</div>
 
                     {(["differenceMinutes", "differencePercent"] as const).map((key) => {
                       const label = key === "differenceMinutes" ? "Differenz Minuten" : "Differenz %";
@@ -1121,7 +1121,7 @@ const Index = () => {
                     })}
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="space-y-3">
                     <div className="space-y-1.5">
                       <div className="font-medium">Tageszeit</div>
                       <Select
@@ -1144,68 +1144,64 @@ const Index = () => {
 
                     <div className="space-y-1.5">
                       <div className="font-medium">Anzahl Personen</div>
+                      <div className="flex gap-2">
+                        <Select
+                          value={draftFilter.persons?.kind ?? "all"}
+                          onValueChange={(value) =>
+                            setDraftFilter((prev) => ({
+                              ...prev,
+                              persons: value === "all" ? undefined : value === "none" ? { kind: "none" } : { kind: "exact", value: prev.persons?.kind === "exact" ? prev.persons.value : 0 },
+                            }))
+                          }
+                        >
+                          <SelectTrigger className="flex-1"><SelectValue placeholder="Anzahl Personen" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Alle</SelectItem>
+                            <SelectItem value="none">Keine Angabe</SelectItem>
+                            <SelectItem value="exact">Genaue Anzahl</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {draftFilter.persons?.kind === "exact" && (
+                          <Input
+                            type="number"
+                            step={1}
+                            className="w-24"
+                            value={draftFilter.persons.value}
+                            onChange={(e) =>
+                              setOptionalNumber(
+                                e.target.value,
+                                (num) => setDraftFilter((prev) => ({
+                                  ...prev,
+                                  persons: { kind: "exact", value: Math.max(0, Math.floor(num)) },
+                                })),
+                                () => setDraftFilter((prev) => ({ ...prev, persons: { kind: "exact", value: 0 } })),
+                              )
+                            }
+                          />
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className="font-medium">Resultat</div>
                       <Select
-                        value={draftFilter.persons?.kind ?? "all"}
+                        value={draftFilter.result ?? "all"}
                         onValueChange={(value) =>
-                          setDraftFilter((prev) => ({
-                            ...prev,
-                            persons: value === "all" ? undefined : value === "none" ? { kind: "none" } : { kind: "exact", value: prev.persons?.kind === "exact" ? prev.persons.value : 0 },
-                          }))
+                          setDraftFilter((prev) => ({ ...prev, result: value === "all" ? undefined : value as AssessmentFilterModel["result"] }))
                         }
                       >
-                        <SelectTrigger><SelectValue placeholder="Anzahl Personen" /></SelectTrigger>
+                        <SelectTrigger><SelectValue placeholder="Resultat" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">Alle</SelectItem>
-                          <SelectItem value="none">Keine Angabe</SelectItem>
-                          <SelectItem value="exact">Genaue Anzahl</SelectItem>
+                          <SelectItem value="none">Kein Resultat</SelectItem>
+                          <SelectItem value="with_result">Mit Resultat</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-
-                    {draftFilter.persons?.kind === "exact" ? (
-                      <div className="space-y-1.5">
-                        <div className="font-medium">Personen (Anzahl)</div>
-                        <Input
-                          type="number"
-                          step={1}
-                          value={draftFilter.persons.value}
-                          onChange={(e) =>
-                            setOptionalNumber(
-                              e.target.value,
-                              (num) => setDraftFilter((prev) => ({
-                                ...prev,
-                                persons: { kind: "exact", value: Math.max(0, Math.floor(num)) },
-                              })),
-                              () => setDraftFilter((prev) => ({ ...prev, persons: { kind: "exact", value: 0 } })),
-                            )
-                          }
-                        />
-                      </div>
-                    ) : (
-                      <div />
-                    )}
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <div className="font-medium">Resultat</div>
-                    <Select
-                      value={draftFilter.result ?? "all"}
-                      onValueChange={(value) =>
-                        setDraftFilter((prev) => ({ ...prev, result: value === "all" ? undefined : value as AssessmentFilterModel["result"] }))
-                      }
-                    >
-                      <SelectTrigger><SelectValue placeholder="Resultat" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Alle</SelectItem>
-                        <SelectItem value="none">Kein Resultat</SelectItem>
-                        <SelectItem value="with_result">Mit Resultat</SelectItem>
-                      </SelectContent>
-                    </Select>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between border-t border-border px-4 py-3">
-                  <div className="text-xs text-muted-foreground">Alle Kriterien sind mit UND verknüpft.</div>
+                <div className="flex items-center justify-end border-t border-border px-4 py-3">
                   <div className="flex gap-2">
                     <Button variant="outline" onClick={cancelFilter}>Abbrechen</Button>
                     <Button variant="outline" onClick={resetFilter}>Zurücksetzen</Button>
