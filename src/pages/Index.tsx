@@ -285,6 +285,17 @@ const Index = () => {
   const [draftFilter, setDraftFilter] = useState<AssessmentFilterModel>(confirmationFilter);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
+  const filterButtonRef = useRef<HTMLDivElement | null>(null);
+  const [filterMenuLeft, setFilterMenuLeft] = useState(0);
+
+  useEffect(() => {
+    if (!isFilterOpen || !filterButtonRef.current) return;
+    const btn = filterButtonRef.current;
+    const parent = btn.offsetParent as HTMLElement | null;
+    const parentRect = parent?.getBoundingClientRect();
+    const btnRect = btn.getBoundingClientRect();
+    setFilterMenuLeft(btnRect.left - (parentRect?.left ?? 0));
+  }, [isFilterOpen]);
 
   const selectedClients = clients.filter((c) => selectedClientIds.includes(c.id));
   const visibleSelectedClients =
