@@ -747,10 +747,23 @@ const Index = () => {
       "Minuten tatsächlich",
     ];
 
+    const dateHeaders = new Set(["Datum", "Gültig ab", "Gültig bis"]);
+    const numberHeaders = new Set(["Minuten geplant", "Minuten tatsächlich"]);
+
     const blob = createSimpleXlsxBlob({
       sheetName: "Bestätigungen",
       headers: allHeaders,
-      rows: rows.map((row) => allHeaders.map((header) => row[header as keyof typeof row] ?? "")),
+      rows: rows.map((row) =>
+        allHeaders.map((header) => {
+          const value = row[header as keyof typeof row] ?? "";
+
+          if (value === "") return "";
+          if (dateHeaders.has(header)) return { type: "date" as const, value: String(value) };
+          if (numberHeaders.has(header)) return { type: "number" as const, value };
+
+          return value;
+        }),
+      ),
     });
     const periodLabel =
       confirmationPeriod === "day"
