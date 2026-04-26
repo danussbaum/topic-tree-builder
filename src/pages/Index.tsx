@@ -23,6 +23,11 @@ import { ClientSidebar, ClientSidebarTrigger } from "@/components/assessment/Cli
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AssessmentOutline } from "@/components/assessment/AssessmentOutline";
 import type { ActionNode, Client, TopicNode } from "@/types/assessment";
+import {
+  DEFAULT_ASSESSMENT_FILTER,
+  matchesAssessmentFilter,
+  type AssessmentFilterModel,
+} from "@/types/assessment-filter";
 import { cn } from "@/lib/utils";
 import { createSimpleXlsxBlob } from "@/lib/xlsx";
 
@@ -64,16 +69,16 @@ const hasVisibleConfirmationItems = (
   client: Client,
   selectedDate: string,
   period: ConfirmationPeriod,
-  showConfirmed: boolean,
+  filterModel: AssessmentFilterModel,
 ) => {
-  return getVisibleConfirmationItems(client, selectedDate, period, showConfirmed).length > 0;
+  return getVisibleConfirmationItems(client, selectedDate, period, filterModel).length > 0;
 };
 
 const getVisibleConfirmationItems = (
   client: Client,
   selectedDate: string,
   period: ConfirmationPeriod,
-  showConfirmed: boolean,
+  filterModel: AssessmentFilterModel,
 ) => {
   const items: Array<{
     topic: TopicNode;
@@ -90,7 +95,7 @@ const getVisibleConfirmationItems = (
         if (action.validTo && action.validTo < start) return;
 
         const status = getStatusForPeriod(action, selectedDate, period);
-        if (!showConfirmed && status !== "open") return;
+        if (!matchesAssessmentFilter({ action, status }, filterModel)) return;
 
         items.push({ topic, target, action });
       });
@@ -127,7 +132,7 @@ const getVisibleConfirmationRows = (
   client: Client,
   selectedDate: string,
   period: ConfirmationPeriod,
-  showConfirmed: boolean,
+  filterModel: AssessmentFilterModel,
 ) => {
   const rows: Array<{
     dueDate: string;
@@ -147,8 +152,9 @@ const getVisibleConfirmationRows = (
 
         const dueDates = getDueDatesInPeriod(action, selectedDate, period);
         dueDates.forEach((dueDate) => {
-          const status = action.confirmations?.[dueDate]?.status || "open";
-          if (!showConfirmed && status !== "open") return;
+          const confirmation = action.confirmations?.[dueDate];
+          const status = confirmation?.status || "open";
+          if (!matchesAssessmentFilter({ action, status, confirmation }, filterModel)) return;
           rows.push({ dueDate, topic, target, action, status });
         });
       });
@@ -312,7 +318,8 @@ const Index = () => {
   const [selectedClientIds, setSelectedClientIds] = useState<string[]>([
     seedClients[0].id,
   ]);
-  const [showConfirmed, setShowConfirmed] = useState(false);
+  const [confirmationFilter, setConfirmationFilter] =
+    useState<AssessmentFilterModel>(DEFAULT_ASSESSMENT_FILTER);
 
   const selectedClients = clients.filter((c) => selectedClientIds.includes(c.id));
   const visibleSelectedClients =
@@ -322,7 +329,7 @@ const Index = () => {
             client,
             selectedDate,
             confirmationPeriod,
-            showConfirmed,
+            confirmationFilter,
           ),
         )
       : selectedClients;
@@ -697,7 +704,7 @@ const Index = () => {
         client,
         selectedDate,
         confirmationPeriod,
-        showConfirmed,
+        confirmationFilter,
       ).map(({ dueDate, topic, target, action, status }) => {
         const confirmation = action.confirmations?.[dueDate];
         return {
@@ -983,8 +990,15 @@ const Index = () => {
                       <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
                         <input
                           type="checkbox"
-                          checked={showConfirmed}
-                          onChange={(e) => setShowConfirmed(e.target.checked)}
+                          checked={confirmationFilter.statuses.length > 1}
+                          onChange={(e) =>
+                            setConfirmationFilter((prev) => ({
+                              ...prev,
+                              statuses: e.target.checked
+                                ? ["open", "done_as_planned", "done_with_deviation", "not_done"]
+                                : ["open"],
+                            }))
+                          }
                           className="h-4 w-4 rounded border-border accent-primary"
                         />
                         Bestätigte anzeigen
@@ -1026,7 +1040,7 @@ const Index = () => {
                       confirmationPeriod={confirmationPeriod}
                       topics={client.topics}
                       hideConfirmationHeader
-                      showConfirmed={showConfirmed}
+                      filterModel={confirmationFilter}
                       onUpdateTopic={(topicId, field, value) =>
                         updateTopic(client.id, topicId, field, value)
                       }
