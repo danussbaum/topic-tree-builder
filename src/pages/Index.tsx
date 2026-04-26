@@ -927,13 +927,15 @@ const Index = () => {
               active={viewMode === "confirmation"}
             />
             <RibbonDivider />
-            <RibbonButton
-              icon={Filter}
-              label="Filter"
-              disabled={viewMode === "planning"}
-              onClick={() => (isFilterOpen ? cancelFilter() : openFilter())}
-              active={isFilterOpen}
-            />
+            <div ref={filterButtonRef} className="contents">
+              <RibbonButton
+                icon={Filter}
+                label="Filter"
+                disabled={viewMode === "planning"}
+                onClick={() => (isFilterOpen ? cancelFilter() : openFilter())}
+                active={isFilterOpen}
+              />
+            </div>
             <RibbonDivider />
             <RibbonButton
               icon={Download}
