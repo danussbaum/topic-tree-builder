@@ -58,6 +58,7 @@ import {
   type AssessmentFilterModel,
 } from "@/types/assessment-filter";
 import { cn } from "@/lib/utils";
+import { matchesConfirmationFilter } from "@/lib/confirmation-filter";
 
 type ConfirmPayload =
   | { status: "done_as_planned"; result?: string; observations?: string }

@@ -87,6 +87,16 @@ const INITIAL_CONFIRMATION_FILTER: ConfirmationFilter = {
   statuses: ["open"],
 };
 
+const OPERATOR_OPTIONS: Array<{ value: NumericComparisonOperator; label: ">" | "<" | "=" }> = [
+  { value: "gt", label: ">" },
+  { value: "lt", label: "<" },
+  { value: "eq", label: "=" },
+];
+
+const INITIAL_CONFIRMATION_FILTER: ConfirmationFilter = {
+  statuses: ["open"],
+};
+
 interface ClientNameInputProps {
   value: string;
   label: string;
