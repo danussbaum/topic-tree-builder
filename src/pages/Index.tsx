@@ -217,6 +217,8 @@ const getVisibleConfirmationRows = (
   return rows;
 };
 
+const HIDE_EMPTY_CONFIRMATION_CLIENT_SECTIONS = true;
+
 const dateToISO = (date: Date) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -246,27 +248,6 @@ const getPeriodRange = (selectedDate: string, period: ConfirmationPeriod) => {
   const start = new Date(date.getFullYear(), date.getMonth(), 1);
   const end = new Date(date.getFullYear(), date.getMonth() + 1, 0);
   return { start: dateToISO(start), end: dateToISO(end) };
-};
-
-const getStatusForPeriod = (
-  action: ActionNode,
-  selectedDate: string,
-  period: ConfirmationPeriod,
-) => {
-  if (period === "day") {
-    return action.confirmations?.[selectedDate]?.status || "open";
-  }
-
-  const { start, end } = getPeriodRange(selectedDate, period);
-  const entries = Object.entries(action.confirmations || {}).filter(
-    ([date, confirmation]) =>
-      date >= start && date <= end && confirmation.status !== "open",
-  );
-
-  if (entries.length === 0) return "open";
-
-  const latestEntry = entries.sort(([a], [b]) => b.localeCompare(a))[0];
-  return latestEntry?.[1].status || "open";
 };
 
 const getWeekValue = (selectedDate: string) => {
@@ -371,8 +352,23 @@ const Index = () => {
   const [draftShowConfirmed, setDraftShowConfirmed] = useState(showConfirmed);
 
   const selectedClients = clients.filter((c) => selectedClientIds.includes(c.id));
+  const visibleConfirmationRowsByClient = selectedClients.map((client) => ({
+    client,
+    rows: getVisibleConfirmationRows(
+      client,
+      selectedDate,
+      confirmationPeriod,
+      showConfirmed,
+    ),
+  }));
+
+  const confirmationClientsForRender = HIDE_EMPTY_CONFIRMATION_CLIENT_SECTIONS
+    ? visibleConfirmationRowsByClient.filter(({ rows }) => rows.length > 0)
+    : visibleConfirmationRowsByClient;
+
   const visibleSelectedClients =
     viewMode === "confirmation"
+      ? confirmationClientsForRender.map(({ client }) => client)
       ? selectedClients.filter((client) =>
           hasVisibleConfirmationItems(
             client,
