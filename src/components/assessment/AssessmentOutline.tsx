@@ -810,6 +810,33 @@ function ActionRow({
         {viewMode === "planning" ? (
           <div className="mt-2 grid grid-cols-1 gap-2 text-xs text-muted-foreground md:grid-cols-3">
             <div className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1.5">
+              <span className="shrink-0 text-muted-foreground">Kategorie</span>
+              <Select
+                value={action.category ?? "none"}
+                disabled={isLocked}
+                onValueChange={(v) =>
+                  onUpdateActionField(
+                    topicId,
+                    targetId,
+                    action.id,
+                    "category",
+                    v === "none" ? undefined : v,
+                  )
+                }
+              >
+                <SelectTrigger className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0">
+                  <SelectValue placeholder="Keine Angabe" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Keine Angabe</SelectItem>
+                  <SelectItem value="a">A</SelectItem>
+                  <SelectItem value="b">B</SelectItem>
+                  <SelectItem value="c">C</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1.5">
               <span className="shrink-0 text-muted-foreground">Tageszeit</span>
               <Select
                 value={action.dayPart ?? "none"}
@@ -839,7 +866,7 @@ function ActionRow({
 
             <label className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1.5">
               <Clock className="h-3.5 w-3.5 shrink-0" />
-              <span className="shrink-0">geplant</span>
+              <span className="shrink-0">geplante Minuten</span>
               <input
                 type="number"
                 min={0}
@@ -865,7 +892,7 @@ function ActionRow({
 
             <label className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1.5">
               <Users className="h-3.5 w-3.5 shrink-0" />
-              <span className="shrink-0">Personen</span>
+              <span className="shrink-0">Anz. Personen</span>
               <input
                 type="number"
                 min={1}
@@ -888,33 +915,6 @@ function ActionRow({
                 className="h-7 w-full min-w-0 bg-transparent border border-border rounded focus:border-primary outline-none px-2 py-0.5 text-right tabular-nums"
               />
             </label>
-
-            <div className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1.5">
-              <span className="shrink-0 text-muted-foreground">Kategorie</span>
-              <Select
-                value={action.category ?? "none"}
-                disabled={isLocked}
-                onValueChange={(v) =>
-                  onUpdateActionField(
-                    topicId,
-                    targetId,
-                    action.id,
-                    "category",
-                    v === "none" ? undefined : v,
-                  )
-                }
-              >
-                <SelectTrigger className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0">
-                  <SelectValue placeholder="Keine Angabe" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Keine Angabe</SelectItem>
-                  <SelectItem value="a">A</SelectItem>
-                  <SelectItem value="b">B</SelectItem>
-                  <SelectItem value="c">C</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
 
             <div className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1.5">
               <span className="shrink-0 text-muted-foreground">Resultat</span>
@@ -950,7 +950,7 @@ function ActionRow({
               onChange={(v) =>
                 onUpdateActionField(topicId, targetId, action.id, "validFrom", v)
               }
-              className="w-full"
+              className="w-full md:col-start-1"
             />
             <DateField
               label="Gültig bis"
