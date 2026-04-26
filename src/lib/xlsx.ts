@@ -15,11 +15,11 @@ const writeUint32 = (view: DataView, offset: number, value: number) =>
 
 const escapeXml = (value: string | number) =>
   String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&apos;");
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
 
 const columnRef = (columnIndex: number) => {
   let value = "";
@@ -111,7 +111,7 @@ const buildXlsxBlob = (files: Array<{ path: string; content: string }>) => {
   writeUint32(endView, 16, localOffset);
   writeUint16(endView, 20, 0);
 
-  return new Blob([...localParts, ...centralParts, endRecord], {
+  return new Blob([...localParts, ...centralParts, endRecord] as BlobPart[], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
 };
