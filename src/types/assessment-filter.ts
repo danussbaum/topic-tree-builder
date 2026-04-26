@@ -7,12 +7,17 @@ export type NumericComparison = {
 
 export type PersonsFilter = { kind: "none" } | { kind: "exact"; value: number };
 
+export type NumericRange = {
+  min?: number;
+  max?: number;
+};
+
 export interface AssessmentFilterModel {
   statuses: ActionStatus[];
   plannedMinutes?: NumericComparison;
   actualMinutes?: NumericComparison;
-  differenceMinutes?: number;
-  differencePercent?: number;
+  differenceMinutes?: NumericRange;
+  differencePercent?: NumericRange;
   dayPart?: DayPart | "none";
   persons?: PersonsFilter;
   result?: "none" | "with_result";
