@@ -1069,34 +1069,56 @@ const Index = () => {
                     </div>
                   </div>
 
-                  <div className="space-y-1.5">
+                  <div className="space-y-3">
                     <div className="font-medium">Differenz (UND): Minuten & Prozent</div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      <Input
-                        type="number"
-                        placeholder="Differenz Minuten (=)"
-                        value={draftFilter.differenceMinutes ?? ""}
-                        onChange={(e) =>
-                          setOptionalNumber(
-                            e.target.value,
-                            (num) => setDraftFilter((prev) => ({ ...prev, differenceMinutes: Math.abs(num) })),
-                            () => setDraftFilter((prev) => ({ ...prev, differenceMinutes: undefined })),
-                          )
-                        }
-                      />
-                      <Input
-                        type="number"
-                        placeholder="Differenz % (=)"
-                        value={draftFilter.differencePercent ?? ""}
-                        onChange={(e) =>
-                          setOptionalNumber(
-                            e.target.value,
-                            (num) => setDraftFilter((prev) => ({ ...prev, differencePercent: Math.abs(num) })),
-                            () => setDraftFilter((prev) => ({ ...prev, differencePercent: undefined })),
-                          )
-                        }
-                      />
-                    </div>
+
+                    {(["differenceMinutes", "differencePercent"] as const).map((key) => {
+                      const label = key === "differenceMinutes" ? "Differenz Minuten" : "Differenz %";
+                      const range = draftFilter[key];
+                      const updateRange = (patch: { min?: number; max?: number }) => {
+                        setDraftFilter((prev) => {
+                          const current = prev[key] ?? {};
+                          const next = { ...current, ...patch };
+                          const cleaned = {
+                            min: next.min,
+                            max: next.max,
+                          };
+                          const isEmpty = cleaned.min == null && cleaned.max == null;
+                          return { ...prev, [key]: isEmpty ? undefined : cleaned };
+                        });
+                      };
+                      return (
+                        <div key={key} className="space-y-1">
+                          <div className="text-xs text-muted-foreground">{label}</div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <Input
+                              type="number"
+                              placeholder="Min (≥)"
+                              value={range?.min ?? ""}
+                              onChange={(e) =>
+                                setOptionalNumber(
+                                  e.target.value,
+                                  (num) => updateRange({ min: num }),
+                                  () => updateRange({ min: undefined }),
+                                )
+                              }
+                            />
+                            <Input
+                              type="number"
+                              placeholder="Max (≤)"
+                              value={range?.max ?? ""}
+                              onChange={(e) =>
+                                setOptionalNumber(
+                                  e.target.value,
+                                  (num) => updateRange({ max: num }),
+                                  () => updateRange({ max: undefined }),
+                                )
+                              }
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">

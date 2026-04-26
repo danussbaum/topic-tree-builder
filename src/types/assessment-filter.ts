@@ -7,12 +7,17 @@ export type NumericComparison = {
 
 export type PersonsFilter = { kind: "none" } | { kind: "exact"; value: number };
 
+export type NumericRange = {
+  min?: number;
+  max?: number;
+};
+
 export interface AssessmentFilterModel {
   statuses: ActionStatus[];
   plannedMinutes?: NumericComparison;
   actualMinutes?: NumericComparison;
-  differenceMinutes?: number;
-  differencePercent?: number;
+  differenceMinutes?: NumericRange;
+  differencePercent?: NumericRange;
   dayPart?: DayPart | "none";
   persons?: PersonsFilter;
   result?: "none" | "with_result";
@@ -35,6 +40,14 @@ const matchesNumericComparison = (value: number | undefined, comparison?: Numeri
   if (comparison.op === "gt") return value > comparison.value;
   if (comparison.op === "lt") return value < comparison.value;
   return value === comparison.value;
+};
+
+const matchesNumericRange = (value: number | undefined, range?: NumericRange) => {
+  if (!range || (range.min == null && range.max == null)) return true;
+  if (value == null) return false;
+  if (range.min != null && value < range.min) return false;
+  if (range.max != null && value > range.max) return false;
+  return true;
 };
 
 const getDifferenceMinutes = (plannedMinutes?: number, actualMinutes?: number) => {
@@ -60,10 +73,10 @@ export const matchesAssessmentFilter = (
   if (!matchesNumericComparison(actualMinutes, filter.actualMinutes)) return false;
 
   const differenceMinutes = getDifferenceMinutes(plannedMinutes, actualMinutes);
-  if (filter.differenceMinutes != null && differenceMinutes !== filter.differenceMinutes) return false;
+  if (!matchesNumericRange(differenceMinutes, filter.differenceMinutes)) return false;
 
   const differencePercent = getDifferencePercent(plannedMinutes, actualMinutes);
-  if (filter.differencePercent != null && differencePercent !== filter.differencePercent) return false;
+  if (!matchesNumericRange(differencePercent, filter.differencePercent)) return false;
 
   if (filter.dayPart != null) {
     const dayPart = action.dayPart ?? "none";
