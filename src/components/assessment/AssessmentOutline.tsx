@@ -1020,7 +1020,7 @@ function DateField({
           type="button"
           disabled={disabled}
           className={cn(
-            "inline-flex h-7 items-center gap-1.5 rounded border border-border bg-background px-2 text-xs hover:bg-secondary/60",
+            "inline-flex items-center gap-2 rounded border border-border bg-background px-2 py-1.5 text-xs hover:bg-secondary/60",
             className,
             disabled && "opacity-60 cursor-not-allowed hover:bg-background",
             missing && "border-destructive/60 text-destructive",
