@@ -15,6 +15,7 @@ import {
   Sun,
   Sunset,
   Moon,
+  Tag,
   CalendarIcon,
   ChevronLeft,
   ChevronRight,
@@ -45,6 +46,7 @@ import type {
   ActionStatus,
   ConfirmationFilter,
   DayPart,
+  ActionCategory,
   TopicNode,
 } from "@/types/assessment";
 import { DAY_PART_LABEL, DAY_PART_ORDER } from "@/types/assessment";
@@ -69,6 +71,7 @@ type ActionField =
   | "actualMinutes"
   | "reason"
   | "dayPart"
+  | "category"
   | "validFrom"
   | "validTo"
   | "observations";
@@ -131,6 +134,12 @@ const DAY_PART_ICONS: Record<DayPart, typeof Sunrise> = {
   noon: Sun,
   evening: Sunset,
   night: Moon,
+};
+
+const CATEGORY_LABEL: Record<ActionCategory, string> = {
+  a: "A",
+  b: "B",
+  c: "C",
 };
 
 function groupActions(actions: ActionNode[]) {
@@ -367,6 +376,12 @@ export function AssessmentOutline({
                   </div>
                   
                   <div className="flex flex-wrap items-center gap-3 mt-2 text-[11px] text-muted-foreground/80">
+                    {action.category && (
+                      <div className="flex items-center gap-1">
+                        <Tag className="h-3 w-3" />
+                        Kategorie {CATEGORY_LABEL[action.category]}
+                      </div>
+                    )}
                     {action.dayPart && (
                       <div className="flex items-center gap-1">
                         {(() => {
@@ -800,6 +815,33 @@ function ActionRow({
             </label>
 
             <div className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1.5">
+              <span className="shrink-0 text-muted-foreground">Kategorie</span>
+              <Select
+                value={action.category ?? "none"}
+                disabled={isLocked}
+                onValueChange={(v) =>
+                  onUpdateActionField(
+                    topicId,
+                    targetId,
+                    action.id,
+                    "category",
+                    v === "none" ? undefined : v,
+                  )
+                }
+              >
+                <SelectTrigger className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0">
+                  <SelectValue placeholder="Keine Angabe" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Keine Angabe</SelectItem>
+                  <SelectItem value="a">A</SelectItem>
+                  <SelectItem value="b">B</SelectItem>
+                  <SelectItem value="c">C</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1.5">
               <span className="shrink-0 text-muted-foreground">Resultat</span>
               <Select
                 value={action.resultRequirement ?? "none"}
@@ -921,6 +963,29 @@ function ActionRow({
                 className="w-12 bg-background border border-border rounded focus:border-primary outline-none px-1.5 py-0.5 text-right tabular-nums"
               />
             </label>
+            <Select
+              value={action.category ?? "none"}
+              disabled={isLocked}
+              onValueChange={(v) =>
+                onUpdateActionField(
+                  topicId,
+                  targetId,
+                  action.id,
+                  "category",
+                  v === "none" ? undefined : v,
+                )
+              }
+            >
+              <SelectTrigger className="h-7 w-[130px] text-xs px-2 py-0">
+                <SelectValue placeholder="Kategorie" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Keine Angabe</SelectItem>
+                <SelectItem value="a">A</SelectItem>
+                <SelectItem value="b">B</SelectItem>
+                <SelectItem value="c">C</SelectItem>
+              </SelectContent>
+            </Select>
             <Select
               value={action.resultRequirement ?? "none"}
               disabled={isLocked}

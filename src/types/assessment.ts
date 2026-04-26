@@ -5,6 +5,7 @@ export type ActionStatus =
   | "not_done";
 
 export type DayPart = "morning" | "noon" | "evening" | "night";
+export type ActionCategory = "a" | "b" | "c";
 export type ResultRequirement = "none" | "optional" | "required";
 export type NumericComparisonOperator = "gt" | "lt" | "eq";
 
@@ -48,6 +49,8 @@ export interface ActionNode {
   resultRequirement?: ResultRequirement;
   /** Tageszeit zur Gruppierung */
   dayPart?: DayPart;
+  /** Kategorie fuer optionale Einteilung */
+  category?: ActionCategory;
   /** Gültig ab (ISO Datum, zwingend bei erfasster Handlung) */
   validFrom?: string;
   /** Gültig bis (ISO Datum, optional) */
