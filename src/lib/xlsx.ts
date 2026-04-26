@@ -18,7 +18,7 @@ const escapeXml = (value: string | number) =>
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
+    .replace(/\"/g, "&quot;")
     .replace(/'/g, "&apos;");
 
 const columnRef = (columnIndex: number) => {
@@ -32,12 +32,64 @@ const columnRef = (columnIndex: number) => {
   return value;
 };
 
-const toWorksheetRow = (values: (string | number)[], rowIndex: number) =>
+type XlsxCellValue =
+  | string
+  | number
+  | {
+      type: "date" | "number" | "string";
+      value: string | number;
+    };
+
+const excelEpoch = Date.UTC(1899, 11, 30);
+
+const isoDateToExcelSerial = (isoDate: string) => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const utc = Date.UTC(year, month - 1, day);
+
+  if (Number.isNaN(utc)) return null;
+
+  return (utc - excelEpoch) / 86400000;
+};
+
+const toWorksheetCell = (value: XlsxCellValue, colIndex: number, rowIndex: number) => {
+  const cellRef = `${columnRef(colIndex)}${rowIndex}`;
+
+  if (typeof value === "number") {
+    return `<c r="${cellRef}"><v>${value}</v></c>`;
+  }
+
+  if (typeof value === "string") {
+    return `<c r="${cellRef}" t="inlineStr"><is><t>${escapeXml(value)}</t></is></c>`;
+  }
+
+  if (value.type === "number") {
+    const numericValue = typeof value.value === "number" ? value.value : Number(value.value);
+    if (!Number.isFinite(numericValue)) {
+      return `<c r="${cellRef}" t="inlineStr"><is><t>${escapeXml(value.value)}</t></is></c>`;
+    }
+    return `<c r="${cellRef}"><v>${numericValue}</v></c>`;
+  }
+
+  if (value.type === "date") {
+    const stringValue = String(value.value);
+    const serial = isoDateToExcelSerial(stringValue);
+    if (serial === null) {
+      return `<c r="${cellRef}" t="inlineStr"><is><t>${escapeXml(stringValue)}</t></is></c>`;
+    }
+    return `<c r="${cellRef}" s="1"><v>${serial}</v></c>`;
+  }
+
+  return `<c r="${cellRef}" t="inlineStr"><is><t>${escapeXml(value.value)}</t></is></c>`;
+};
+
+const toWorksheetRow = (values: XlsxCellValue[], rowIndex: number) =>
   `<row r="${rowIndex}">${values
-    .map(
-      (value, colIndex) =>
-        `<c r="${columnRef(colIndex)}${rowIndex}" t="inlineStr"><is><t>${escapeXml(value)}</t></is></c>`,
-    )
+    .map((value, colIndex) => toWorksheetCell(value, colIndex, rowIndex))
     .join("")}</row>`;
 
 const buildXlsxBlob = (files: Array<{ path: string; content: string }>) => {
@@ -123,7 +175,7 @@ export const createSimpleXlsxBlob = ({
 }: {
   sheetName: string;
   headers: string[];
-  rows: Array<Array<string | number>>;
+  rows: Array<XlsxCellValue[]>;
 }) => {
   const sheetData = [
     toWorksheetRow(headers, 1),
@@ -150,11 +202,15 @@ export const createSimpleXlsxBlob = ({
 
   const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <numFmts count="1"><numFmt numFmtId="164" formatCode="dd.mm.yyyy"/></numFmts>
   <fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts>
   <fills count="1"><fill><patternFill patternType="none"/></fill></fills>
   <borders count="1"><border/></borders>
   <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-  <cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs>
+  <cellXfs count="2">
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+    <xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>
+  </cellXfs>
   <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 </styleSheet>`;
 
