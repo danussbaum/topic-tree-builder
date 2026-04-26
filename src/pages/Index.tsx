@@ -297,6 +297,22 @@ const Index = () => {
     setFilterMenuLeft(btnRect.left - (parentRect?.left ?? 0));
   }, [isFilterOpen]);
 
+  const isFilterActive = (() => {
+    const f = confirmationFilter;
+    const statusesDefault =
+      f.statuses.length === 1 && f.statuses[0] === "open";
+    return (
+      !statusesDefault ||
+      f.plannedMinutes != null ||
+      f.actualMinutes != null ||
+      f.differenceMinutes != null ||
+      f.differencePercent != null ||
+      f.dayPart != null ||
+      f.persons != null ||
+      f.result != null
+    );
+  })();
+
   const selectedClients = clients.filter((c) => selectedClientIds.includes(c.id));
   const visibleSelectedClients =
     viewMode === "confirmation"
