@@ -25,6 +25,10 @@ import { AssessmentOutline } from "@/components/assessment/AssessmentOutline";
 import type { ActionNode, Client, TopicNode } from "@/types/assessment";
 import { cn } from "@/lib/utils";
 import { createSimpleXlsxBlob } from "@/lib/xlsx";
+import {
+  getConfirmationFilterForShowConfirmed,
+  matchesConfirmationFilter,
+} from "@/lib/confirmationFilter";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const todayLocalISO = () => {
@@ -82,6 +86,7 @@ const getVisibleConfirmationItems = (
   }> = [];
 
   const { start, end } = getPeriodRange(selectedDate, period);
+  const filter = getConfirmationFilterForShowConfirmed(showConfirmed);
 
   client.topics.forEach((topic) => {
     topic.targets.forEach((target) => {
@@ -90,7 +95,17 @@ const getVisibleConfirmationItems = (
         if (action.validTo && action.validTo < start) return;
 
         const status = getStatusForPeriod(action, selectedDate, period);
-        if (!showConfirmed && status !== "open") return;
+        if (
+          !matchesConfirmationFilter(
+            {
+              status,
+              plannedMinutes: action.plannedMinutes,
+            },
+            filter,
+          )
+        ) {
+          return;
+        }
 
         items.push({ topic, target, action });
       });
@@ -138,6 +153,7 @@ const getVisibleConfirmationRows = (
   }> = [];
 
   const { start, end } = getPeriodRange(selectedDate, period);
+  const filter = getConfirmationFilterForShowConfirmed(showConfirmed);
 
   client.topics.forEach((topic) => {
     topic.targets.forEach((target) => {
@@ -147,8 +163,20 @@ const getVisibleConfirmationRows = (
 
         const dueDates = getDueDatesInPeriod(action, selectedDate, period);
         dueDates.forEach((dueDate) => {
-          const status = action.confirmations?.[dueDate]?.status || "open";
-          if (!showConfirmed && status !== "open") return;
+          const confirmation = action.confirmations?.[dueDate];
+          const status = confirmation?.status || "open";
+          if (
+            !matchesConfirmationFilter(
+              {
+                status,
+                plannedMinutes: action.plannedMinutes,
+                actualMinutes: confirmation?.actualMinutes,
+              },
+              filter,
+            )
+          ) {
+            return;
+          }
           rows.push({ dueDate, topic, target, action, status });
         });
       });

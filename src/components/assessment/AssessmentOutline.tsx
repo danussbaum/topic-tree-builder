@@ -47,6 +47,10 @@ import type {
   TopicNode,
 } from "@/types/assessment";
 import { DAY_PART_LABEL, DAY_PART_ORDER } from "@/types/assessment";
+import {
+  getConfirmationFilterForShowConfirmed,
+  matchesConfirmationFilter,
+} from "@/lib/confirmationFilter";
 import { cn } from "@/lib/utils";
 
 type ConfirmPayload =
@@ -185,9 +189,7 @@ export function AssessmentOutline({
     };
 
     const periodRange = getPeriodRange();
-    const getStatusForDate = (action: ActionNode, date: string) => {
-      return action.confirmations?.[date]?.status || "open";
-    };
+    const filter = getConfirmationFilterForShowConfirmed(showConfirmed);
 
     const getDueDatesInPeriod = (action: ActionNode) => {
       if (confirmationPeriod === "day") return [selectedDate];
@@ -226,8 +228,18 @@ export function AssessmentOutline({
 
           const dueDates = getDueDatesInPeriod(action);
           dueDates.forEach((dueDate) => {
-            const status = getStatusForDate(action, dueDate);
-            if (!showConfirmed && status !== "open") return;
+            const conf = action.confirmations?.[dueDate];
+            const status = conf?.status || "open";
+            if (
+              !matchesConfirmationFilter(
+                {
+                  status,
+                  plannedMinutes: action.plannedMinutes,
+                  actualMinutes: conf?.actualMinutes,
+                },
+                filter,
+              )
+            ) return;
             flatActions.push({ topic, target, action, dueDate, status });
           });
         });
