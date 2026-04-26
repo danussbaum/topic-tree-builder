@@ -1410,12 +1410,14 @@ function RibbonButton({
   onClick,
   disabled,
   active,
+  highlighted,
 }: {
   icon: React.ElementType;
   label: string;
   onClick?: () => void;
   disabled?: boolean;
   active?: boolean;
+  highlighted?: boolean;
 }) {
   return (
     <button
@@ -1423,7 +1425,9 @@ function RibbonButton({
       disabled={disabled}
       className={cn(
         "flex w-24 flex-col items-center justify-center gap-0.5 px-2 py-1.5 rounded transition-colors",
-        active
+        highlighted
+          ? "bg-primary/15 text-foreground ring-1 ring-primary/40 shadow-sm hover:bg-primary/25 disabled:opacity-100"
+          : active
           ? "bg-secondary text-foreground shadow-sm disabled:opacity-100"
           : "text-foreground/80 hover:bg-secondary hover:text-foreground",
         "disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-foreground/80 disabled:cursor-not-allowed",
