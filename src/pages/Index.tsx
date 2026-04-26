@@ -32,6 +32,13 @@ import {
 import { cn } from "@/lib/utils";
 import { createSimpleXlsxBlob } from "@/lib/xlsx";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
   getConfirmationFilterForShowConfirmed,
   matchesConfirmationFilter,
 } from "@/lib/confirmationFilter";
@@ -45,6 +52,15 @@ const todayLocalISO = () => {
   return `${year}-${month}-${day}`;
 };
 
+type ConfirmationPeriod = "day" | "week" | "month";
+type FilterState = { statuses: ActionNode["status"][] };
+const allStatuses: ActionNode["status"][] = [
+  "open",
+  "done_as_planned",
+  "done_with_deviation",
+  "not_done",
+];
+const initialFilter: FilterState = { statuses: ["open"] };
 
 interface ClientNameInputProps {
   value: string;
@@ -73,6 +89,9 @@ const hasVisibleConfirmationItems = (
   client: Client,
   selectedDate: string,
   period: ConfirmationPeriod,
+  filter: FilterState,
+) => {
+  return getVisibleConfirmationItems(client, selectedDate, period, filter).length > 0;
   filterModel: AssessmentFilterModel,
 ) => {
   return getVisibleConfirmationItems(client, selectedDate, period, filterModel).length > 0;
@@ -82,6 +101,7 @@ const getVisibleConfirmationItems = (
   client: Client,
   selectedDate: string,
   period: ConfirmationPeriod,
+  filter: FilterState,
   filterModel: AssessmentFilterModel,
 ) => {
   const items: Array<{
@@ -100,6 +120,7 @@ const getVisibleConfirmationItems = (
         if (action.validTo && action.validTo < start) return;
 
         const status = getStatusForPeriod(action, selectedDate, period);
+        if (!filter.statuses.includes(status)) return;
         if (
           !matchesConfirmationFilter(
             {
@@ -148,6 +169,7 @@ const getVisibleConfirmationRows = (
   client: Client,
   selectedDate: string,
   period: ConfirmationPeriod,
+  filter: FilterState,
   filterModel: AssessmentFilterModel,
 ) => {
   const rows: Array<{
@@ -169,6 +191,8 @@ const getVisibleConfirmationRows = (
 
         const dueDates = getDueDatesInPeriod(action, selectedDate, period);
         dueDates.forEach((dueDate) => {
+          const status = action.confirmations?.[dueDate]?.status || "open";
+          if (!filter.statuses.includes(status)) return;
           const confirmation = action.confirmations?.[dueDate];
           const status = confirmation?.status || "open";
           if (
@@ -336,6 +360,9 @@ const Index = () => {
   const [selectedClientIds, setSelectedClientIds] = useState<string[]>([
     seedClients[0].id,
   ]);
+  const [appliedFilter, setAppliedFilter] = useState<FilterState>(initialFilter);
+  const [draftFilter, setDraftFilter] = useState<FilterState>(initialFilter);
+  const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
   const [confirmationFilter, setConfirmationFilter] =
     useState<AssessmentFilterModel>(DEFAULT_ASSESSMENT_FILTER);
   const [showConfirmed, setShowConfirmed] = useState(false);
@@ -351,6 +378,7 @@ const Index = () => {
             client,
             selectedDate,
             confirmationPeriod,
+            appliedFilter,
             confirmationFilter,
           ),
         )
@@ -726,6 +754,7 @@ const Index = () => {
         client,
         selectedDate,
         confirmationPeriod,
+        appliedFilter,
         confirmationFilter,
       ).map(({ dueDate, topic, target, action, status }) => {
         const confirmation = action.confirmations?.[dueDate];
@@ -813,6 +842,27 @@ const Index = () => {
     URL.revokeObjectURL(url);
   };
 
+  const openFilterDialog = () => {
+    setDraftFilter(appliedFilter);
+    setIsFilterDialogOpen(true);
+  };
+
+  const cancelFilterDialog = () => {
+    setIsFilterDialogOpen(false);
+  };
+
+  const resetDraftFilter = () => {
+    setDraftFilter(initialFilter);
+  };
+
+  const applyDraftFilter = () => {
+    setAppliedFilter(draftFilter);
+    setIsFilterDialogOpen(false);
+  };
+
+  const draftShowsConfirmed = draftFilter.statuses.length > 1;
+  const appliedShowsConfirmed = appliedFilter.statuses.length > 1;
+
   return (
     <SidebarProvider>
       <div className="min-h-dvh bg-background flex w-full">
@@ -897,6 +947,7 @@ const Index = () => {
               active={viewMode === "confirmation"}
             />
             <RibbonDivider />
+            <RibbonButton icon={Filter} label="Filter" onClick={openFilterDialog} />
             <RibbonButton
               icon={Filter}
               label="Filter"
@@ -1020,6 +1071,12 @@ const Index = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
+                      <button
+                        className="h-9 px-3 rounded-md border border-border text-sm hover:bg-secondary"
+                        onClick={openFilterDialog}
+                      >
+                        Filter
+                      </button>
                       <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
                         <input
                           type="checkbox"
@@ -1077,6 +1134,7 @@ const Index = () => {
                       confirmationPeriod={confirmationPeriod}
                       topics={client.topics}
                       hideConfirmationHeader
+                      showConfirmed={appliedShowsConfirmed}
                       filterModel={confirmationFilter}
                       onUpdateTopic={(topicId, field, value) =>
                         updateTopic(client.id, topicId, field, value)
@@ -1110,6 +1168,51 @@ const Index = () => {
             )}
           </div>
 
+          <Dialog open={isFilterDialogOpen} onOpenChange={(open) => (!open ? cancelFilterDialog() : null)}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Filter</DialogTitle>
+                <DialogDescription>
+                  Wählen Sie, ob nur offene oder auch bestätigte Handlungen angezeigt werden.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-2">
+                <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={draftShowsConfirmed}
+                    onChange={(e) =>
+                      setDraftFilter({ statuses: e.target.checked ? allStatuses : initialFilter.statuses })
+                    }
+                    className="h-4 w-4 rounded border-border accent-primary"
+                  />
+                  Bestätigte anzeigen
+                </label>
+              </div>
+              <DialogFooter className="gap-2 sm:justify-between">
+                <button
+                  className="h-9 px-3 rounded-md border border-border text-sm hover:bg-secondary"
+                  onClick={resetDraftFilter}
+                >
+                  Zurücksetzen
+                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    className="h-9 px-3 rounded-md border border-border text-sm hover:bg-secondary"
+                    onClick={cancelFilterDialog}
+                  >
+                    Abbrechen
+                  </button>
+                  <button
+                    className="h-9 px-3 rounded-md bg-primary text-primary-foreground text-sm hover:opacity-90"
+                    onClick={applyDraftFilter}
+                  >
+                    Anwenden
+                  </button>
+                </div>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           <ConfirmationFilterPanel
             open={isFilterPanelOpen}
             onOpenChange={setIsFilterPanelOpen}
