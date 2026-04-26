@@ -152,6 +152,7 @@ export function AssessmentOutline({
   confirmationPeriod = "day",
   topics,
   hideConfirmationHeader,
+  confirmationFilter,
   filterModel = DEFAULT_ASSESSMENT_FILTER,
   onUpdateTopic,
   onUpdateTarget,
