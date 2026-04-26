@@ -31,6 +31,10 @@ import {
 } from "@/types/assessment-filter";
 import { cn } from "@/lib/utils";
 import { createSimpleXlsxBlob } from "@/lib/xlsx";
+import {
+  getConfirmationFilterForShowConfirmed,
+  matchesConfirmationFilter,
+} from "@/lib/confirmationFilter";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const todayLocalISO = () => {
@@ -87,6 +91,7 @@ const getVisibleConfirmationItems = (
   }> = [];
 
   const { start, end } = getPeriodRange(selectedDate, period);
+  const filter = getConfirmationFilterForShowConfirmed(showConfirmed);
 
   client.topics.forEach((topic) => {
     topic.targets.forEach((target) => {
@@ -95,6 +100,17 @@ const getVisibleConfirmationItems = (
         if (action.validTo && action.validTo < start) return;
 
         const status = getStatusForPeriod(action, selectedDate, period);
+        if (
+          !matchesConfirmationFilter(
+            {
+              status,
+              plannedMinutes: action.plannedMinutes,
+            },
+            filter,
+          )
+        ) {
+          return;
+        }
         if (!matchesAssessmentFilter({ action, status }, filterModel)) return;
 
         items.push({ topic, target, action });
@@ -143,6 +159,7 @@ const getVisibleConfirmationRows = (
   }> = [];
 
   const { start, end } = getPeriodRange(selectedDate, period);
+  const filter = getConfirmationFilterForShowConfirmed(showConfirmed);
 
   client.topics.forEach((topic) => {
     topic.targets.forEach((target) => {
@@ -154,6 +171,18 @@ const getVisibleConfirmationRows = (
         dueDates.forEach((dueDate) => {
           const confirmation = action.confirmations?.[dueDate];
           const status = confirmation?.status || "open";
+          if (
+            !matchesConfirmationFilter(
+              {
+                status,
+                plannedMinutes: action.plannedMinutes,
+                actualMinutes: confirmation?.actualMinutes,
+              },
+              filter,
+            )
+          ) {
+            return;
+          }
           if (!matchesAssessmentFilter({ action, status, confirmation }, filterModel)) return;
           rows.push({ dueDate, topic, target, action, status });
         });
