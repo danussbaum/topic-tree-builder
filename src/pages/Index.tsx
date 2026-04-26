@@ -1201,8 +1201,7 @@ const Index = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between border-t border-border px-4 py-3">
-                  <div className="text-xs text-muted-foreground">Alle Kriterien sind mit UND verknüpft.</div>
+                <div className="flex items-center justify-end border-t border-border px-4 py-3">
                   <div className="flex gap-2">
                     <Button variant="outline" onClick={cancelFilter}>Abbrechen</Button>
                     <Button variant="outline" onClick={resetFilter}>Zurücksetzen</Button>
