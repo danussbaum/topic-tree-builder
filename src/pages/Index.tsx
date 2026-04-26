@@ -345,9 +345,16 @@ const Index = () => {
 
     const handlePointerDown = (event: MouseEvent) => {
       if (!filterMenuRef.current) return;
-      if (!filterMenuRef.current.contains(event.target as Node)) {
-        closeMenu();
-      }
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      // Ignore clicks inside the menu itself
+      if (filterMenuRef.current.contains(target)) return;
+      // Ignore clicks inside Radix portals (Select dropdowns, etc.)
+      if (target.closest("[data-radix-popper-content-wrapper]")) return;
+      if (target.closest("[role='listbox']")) return;
+      // Ignore clicks on the filter ribbon button itself (it has its own toggle)
+      if (filterButtonRef.current?.contains(target)) return;
+      closeMenu();
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
