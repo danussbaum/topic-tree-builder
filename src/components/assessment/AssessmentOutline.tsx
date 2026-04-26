@@ -202,16 +202,32 @@ const isRecurringOnDate = (action: ActionNode, date: Date) => {
   return false;
 };
 
-function groupActions(actions: ActionNode[]) {
-  const groups = new Map<DayPart | "none", ActionNode[]>();
+function groupFlatActionsByDayPart<T extends { action: ActionNode }>(items: T[]) {
+  const groups = new Map<DayPart | "none", T[]>();
   for (const key of DAY_PART_ORDER) groups.set(key, []);
-  for (const a of actions) {
-    const key = (a.dayPart ?? "none") as DayPart | "none";
-    groups.get(key)!.push(a);
+  for (const item of items) {
+    const key = (item.action.dayPart ?? "none") as DayPart | "none";
+    groups.get(key)!.push(item);
   }
   return DAY_PART_ORDER
     .map((key) => ({ key, actions: groups.get(key)! }))
-    .filter((g) => g.actions.length > 0);
+    .filter((group) => group.actions.length > 0);
+}
+
+function groupFlatActionsByDateThenDayPart<T extends { action: ActionNode; dueDate: string }>(items: T[]) {
+  const byDate = new Map<string, T[]>();
+  for (const item of items) {
+    const current = byDate.get(item.dueDate) ?? [];
+    current.push(item);
+    byDate.set(item.dueDate, current);
+  }
+
+  return [...byDate.entries()]
+    .sort(([leftDate], [rightDate]) => leftDate.localeCompare(rightDate))
+    .map(([dueDate, dateItems]) => ({
+      dueDate,
+      dayPartGroups: groupFlatActionsByDayPart(dateItems),
+    }));
 }
 
 export function AssessmentOutline({
@@ -351,6 +367,7 @@ export function AssessmentOutline({
 
       return left.action.title.localeCompare(right.action.title, "de", { sensitivity: "base" });
     });
+    const groupedFlatActions = groupFlatActionsByDateThenDayPart(sortedFlatActions);
 
     const shiftDate = (days: number) => {
       const d = new Date(`${selectedDate}T00:00:00`);
@@ -387,130 +404,141 @@ export function AssessmentOutline({
           </div>
         )}
 
-        <div className="grid gap-3">
-          {sortedFlatActions.map(({ topic, target, action, dueDate, status }) => {
-            const conf = action.confirmations?.[dueDate];
+        <div className="space-y-4">
+          {groupedFlatActions.map((dateGroup) => (
+            <div key={dateGroup.dueDate} className="space-y-3">
+              {dateGroup.dayPartGroups.map((group) => (
+                <div key={`${dateGroup.dueDate}-${group.key}`}>
+                  <DayPartHeader part={group.key} />
+                  <div className="grid gap-3 mt-2">
+                    {group.actions.map(({ topic, target, action, dueDate, status }) => {
+                      const conf = action.confirmations?.[dueDate];
 
-            return (
-              <button
-                key={`${action.id}-${dueDate}`}
-                onClick={() =>
-                  setDialogTarget({
-                    topicId: topic.id,
-                    targetId: target.id,
-                    dueDate,
-                    action: {
-                      ...action,
-                      status,
-                      actualMinutes: conf?.actualMinutes,
-                      reason: conf?.reason,
-                      result: conf?.result,
-                      observations: conf?.observations,
-                    },
-                  })
-                }
-                className={cn(
-                  "flex items-start gap-4 p-4 rounded-lg border transition-all text-left",
-                  status !== "open" 
-                    ? "bg-primary/5 border-primary/20 shadow-sm" 
-                    : "bg-card border-border hover:bg-secondary/40"
-                )}
-              >
-                <div className="mt-1">
-                  <StatusIcon status={status} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary mb-2">
-                    <CalendarIcon className="h-3 w-3" />
-                    {format(parseISO(dueDate), "EEEE, dd.MM.yyyy", { locale: de })}
-                  </div>
-                  <div className={cn(
-                    "font-medium mb-1",
-                    status !== "open" && "text-foreground/70"
-                  )}>{action.title}</div>
-                  {action.notes.trim() && (
-                    <div className="mt-1 text-xs text-foreground/70 whitespace-pre-wrap">
-                      <span className="font-medium">Beschreibung:</span>{" "}
-                      {action.notes}
-                    </div>
-                  )}
-                  {action.requiredResources?.trim() && (
-                    <div className="mt-1 text-xs text-foreground/70 whitespace-pre-wrap">
-                      <span className="font-medium">Hilfsmittel:</span>{" "}
-                      {action.requiredResources}
-                    </div>
-                  )}
-                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                    <span className="font-medium text-primary/70">{topic.title}</span>
-                    <span className="text-border">|</span>
-                    <span>{target.title}</span>
-                  </div>
-                  
-                  <div className="flex flex-wrap items-center gap-3 mt-2 text-[11px] text-muted-foreground/80">
-                    {action.category && (
-                      <div className="flex items-center gap-1">
-                        <Tag className="h-3 w-3" />
-                        Kategorie {CATEGORY_LABEL[action.category]}
-                      </div>
-                    )}
-                    {action.dayPart && (
-                      <div className="flex items-center gap-1">
-                        {(() => {
-                          const Icon = DAY_PART_ICONS[action.dayPart];
-                          return <Icon className="h-3 w-3" />;
-                        })()}
-                        {DAY_PART_LABEL[action.dayPart]}
-                      </div>
-                    )}
-                    {action.plannedMinutes && (
-                      <div className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        {action.plannedMinutes} Min geplant
-                      </div>
-                    )}
-                    {action.requiredPersons && (
-                      <div className="flex items-center gap-1">
-                        <Users className="h-3 w-3" />
-                        {action.requiredPersons}{" "}
-                        {action.requiredPersons === 1 ? "Person" : "Personen"}
-                      </div>
-                    )}
-                    {status === "done_with_deviation" && conf?.actualMinutes != null && (
-                      <div className="flex items-center gap-1 text-accent font-medium">
-                        <Clock className="h-3 w-3" />
-                        {conf.actualMinutes} Min tatsächlich
-                      </div>
-                    )}
-                  </div>
+                      return (
+                        <button
+                          key={`${action.id}-${dueDate}`}
+                          onClick={() =>
+                            setDialogTarget({
+                              topicId: topic.id,
+                              targetId: target.id,
+                              dueDate,
+                              action: {
+                                ...action,
+                                status,
+                                actualMinutes: conf?.actualMinutes,
+                                reason: conf?.reason,
+                                result: conf?.result,
+                                observations: conf?.observations,
+                              },
+                            })
+                          }
+                          className={cn(
+                            "flex items-start gap-4 p-4 rounded-lg border transition-all text-left",
+                            status !== "open"
+                              ? "bg-primary/5 border-primary/20 shadow-sm"
+                              : "bg-card border-border hover:bg-secondary/40"
+                          )}
+                        >
+                          <div className="mt-1">
+                            <StatusIcon status={status} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary mb-2">
+                              <CalendarIcon className="h-3 w-3" />
+                              {format(parseISO(dueDate), "EEEE, dd.MM.yyyy", { locale: de })}
+                            </div>
+                            <div className={cn(
+                              "font-medium mb-1",
+                              status !== "open" && "text-foreground/70"
+                            )}>{action.title}</div>
+                            {action.notes.trim() && (
+                              <div className="mt-1 text-xs text-foreground/70 whitespace-pre-wrap">
+                                <span className="font-medium">Beschreibung:</span>{" "}
+                                {action.notes}
+                              </div>
+                            )}
+                            {action.requiredResources?.trim() && (
+                              <div className="mt-1 text-xs text-foreground/70 whitespace-pre-wrap">
+                                <span className="font-medium">Hilfsmittel:</span>{" "}
+                                {action.requiredResources}
+                              </div>
+                            )}
+                            <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                              <span className="font-medium text-primary/70">{topic.title}</span>
+                              <span className="text-border">|</span>
+                              <span>{target.title}</span>
+                            </div>
 
-                  {(conf?.reason ||
-                    ((action.resultRequirement ?? "none") !== "none" && conf?.result) ||
-                    conf?.observations) && (
-                    <div className="mt-2 space-y-1">
-                      {conf.reason && (
-                        <div className="text-xs italic text-destructive/80 line-clamp-2">
-                          <span className="not-italic font-semibold mr-1">Grund:</span>
-                          {conf.reason}
-                        </div>
-                      )}
-                      {(action.resultRequirement ?? "none") !== "none" && conf.result && (
-                        <div className="text-xs text-foreground/70 line-clamp-2 border-l-2 border-primary/20 pl-2">
-                          <span className="font-semibold mr-1">Resultat:</span>
-                          {conf.result}
-                        </div>
-                      )}
-                      {conf.observations && (
-                        <div className="text-xs text-foreground/70 line-clamp-2 border-l-2 border-primary/20 pl-2">
-                          <span className="font-semibold mr-1">Beobachtung:</span>
-                          {conf.observations}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                            <div className="flex flex-wrap items-center gap-3 mt-2 text-[11px] text-muted-foreground/80">
+                              {action.category && (
+                                <div className="flex items-center gap-1">
+                                  <Tag className="h-3 w-3" />
+                                  Kategorie {CATEGORY_LABEL[action.category]}
+                                </div>
+                              )}
+                              {action.dayPart && (
+                                <div className="flex items-center gap-1">
+                                  {(() => {
+                                    const Icon = DAY_PART_ICONS[action.dayPart];
+                                    return <Icon className="h-3 w-3" />;
+                                  })()}
+                                  {DAY_PART_LABEL[action.dayPart]}
+                                </div>
+                              )}
+                              {action.plannedMinutes && (
+                                <div className="flex items-center gap-1">
+                                  <Clock className="h-3 w-3" />
+                                  {action.plannedMinutes} Min geplant
+                                </div>
+                              )}
+                              {action.requiredPersons && (
+                                <div className="flex items-center gap-1">
+                                  <Users className="h-3 w-3" />
+                                  {action.requiredPersons}{" "}
+                                  {action.requiredPersons === 1 ? "Person" : "Personen"}
+                                </div>
+                              )}
+                              {status === "done_with_deviation" && conf?.actualMinutes != null && (
+                                <div className="flex items-center gap-1 text-accent font-medium">
+                                  <Clock className="h-3 w-3" />
+                                  {conf.actualMinutes} Min tatsächlich
+                                </div>
+                              )}
+                            </div>
+
+                            {(conf?.reason ||
+                              ((action.resultRequirement ?? "none") !== "none" && conf?.result) ||
+                              conf?.observations) && (
+                              <div className="mt-2 space-y-1">
+                                {conf.reason && (
+                                  <div className="text-xs italic text-destructive/80 line-clamp-2">
+                                    <span className="not-italic font-semibold mr-1">Grund:</span>
+                                    {conf.reason}
+                                  </div>
+                                )}
+                                {(action.resultRequirement ?? "none") !== "none" && conf.result && (
+                                  <div className="text-xs text-foreground/70 line-clamp-2 border-l-2 border-primary/20 pl-2">
+                                    <span className="font-semibold mr-1">Resultat:</span>
+                                    {conf.result}
+                                  </div>
+                                )}
+                                {conf.observations && (
+                                  <div className="text-xs text-foreground/70 line-clamp-2 border-l-2 border-primary/20 pl-2">
+                                    <span className="font-semibold mr-1">Beobachtung:</span>
+                                    {conf.observations}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </button>
-            );
-          })}
+              ))}
+            </div>
+          ))}
         </div>
 
         <ConfirmActionDialog
@@ -549,7 +577,7 @@ export function AssessmentOutline({
 
   return (
     <div className="space-y-10">
-      {topics.map((topic, ti) => (
+      {topics.map((topic) => (
         <section key={topic.id} className="group/topic">
           {/* Topic header */}
           <div className="flex items-start gap-3 pb-2 border-b-2 border-primary/30">
@@ -582,8 +610,7 @@ export function AssessmentOutline({
 
           {/* Targets */}
           <div className="mt-6 space-y-6 pl-6 border-l border-border ml-4">
-            {topic.targets.map((target, gi) => {
-              const groups = groupActions(target.actions);
+            {topic.targets.map((target) => {
               return (
                 <div key={target.id} className="group/target">
                   <div className="flex items-start gap-3">
@@ -617,35 +644,29 @@ export function AssessmentOutline({
                       className="mt-2"
                     />
 
-                    {/* Actions grouped by dayPart */}
-                    <div className="mt-3 space-y-4">
-                      {groups.map((group) => (
-                        <div key={group.key}>
-                          <DayPartHeader part={group.key} />
-                          <ul className="mt-1 space-y-1">
-                            {group.actions.map((action) => (
-                                                            <ActionRow
-                                key={action.id}
-                                viewMode={viewMode}
-                                topicId={topic.id}
-                                targetId={target.id}
-                                action={action}
-                                onUpdateAction={onUpdateAction}
-                                onUpdateActionField={onUpdateActionField}
-                                onDeleteAction={onDeleteAction}
-                                onOpenDialog={() =>
-                                  setDialogTarget({
-                                    topicId: topic.id,
-                                    targetId: target.id,
-                                    dueDate: selectedDate,
-                                    action,
-                                  })
-                                }
-                              />
-                            ))}
-                          </ul>
-                        </div>
-                      ))}
+                    <div className="mt-3">
+                      <ul className="space-y-1">
+                        {target.actions.map((action) => (
+                          <ActionRow
+                            key={action.id}
+                            viewMode={viewMode}
+                            topicId={topic.id}
+                            targetId={target.id}
+                            action={action}
+                            onUpdateAction={onUpdateAction}
+                            onUpdateActionField={onUpdateActionField}
+                            onDeleteAction={onDeleteAction}
+                            onOpenDialog={() =>
+                              setDialogTarget({
+                                topicId: topic.id,
+                                targetId: target.id,
+                                dueDate: selectedDate,
+                                action,
+                              })
+                            }
+                          />
+                        ))}
+                      </ul>
                     </div>
 
                     <button
