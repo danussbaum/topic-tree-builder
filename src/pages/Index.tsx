@@ -1070,7 +1070,7 @@ const Index = () => {
                   </div>
 
                   <div className="space-y-3">
-                    <div className="font-medium">Differenz (UND): Minuten & Prozent</div>
+                    <div className="font-medium">Differenz geplant / tatsächlich (UND)</div>
 
                     {(["differenceMinutes", "differencePercent"] as const).map((key) => {
                       const label = key === "differenceMinutes" ? "Differenz Minuten" : "Differenz %";
