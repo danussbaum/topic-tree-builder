@@ -1100,74 +1100,86 @@ const Index = () => {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <Select
-                      value={draftFilter.dayPart ?? "all"}
-                      onValueChange={(value) =>
-                        setDraftFilter((prev) => ({ ...prev, dayPart: value === "all" ? undefined : value as AssessmentFilterModel["dayPart"] }))
-                      }
-                    >
-                      <SelectTrigger><SelectValue placeholder="Tageszeit" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Alle Tageszeiten</SelectItem>
-                        <SelectItem value="none">Keine Angabe</SelectItem>
-                        <SelectItem value="morning">Morgen</SelectItem>
-                        <SelectItem value="noon">Mittag</SelectItem>
-                        <SelectItem value="evening">Abend</SelectItem>
-                        <SelectItem value="night">Nacht</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="space-y-1.5">
+                      <div className="font-medium">Tageszeit</div>
+                      <Select
+                        value={draftFilter.dayPart ?? "all"}
+                        onValueChange={(value) =>
+                          setDraftFilter((prev) => ({ ...prev, dayPart: value === "all" ? undefined : value as AssessmentFilterModel["dayPart"] }))
+                        }
+                      >
+                        <SelectTrigger><SelectValue placeholder="Tageszeit" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Alle Tageszeiten</SelectItem>
+                          <SelectItem value="none">Keine Angabe</SelectItem>
+                          <SelectItem value="morning">Morgen</SelectItem>
+                          <SelectItem value="noon">Mittag</SelectItem>
+                          <SelectItem value="evening">Abend</SelectItem>
+                          <SelectItem value="night">Nacht</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                    <Select
-                      value={draftFilter.persons?.kind ?? "all"}
-                      onValueChange={(value) =>
-                        setDraftFilter((prev) => ({
-                          ...prev,
-                          persons: value === "all" ? undefined : value === "none" ? { kind: "none" } : { kind: "exact", value: prev.persons?.kind === "exact" ? prev.persons.value : 0 },
-                        }))
-                      }
-                    >
-                      <SelectTrigger><SelectValue placeholder="Anzahl Personen" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Alle</SelectItem>
-                        <SelectItem value="none">Keine Angabe</SelectItem>
-                        <SelectItem value="exact">Genaue Anzahl</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="space-y-1.5">
+                      <div className="font-medium">Anzahl Personen</div>
+                      <Select
+                        value={draftFilter.persons?.kind ?? "all"}
+                        onValueChange={(value) =>
+                          setDraftFilter((prev) => ({
+                            ...prev,
+                            persons: value === "all" ? undefined : value === "none" ? { kind: "none" } : { kind: "exact", value: prev.persons?.kind === "exact" ? prev.persons.value : 0 },
+                          }))
+                        }
+                      >
+                        <SelectTrigger><SelectValue placeholder="Anzahl Personen" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Alle</SelectItem>
+                          <SelectItem value="none">Keine Angabe</SelectItem>
+                          <SelectItem value="exact">Genaue Anzahl</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
 
                     {draftFilter.persons?.kind === "exact" ? (
-                      <Input
-                        type="number"
-                        step={1}
-                        value={draftFilter.persons.value}
-                        onChange={(e) =>
-                          setOptionalNumber(
-                            e.target.value,
-                            (num) => setDraftFilter((prev) => ({
-                              ...prev,
-                              persons: { kind: "exact", value: Math.max(0, Math.floor(num)) },
-                            })),
-                            () => setDraftFilter((prev) => ({ ...prev, persons: { kind: "exact", value: 0 } })),
-                          )
-                        }
-                      />
+                      <div className="space-y-1.5">
+                        <div className="font-medium">Personen (Anzahl)</div>
+                        <Input
+                          type="number"
+                          step={1}
+                          value={draftFilter.persons.value}
+                          onChange={(e) =>
+                            setOptionalNumber(
+                              e.target.value,
+                              (num) => setDraftFilter((prev) => ({
+                                ...prev,
+                                persons: { kind: "exact", value: Math.max(0, Math.floor(num)) },
+                              })),
+                              () => setDraftFilter((prev) => ({ ...prev, persons: { kind: "exact", value: 0 } })),
+                            )
+                          }
+                        />
+                      </div>
                     ) : (
                       <div />
                     )}
                   </div>
 
-                  <Select
-                    value={draftFilter.result ?? "all"}
-                    onValueChange={(value) =>
-                      setDraftFilter((prev) => ({ ...prev, result: value === "all" ? undefined : value as AssessmentFilterModel["result"] }))
-                    }
-                  >
-                    <SelectTrigger><SelectValue placeholder="Resultat" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Alle</SelectItem>
-                      <SelectItem value="none">Kein Resultat</SelectItem>
-                      <SelectItem value="with_result">Mit Resultat</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="space-y-1.5">
+                    <div className="font-medium">Resultat</div>
+                    <Select
+                      value={draftFilter.result ?? "all"}
+                      onValueChange={(value) =>
+                        setDraftFilter((prev) => ({ ...prev, result: value === "all" ? undefined : value as AssessmentFilterModel["result"] }))
+                      }
+                    >
+                      <SelectTrigger><SelectValue placeholder="Resultat" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Alle</SelectItem>
+                        <SelectItem value="none">Kein Resultat</SelectItem>
+                        <SelectItem value="with_result">Mit Resultat</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-between border-t border-border px-4 py-3">
