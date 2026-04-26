@@ -22,7 +22,11 @@ import {
 import { ClientSidebar, ClientSidebarTrigger } from "@/components/assessment/ClientSidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AssessmentOutline } from "@/components/assessment/AssessmentOutline";
-import type { ActionNode, Client, TopicNode } from "@/types/assessment";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { ActionNode, Client, ConfirmationFilter, NumericComparisonOperator, TopicNode } from "@/types/assessment";
 import { cn } from "@/lib/utils";
 import { createSimpleXlsxBlob } from "@/lib/xlsx";
 
@@ -36,6 +40,16 @@ const todayLocalISO = () => {
 };
 
 type ConfirmationPeriod = "day" | "week" | "month";
+
+const OPERATOR_OPTIONS: Array<{ value: NumericComparisonOperator; label: ">" | "<" | "=" }> = [
+  { value: "gt", label: ">" },
+  { value: "lt", label: "<" },
+  { value: "eq", label: "=" },
+];
+
+const INITIAL_CONFIRMATION_FILTER: ConfirmationFilter = {
+  statuses: ["open"],
+};
 
 interface ClientNameInputProps {
   value: string;
@@ -64,40 +78,9 @@ const hasVisibleConfirmationItems = (
   client: Client,
   selectedDate: string,
   period: ConfirmationPeriod,
-  showConfirmed: boolean,
+  filter: ConfirmationFilter,
 ) => {
-  return getVisibleConfirmationItems(client, selectedDate, period, showConfirmed).length > 0;
-};
-
-const getVisibleConfirmationItems = (
-  client: Client,
-  selectedDate: string,
-  period: ConfirmationPeriod,
-  showConfirmed: boolean,
-) => {
-  const items: Array<{
-    topic: TopicNode;
-    target: { id: string; title: string; notes: string };
-    action: ActionNode;
-  }> = [];
-
-  const { start, end } = getPeriodRange(selectedDate, period);
-
-  client.topics.forEach((topic) => {
-    topic.targets.forEach((target) => {
-      target.actions.forEach((action) => {
-        if (action.validFrom && action.validFrom > end) return;
-        if (action.validTo && action.validTo < start) return;
-
-        const status = getStatusForPeriod(action, selectedDate, period);
-        if (!showConfirmed && status !== "open") return;
-
-        items.push({ topic, target, action });
-      });
-    });
-  });
-
-  return items;
+  return getVisibleConfirmationRows(client, selectedDate, period, filter).length > 0;
 };
 
 const getDueDatesInPeriod = (
@@ -127,7 +110,7 @@ const getVisibleConfirmationRows = (
   client: Client,
   selectedDate: string,
   period: ConfirmationPeriod,
-  showConfirmed: boolean,
+  filter: ConfirmationFilter,
 ) => {
   const rows: Array<{
     dueDate: string;
@@ -147,8 +130,58 @@ const getVisibleConfirmationRows = (
 
         const dueDates = getDueDatesInPeriod(action, selectedDate, period);
         dueDates.forEach((dueDate) => {
-          const status = action.confirmations?.[dueDate]?.status || "open";
-          if (!showConfirmed && status !== "open") return;
+          const confirmation = action.confirmations?.[dueDate];
+          const status = confirmation?.status || "open";
+          if (!filter.statuses.includes(status)) return;
+
+          const planned = action.plannedMinutes;
+          const actual = status === "done_as_planned" ? planned : confirmation?.actualMinutes;
+
+          if (
+            filter.plannedMinutes &&
+            !compareNumber(planned, filter.plannedMinutes.op, filter.plannedMinutes.value)
+          ) {
+            return;
+          }
+          if (
+            filter.actualMinutes &&
+            !compareNumber(actual, filter.actualMinutes.op, filter.actualMinutes.value)
+          ) {
+            return;
+          }
+          if (filter.dayPart && (action.dayPart ?? "none") !== filter.dayPart) return;
+
+          if (filter.persons) {
+            if (filter.persons.kind === "none") {
+              if (action.requiredPersons !== undefined) return;
+            } else if (action.requiredPersons !== filter.persons.value) {
+              return;
+            }
+          }
+
+          if (filter.result) {
+            const hasResult = Boolean(confirmation?.result?.trim());
+            if (filter.result === "none" && hasResult) return;
+            if (filter.result === "with_result" && !hasResult) return;
+          }
+
+          const hasDifferenceFilter =
+            filter.differenceMinutes !== undefined || filter.differencePercent !== undefined;
+          if (hasDifferenceFilter) {
+            if (planned == null || actual == null) return;
+            const difference = Math.abs(actual - planned);
+            if (
+              filter.differenceMinutes !== undefined &&
+              difference !== filter.differenceMinutes
+            ) {
+              return;
+            }
+            if (filter.differencePercent !== undefined) {
+              const percent = getDifferencePercent(planned, difference);
+              if (percent !== filter.differencePercent) return;
+            }
+          }
+
           rows.push({ dueDate, topic, target, action, status });
         });
       });
@@ -189,25 +222,21 @@ const getPeriodRange = (selectedDate: string, period: ConfirmationPeriod) => {
   return { start: dateToISO(start), end: dateToISO(end) };
 };
 
-const getStatusForPeriod = (
-  action: ActionNode,
-  selectedDate: string,
-  period: ConfirmationPeriod,
+const compareNumber = (
+  actual: number | undefined,
+  op: NumericComparisonOperator,
+  expected: number,
 ) => {
-  if (period === "day") {
-    return action.confirmations?.[selectedDate]?.status || "open";
-  }
+  if (actual == null || !Number.isFinite(actual)) return false;
+  if (op === "gt") return actual > expected;
+  if (op === "lt") return actual < expected;
+  return actual === expected;
+};
 
-  const { start, end } = getPeriodRange(selectedDate, period);
-  const entries = Object.entries(action.confirmations || {}).filter(
-    ([date, confirmation]) =>
-      date >= start && date <= end && confirmation.status !== "open",
-  );
-
-  if (entries.length === 0) return "open";
-
-  const latestEntry = entries.sort(([a], [b]) => b.localeCompare(a))[0];
-  return latestEntry?.[1].status || "open";
+const getDifferencePercent = (planned: number, difference: number) => {
+  if (difference === 0) return 0;
+  if (planned <= 0) return Number.POSITIVE_INFINITY;
+  return (difference / planned) * 100;
 };
 
 const getWeekValue = (selectedDate: string) => {
@@ -312,7 +341,11 @@ const Index = () => {
   const [selectedClientIds, setSelectedClientIds] = useState<string[]>([
     seedClients[0].id,
   ]);
-  const [showConfirmed, setShowConfirmed] = useState(false);
+  const [confirmationFilter, setConfirmationFilter] =
+    useState<ConfirmationFilter>(INITIAL_CONFIRMATION_FILTER);
+  const [draftFilter, setDraftFilter] =
+    useState<ConfirmationFilter>(INITIAL_CONFIRMATION_FILTER);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   const selectedClients = clients.filter((c) => selectedClientIds.includes(c.id));
   const visibleSelectedClients =
@@ -322,7 +355,7 @@ const Index = () => {
             client,
             selectedDate,
             confirmationPeriod,
-            showConfirmed,
+            confirmationFilter,
           ),
         )
       : selectedClients;
@@ -331,6 +364,48 @@ const Index = () => {
     setSelectedClientIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
+  };
+
+  const openFilter = () => {
+    setDraftFilter(confirmationFilter);
+    setIsFilterOpen(true);
+  };
+
+  const cancelFilter = () => {
+    setDraftFilter(confirmationFilter);
+    setIsFilterOpen(false);
+  };
+
+  const resetFilter = () => {
+    setDraftFilter(INITIAL_CONFIRMATION_FILTER);
+  };
+
+  const applyFilter = () => {
+    setConfirmationFilter(draftFilter);
+    setIsFilterOpen(false);
+  };
+
+  const toggleDraftStatus = (status: ActionNode["status"]) => {
+    setDraftFilter((prev) => {
+      const exists = prev.statuses.includes(status);
+      const statuses = exists
+        ? prev.statuses.filter((item) => item !== status)
+        : [...prev.statuses, status];
+      return { ...prev, statuses: statuses.length > 0 ? statuses : ["open"] };
+    });
+  };
+
+  const setOptionalNumber = (
+    value: string,
+    onDefined: (num: number) => void,
+    onEmpty: () => void,
+  ) => {
+    if (value === "") {
+      onEmpty();
+      return;
+    }
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) onDefined(parsed);
   };
 
   const toggleAllClients = () => {
@@ -697,7 +772,7 @@ const Index = () => {
         client,
         selectedDate,
         confirmationPeriod,
-        showConfirmed,
+        confirmationFilter,
       ).map(({ dueDate, topic, target, action, status }) => {
         const confirmation = action.confirmations?.[dueDate];
         return {
@@ -865,7 +940,12 @@ const Index = () => {
               active={viewMode === "confirmation"}
             />
             <RibbonDivider />
-            <RibbonButton icon={Filter} label="Filter" />
+            <RibbonButton
+              icon={Filter}
+              label="Filter"
+              disabled={viewMode === "planning"}
+              onClick={openFilter}
+            />
             <RibbonDivider />
             <RibbonButton
               icon={Download}
@@ -979,16 +1059,8 @@ const Index = () => {
                         </button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={showConfirmed}
-                          onChange={(e) => setShowConfirmed(e.target.checked)}
-                          className="h-4 w-4 rounded border-border accent-primary"
-                        />
-                        Bestätigte anzeigen
-                      </label>
+                    <div className="text-sm text-muted-foreground">
+                      {confirmationFilter.statuses.length} Status ausgewählt
                     </div>
                   </div>
                 )}
@@ -1026,7 +1098,8 @@ const Index = () => {
                       confirmationPeriod={confirmationPeriod}
                       topics={client.topics}
                       hideConfirmationHeader
-                      showConfirmed={showConfirmed}
+                      showConfirmed
+                      confirmationFilter={confirmationFilter}
                       onUpdateTopic={(topicId, field, value) =>
                         updateTopic(client.id, topicId, field, value)
                       }
@@ -1059,6 +1132,226 @@ const Index = () => {
             )}
           </div>
         </main>
+
+        <Dialog open={isFilterOpen} onOpenChange={(open) => (!open ? cancelFilter() : null)}>
+          <DialogContent className="sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Filter</DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4 text-sm">
+              <div className="space-y-2">
+                <div className="font-medium">Status (ODER)</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { value: "open", label: "Offen" },
+                    { value: "done_as_planned", label: "Erledigt wie geplant" },
+                    { value: "done_with_deviation", label: "Erledigt mit Abweichung" },
+                    { value: "not_done", label: "Nicht durchgeführt" },
+                  ].map((item) => (
+                    <label key={item.value} className="inline-flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={draftFilter.statuses.includes(item.value as ActionNode["status"])}
+                        onChange={() => toggleDraftStatus(item.value as ActionNode["status"])}
+                        className="h-4 w-4 rounded border-border accent-primary"
+                      />
+                      {item.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <div className="font-medium">Minuten geplant</div>
+                  <div className="flex gap-2">
+                    <Select
+                      value={draftFilter.plannedMinutes?.op ?? "eq"}
+                      onValueChange={(value) =>
+                        setDraftFilter((prev) => ({
+                          ...prev,
+                          plannedMinutes: {
+                            op: value as NumericComparisonOperator,
+                            value: prev.plannedMinutes?.value ?? 0,
+                          },
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="w-16"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {OPERATOR_OPTIONS.map((op) => (
+                          <SelectItem key={op.value} value={op.value}>{op.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="number"
+                      value={draftFilter.plannedMinutes?.value ?? ""}
+                      onChange={(e) =>
+                        setOptionalNumber(
+                          e.target.value,
+                          (num) =>
+                            setDraftFilter((prev) => ({
+                              ...prev,
+                              plannedMinutes: { op: prev.plannedMinutes?.op ?? "eq", value: num },
+                            })),
+                          () => setDraftFilter((prev) => ({ ...prev, plannedMinutes: undefined })),
+                        )
+                      }
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="font-medium">Minuten tatsächlich</div>
+                  <div className="flex gap-2">
+                    <Select
+                      value={draftFilter.actualMinutes?.op ?? "eq"}
+                      onValueChange={(value) =>
+                        setDraftFilter((prev) => ({
+                          ...prev,
+                          actualMinutes: {
+                            op: value as NumericComparisonOperator,
+                            value: prev.actualMinutes?.value ?? 0,
+                          },
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="w-16"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {OPERATOR_OPTIONS.map((op) => (
+                          <SelectItem key={op.value} value={op.value}>{op.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="number"
+                      value={draftFilter.actualMinutes?.value ?? ""}
+                      onChange={(e) =>
+                        setOptionalNumber(
+                          e.target.value,
+                          (num) =>
+                            setDraftFilter((prev) => ({
+                              ...prev,
+                              actualMinutes: { op: prev.actualMinutes?.op ?? "eq", value: num },
+                            })),
+                          () => setDraftFilter((prev) => ({ ...prev, actualMinutes: undefined })),
+                        )
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="font-medium">Differenz (UND): Minuten & Prozent</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <Input
+                    type="number"
+                    placeholder="Differenz Minuten (=)"
+                    value={draftFilter.differenceMinutes ?? ""}
+                    onChange={(e) =>
+                      setOptionalNumber(
+                        e.target.value,
+                        (num) => setDraftFilter((prev) => ({ ...prev, differenceMinutes: num })),
+                        () => setDraftFilter((prev) => ({ ...prev, differenceMinutes: undefined })),
+                      )
+                    }
+                  />
+                  <Input
+                    type="number"
+                    placeholder="Differenz % (=)"
+                    value={draftFilter.differencePercent ?? ""}
+                    onChange={(e) =>
+                      setOptionalNumber(
+                        e.target.value,
+                        (num) => setDraftFilter((prev) => ({ ...prev, differencePercent: num })),
+                        () => setDraftFilter((prev) => ({ ...prev, differencePercent: undefined })),
+                      )
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <Select
+                  value={draftFilter.dayPart ?? "all"}
+                  onValueChange={(value) =>
+                    setDraftFilter((prev) => ({ ...prev, dayPart: value === "all" ? undefined : value as ConfirmationFilter["dayPart"] }))
+                  }
+                >
+                  <SelectTrigger><SelectValue placeholder="Tageszeit" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Alle Tageszeiten</SelectItem>
+                    <SelectItem value="none">Keine Angabe</SelectItem>
+                    <SelectItem value="morning">Morgen</SelectItem>
+                    <SelectItem value="noon">Mittag</SelectItem>
+                    <SelectItem value="evening">Abend</SelectItem>
+                    <SelectItem value="night">Nacht</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={draftFilter.persons?.kind ?? "all"}
+                  onValueChange={(value) =>
+                    setDraftFilter((prev) => ({
+                      ...prev,
+                      persons: value === "all" ? undefined : value === "none" ? { kind: "none" } : { kind: "exact", value: prev.persons?.kind === "exact" ? prev.persons.value : 0 },
+                    }))
+                  }
+                >
+                  <SelectTrigger><SelectValue placeholder="Anzahl Personen" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Alle</SelectItem>
+                    <SelectItem value="none">Keine Angabe</SelectItem>
+                    <SelectItem value="exact">Genaue Anzahl</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {draftFilter.persons?.kind === "exact" ? (
+                  <Input
+                    type="number"
+                    step={1}
+                    value={draftFilter.persons.value}
+                    onChange={(e) =>
+                      setOptionalNumber(
+                        e.target.value,
+                        (num) => setDraftFilter((prev) => ({ ...prev, persons: { kind: "exact", value: Math.floor(num) } })),
+                        () => setDraftFilter((prev) => ({ ...prev, persons: { kind: "exact", value: 0 } })),
+                      )
+                    }
+                  />
+                ) : (
+                  <div />
+                )}
+              </div>
+
+              <Select
+                value={draftFilter.result ?? "all"}
+                onValueChange={(value) =>
+                  setDraftFilter((prev) => ({ ...prev, result: value === "all" ? undefined : value as ConfirmationFilter["result"] }))
+                }
+              >
+                <SelectTrigger><SelectValue placeholder="Resultat" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle</SelectItem>
+                  <SelectItem value="none">Kein Resultat</SelectItem>
+                  <SelectItem value="with_result">Mit Resultat</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <DialogFooter className="sm:justify-between">
+              <div className="text-xs text-muted-foreground">Alle Kriterien sind mit UND verknüpft.</div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={cancelFilter}>Abbrechen</Button>
+                <Button variant="outline" onClick={resetFilter}>Zurücksetzen</Button>
+                <Button onClick={applyFilter}>Anwenden</Button>
+              </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </SidebarProvider>
   );
