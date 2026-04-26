@@ -43,7 +43,9 @@ import { Calendar } from "@/components/ui/calendar";
 import type {
   ActionNode,
   ActionStatus,
+  ConfirmationFilter,
   DayPart,
+  NumericComparisonOperator,
   TopicNode,
 } from "@/types/assessment";
 import { DAY_PART_LABEL, DAY_PART_ORDER } from "@/types/assessment";
@@ -74,6 +76,7 @@ interface Props {
   topics: TopicNode[];
   hideConfirmationHeader?: boolean;
   showConfirmed?: boolean;
+  confirmationFilter?: ConfirmationFilter;
   onUpdateTopic: (topicId: string, field: "title" | "notes", value: string) => void;
   onUpdateTarget: (
     topicId: string,
@@ -136,6 +139,23 @@ function groupActions(actions: ActionNode[]) {
     .filter((g) => g.actions.length > 0);
 }
 
+const compareNumber = (
+  actual: number | undefined,
+  op: NumericComparisonOperator,
+  expected: number,
+) => {
+  if (actual == null || !Number.isFinite(actual)) return false;
+  if (op === "gt") return actual > expected;
+  if (op === "lt") return actual < expected;
+  return actual === expected;
+};
+
+const getDifferencePercent = (planned: number, difference: number) => {
+  if (difference === 0) return 0;
+  if (planned <= 0) return Number.POSITIVE_INFINITY;
+  return (difference / planned) * 100;
+};
+
 export function AssessmentOutline({
   viewMode,
   selectedDate,
@@ -144,6 +164,7 @@ export function AssessmentOutline({
   topics,
   hideConfirmationHeader,
   showConfirmed = false,
+  confirmationFilter,
   onUpdateTopic,
   onUpdateTarget,
   onUpdateAction,
@@ -234,7 +255,87 @@ export function AssessmentOutline({
       });
     });
 
-    const sortedFlatActions = [...flatActions].sort((left, right) => {
+    const matchesFilter = (
+      action: ActionNode,
+      status: ActionStatus,
+      dueDate: string,
+    ) => {
+      if (!confirmationFilter) return true;
+
+      if (!confirmationFilter.statuses.includes(status)) return false;
+
+      const conf = action.confirmations?.[dueDate];
+      const planned = action.plannedMinutes;
+      const actual = status === "done_as_planned"
+        ? planned
+        : conf?.actualMinutes;
+
+      if (
+        confirmationFilter.plannedMinutes &&
+        !compareNumber(
+          planned,
+          confirmationFilter.plannedMinutes.op,
+          confirmationFilter.plannedMinutes.value,
+        )
+      ) {
+        return false;
+      }
+
+      if (
+        confirmationFilter.actualMinutes &&
+        !compareNumber(
+          actual,
+          confirmationFilter.actualMinutes.op,
+          confirmationFilter.actualMinutes.value,
+        )
+      ) {
+        return false;
+      }
+
+      if (confirmationFilter.dayPart && (action.dayPart ?? "none") !== confirmationFilter.dayPart) {
+        return false;
+      }
+
+      if (confirmationFilter.persons) {
+        if (confirmationFilter.persons.kind === "none") {
+          if (action.requiredPersons !== undefined) return false;
+        } else if (action.requiredPersons !== confirmationFilter.persons.value) {
+          return false;
+        }
+      }
+
+      if (confirmationFilter.result) {
+        const hasResult = Boolean(conf?.result?.trim());
+        if (confirmationFilter.result === "none" && hasResult) return false;
+        if (confirmationFilter.result === "with_result" && !hasResult) return false;
+      }
+
+      const hasDiffFilter =
+        confirmationFilter.differenceMinutes !== undefined ||
+        confirmationFilter.differencePercent !== undefined;
+      if (hasDiffFilter) {
+        if (planned == null || actual == null) return false;
+        const diff = Math.abs(actual - planned);
+        if (
+          confirmationFilter.differenceMinutes !== undefined &&
+          diff !== confirmationFilter.differenceMinutes
+        ) {
+          return false;
+        }
+        if (confirmationFilter.differencePercent !== undefined) {
+          const pct = getDifferencePercent(planned, diff);
+          if (pct !== confirmationFilter.differencePercent) return false;
+        }
+      }
+
+      return true;
+    };
+
+    const filteredFlatActions = flatActions.filter(({ action, status, dueDate }) =>
+      matchesFilter(action, status, dueDate),
+    );
+
+    const sortedFlatActions = [...filteredFlatActions].sort((left, right) => {
       if (left.dueDate !== right.dueDate) {
         return left.dueDate.localeCompare(right.dueDate);
       }
@@ -278,7 +379,7 @@ export function AssessmentOutline({
               </div>
             </div>
             <div className="text-sm text-muted-foreground bg-background px-3 py-1 rounded-full border border-border">
-              {flatActions.length} Handlungn geplant
+              {filteredFlatActions.length} Handlungen geplant
             </div>
           </div>
         )}

@@ -6,6 +6,24 @@ export type ActionStatus =
 
 export type DayPart = "morning" | "noon" | "evening" | "night";
 export type ResultRequirement = "none" | "optional" | "required";
+export type NumericComparisonOperator = "gt" | "lt" | "eq";
+
+export interface ConfirmationFilter {
+  statuses: ActionStatus[];
+  plannedMinutes?: {
+    op: NumericComparisonOperator;
+    value: number;
+  };
+  actualMinutes?: {
+    op: NumericComparisonOperator;
+    value: number;
+  };
+  differenceMinutes?: number;
+  differencePercent?: number;
+  dayPart?: DayPart | "none";
+  persons?: { kind: "none" } | { kind: "exact"; value: number };
+  result?: "none" | "with_result";
+}
 
 export interface ActionConfirmation {
   status: ActionStatus;
