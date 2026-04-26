@@ -927,7 +927,7 @@ const Index = () => {
               active={viewMode === "confirmation"}
             />
             <RibbonDivider />
-            <div ref={filterButtonRef} className="contents">
+            <div ref={filterButtonRef} className="inline-flex">
               <RibbonButton
                 icon={Filter}
                 label="Filter"
