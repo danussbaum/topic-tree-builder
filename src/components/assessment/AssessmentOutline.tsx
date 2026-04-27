@@ -765,6 +765,36 @@ function ActionRow({
     action.recurrence === "weekly" && (action.recurrenceWeekdays?.length ?? 0) === 0;
   const monthlyPatternMissing =
     action.recurrence === "monthly" && !action.recurrenceMonthlyPattern;
+  const [weekdayDragState, setWeekdayDragState] = useState<{
+    anchorIndex: number;
+    baseSelection: Weekday[];
+    mode: "add" | "remove";
+  } | null>(null);
+
+  const updateWeekdayRange = (
+    dragState: { anchorIndex: number; baseSelection: Weekday[]; mode: "add" | "remove" },
+    currentIndex: number,
+  ) => {
+    const from = Math.min(dragState.anchorIndex, currentIndex);
+    const to = Math.max(dragState.anchorIndex, currentIndex);
+    const range = WEEKDAY_OPTIONS.slice(from, to + 1).map((item) => item.value);
+    const next = new Set<Weekday>(dragState.baseSelection);
+    for (const day of range) {
+      if (dragState.mode === "add") next.add(day);
+      else next.delete(day);
+    }
+    const normalized = WEEKDAY_OPTIONS
+      .map((item) => item.value)
+      .filter((day) => next.has(day));
+    onUpdateActionField(topicId, targetId, action.id, "recurrenceWeekdays", normalized);
+  };
+
+  useEffect(() => {
+    if (!weekdayDragState) return;
+    const stopDrag = () => setWeekdayDragState(null);
+    window.addEventListener("pointerup", stopDrag);
+    return () => window.removeEventListener("pointerup", stopDrag);
+  }, [weekdayDragState]);
 
   return (
     <li className={cn(
@@ -1021,28 +1051,41 @@ function ActionRow({
                 )}
               >
                 <div className="mb-1 text-muted-foreground">Wochentage</div>
-                <div className="flex flex-wrap gap-1">
-                  {WEEKDAY_OPTIONS.map((weekday) => {
+                <div className="flex flex-wrap gap-1 select-none">
+                  {WEEKDAY_OPTIONS.map((weekday, weekdayIndex) => {
                     const isSelected = (action.recurrenceWeekdays ?? []).includes(weekday.value);
                     return (
                       <button
                         key={weekday.value}
                         type="button"
                         disabled={isLocked}
-                        onClick={() => {
+                        onPointerDown={(event) => {
+                          if (event.button !== 0) return;
+                          event.preventDefault();
+                          const baseSelection = action.recurrenceWeekdays ?? [];
+                          const mode: "add" | "remove" = isSelected ? "remove" : "add";
+                          const dragState = {
+                            anchorIndex: weekdayIndex,
+                            baseSelection,
+                            mode,
+                          };
+                          setWeekdayDragState(dragState);
+                          updateWeekdayRange(dragState, weekdayIndex);
+                        }}
+                        onPointerEnter={() => {
+                          if (!weekdayDragState) return;
+                          updateWeekdayRange(weekdayDragState, weekdayIndex);
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key !== " " && event.key !== "Enter") return;
+                          event.preventDefault();
                           const next = isSelected
                             ? (action.recurrenceWeekdays ?? []).filter((value) => value !== weekday.value)
                             : [...(action.recurrenceWeekdays ?? []), weekday.value];
-                          onUpdateActionField(
-                            topicId,
-                            targetId,
-                            action.id,
-                            "recurrenceWeekdays",
-                            next,
-                          );
+                          onUpdateActionField(topicId, targetId, action.id, "recurrenceWeekdays", next);
                         }}
                         className={cn(
-                          "rounded border px-2 py-0.5 text-xs transition-colors",
+                          "rounded border px-2 py-0.5 text-xs transition-colors cursor-pointer",
                           isSelected
                             ? "border-primary bg-primary/10 text-primary"
                             : "border-border hover:bg-secondary/60",
