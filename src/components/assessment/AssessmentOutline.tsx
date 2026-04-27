@@ -860,7 +860,7 @@ function ActionRow({
         {/* Meta fields */}
         {viewMode === "planning" ? (
           <div className="mt-2 grid grid-cols-1 gap-2 text-xs text-muted-foreground md:grid-cols-3">
-            <div className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1.5">
+            <div className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1.5 transition-colors focus-within:border-primary">
               <span className="shrink-0 text-muted-foreground">Kategorie</span>
               <Select
                 value={action.category ?? "none"}
@@ -875,7 +875,7 @@ function ActionRow({
                   )
                 }
               >
-                <SelectTrigger className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0">
+                <SelectTrigger className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0 focus-visible:ring-0">
                   <SelectValue placeholder="Keine Angabe" />
                 </SelectTrigger>
                 <SelectContent>
@@ -887,7 +887,7 @@ function ActionRow({
               </Select>
             </div>
 
-            <div className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1.5">
+            <div className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1.5 transition-colors focus-within:border-primary">
               <span className="shrink-0 text-muted-foreground">Tageszeit</span>
               <Select
                 value={action.dayPart ?? "none"}
@@ -902,7 +902,7 @@ function ActionRow({
                   )
                 }
               >
-                <SelectTrigger className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0">
+                <SelectTrigger className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0 focus-visible:ring-0">
                   <SelectValue placeholder="Keine Angabe" />
                 </SelectTrigger>
                 <SelectContent>
@@ -967,7 +967,7 @@ function ActionRow({
               />
             </label>
 
-            <div className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1.5">
+            <div className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1.5 transition-colors focus-within:border-primary">
               <span className="shrink-0 text-muted-foreground">Resultat</span>
               <Select
                 value={action.resultRequirement ?? "none"}
@@ -982,7 +982,7 @@ function ActionRow({
                   )
                 }
               >
-                <SelectTrigger className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0">
+                <SelectTrigger className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0 focus-visible:ring-0">
                   <SelectValue placeholder="Kein Resultat" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1014,7 +1014,7 @@ function ActionRow({
             />
             <div
               className={cn(
-                "flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1.5",
+                "flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1.5 transition-colors focus-within:border-primary",
                 !action.recurrence && "border-destructive/60 text-destructive",
               )}
             >
@@ -1032,7 +1032,7 @@ function ActionRow({
                   )
                 }
               >
-                <SelectTrigger className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0">
+                <SelectTrigger className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0 focus-visible:ring-0">
                   <SelectValue placeholder="Wählen…" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1350,52 +1350,66 @@ function DateField({
   const date = value ? parseISO(value) : undefined;
   const missing = required && !value;
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          disabled={disabled}
-          className={cn(
-            "inline-flex items-center gap-2 rounded border border-border bg-background px-2 py-1.5 text-xs hover:bg-secondary/60",
-            className,
-            disabled && "opacity-60 cursor-not-allowed hover:bg-background",
-            missing && "border-destructive/60 text-destructive",
+    <div
+      className={cn(
+        "inline-flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1.5 text-xs transition-colors focus-within:border-primary",
+        className,
+        disabled && "opacity-60",
+        missing && "border-destructive/60 text-destructive",
+      )}
+    >
+      <span className="shrink-0 text-muted-foreground">{label}:</span>
+      <Input
+        type="date"
+        disabled={disabled}
+        value={value ?? ""}
+        onChange={(event) => {
+          const nextValue = event.target.value;
+          onChange(nextValue || undefined);
+        }}
+        className="h-7 min-w-0 flex-1 border border-border bg-transparent px-2 py-0.5 text-xs tabular-nums focus:border-primary focus-visible:ring-0"
+      />
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            disabled={disabled}
+            className="h-7 w-7 shrink-0 border border-border bg-transparent hover:bg-secondary/60"
+            aria-label={`${label} per Kalender auswählen`}
+          >
+            <CalendarIcon className="h-3.5 w-3.5" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <Calendar
+            mode="single"
+            disabled={disabled}
+            selected={date}
+            onSelect={(d) =>
+              onChange(d ? format(d, "yyyy-MM-dd") : undefined)
+            }
+            initialFocus
+            locale={de}
+            className={cn("p-3 pointer-events-auto")}
+          />
+          {!required && value && (
+            <div className="p-2 border-t border-border">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full"
+                disabled={disabled}
+                onClick={() => onChange(undefined)}
+              >
+                Datum entfernen
+              </Button>
+            </div>
           )}
-        >
-          <CalendarIcon className="h-3.5 w-3.5" />
-          <span className="text-muted-foreground">{label}:</span>
-          <span className="text-foreground/80">
-            {date ? format(date, "dd.MM.yyyy", { locale: de }) : "–"}
-          </span>
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
-        <Calendar
-          mode="single"
-          disabled={disabled}
-          selected={date}
-          onSelect={(d) =>
-            onChange(d ? format(d, "yyyy-MM-dd") : undefined)
-          }
-          initialFocus
-          locale={de}
-          className={cn("p-3 pointer-events-auto")}
-        />
-        {!required && value && (
-          <div className="p-2 border-t border-border">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full"
-              disabled={disabled}
-              onClick={() => onChange(undefined)}
-            >
-              Datum entfernen
-            </Button>
-          </div>
-        )}
-      </PopoverContent>
-    </Popover>
+        </PopoverContent>
+      </Popover>
+    </div>
   );
 }
 
