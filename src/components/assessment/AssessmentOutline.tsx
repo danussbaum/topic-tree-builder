@@ -39,8 +39,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
 import type {
   ActionNode,
   ActionStatus,
@@ -1347,7 +1345,6 @@ function DateField({
   disabled?: boolean;
   className?: string;
 }) {
-  const date = value ? parseISO(value) : undefined;
   const missing = required && !value;
   return (
     <div
@@ -1369,46 +1366,6 @@ function DateField({
         }}
         className="h-7 min-w-0 flex-1 border border-border bg-transparent px-2 py-0.5 text-xs tabular-nums focus:border-primary focus-visible:ring-0"
       />
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            disabled={disabled}
-            className="h-7 w-7 shrink-0 border border-border bg-transparent hover:bg-secondary/60"
-            aria-label={`${label} per Kalender auswählen`}
-          >
-            <CalendarIcon className="h-3.5 w-3.5" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
-          <Calendar
-            mode="single"
-            disabled={disabled}
-            selected={date}
-            onSelect={(d) =>
-              onChange(d ? format(d, "yyyy-MM-dd") : undefined)
-            }
-            initialFocus
-            locale={de}
-            className={cn("p-3 pointer-events-auto")}
-          />
-          {!required && value && (
-            <div className="p-2 border-t border-border">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full"
-                disabled={disabled}
-                onClick={() => onChange(undefined)}
-              >
-                Datum entfernen
-              </Button>
-            </div>
-          )}
-        </PopoverContent>
-      </Popover>
     </div>
   );
 }
