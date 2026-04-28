@@ -108,3 +108,28 @@
     font-family: 'Source Sans 3', system-ui, sans-serif;
   }
 }
+
+@layer components {
+  /* Soft, harmonized native date input */
+  .date-input-soft {
+    color-scheme: light;
+  }
+  .date-input-soft::-webkit-calendar-picker-indicator {
+    opacity: 0.45;
+    cursor: pointer;
+    padding: 0;
+    margin-left: 4px;
+    filter: grayscale(1);
+    transition: opacity 0.15s ease;
+  }
+  .date-input-soft:hover::-webkit-calendar-picker-indicator,
+  .date-input-soft:focus::-webkit-calendar-picker-indicator {
+    opacity: 0.75;
+  }
+  .date-input-soft::-webkit-datetime-edit {
+    padding: 0;
+  }
+  .date-input-soft::-webkit-datetime-edit-fields-wrapper {
+    padding: 0;
+  }
+}
