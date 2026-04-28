@@ -1364,7 +1364,7 @@ function DateField({
           const nextValue = event.target.value;
           onChange(nextValue || undefined);
         }}
-        className="h-7 min-w-0 flex-1 border border-border bg-transparent px-2 py-0.5 text-xs tabular-nums focus:border-primary focus-visible:ring-0"
+        className="date-input-soft h-6 min-w-0 flex-1 border-0 bg-transparent p-0 text-xs leading-none tabular-nums text-foreground shadow-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
       />
     </div>
   );
