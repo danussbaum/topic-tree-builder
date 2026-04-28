@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePickerInput } from "@/components/ui/date-picker-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -1356,15 +1357,12 @@ function DateField({
       )}
     >
       <span className="shrink-0 text-muted-foreground">{label}:</span>
-      <Input
-        type="date"
+      <DatePickerInput
         disabled={disabled}
-        value={value ?? ""}
-        onChange={(event) => {
-          const nextValue = event.target.value;
-          onChange(nextValue || undefined);
-        }}
-        className="date-input-soft h-6 w-full min-w-0 flex-1 border-0 bg-transparent p-0 pr-0 text-xs leading-none tabular-nums text-foreground shadow-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+        value={value}
+        onChange={(nextValue) => onChange(nextValue || undefined)}
+        placeholder="TT.MM.JJJJ"
+        className="h-6 min-h-0 w-full min-w-0 flex-1 border-0 bg-transparent p-0 pr-0 text-xs leading-none shadow-none"
       />
     </div>
   );
