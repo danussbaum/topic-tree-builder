@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { DatePickerInput } from "@/components/ui/date-picker-input";
 
 export type ConfirmationPeriod = "day" | "week" | "month";
 
@@ -116,17 +117,16 @@ export const ConfirmationFilterPanel = ({
           <div className="space-y-2">
             <Label htmlFor="confirmation-date">Datum</Label>
             {draft.confirmationPeriod === "day" && (
-              <input
+              <DatePickerInput
                 id="confirmation-date"
-                type="date"
                 value={draft.selectedDate}
-                onChange={(e) =>
+                onChange={(value) =>
                   setDraft((prev) => ({
                     ...prev,
-                    selectedDate: e.target.value,
+                    selectedDate: value,
                   }))
                 }
-                className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                className="h-10"
               />
             )}
             {draft.confirmationPeriod === "week" && (

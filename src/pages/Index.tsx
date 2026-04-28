@@ -38,6 +38,7 @@ import { cn } from "@/lib/utils";
 import { createSimpleXlsxBlob } from "@/lib/xlsx";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePickerInput } from "@/components/ui/date-picker-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -1382,11 +1383,10 @@ const Index = () => {
                           ‹
                         </button>
                         {confirmationPeriod === "day" && (
-                          <input
-                            type="date"
+                          <DatePickerInput
                             value={selectedDate}
-                            onChange={(e) => setSelectedDate(e.target.value)}
-                            className="bg-transparent text-sm px-2 py-1 outline-none"
+                            onChange={setSelectedDate}
+                            className="h-8 w-[170px] border-0 bg-transparent text-sm shadow-none"
                           />
                         )}
                         {confirmationPeriod === "week" && (
