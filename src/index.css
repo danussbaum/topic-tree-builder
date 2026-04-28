@@ -113,12 +113,15 @@
   /* Soft, harmonized native date input */
   .date-input-soft {
     color-scheme: light;
+    width: 100%;
+    min-width: 0;
   }
   .date-input-soft::-webkit-calendar-picker-indicator {
     opacity: 0.45;
     cursor: pointer;
     padding: 0;
-    margin-left: 4px;
+    margin-left: auto;
+    margin-right: 0;
     filter: grayscale(1);
     transition: opacity 0.15s ease;
   }
