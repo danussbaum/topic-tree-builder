@@ -29,7 +29,6 @@ import type {
   Weekday,
 } from "@/types/assessment";
 import {
-  DEFAULT_ASSESSMENT_FILTER,
   matchesAssessmentFilter,
   type AssessmentFilterModel,
   type NumericComparison,
@@ -61,6 +60,11 @@ const OPERATOR_OPTIONS: Array<{ value: NumericComparison["op"]; label: ">" | "<"
 const INITIAL_CONFIRMATION_FILTER: AssessmentFilterModel = {
   statuses: ["open"],
 };
+const CONFIRMED_STATUSES: ActionNode["status"][] = [
+  "done_as_planned",
+  "done_with_deviation",
+  "not_done",
+];
 
 const WEEKDAY_TO_INDEX: Record<Weekday, number> = {
   monday: 1,
@@ -343,7 +347,7 @@ const Index = () => {
     seedClients[0].id,
   ]);
   const [confirmationFilter, setConfirmationFilter] =
-    useState<AssessmentFilterModel>(DEFAULT_ASSESSMENT_FILTER);
+    useState<AssessmentFilterModel>(INITIAL_CONFIRMATION_FILTER);
   const [draftFilter, setDraftFilter] = useState<AssessmentFilterModel>(confirmationFilter);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
@@ -375,6 +379,10 @@ const Index = () => {
       f.result != null
     );
   })();
+  const isOpenVisible = confirmationFilter.statuses.includes("open");
+  const isConfirmedVisible = CONFIRMED_STATUSES.some((status) =>
+    confirmationFilter.statuses.includes(status),
+  );
 
   const selectedClients = clients.filter((c) => selectedClientIds.includes(c.id));
   const visibleSelectedClients =
@@ -1432,13 +1440,29 @@ const Index = () => {
                       <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
                         <input
                           type="checkbox"
-                          checked={confirmationFilter.statuses.length > 1}
+                          checked={isOpenVisible}
                           onChange={(e) =>
                             setConfirmationFilter((prev) => ({
                               ...prev,
                               statuses: e.target.checked
-                                ? ["open", "done_as_planned", "done_with_deviation", "not_done"]
-                                : ["open"],
+                                ? [...new Set(["open", ...prev.statuses])]
+                                : prev.statuses.filter((status) => status !== "open"),
+                            }))
+                          }
+                          className="h-4 w-4 rounded border-border accent-primary"
+                        />
+                        Unbestätigte anzeigen
+                      </label>
+                      <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={isConfirmedVisible}
+                          onChange={(e) =>
+                            setConfirmationFilter((prev) => ({
+                              ...prev,
+                              statuses: e.target.checked
+                                ? [...new Set([...prev.statuses, ...CONFIRMED_STATUSES])]
+                                : prev.statuses.filter((status) => !CONFIRMED_STATUSES.includes(status)),
                             }))
                           }
                           className="h-4 w-4 rounded border-border accent-primary"
