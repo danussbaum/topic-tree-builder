@@ -46,6 +46,9 @@ export interface ActionConfirmation {
   reason?: string;
   result?: string;
   observations?: string;
+  confirmedBy?: string;
+  /** ISO timestamp in UTC with second precision, e.g. 2026-04-29T10:15:30Z */
+  confirmedAt?: string;
   done: boolean;
 }
 
