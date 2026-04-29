@@ -39,6 +39,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DatePickerInput } from "@/components/ui/date-picker-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const todayLocalISO = () => {
@@ -74,6 +82,17 @@ const WEEKDAY_TO_INDEX: Record<Weekday, number> = {
   friday: 5,
   saturday: 6,
   sunday: 0,
+};
+
+const isTargetVisibleInPlanning = (target: TopicNode["targets"][number], today: string) => {
+  if (target.actions.length === 0) return true;
+  if (target.actions.some((action) => !action.validFrom)) return true;
+  return target.actions.some(
+    (action) =>
+      action.validFrom != null &&
+      action.validFrom <= today &&
+      (!action.validTo || today <= action.validTo),
+  );
 };
 
 const isRecurringOnDate = (action: ActionNode, date: Date) => {
@@ -351,6 +370,7 @@ const Index = () => {
   const [showCompletedTargets, setShowCompletedTargets] = useState(false);
   const [draftFilter, setDraftFilter] = useState<AssessmentFilterModel>(confirmationFilter);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [isTargetHiddenHintOpen, setIsTargetHiddenHintOpen] = useState(false);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
   const filterButtonRef = useRef<HTMLDivElement | null>(null);
   const [filterMenuLeft, setFilterMenuLeft] = useState(0);
@@ -650,29 +670,44 @@ const Index = () => {
       | "observations",
     value: number | string | string[] | undefined,
   ) => {
+    const today = todayLocalISO();
+    let wasVisible = false;
+    let isVisibleAfterUpdate = false;
+
     updateClientTopicsFor(clientId, (topics) =>
       topics.map((t) =>
         t.id !== topicId
           ? t
           : {
               ...t,
-              targets: t.targets.map((tg) =>
-                tg.id !== targetId
-                  ? tg
-                  : {
-                      ...tg,
-                      actions: tg.actions.map((a) =>
-                        a.id === actionId
-                          ? Object.keys(a.confirmations ?? {}).length > 0
-                            ? a
-                            : { ...a, [field]: value }
-                          : a,
-                      ),
-                    },
-              ),
+              targets: t.targets.map((tg) => {
+                if (tg.id !== targetId) return tg;
+                wasVisible = isTargetVisibleInPlanning(tg, today);
+                const updatedTarget = {
+                  ...tg,
+                  actions: tg.actions.map((a) =>
+                    a.id === actionId
+                      ? Object.keys(a.confirmations ?? {}).length > 0
+                        ? a
+                        : { ...a, [field]: value }
+                      : a,
+                  ),
+                };
+                isVisibleAfterUpdate = isTargetVisibleInPlanning(updatedTarget, today);
+                return updatedTarget;
+              }),
             },
       ),
     );
+
+    if (
+      viewMode === "planning" &&
+      !showCompletedTargets &&
+      wasVisible &&
+      !isVisibleAfterUpdate
+    ) {
+      setIsTargetHiddenHintOpen(true);
+    }
   };
 
   const confirmAction = (
@@ -1556,6 +1591,21 @@ const Index = () => {
         </main>
 
       </div>
+      <Dialog open={isTargetHiddenHintOpen} onOpenChange={setIsTargetHiddenHintOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ziel ausgeblendet</DialogTitle>
+            <DialogDescription>
+              Das Ziel wurde ausgeblendet, weil die letzte Handlung abgeschlossen wurde.
+              Du kannst das Ziel über den Filter oben rechts mit „Abgeschlossene Ziele einblenden“
+              wieder sichtbar machen.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setIsTargetHiddenHintOpen(false)}>Verstanden</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </SidebarProvider>
   );
 };
