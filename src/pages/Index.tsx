@@ -371,6 +371,7 @@ const Index = () => {
   const [draftFilter, setDraftFilter] = useState<AssessmentFilterModel>(confirmationFilter);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isTargetHiddenHintOpen, setIsTargetHiddenHintOpen] = useState(false);
+  const [hideTargetHiddenHint, setHideTargetHiddenHint] = useState(false);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
   const filterButtonRef = useRef<HTMLDivElement | null>(null);
   const [filterMenuLeft, setFilterMenuLeft] = useState(0);
@@ -1649,7 +1650,16 @@ const Index = () => {
               wieder sichtbar machen.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
+          <DialogFooter className="flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={hideTargetHiddenHint}
+                onChange={(event) => setHideTargetHiddenHint(event.target.checked)}
+                className="h-4 w-4 rounded border-border accent-primary"
+              />
+              Diese Meldung künftig nicht mehr anzeigen
+            </label>
             <Button onClick={() => setIsTargetHiddenHintOpen(false)}>Verstanden</Button>
           </DialogFooter>
         </DialogContent>
