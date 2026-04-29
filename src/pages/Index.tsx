@@ -348,6 +348,7 @@ const Index = () => {
   ]);
   const [confirmationFilter, setConfirmationFilter] =
     useState<AssessmentFilterModel>(INITIAL_CONFIRMATION_FILTER);
+  const [showCompletedTargets, setShowCompletedTargets] = useState(false);
   const [draftFilter, setDraftFilter] = useState<AssessmentFilterModel>(confirmationFilter);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
@@ -1037,6 +1038,20 @@ const Index = () => {
                 highlighted={isFilterActive}
               />
             </div>
+            {viewMode === "planning" && (
+              <>
+                <RibbonDivider />
+                <label className="ml-2 inline-flex items-center gap-2 text-xs text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={showCompletedTargets}
+                    onChange={(event) => setShowCompletedTargets(event.target.checked)}
+                    className="h-4 w-4 rounded border-border accent-primary"
+                  />
+                  Abgeschlossene Ziele einblenden
+                </label>
+              </>
+            )}
             <RibbonDivider />
             <RibbonButton
               icon={Download}
@@ -1502,6 +1517,7 @@ const Index = () => {
                     <AssessmentOutline
                       viewMode={viewMode}
                       selectedDate={selectedDate}
+                      showCompletedTargets={showCompletedTargets}
                       onSelectedDateChange={setSelectedDate}
                       confirmationPeriod={confirmationPeriod}
                       topics={client.topics}
