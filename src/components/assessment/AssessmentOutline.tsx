@@ -1031,7 +1031,7 @@ function ActionRow({
             />
             <DateField
               label="Gültig bis"
-              disabled={isLocked}
+              disabled={false}
               value={action.validTo}
               onChange={(v) =>
                 onUpdateActionField(topicId, targetId, action.id, "validTo", v)
@@ -1292,7 +1292,7 @@ function ActionRow({
             />
             <DateField
               label="Gültig bis"
-              disabled={isLocked}
+              disabled={false}
               value={action.validTo}
               onChange={(v) =>
                 onUpdateActionField(topicId, targetId, action.id, "validTo", v)
