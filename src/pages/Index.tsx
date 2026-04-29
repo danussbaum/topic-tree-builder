@@ -371,6 +371,7 @@ const Index = () => {
   const [draftFilter, setDraftFilter] = useState<AssessmentFilterModel>(confirmationFilter);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isTargetHiddenHintOpen, setIsTargetHiddenHintOpen] = useState(false);
+  const [hideTargetHiddenHint, setHideTargetHiddenHint] = useState(false);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
   const filterButtonRef = useRef<HTMLDivElement | null>(null);
   const [filterMenuLeft, setFilterMenuLeft] = useState(0);
@@ -676,6 +677,47 @@ const Index = () => {
       return [...dates].sort()[0];
     };
 
+    const isTargetVisibleInPlanning = (actions: ActionNode[]) => {
+      if (showCompletedTargets) return true;
+      if (actions.length === 0) return true;
+      if (actions.some((action) => !action.validFrom)) return true;
+      return actions.some(
+        (action) =>
+          action.validFrom != null &&
+          action.validFrom <= selectedDate &&
+          (!action.validTo || selectedDate <= action.validTo),
+      );
+    };
+
+    const client = clients.find((c) => c.id === clientId);
+    const topic = client?.topics.find((t) => t.id === topicId);
+    const target = topic?.targets.find((tg) => tg.id === targetId);
+    const currentAction = target?.actions.find((a) => a.id === actionId);
+
+    const wasVisible = target ? isTargetVisibleInPlanning(target.actions) : false;
+
+    const nextAction = (() => {
+      if (!currentAction) return undefined;
+      const hasConfirmations = Object.keys(currentAction.confirmations ?? {}).length > 0;
+      const isValidToUpdate = field === "validTo";
+      if (hasConfirmations && !isValidToUpdate) return currentAction;
+
+      if (isValidToUpdate && typeof value === "string" && value) {
+        const oldestConfirmationDate = getOldestConfirmationDate(currentAction.confirmations);
+        if (oldestConfirmationDate && value < oldestConfirmationDate) {
+          return currentAction;
+        }
+      }
+
+      return { ...currentAction, [field]: value };
+    })();
+
+    const isVisibleAfterUpdate = target
+      ? isTargetVisibleInPlanning(
+          target.actions.map((action) => (action.id === actionId && nextAction ? nextAction : action)),
+        )
+      : false;
+
     updateClientTopicsFor(clientId, (topics) =>
       topics.map((t) =>
         t.id !== topicId
@@ -715,6 +757,7 @@ const Index = () => {
     if (
       viewMode === "planning" &&
       !showCompletedTargets &&
+      !hideTargetHiddenHint &&
       wasVisible &&
       !isVisibleAfterUpdate
     ) {
@@ -1613,7 +1656,16 @@ const Index = () => {
               wieder sichtbar machen.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
+          <DialogFooter className="flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={hideTargetHiddenHint}
+                onChange={(event) => setHideTargetHiddenHint(event.target.checked)}
+                className="h-4 w-4 rounded border-border accent-primary"
+              />
+              Diese Meldung künftig nicht mehr anzeigen
+            </label>
             <Button onClick={() => setIsTargetHiddenHintOpen(false)}>Verstanden</Button>
           </DialogFooter>
         </DialogContent>
