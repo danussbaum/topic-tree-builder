@@ -89,6 +89,7 @@ export function DatePickerInput({
         <Calendar
           mode="single"
           selected={selectedDate}
+          required
           onSelect={(date) => {
             if (!date) {
               onChange("");
