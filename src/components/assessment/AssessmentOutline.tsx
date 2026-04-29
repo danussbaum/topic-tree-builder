@@ -253,6 +253,7 @@ export function AssessmentOutline({
   onDeleteAction,
 }: Props) {
   const [dialogTarget, setDialogTarget] = useState<DialogTarget | null>(null);
+  const today = format(new Date(), "yyyy-MM-dd");
 
   if (viewMode === "confirmation") {
     const getPeriodRange = () => {
@@ -626,8 +627,8 @@ export function AssessmentOutline({
               return target.actions.some(
                 (action) =>
                   action.validFrom != null &&
-                  action.validFrom <= selectedDate &&
-                  (!action.validTo || selectedDate <= action.validTo),
+                  action.validFrom <= today &&
+                  (!action.validTo || today <= action.validTo),
               );
             }).map((target) => {
               return (

@@ -1487,6 +1487,19 @@ const Index = () => {
                     </div>
                   </div>
                 )}
+                {viewMode === "planning" && (
+                  <div className="flex items-center justify-end">
+                    <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={showCompletedTargets}
+                        onChange={(event) => setShowCompletedTargets(event.target.checked)}
+                        className="h-4 w-4 rounded border-border accent-primary"
+                      />
+                      Abgeschlossene Ziele einblenden
+                    </label>
+                  </div>
+                )}
 
                 {visibleSelectedClients.map((client) => (
                   <section key={client.id} className="space-y-6">
