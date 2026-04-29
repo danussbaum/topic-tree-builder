@@ -61,7 +61,13 @@ import { matchesConfirmationFilter } from "@/lib/confirmation-filter";
 
 type ConfirmPayload =
   | { status: "done_as_planned"; result?: string; observations?: string }
-  | { status: "done_with_deviation"; actualMinutes: number; reason: string; result?: string; observations?: string }
+  | {
+      status: "done_with_deviation";
+      actualMinutes?: number;
+      reason: string;
+      result?: string;
+      observations?: string;
+    }
   | { status: "not_done"; reason: string }
   | { status: "open" };
 
@@ -1480,11 +1486,12 @@ function ConfirmActionDialog({
     if (mode === "done_as_planned") {
       onConfirm({ status: "done_as_planned", result: res, observations: obs });
     } else if (mode === "done_with_deviation") {
+      const hasPlannedMinutes = target.action.plannedMinutes != null;
       const min = Number(actualMinutes);
-      if (!Number.isFinite(min) || min < 0 || !reason.trim()) return;
+      if ((hasPlannedMinutes && (!Number.isFinite(min) || min < 0)) || !reason.trim()) return;
       onConfirm({
         status: "done_with_deviation",
-        actualMinutes: min,
+        actualMinutes: hasPlannedMinutes ? min : undefined,
         reason: reason.trim(),
         result: res,
         observations: obs,
@@ -1571,18 +1578,20 @@ function ConfirmActionDialog({
 
         {mode === "done_with_deviation" && (
           <div className="space-y-3 pt-2 border-t border-border">
-            <div className="space-y-1.5">
-              <Label htmlFor="actual-min">Tatsächliche Minuten</Label>
-              <Input
-                id="actual-min"
-                type="number"
-                min={0}
-                step={5}
-                value={actualMinutes}
-                onChange={(e) => setActualMinutes(e.target.value)}
-                placeholder="z. B. 60"
-              />
-            </div>
+            {planned != null && (
+              <div className="space-y-1.5">
+                <Label htmlFor="actual-min">Tatsächliche Minuten</Label>
+                <Input
+                  id="actual-min"
+                  type="number"
+                  min={0}
+                  step={5}
+                  value={actualMinutes}
+                  onChange={(e) => setActualMinutes(e.target.value)}
+                  placeholder="z. B. 60"
+                />
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label htmlFor="dev-reason">Begründung</Label>
               <Textarea
