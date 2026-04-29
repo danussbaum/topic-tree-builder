@@ -83,6 +83,7 @@ type ActionField =
 interface Props {
   viewMode: "planning" | "confirmation";
   selectedDate: string;
+  showCompletedTargets?: boolean;
   onSelectedDateChange: (date: string) => void;
   confirmationPeriod?: "day" | "week" | "month";
   topics: TopicNode[];
@@ -233,6 +234,7 @@ export function AssessmentOutline({
   viewMode,
   selectedDate,
   onSelectedDateChange,
+  showCompletedTargets = false,
   confirmationPeriod = "day",
   topics,
   hideConfirmationHeader,
@@ -251,6 +253,7 @@ export function AssessmentOutline({
   onDeleteAction,
 }: Props) {
   const [dialogTarget, setDialogTarget] = useState<DialogTarget | null>(null);
+  const today = format(new Date(), "yyyy-MM-dd");
 
   if (viewMode === "confirmation") {
     const getPeriodRange = () => {
@@ -617,7 +620,17 @@ export function AssessmentOutline({
 
           {/* Targets */}
           <div className="mt-6 space-y-6 pl-6 border-l border-border ml-4">
-            {topic.targets.map((target) => {
+            {topic.targets.filter((target) => {
+              if (showCompletedTargets) return true;
+              if (target.actions.length === 0) return true;
+              if (target.actions.some((action) => !action.validFrom)) return true;
+              return target.actions.some(
+                (action) =>
+                  action.validFrom != null &&
+                  action.validFrom <= today &&
+                  (!action.validTo || today <= action.validTo),
+              );
+            }).map((target) => {
               return (
                 <div key={target.id} className="group/target">
                   <div className="flex items-start gap-3">

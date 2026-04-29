@@ -348,6 +348,7 @@ const Index = () => {
   ]);
   const [confirmationFilter, setConfirmationFilter] =
     useState<AssessmentFilterModel>(INITIAL_CONFIRMATION_FILTER);
+  const [showCompletedTargets, setShowCompletedTargets] = useState(false);
   const [draftFilter, setDraftFilter] = useState<AssessmentFilterModel>(confirmationFilter);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
@@ -1472,6 +1473,19 @@ const Index = () => {
                     </div>
                   </div>
                 )}
+                {viewMode === "planning" && (
+                  <div className="flex items-center justify-end">
+                    <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={showCompletedTargets}
+                        onChange={(event) => setShowCompletedTargets(event.target.checked)}
+                        className="h-4 w-4 rounded border-border accent-primary"
+                      />
+                      Abgeschlossene Ziele einblenden
+                    </label>
+                  </div>
+                )}
 
                 {visibleSelectedClients.map((client) => (
                   <section key={client.id} className="space-y-6">
@@ -1502,6 +1516,7 @@ const Index = () => {
                     <AssessmentOutline
                       viewMode={viewMode}
                       selectedDate={selectedDate}
+                      showCompletedTargets={showCompletedTargets}
                       onSelectedDateChange={setSelectedDate}
                       confirmationPeriod={confirmationPeriod}
                       topics={client.topics}
