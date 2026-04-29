@@ -1,6 +1,7 @@
 import { CalendarIcon } from "lucide-react";
 import { format, isValid, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -39,9 +40,10 @@ export function DatePickerInput({
   id,
 }: DatePickerInputProps) {
   const selectedDate = parseISODate(value);
+  const [open, setOpen] = useState(false);
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           id={id}
@@ -74,6 +76,7 @@ export function DatePickerInput({
           onSelect={(date) => {
             if (!date) return;
             onChange(toISODate(date));
+            setOpen(false);
           }}
           initialFocus
           locale={de}
