@@ -676,6 +676,47 @@ const Index = () => {
       return [...dates].sort()[0];
     };
 
+    const isTargetVisibleInPlanning = (actions: ActionNode[]) => {
+      if (showCompletedTargets) return true;
+      if (actions.length === 0) return true;
+      if (actions.some((action) => !action.validFrom)) return true;
+      return actions.some(
+        (action) =>
+          action.validFrom != null &&
+          action.validFrom <= selectedDate &&
+          (!action.validTo || selectedDate <= action.validTo),
+      );
+    };
+
+    const client = clients.find((c) => c.id === clientId);
+    const topic = client?.topics.find((t) => t.id === topicId);
+    const target = topic?.targets.find((tg) => tg.id === targetId);
+    const currentAction = target?.actions.find((a) => a.id === actionId);
+
+    const wasVisible = target ? isTargetVisibleInPlanning(target.actions) : false;
+
+    const nextAction = (() => {
+      if (!currentAction) return undefined;
+      const hasConfirmations = Object.keys(currentAction.confirmations ?? {}).length > 0;
+      const isValidToUpdate = field === "validTo";
+      if (hasConfirmations && !isValidToUpdate) return currentAction;
+
+      if (isValidToUpdate && typeof value === "string" && value) {
+        const oldestConfirmationDate = getOldestConfirmationDate(currentAction.confirmations);
+        if (oldestConfirmationDate && value < oldestConfirmationDate) {
+          return currentAction;
+        }
+      }
+
+      return { ...currentAction, [field]: value };
+    })();
+
+    const isVisibleAfterUpdate = target
+      ? isTargetVisibleInPlanning(
+          target.actions.map((action) => (action.id === actionId && nextAction ? nextAction : action)),
+        )
+      : false;
+
     updateClientTopicsFor(clientId, (topics) =>
       topics.map((t) =>
         t.id !== topicId
@@ -712,12 +753,7 @@ const Index = () => {
       ),
     );
 
-    if (
-      viewMode === "planning" &&
-      !showCompletedTargets &&
-      wasVisible &&
-      !isVisibleAfterUpdate
-    ) {
+    if (viewMode === "planning" && !showCompletedTargets && wasVisible && !isVisibleAfterUpdate) {
       setIsTargetHiddenHintOpen(true);
     }
   };
