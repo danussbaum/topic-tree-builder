@@ -754,13 +754,7 @@ const Index = () => {
       ),
     );
 
-    if (
-      viewMode === "planning" &&
-      !showCompletedTargets &&
-      !hideTargetHiddenHint &&
-      wasVisible &&
-      !isVisibleAfterUpdate
-    ) {
+    if (viewMode === "planning" && !showCompletedTargets && wasVisible && !isVisibleAfterUpdate) {
       setIsTargetHiddenHintOpen(true);
     }
   };
