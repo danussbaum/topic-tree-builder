@@ -1038,6 +1038,20 @@ const Index = () => {
                 highlighted={isFilterActive}
               />
             </div>
+            {viewMode === "planning" && (
+              <>
+                <RibbonDivider />
+                <label className="ml-2 inline-flex items-center gap-2 text-xs text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={showCompletedTargets}
+                    onChange={(event) => setShowCompletedTargets(event.target.checked)}
+                    className="h-4 w-4 rounded border-border accent-primary"
+                  />
+                  Abgeschlossene Ziele einblenden
+                </label>
+              </>
+            )}
             <RibbonDivider />
             <RibbonButton
               icon={Download}
