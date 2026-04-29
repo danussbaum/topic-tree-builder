@@ -1599,7 +1599,7 @@ function ConfirmActionDialog({
                 rows={3}
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder="Warum wich die Zeit ab?"
+                placeholder="Was ist der Grund für die Abweichung?"
               />
             </div>
           </div>
