@@ -670,9 +670,11 @@ const Index = () => {
       | "observations",
     value: number | string | string[] | undefined,
   ) => {
-    const today = todayLocalISO();
-    let wasVisible = false;
-    let isVisibleAfterUpdate = false;
+    const getOldestConfirmationDate = (confirmations?: Record<string, unknown>) => {
+      const dates = Object.keys(confirmations ?? {});
+      if (dates.length === 0) return undefined;
+      return [...dates].sort()[0];
+    };
 
     updateClientTopicsFor(clientId, (topics) =>
       topics.map((t) =>
@@ -680,22 +682,32 @@ const Index = () => {
           ? t
           : {
               ...t,
-              targets: t.targets.map((tg) => {
-                if (tg.id !== targetId) return tg;
-                wasVisible = isTargetVisibleInPlanning(tg, today);
-                const updatedTarget = {
-                  ...tg,
-                  actions: tg.actions.map((a) =>
-                    a.id === actionId
-                      ? Object.keys(a.confirmations ?? {}).length > 0
-                        ? a
-                        : { ...a, [field]: value }
-                      : a,
-                  ),
-                };
-                isVisibleAfterUpdate = isTargetVisibleInPlanning(updatedTarget, today);
-                return updatedTarget;
-              }),
+              targets: t.targets.map((tg) =>
+                tg.id !== targetId
+                  ? tg
+                  : {
+                      ...tg,
+                      actions: tg.actions.map((a) =>
+                        a.id === actionId
+                          ? (() => {
+                              const hasConfirmations = Object.keys(a.confirmations ?? {}).length > 0;
+                              const isValidToUpdate = field === "validTo";
+
+                              if (hasConfirmations && !isValidToUpdate) return a;
+
+                              if (isValidToUpdate && typeof value === "string" && value) {
+                                const oldestConfirmationDate = getOldestConfirmationDate(a.confirmations);
+                                if (oldestConfirmationDate && value < oldestConfirmationDate) {
+                                  return a;
+                                }
+                              }
+
+                              return { ...a, [field]: value };
+                            })()
+                          : a,
+                      ),
+                    },
+              ),
             },
       ),
     );
