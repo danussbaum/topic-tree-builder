@@ -70,11 +70,31 @@ export function DatePickerInput({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
+        {selectedDate && !disabled && (
+          <div className="flex justify-end border-b border-border p-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => {
+                onChange("");
+                setOpen(false);
+              }}
+            >
+              Entfernen
+            </Button>
+          </div>
+        )}
         <Calendar
           mode="single"
           selected={selectedDate}
           onSelect={(date) => {
-            if (!date) return;
+            if (!date) {
+              onChange("");
+              setOpen(false);
+              return;
+            }
             onChange(toISODate(date));
             setOpen(false);
           }}
