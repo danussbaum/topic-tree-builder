@@ -678,6 +678,11 @@ const Index = () => {
       | { status: "open" },
     date?: string,
   ) => {
+    const auditTrail = {
+      confirmedBy: "danuss",
+      confirmedAt: new Date().toISOString().slice(0, 19) + "Z",
+    };
+
     updateClientTopicsFor(clientId, (topics) =>
       topics.map((t) =>
         t.id !== topicId
@@ -704,6 +709,7 @@ const Index = () => {
                             actualMinutes: a.plannedMinutes,
                             result: payload.result,
                             observations: payload.observations,
+                            ...auditTrail,
                           };
                         } else if (payload.status === "done_with_deviation") {
                           nextConfirmations[date] = {
@@ -713,12 +719,14 @@ const Index = () => {
                             reason: payload.reason,
                             result: payload.result,
                             observations: payload.observations,
+                            ...auditTrail,
                           };
                         } else if (payload.status === "not_done") {
                           nextConfirmations[date] = {
                             status: "not_done",
                             done: true,
                             reason: payload.reason,
+                            ...auditTrail,
                           };
                         }
 

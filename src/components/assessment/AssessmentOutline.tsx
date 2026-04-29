@@ -507,7 +507,8 @@ export function AssessmentOutline({
 
                             {(conf?.reason ||
                               ((action.resultRequirement ?? "none") !== "none" && conf?.result) ||
-                              conf?.observations) && (
+                              conf?.observations ||
+                              conf?.confirmedAt) && (
                               <div className="mt-2 space-y-1">
                                 {conf.reason && (
                                   <div className="text-xs italic text-destructive/80 line-clamp-2">
@@ -525,6 +526,13 @@ export function AssessmentOutline({
                                   <div className="text-xs text-foreground/70 line-clamp-2 border-l-2 border-primary/20 pl-2">
                                     <span className="font-semibold mr-1">Beobachtung:</span>
                                     {conf.observations}
+                                  </div>
+                                )}
+                                {conf.confirmedAt && (
+                                  <div className="text-xs text-muted-foreground">
+                                    <span className="font-semibold mr-1">Bestätigt durch:</span>
+                                    {conf.confirmedBy ?? "Unbekannt"} am{" "}
+                                    {format(parseISO(conf.confirmedAt), "dd.MM.yyyy HH:mm:ss", { locale: de })}
                                   </div>
                                 )}
                               </div>
