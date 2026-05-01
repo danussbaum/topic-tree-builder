@@ -425,7 +425,8 @@ export function AssessmentOutline({
                       return (
                         <button
                           key={`${action.id}-${dueDate}`}
-                          onClick={() =>
+                          onClick={() => {
+                            if (action.category === "a") return;
                             setDialogTarget({
                               topicId: topic.id,
                               targetId: target.id,
@@ -438,14 +439,16 @@ export function AssessmentOutline({
                                 result: conf?.result,
                                 observations: conf?.observations,
                               },
-                            })
-                          }
+                            });
+                          }}
                           className={cn(
                             "flex items-start gap-4 p-4 rounded-lg border transition-all text-left",
                             status !== "open"
                               ? "bg-primary/5 border-primary/20 shadow-sm"
-                              : "bg-card border-border hover:bg-secondary/40"
+                              : "bg-card border-border hover:bg-secondary/40",
+                            action.category === "a" && "cursor-not-allowed hover:bg-card opacity-90"
                           )}
+                          aria-disabled={action.category === "a"}
                         >
                           <div className="mt-1">
                             <StatusIcon status={status} />
@@ -482,6 +485,11 @@ export function AssessmentOutline({
                                 <div className="flex items-center gap-1">
                                   <Tag className="h-3 w-3" />
                                   Kategorie {CATEGORY_LABEL[action.category]}
+                                </div>
+                              )}
+                              {action.category === "a" && (
+                                <div className="text-[11px] text-muted-foreground/70 italic">
+                                  Keine Bestätigung möglich (zu geringe Berechtigung)
                                 </div>
                               )}
                               {action.dayPart && (
@@ -787,6 +795,8 @@ function ActionRow({
   onOpenDialog: () => void;
 }) {
   const isLocked = Object.keys(action.confirmations ?? {}).length > 0;
+  const isCategoryARestrictedInConfirmation =
+    viewMode === "confirmation" && action.category === "a";
   const weeklyDaysMissing =
     action.recurrence === "weekly" && (action.recurrenceWeekdays?.length ?? 0) === 0;
   const monthlyPatternMissing =
@@ -831,10 +841,21 @@ function ActionRow({
     )}>
       {viewMode === "confirmation" && (
         <button
-          onClick={onOpenDialog}
-          className="mt-0.5 cursor-pointer"
+          onClick={() => {
+            if (isCategoryARestrictedInConfirmation) return;
+            onOpenDialog();
+          }}
+          className={cn(
+            "mt-0.5 cursor-pointer",
+            isCategoryARestrictedInConfirmation && "cursor-not-allowed opacity-70",
+          )}
           aria-label="Status ändern"
-          title="Status ändern"
+          title={
+            isCategoryARestrictedInConfirmation
+              ? "Keine Rechte zur Bestätigung von Kategorie A"
+              : "Status ändern"
+          }
+          aria-disabled={isCategoryARestrictedInConfirmation}
         >
           <StatusIcon status={action.status} />
         </button>
@@ -1344,6 +1365,11 @@ function ActionRow({
           <div className="mt-1 text-xs text-foreground/70 whitespace-pre-wrap">
             <span className="font-medium">Hilfsmittel:</span>{" "}
             {action.requiredResources}
+          </div>
+        )}
+        {isCategoryARestrictedInConfirmation && (
+          <div className="mt-1 text-[11px] text-muted-foreground/70 italic">
+            Kategorie A kann nicht bestätigt werden (zu geringe Berechtigung).
           </div>
         )}
       </div>
