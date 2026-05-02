@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ChevronLeft } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -28,6 +28,7 @@ export const PermissionLevelsView = () => {
   const navigate = useNavigate();
   const [categories, setCategories] = useState<PermissionCategory[]>(initialCategories);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [isPanelMounted, setIsPanelMounted] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [draftLevels, setDraftLevels] = useState<[boolean, boolean, boolean]>([false, false, false]);
 
@@ -36,13 +37,23 @@ export const PermissionLevelsView = () => {
     [categories, selectedCategoryId],
   );
 
+  useEffect(() => {
+    if (!isPanelMounted) return;
+
+    const animationFrame = requestAnimationFrame(() => {
+      setIsPanelOpen(true);
+    });
+
+    return () => cancelAnimationFrame(animationFrame);
+  }, [isPanelMounted]);
+
   const openPanel = (categoryId: string) => {
     const category = categories.find((entry) => entry.id === categoryId);
     if (!category) return;
 
     setSelectedCategoryId(categoryId);
     setDraftLevels([...category.levels] as [boolean, boolean, boolean]);
-    setIsPanelOpen(true);
+    setIsPanelMounted(true);
   };
 
   const closePanel = () => {
@@ -51,6 +62,7 @@ export const PermissionLevelsView = () => {
 
   const handlePanelAnimationEnd = () => {
     if (isPanelOpen) return;
+    setIsPanelMounted(false);
     setSelectedCategoryId(null);
     setDraftLevels([false, false, false]);
   };
@@ -86,37 +98,37 @@ export const PermissionLevelsView = () => {
       </div>
 
       <section className="overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-[#f3f3f4]">
-            <tr className="border-b border-border">
-              <th className="px-4 py-2 text-left font-semibold">Kategorie</th>
-              <th className="px-4 py-2 text-left font-semibold">Berechtigte Stufen</th>
+        <table className="w-full table-fixed text-sm">
+          <thead className="bg-[#f1f1f3]">
+            <tr className="border-b border-border/80">
+              <th className="w-1/2 px-4 py-2 text-left text-xs font-semibold text-foreground">Kategorie</th>
+              <th className="w-1/2 px-4 py-2 text-left text-xs font-semibold text-foreground">Berechtigte Stufen</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="bg-[#f8f8f9]">
             {categories.map((entry) => (
               <tr
                 key={entry.id}
-                className="cursor-pointer border-b border-border/80 bg-white transition-colors hover:bg-[#e8eef9]"
+                className="cursor-pointer border-b border-border/80 bg-[#f6f6f7] transition-colors duration-150 even:bg-[#f0f0f2] hover:bg-[#d6e2f4]"
                 onClick={() => openPanel(entry.id)}
               >
-                <td className="px-4 py-2 text-foreground">{entry.name}</td>
-                <td className="px-4 py-2 text-foreground">{levelLabel(entry.levels)}</td>
+                <td className="px-4 py-2 text-[13px] text-foreground">{entry.name}</td>
+                <td className="px-4 py-2 text-[13px] text-foreground">{levelLabel(entry.levels)}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </section>
 
-      {selectedCategory && (
+      {selectedCategory && isPanelMounted && (
         <div
-          className={`fixed inset-0 z-50 flex justify-end bg-black/20 transition-opacity duration-200 ${
+          className={`fixed inset-0 z-50 flex justify-end bg-black/20 transition-opacity duration-300 ${
             isPanelOpen ? "opacity-100" : "opacity-0"
           }`}
           onClick={closePanel}
         >
           <aside
-            className={`flex h-full w-full max-w-3xl flex-col bg-[#f3f3f5] shadow-2xl transition-transform duration-200 ease-out ${
+            className={`flex h-full w-full max-w-3xl flex-col bg-[#f3f3f5] shadow-2xl transition-transform duration-300 ease-out ${
               isPanelOpen ? "translate-x-0" : "translate-x-full"
             }`}
             onClick={(event) => event.stopPropagation()}
