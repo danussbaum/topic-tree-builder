@@ -39,15 +39,6 @@ export const SettingsTopBar = () => {
 
   return (
     <div className="flex items-center bg-topbar text-topbar-foreground border-b border-border h-12 pr-2">
-      <div className="flex h-full items-center gap-3 border-r border-border px-3">
-        <div className="h-8 w-8 rounded-full bg-sidebar-accent flex items-center justify-center text-xs font-semibold text-sidebar-accent-foreground shrink-0">
-          AS
-        </div>
-        <div className="text-sm font-semibold leading-tight truncate text-foreground">
-          Assessor (GL)
-        </div>
-      </div>
-
       <nav className="flex items-stretch h-full overflow-x-auto">
         {primaryTabs.map((tab) => (
           <button
