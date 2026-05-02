@@ -21,6 +21,14 @@ import {
 } from "lucide-react";
 import { ClientSidebar, ClientSidebarTrigger } from "@/components/assessment/ClientSidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
+import { useNavigate } from "react-router-dom";
+import { Settings as SettingsIcon } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { AssessmentOutline } from "@/components/assessment/AssessmentOutline";
 import type {
   ActionNode,
@@ -358,6 +366,7 @@ const seedClients: Client[] = [
 ];
 
 const Index = () => {
+  const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<"planning" | "confirmation">("planning");
   const [selectedDate, setSelectedDate] = useState<string>(todayLocalISO());
   const [confirmationPeriod, setConfirmationPeriod] = useState<ConfirmationPeriod>("day");
@@ -1056,7 +1065,6 @@ const Index = () => {
                 { label: "Systeme", icon: Network },
                 { label: "Bewertungen", icon: Star },
                 { label: "Kontakte", icon: Users },
-                { label: "Weitere", icon: MoreHorizontal },
               ].map((t) => (
                 <button
                   key={t.label}
@@ -1071,6 +1079,25 @@ const Index = () => {
                   {t.label}
                 </button>
               ))}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="px-4 text-xs font-semibold uppercase tracking-wide flex items-center gap-2 border-r border-border transition-colors hover:bg-secondary focus:outline-none data-[state=open]:bg-secondary"
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                    Weitere
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="min-w-48">
+                  <DropdownMenuItem onClick={() => navigate("/settings")}>
+                    <SettingsIcon className="h-4 w-4 mr-2" />
+                    <span className="text-xs font-semibold uppercase tracking-wide">
+                      Einstellungen
+                    </span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </nav>
             <div className="ml-auto flex items-center gap-1 pl-2">
               <button
