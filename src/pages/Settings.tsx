@@ -38,7 +38,7 @@ const Settings = () => {
         <div className="flex-1 overflow-y-auto">
           <div className="p-6 max-w-[1600px] mx-auto">
             <h1 className="text-2xl font-semibold text-foreground mb-6">
-              Einstellungen
+              {showPermissionLevels ? "Berechtigungsstufen" : "Einstellungen"}
             </h1>
             {showPermissionLevels ? (
               <PermissionLevelsView />
