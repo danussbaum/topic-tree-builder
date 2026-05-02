@@ -1,6 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { ChevronLeft } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 
@@ -25,7 +23,6 @@ const levelLabel = (levels: [boolean, boolean, boolean]) => {
 };
 
 export const PermissionLevelsView = () => {
-  const navigate = useNavigate();
   const [categories, setCategories] = useState<PermissionCategory[]>(initialCategories);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [isPanelMounted, setIsPanelMounted] = useState(false);
@@ -86,17 +83,6 @@ export const PermissionLevelsView = () => {
 
   return (
     <div className="space-y-0 rounded-md border border-border bg-[#ededf0]">
-      <div className="h-12 border-b border-border bg-topbar px-4 py-2 text-topbar-foreground">
-        <button
-          type="button"
-          onClick={() => navigate("/settings-page")}
-          className="inline-flex h-full items-center gap-2 text-xs font-semibold uppercase tracking-wide text-topbar-foreground/90 transition-colors hover:text-topbar-foreground"
-        >
-          <ChevronLeft className="h-4 w-4" />
-          Zurück
-        </button>
-      </div>
-
       <section className="overflow-hidden">
         <table className="w-full table-fixed text-sm">
           <thead className="bg-[#f1f1f3]">
