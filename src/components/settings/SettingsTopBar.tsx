@@ -10,89 +10,77 @@ import {
   Network,
   Star,
   Users,
-  KeyRound,
-  CalendarRange,
-  Settings as SettingsIcon,
+  MoreHorizontal,
   HelpCircle,
-  Power,
-  Globe,
-  type LucideIcon,
+  Settings as SettingsIcon,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
-interface TopTab {
-  label: string;
-  icon: LucideIcon;
-  href?: string;
-  active?: boolean;
-}
-
-const tabs: TopTab[] = [
+const primaryTabs = [
+  { label: "Handlungsplanung", icon: Workflow, href: "/" },
   { label: "Journal", icon: BookOpen },
   { label: "Aufgaben", icon: CheckSquare },
   { label: "Termine", icon: Calendar },
   { label: "Texte", icon: FileText },
-  { label: "Prozesse", icon: Workflow },
   { label: "Dateien", icon: Files },
   { label: "Pflege", icon: HeartPulse },
   { label: "Systeme", icon: Network },
   { label: "Bewertungen", icon: Star },
-  { label: "Anwesenheiten", icon: CheckSquare },
   { label: "Kontakte", icon: Users },
-  { label: "Schlüssel", icon: KeyRound },
-  { label: "Planung", icon: CalendarRange },
-  { label: "Einstellungen", icon: SettingsIcon, active: true, href: "/settings" },
 ];
 
 /**
- * Top navigation bar shown on the settings page, including the active
- * "Einstellungen" tab and the right-hand utility icons.
+ * Top navigation bar on settings page matching the main page top bar.
  */
 export const SettingsTopBar = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="flex items-center bg-topbar text-topbar-foreground border-b border-border h-12">
+    <div className="flex items-center bg-topbar text-topbar-foreground border-b border-border h-12 pr-2">
       <nav className="flex items-stretch h-full overflow-x-auto">
-        {tabs.map((t) => (
+        {primaryTabs.map((tab) => (
           <button
-            key={t.label}
+            key={tab.label}
             type="button"
-            onClick={() => {
-              if (t.href) navigate(t.href);
-              else navigate("/");
-            }}
-            className={
-              "px-4 text-xs font-semibold uppercase tracking-wide flex items-center gap-2 border-r border-border transition-colors " +
-              (t.active
-                ? "bg-topbar-active text-topbar-active-foreground"
-                : "hover:bg-secondary")
-            }
+            onClick={() => tab.href && navigate(tab.href)}
+            className="px-4 text-xs font-semibold uppercase tracking-wide flex items-center gap-2 border-r border-border transition-colors hover:bg-secondary"
           >
-            {t.label}
+            <tab.icon className="h-4 w-4" />
+            {tab.label}
           </button>
         ))}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="px-4 text-xs font-semibold uppercase tracking-wide flex items-center gap-2 border-r border-border transition-colors bg-topbar-active text-topbar-active-foreground focus:outline-none"
+            >
+              <MoreHorizontal className="h-4 w-4" />
+              Weitere
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="min-w-48">
+            <DropdownMenuItem>
+              <SettingsIcon className="h-4 w-4 mr-2" />
+              <span className="text-xs font-semibold uppercase tracking-wide">
+                Einstellungen
+              </span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </nav>
-      <div className="ml-auto flex items-center gap-1 pl-2 pr-2">
-        <button
-          type="button"
-          className="p-2 rounded hover:bg-secondary text-muted-foreground"
-          aria-label="Sprache"
-        >
-          <Globe className="h-5 w-5" />
-        </button>
+      <div className="ml-auto flex items-center gap-1 pl-2">
         <button
           type="button"
           className="p-2 rounded hover:bg-secondary text-muted-foreground"
           aria-label="Hilfe"
         >
           <HelpCircle className="h-5 w-5" />
-        </button>
-        <button
-          type="button"
-          className="p-2 rounded hover:bg-secondary text-muted-foreground"
-          aria-label="Abmelden"
-        >
-          <Power className="h-5 w-5" />
         </button>
       </div>
     </div>
