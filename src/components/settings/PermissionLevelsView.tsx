@@ -144,7 +144,7 @@ export const PermissionLevelsView = () => {
               ))}
             </div>
 
-            <div className="flex items-center justify-between bg-[#3f6fb7] px-6 py-3">
+            <div className="flex items-center justify-between bg-primary px-6 py-3">
               <Button type="button" variant="ghost" onClick={closePanel} className="text-white hover:bg-white/10 hover:text-white">
                 Abbrechen
               </Button>
