@@ -108,16 +108,14 @@ export const PermissionLevelsView = () => {
 
       {selectedCategory && isPanelMounted && (
         <div
-          className={`fixed inset-0 z-50 flex justify-end bg-black/20 transition-opacity duration-300 ${
+          className={`pointer-events-none fixed inset-0 z-50 flex justify-end transition-opacity duration-300 ${
             isPanelOpen ? "opacity-100" : "opacity-0"
           }`}
-          onClick={closePanel}
         >
           <aside
-            className={`flex h-full w-full max-w-3xl flex-col bg-[#f3f3f5] shadow-2xl transition-transform duration-300 ease-out ${
+            className={`pointer-events-auto flex h-full w-full max-w-3xl flex-col bg-[#f3f3f5] shadow-2xl transition-transform duration-300 ease-out ${
               isPanelOpen ? "translate-x-0" : "translate-x-full"
             }`}
-            onClick={(event) => event.stopPropagation()}
             onTransitionEnd={handlePanelAnimationEnd}
           >
             <div className="flex items-center justify-between border-b border-border px-6 py-4">
