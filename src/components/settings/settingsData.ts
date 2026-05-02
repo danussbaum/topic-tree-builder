@@ -82,6 +82,14 @@ export const settingsCategories: SettingsCategory[] = [
   { id: "schluessel", title: "Schlüssel", icon: KeyRound, links: [{ label: "Schlüssel-Gruppen" }] },
 
   // Column 2
+
+  {
+    id: "handlungsplanung",
+    title: "Handlungsplanung",
+    icon: Workflow,
+    links: [{ label: "Berechtigungsstufen" }, { label: "Vorlagen" }],
+  },
+
   {
     id: "planung-meta",
     title: "Planung, Zeiterfassung & Arbeitszeit",
@@ -219,7 +227,7 @@ export const getSettingsColumns = (): SettingsCategory[][] => {
     "kontakte",
     "schluessel",
   ];
-  const col2Ids = ["planung-meta", "planung", "zeiterfassung", "kassabuch", "rechnungen"];
+  const col2Ids = ["handlungsplanung", "planung-meta", "planung", "zeiterfassung", "kassabuch", "rechnungen"];
   const col3Ids = ["global", "kategorien", "nachrichten", "drucken", "sicherheit"];
 
   return [
@@ -245,6 +253,7 @@ export const settingsSidebarGroups: { id: string; label: string }[] = [
   { id: "systeme", label: "Systeme" },
   { id: "kontakte", label: "Kontakte" },
   { id: "schluessel", label: "Schlüssel" },
+  { id: "handlungsplanung", label: "Handlungsplanung" },
   { id: "planung-meta", label: "Planung, Zeiterfassung & Arbei…" },
   { id: "planung", label: "Planung" },
   { id: "zeiterfassung", label: "Zeiterfassung & Arbeitszeit" },
