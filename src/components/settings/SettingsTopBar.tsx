@@ -34,9 +34,6 @@ const primaryTabs = [
   { label: "Kontakte", icon: Users },
 ];
 
-/**
- * Top navigation bar on settings page matching the main page top bar.
- */
 export const SettingsTopBar = () => {
   const navigate = useNavigate();
 
@@ -57,7 +54,7 @@ export const SettingsTopBar = () => {
             key={tab.label}
             type="button"
             onClick={() => tab.href && navigate(tab.href)}
-            className="px-4 text-xs font-semibold uppercase tracking-wide flex items-center gap-2 border-r border-border transition-colors hover:bg-secondary"
+            className="px-4 text-xs font-semibold uppercase tracking-wide flex items-center gap-2 border-r border-sidebar-border transition-colors hover:bg-sidebar-primary"
           >
             <tab.icon className="h-4 w-4" />
             {tab.label}
@@ -67,7 +64,7 @@ export const SettingsTopBar = () => {
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="px-4 text-xs font-semibold uppercase tracking-wide flex items-center gap-2 border-r border-border transition-colors bg-topbar-active text-topbar-active-foreground focus:outline-none"
+              className="px-4 text-xs font-semibold uppercase tracking-wide flex items-center gap-2 border-r border-sidebar-border transition-colors bg-sidebar-accent text-sidebar-accent-foreground focus:outline-none"
             >
               <MoreHorizontal className="h-4 w-4" />
               Weitere
@@ -76,9 +73,7 @@ export const SettingsTopBar = () => {
           <DropdownMenuContent align="start" className="min-w-48">
             <DropdownMenuItem>
               <SettingsIcon className="h-4 w-4 mr-2" />
-              <span className="text-xs font-semibold uppercase tracking-wide">
-                Einstellungen
-              </span>
+              <span className="text-xs font-semibold uppercase tracking-wide">Einstellungen</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -86,7 +81,7 @@ export const SettingsTopBar = () => {
       <div className="ml-auto flex items-center gap-1 pl-2">
         <button
           type="button"
-          className="p-2 rounded hover:bg-secondary text-muted-foreground"
+          className="p-2 rounded hover:bg-sidebar-primary text-sidebar-foreground/80"
           aria-label="Hilfe"
         >
           <HelpCircle className="h-5 w-5" />
