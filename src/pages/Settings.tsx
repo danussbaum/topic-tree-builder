@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { ChevronLeft } from "lucide-react";
 import { SettingsTopBar } from "@/components/settings/SettingsTopBar";
 import { SettingsCategorySidebar } from "@/components/settings/SettingsCategorySidebar";
@@ -7,7 +6,6 @@ import { SettingsGrid } from "@/components/settings/SettingsGrid";
 import { PermissionLevelsView } from "@/components/settings/PermissionLevelsView";
 
 const Settings = () => {
-  const navigate = useNavigate();
   const [activeGroup, setActiveGroup] = useState<string | undefined>();
   const [showPermissionLevels, setShowPermissionLevels] = useState(false);
 
@@ -27,7 +25,7 @@ const Settings = () => {
           <div className="h-12 border-b border-border bg-topbar px-4 text-topbar-foreground">
             <button
               type="button"
-              onClick={() => navigate("/settings")}
+              onClick={() => setShowPermissionLevels(false)}
               className="inline-flex h-full items-center gap-2 text-xs font-semibold uppercase tracking-wide text-topbar-foreground/90 transition-colors hover:text-topbar-foreground"
             >
               <ChevronLeft className="h-4 w-4" />

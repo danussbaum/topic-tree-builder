@@ -62,7 +62,7 @@ export const SettingsTopBar = () => {
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="min-w-48">
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate("/settings") }>
               <SettingsIcon className="h-4 w-4 mr-2" />
               <span className="text-xs font-semibold uppercase tracking-wide">Einstellungen</span>
             </DropdownMenuItem>
