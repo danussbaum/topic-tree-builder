@@ -38,12 +38,14 @@ export const SettingsTopBar = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="flex items-center bg-sidebar-background text-sidebar-foreground border-b border-sidebar-border h-12 pr-2">
-      <div className="flex items-center h-full gap-3 px-4 border-r border-sidebar-border bg-sidebar-primary shrink-0">
+    <div className="flex items-center bg-topbar text-topbar-foreground border-b border-border h-12 pr-2">
+      <div className="flex h-full items-center gap-3 border-r border-border px-3">
         <div className="h-8 w-8 rounded-full bg-sidebar-accent flex items-center justify-center text-xs font-semibold text-sidebar-accent-foreground shrink-0">
           AS
         </div>
-        <div className="text-sm font-semibold leading-tight truncate">Assessor (GL)</div>
+        <div className="text-sm font-semibold leading-tight truncate text-foreground">
+          Assessor (GL)
+        </div>
       </div>
 
       <nav className="flex items-stretch h-full overflow-x-auto">
