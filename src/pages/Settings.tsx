@@ -2,15 +2,20 @@ import { useState } from "react";
 import { SettingsTopBar } from "@/components/settings/SettingsTopBar";
 import { SettingsCategorySidebar } from "@/components/settings/SettingsCategorySidebar";
 import { SettingsGrid } from "@/components/settings/SettingsGrid";
+import { PermissionLevelsView } from "@/components/settings/PermissionLevelsView";
 
 const Settings = () => {
   const [activeGroup, setActiveGroup] = useState<string | undefined>();
+  const [showPermissionLevels, setShowPermissionLevels] = useState(false);
 
   return (
     <div className="min-h-dvh flex w-full bg-background">
       <SettingsCategorySidebar
         activeId={activeGroup}
-        onSelect={setActiveGroup}
+        onSelect={(id) => {
+          setActiveGroup(id);
+          setShowPermissionLevels(false);
+        }}
       />
 
       <main className="flex-1 min-w-0 flex flex-col min-h-0">
@@ -20,9 +25,18 @@ const Settings = () => {
             <h1 className="text-2xl font-semibold text-foreground mb-6">
               Einstellungen
             </h1>
-            <SettingsGrid
-              onLinkClick={(catId) => setActiveGroup(catId)}
-            />
+            {showPermissionLevels ? (
+              <PermissionLevelsView />
+            ) : (
+              <SettingsGrid
+                onLinkClick={(catId, label) => {
+                  setActiveGroup(catId);
+                  if (catId === "handlungsplanung" && label === "Berechtigungsstufen") {
+                    setShowPermissionLevels(true);
+                  }
+                }}
+              />
+            )}
           </div>
         </div>
       </main>
