@@ -21,6 +21,14 @@ import {
 } from "lucide-react";
 import { ClientSidebar, ClientSidebarTrigger } from "@/components/assessment/ClientSidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
+import { useNavigate } from "react-router-dom";
+import { Settings as SettingsIcon } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { AssessmentOutline } from "@/components/assessment/AssessmentOutline";
 import type {
   ActionNode,
