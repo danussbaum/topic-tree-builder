@@ -7,14 +7,15 @@ const Settings = () => {
   const [activeGroup, setActiveGroup] = useState<string | undefined>();
 
   return (
-    <div className="min-h-dvh flex flex-col bg-background">
-      <SettingsTopBar />
-      <div className="flex flex-1 min-h-0 w-full">
-        <SettingsCategorySidebar
-          activeId={activeGroup}
-          onSelect={setActiveGroup}
-        />
-        <main className="flex-1 min-w-0 overflow-y-auto">
+    <div className="min-h-dvh flex w-full bg-background">
+      <SettingsCategorySidebar
+        activeId={activeGroup}
+        onSelect={setActiveGroup}
+      />
+
+      <main className="flex-1 min-w-0 flex flex-col min-h-0">
+        <SettingsTopBar />
+        <div className="flex-1 overflow-y-auto">
           <div className="p-6 max-w-[1600px] mx-auto">
             <h1 className="text-2xl font-semibold text-foreground mb-6">
               Einstellungen
@@ -23,8 +24,8 @@ const Settings = () => {
               onLinkClick={(catId) => setActiveGroup(catId)}
             />
           </div>
-        </main>
-      </div>
+        </div>
+      </main>
     </div>
   );
 };
