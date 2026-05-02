@@ -153,6 +153,23 @@ const CATEGORY_LABEL: Record<ActionCategory, string> = {
   c: "C",
 };
 
+const CATEGORY_CONFIRMATION_LEVELS: Partial<Record<ActionCategory, number[]>> = {
+  a: [1],
+  b: [2],
+  c: [3],
+};
+
+const CURRENT_USER_CONFIRMATION_LEVELS = [2, 3];
+
+const canConfirmAction = (action: ActionNode) => {
+  if (!action.category) return true;
+
+  const allowedLevels = CATEGORY_CONFIRMATION_LEVELS[action.category];
+  if (!allowedLevels || allowedLevels.length === 0) return true;
+
+  return allowedLevels.some((level) => CURRENT_USER_CONFIRMATION_LEVELS.includes(level));
+};
+
 const WEEKDAY_OPTIONS: Array<{ value: Weekday; label: string; dayIndex: number }> = [
   { value: "monday", label: "Mo", dayIndex: 1 },
   { value: "tuesday", label: "Di", dayIndex: 2 },
@@ -426,7 +443,7 @@ export function AssessmentOutline({
                         <button
                           key={`${action.id}-${dueDate}`}
                           onClick={() => {
-                            if (action.category === "a") return;
+                            if (!canConfirmAction(action)) return;
                             setDialogTarget({
                               topicId: topic.id,
                               targetId: target.id,
@@ -446,9 +463,9 @@ export function AssessmentOutline({
                             status !== "open"
                               ? "bg-primary/5 border-primary/20 shadow-sm"
                               : "bg-card border-border hover:bg-secondary/40",
-                            action.category === "a" && "cursor-not-allowed hover:bg-card opacity-90"
+                            !canConfirmAction(action) && "cursor-not-allowed hover:bg-card opacity-90"
                           )}
-                          aria-disabled={action.category === "a"}
+                          aria-disabled={!canConfirmAction(action)}
                         >
                           <div className="mt-1">
                             <StatusIcon status={status} />
@@ -487,7 +504,7 @@ export function AssessmentOutline({
                                   Kategorie {CATEGORY_LABEL[action.category]}
                                 </div>
                               )}
-                              {action.category === "a" && (
+                              {!canConfirmAction(action) && (
                                 <div className="text-[11px] text-muted-foreground/70 italic">
                                   Keine Bestätigung möglich (zu geringe Berechtigung)
                                 </div>
@@ -795,8 +812,8 @@ function ActionRow({
   onOpenDialog: () => void;
 }) {
   const isLocked = Object.keys(action.confirmations ?? {}).length > 0;
-  const isCategoryARestrictedInConfirmation =
-    viewMode === "confirmation" && action.category === "a";
+  const isConfirmationRestricted =
+    viewMode === "confirmation" && !canConfirmAction(action);
   const weeklyDaysMissing =
     action.recurrence === "weekly" && (action.recurrenceWeekdays?.length ?? 0) === 0;
   const monthlyPatternMissing =
@@ -842,20 +859,20 @@ function ActionRow({
       {viewMode === "confirmation" && (
         <button
           onClick={() => {
-            if (isCategoryARestrictedInConfirmation) return;
+            if (isConfirmationRestricted) return;
             onOpenDialog();
           }}
           className={cn(
             "mt-0.5 cursor-pointer",
-            isCategoryARestrictedInConfirmation && "cursor-not-allowed opacity-70",
+            isConfirmationRestricted && "cursor-not-allowed opacity-70",
           )}
           aria-label="Status ändern"
           title={
-            isCategoryARestrictedInConfirmation
+            isConfirmationRestricted
               ? "Keine Rechte zur Bestätigung von Kategorie A"
               : "Status ändern"
           }
-          aria-disabled={isCategoryARestrictedInConfirmation}
+          aria-disabled={isConfirmationRestricted}
         >
           <StatusIcon status={action.status} />
         </button>
@@ -1367,9 +1384,9 @@ function ActionRow({
             {action.requiredResources}
           </div>
         )}
-        {isCategoryARestrictedInConfirmation && (
+        {isConfirmationRestricted && (
           <div className="mt-1 text-[11px] text-muted-foreground/70 italic">
-            Kategorie A kann nicht bestätigt werden (zu geringe Berechtigung).
+            Diese Handlung kann nicht bestätigt werden (zu geringe Berechtigung).
           </div>
         )}
       </div>
