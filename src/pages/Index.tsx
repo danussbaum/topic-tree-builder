@@ -366,6 +366,7 @@ const seedClients: Client[] = [
 ];
 
 const Index = () => {
+  const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<"planning" | "confirmation">("planning");
   const [selectedDate, setSelectedDate] = useState<string>(todayLocalISO());
   const [confirmationPeriod, setConfirmationPeriod] = useState<ConfirmationPeriod>("day");
