@@ -17,7 +17,7 @@ export const SettingsCategorySidebar = ({
   return (
     <aside
       aria-label="Einstellungs-Kategorien"
-      className="hidden md:flex w-64 shrink-0 flex-col bg-topbar-active text-topbar-active-foreground border-r border-border overflow-y-auto"
+      className="hidden md:flex w-64 shrink-0 flex-col bg-sidebar-background text-sidebar-foreground border-r border-border overflow-y-auto"
     >
       <ul className="py-2">
         {settingsSidebarGroups.map((group) => {
@@ -30,8 +30,8 @@ export const SettingsCategorySidebar = ({
                 className={
                   "w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-left transition-colors " +
                   (isActive
-                    ? "bg-background/15 font-medium"
-                    : "hover:bg-background/10")
+                    ? "bg-sidebar-accent/80 text-sidebar-accent-foreground font-medium"
+                    : "hover:bg-sidebar-primary")
                 }
               >
                 <span className="truncate">{group.label}</span>
