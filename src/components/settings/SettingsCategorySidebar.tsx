@@ -17,7 +17,7 @@ export const SettingsCategorySidebar = ({
   return (
     <aside
       aria-label="Einstellungs-Kategorien"
-      className="hidden md:flex w-64 shrink-0 flex-col bg-sidebar-background text-sidebar-foreground border-r border-border overflow-y-auto"
+      className="hidden md:flex w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground border-r border-border overflow-y-auto"
     >
       <div className="flex items-center gap-3 px-3 py-3 border-b border-sidebar-border bg-sidebar-primary">
         <div className="h-8 w-8 rounded-full bg-sidebar-accent flex items-center justify-center text-xs font-semibold text-sidebar-accent-foreground shrink-0">
