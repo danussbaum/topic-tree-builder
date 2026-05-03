@@ -15,8 +15,9 @@ type TemplateFieldKey =
   | "kategorie"
   | "tageszeit"
   | "resultat"
-  | "haeufigkeit"
-  | "haeufigkeitMonatlich"
+  | "wiederholung"
+  | "wiederholungWochentage"
+  | "wiederholungMonatlich"
   | "hinweise";
 
 interface TemplateFieldMeta {
@@ -73,8 +74,8 @@ const templateFieldMeta: TemplateFieldMeta[] = [
     ],
   },
   {
-    key: "haeufigkeit",
-    label: "Häufigkeit",
+    key: "wiederholung",
+    label: "Wiederholung",
     type: "select",
     options: [
       { value: "daily", label: "Täglich" },
@@ -83,16 +84,23 @@ const templateFieldMeta: TemplateFieldMeta[] = [
     ],
   },
   {
-    key: "haeufigkeitMonatlich",
-    label: "Monatsmuster",
+    key: "wiederholungMonatlich",
+    label: "Monatliche Regel",
     type: "select",
     options: [
       { value: "none", label: "Keine Angabe" },
       { value: "first_day", label: "Erster Tag" },
+      { value: "first_weekday", label: "Erster Wochentag" },
       { value: "first_monday", label: "Erster Montag" },
       { value: "last_day", label: "Letzter Tag" },
+      { value: "last_weekday", label: "Letzter Wochentag" },
       { value: "last_friday", label: "Letzter Freitag" },
     ],
+  },
+  {
+    key: "wiederholungWochentage",
+    label: "Wochentage",
+    type: "text",
   },
   { key: "hinweise", label: "Hinweise", type: "textarea" },
 ];
@@ -128,8 +136,9 @@ const initialTemplates: ActionPlanTemplate[] = [
       kategorie: "a",
       tageszeit: "morning",
       resultat: "required",
-      haeufigkeit: "daily",
-      haeufigkeitMonatlich: "none",
+      wiederholung: "daily",
+      wiederholungMonatlich: "none",
+      wiederholungWochentage: "mon,tue,wed,thu,fri",
       hinweise: "Ressourcenorientiert arbeiten.",
     },
     editable: buildDefaultEditable(true),
@@ -239,6 +248,14 @@ export const ActionPlanTemplatesView = () => {
                 <span className="pt-2 text-xs text-muted-foreground">immer editierbar</span>
 
                 {templateFieldMeta.map((field) => {
+                  if (field.key === "wiederholungWochentage" && draftFields.wiederholung !== "weekly") {
+                    return null;
+                  }
+
+                  if (field.key === "wiederholungMonatlich" && draftFields.wiederholung !== "monthly") {
+                    return null;
+                  }
+
                   const control = field.type === "textarea" ? (
                     <Textarea value={draftFields[field.key]} onChange={(event) => setDraftFields((prev) => ({ ...prev, [field.key]: event.target.value }))} rows={3} />
                   ) : field.type === "select" ? (
@@ -246,6 +263,38 @@ export const ActionPlanTemplatesView = () => {
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>{field.options?.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
                     </Select>
+                  ) : field.key === "wiederholungWochentage" ? (
+                    <div className="flex flex-wrap gap-1 select-none">
+                      {[
+                        { value: "mon", label: "Mo" },
+                        { value: "tue", label: "Di" },
+                        { value: "wed", label: "Mi" },
+                        { value: "thu", label: "Do" },
+                        { value: "fri", label: "Fr" },
+                        { value: "sat", label: "Sa" },
+                        { value: "sun", label: "So" },
+                      ].map((weekday) => {
+                        const selected = draftFields.wiederholungWochentage.split(",").filter(Boolean);
+                        const isSelected = selected.includes(weekday.value);
+                        return (
+                          <button
+                            key={weekday.value}
+                            type="button"
+                            onClick={() => {
+                              const next = isSelected
+                                ? selected.filter((value) => value !== weekday.value)
+                                : [...selected, weekday.value];
+                              setDraftFields((prev) => ({ ...prev, wiederholungWochentage: next.join(",") }));
+                            }}
+                            className={`rounded border px-2 py-0.5 text-xs transition-colors ${
+                              isSelected ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-secondary/60"
+                            }`}
+                          >
+                            {weekday.label}
+                          </button>
+                        );
+                      })}
+                    </div>
                   ) : (
                     <Input value={draftFields[field.key]} onChange={(event) => setDraftFields((prev) => ({ ...prev, [field.key]: event.target.value }))} />
                   );
@@ -265,8 +314,8 @@ export const ActionPlanTemplatesView = () => {
             </div>
 
             <div className="flex items-center justify-between bg-primary px-6 py-3">
-              <Button type="button" variant="ghost" onClick={closePanel} className="text-white hover:bg-white/10 hover:text-white">Abbrechen</Button>
               <div className="flex items-center gap-2">
+                <Button type="button" variant="ghost" onClick={closePanel} className="text-white hover:bg-white/10 hover:text-white">Abbrechen</Button>
                 {!isCreating && <Button type="button" variant="ghost" onClick={deleteSelectedTemplate} className="text-white hover:bg-white/10 hover:text-white">Löschen</Button>}
                 <Button type="button" variant="ghost" onClick={saveTemplate} className="text-white hover:bg-white/10 hover:text-white">Speichern</Button>
               </div>
