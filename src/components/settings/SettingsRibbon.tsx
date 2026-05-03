@@ -1,4 +1,4 @@
-import { type ElementType } from "react";
+import { Fragment, type ElementType } from "react";
 import { Ribbon, RibbonButton, RibbonDivider } from "@/components/ribbon/Ribbon";
 
 export interface SettingsRibbonAction {
@@ -26,7 +26,7 @@ export function SettingsRibbon({ actions, className }: SettingsRibbonProps) {
   return (
     <Ribbon className={className}>
       {actions.map((action, idx) => (
-        <span key={action.key} className="inline-flex items-center">
+        <Fragment key={action.key}>
           <RibbonButton
             icon={action.icon}
             label={action.label}
@@ -36,7 +36,7 @@ export function SettingsRibbon({ actions, className }: SettingsRibbonProps) {
             highlighted={action.highlighted}
           />
           {action.dividerAfter && idx < actions.length - 1 && <RibbonDivider />}
-        </span>
+        </Fragment>
       ))}
     </Ribbon>
   );

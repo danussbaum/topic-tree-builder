@@ -1557,7 +1557,7 @@ const Index = () => {
                             setConfirmationFilter((prev) => ({
                               ...prev,
                               statuses: e.target.checked
-                                ? [...new Set(["open", ...prev.statuses])]
+                                ? (Array.from(new Set(["open" as ActionNode["status"], ...prev.statuses])))
                                 : prev.statuses.filter((status) => status !== "open"),
                             }))
                           }
