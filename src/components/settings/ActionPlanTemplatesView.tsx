@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { Plus } from "lucide-react";
+import { ArrowLeft, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -143,7 +143,11 @@ const initialTemplates: ActionPlanTemplate[] = [
   },
 ];
 
-export const ActionPlanTemplatesView = () => {
+interface ActionPlanTemplatesViewProps {
+  onBack: () => void;
+}
+
+export const ActionPlanTemplatesView = ({ onBack }: ActionPlanTemplatesViewProps) => {
   const [templates, setTemplates] = useState<ActionPlanTemplate[]>(initialTemplates);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -212,7 +216,10 @@ export const ActionPlanTemplatesView = () => {
   return (
     <div className="space-y-3 rounded-md border border-border bg-[#ededf0] p-4">
       <SettingsRibbon
-        actions={[{ key: "new", label: "Neue Vorlage", icon: Plus, onClick: openCreatePanel }]}
+        actions={[
+          { key: "back", label: "Zurück", icon: ArrowLeft, onClick: onBack },
+          { key: "new", label: "Neue Vorlage", icon: Plus, onClick: openCreatePanel },
+        ]}
       />
 
       <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Vorlagen</h2>

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { SettingsRibbon } from "@/components/settings/SettingsRibbon";
@@ -9,6 +8,9 @@ interface PermissionCategory {
   id: string;
   name: string;
   levels: [boolean, boolean, boolean];
+}
+interface PermissionLevelsViewProps {
+  onBack: () => void;
 }
 
 type SortColumn = "name" | "levels";
@@ -28,8 +30,7 @@ const levelLabel = (levels: [boolean, boolean, boolean]) => {
   return labels.length > 0 ? labels.join(", ") : "Keine";
 };
 
-export const PermissionLevelsView = () => {
-  const navigate = useNavigate();
+export const PermissionLevelsView = ({ onBack }: PermissionLevelsViewProps) => {
   const [categories, setCategories] = useState<PermissionCategory[]>(initialCategories);
   const [sortColumn, setSortColumn] = useState<SortColumn>("name");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
@@ -119,7 +120,7 @@ export const PermissionLevelsView = () => {
   return (
     <div className="space-y-3 rounded-md border border-border bg-[#ededf0] p-4">
       <SettingsRibbon
-        actions={[{ key: "back", label: "Zurück", icon: ArrowLeft, onClick: () => navigate("/settings") }]}
+        actions={[{ key: "back", label: "Zurück", icon: ArrowLeft, onClick: onBack }]}
       />
 
       <section className="overflow-hidden rounded-md border border-border/80">
