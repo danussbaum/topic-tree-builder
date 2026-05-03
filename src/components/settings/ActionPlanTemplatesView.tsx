@@ -18,8 +18,7 @@ type TemplateFieldKey =
   | "resultat"
   | "wiederholung"
   | "wiederholungWochentage"
-  | "wiederholungMonatlich"
-  | "hinweise";
+  | "wiederholungMonatlich";
 
 interface TemplateFieldMeta {
   key: TemplateFieldKey;
@@ -40,7 +39,7 @@ const templateFieldMeta: TemplateFieldMeta[] = [
   { key: "beschreibung", label: "Beschreibung", type: "textarea" },
   { key: "hilfsmittel", label: "Hilfsmittel", type: "textarea" },
   { key: "dauer", label: "Geplante Dauer (Min.)", type: "text" },
-  { key: "personen", label: "Benötigte Personen", type: "text" },
+  { key: "personen", label: "Anz. Personen", type: "text" },
   {
     key: "kategorie",
     label: "Kategorie",
@@ -103,7 +102,6 @@ const templateFieldMeta: TemplateFieldMeta[] = [
     label: "Wochentage",
     type: "text",
   },
-  { key: "hinweise", label: "Hinweise", type: "textarea" },
 ];
 
 const buildDefaultFields = () =>
@@ -140,7 +138,6 @@ const initialTemplates: ActionPlanTemplate[] = [
       wiederholung: "daily",
       wiederholungMonatlich: "none",
       wiederholungWochentage: "mon,tue,wed,thu,fri",
-      hinweise: "Ressourcenorientiert arbeiten.",
     },
     editable: buildDefaultEditable(true),
   },
@@ -296,7 +293,7 @@ export const ActionPlanTemplatesView = () => {
                         );
                       })}
                     </div>
-                  ) : field.key === "dauer" ? (
+                  ) : field.key === "dauer" || field.key === "personen" ? (
                     <Input
                       type="number"
                       min={0}
