@@ -145,6 +145,7 @@ const initialTemplates: ActionPlanTemplate[] = [
 export interface ActionPlanTemplatesHandle {
   openCreate: () => void;
   exportExcel: () => void;
+  openImport: () => void;
 }
 
 export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_props, ref) => {
@@ -154,8 +155,189 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
   const [isPanelMounted, setIsPanelMounted] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [draftName, setDraftName] = useState("");
+  const [importErrors, setImportErrors] = useState<string[]>([]);
   const [draftFields, setDraftFields] = useState<Record<TemplateFieldKey, string>>(buildDefaultFields);
   const [draftEditable, setDraftEditable] = useState<Record<TemplateFieldKey, boolean>>(buildDefaultEditable);
+  const [filePickerKey, setFilePickerKey] = useState(0);
+
+  const allowedByField = useMemo(() => {
+    const map = new Map<TemplateFieldKey, Set<string>>();
+    templateFieldMeta.forEach((field) => {
+      if (field.options) map.set(field.key, new Set(field.options.map((option) => option.value)));
+    });
+    return map;
+  }, []);
+
+  const readBlobAsText = async (blob: Blob) => new TextDecoder().decode(await blob.arrayBuffer());
+
+  const getColumnIndexFromCellRef = (cellRef: string) => {
+    const letters = cellRef.match(/[A-Z]+/i)?.[0] ?? "A";
+    return letters
+      .toUpperCase()
+      .split("")
+      .reduce((acc, char) => acc * 26 + (char.charCodeAt(0) - 64), 0) - 1;
+  };
+
+  const readZipEntries = async (file: File) => {
+    const buffer = await file.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    const entries = new Map<string, Uint8Array>();
+    let offset = 0;
+
+    while (offset + 30 <= bytes.length) {
+      const view = new DataView(buffer, offset);
+      if (view.getUint32(0, true) !== 0x04034b50) break;
+      const method = view.getUint16(8, true);
+      const compressedSize = view.getUint32(18, true);
+      const nameLength = view.getUint16(26, true);
+      const extraLength = view.getUint16(28, true);
+      const nameStart = offset + 30;
+      const dataStart = nameStart + nameLength + extraLength;
+      const dataEnd = dataStart + compressedSize;
+      const name = new TextDecoder().decode(bytes.slice(nameStart, nameStart + nameLength));
+      const compressedData = bytes.slice(dataStart, dataEnd);
+
+      if (method === 0) {
+        entries.set(name, compressedData);
+      } else if (method === 8) {
+        const stream = new Blob([compressedData]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+        const inflated = new Uint8Array(await new Response(stream).arrayBuffer());
+        entries.set(name, inflated);
+      }
+
+      offset = dataEnd;
+    }
+
+    return entries;
+  };
+
+  const parseSharedStrings = (xml: string) => {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(xml, "application/xml");
+    return Array.from(doc.getElementsByTagName("si")).map((entry) =>
+      Array.from(entry.getElementsByTagName("t"))
+        .map((textNode) => textNode.textContent ?? "")
+        .join(""),
+    );
+  };
+
+  const parseWorksheetRows = (worksheetXml: string, sharedStrings: string[]) => {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(worksheetXml, "application/xml");
+    return Array.from(doc.getElementsByTagName("row")).map((row) => {
+      const values: string[] = [];
+      Array.from(row.getElementsByTagName("c")).forEach((cell) => {
+        const ref = cell.getAttribute("r") ?? "A1";
+        const colIndex = getColumnIndexFromCellRef(ref);
+        const type = cell.getAttribute("t");
+        const inlineText = cell.getElementsByTagName("t")[0]?.textContent;
+        const rawValue = cell.getElementsByTagName("v")[0]?.textContent ?? "";
+
+        let resolved = inlineText ?? rawValue;
+        if (type === "s") {
+          const sharedIndex = Number(rawValue);
+          resolved = Number.isInteger(sharedIndex) ? (sharedStrings[sharedIndex] ?? "") : "";
+        }
+
+        values[colIndex] = (resolved ?? "").trim();
+      });
+      return values;
+    });
+  };
+
+  const normalizeEditable = (value: string) => {
+    const normalized = value.trim().toLowerCase();
+    if (["ja", "yes", "true", "1"].includes(normalized)) return true;
+    if (["nein", "no", "false", "0"].includes(normalized)) return false;
+    return null;
+  };
+
+  const openImportPicker = () => {
+    const input = document.getElementById("templates-import-input") as HTMLInputElement | null;
+    input?.click();
+  };
+
+  const importTemplatesExcel = async (file: File) => {
+    const entries = await readZipEntries(file);
+    const worksheet = entries.get("xl/worksheets/sheet1.xml");
+    if (!worksheet) {
+      setImportErrors(["Datei enthält kein erwartetes Tabellenblatt (xl/worksheets/sheet1.xml)."]);
+      return;
+    }
+
+    const sharedStringsXml = entries.get("xl/sharedStrings.xml");
+    const sharedStrings = sharedStringsXml
+      ? parseSharedStrings(await readBlobAsText(new Blob([sharedStringsXml])))
+      : [];
+
+    const rows = parseWorksheetRows(await readBlobAsText(new Blob([worksheet])), sharedStrings);
+    const dataRows = rows.slice(1);
+    const rowErrors: string[] = [];
+    const validRows: ActionPlanTemplate[] = [];
+
+    dataRows.forEach((row, rowIndex) => {
+      const excelRowNumber = rowIndex + 2;
+      const errors: string[] = [];
+      const name = row[0]?.trim() ?? "";
+      if (!name) errors.push("Name fehlt");
+
+      const nextFields = buildDefaultFields();
+      const nextEditable = buildDefaultEditable(true);
+
+      templateFieldMeta.forEach((field, index) => {
+        const value = row[1 + index * 2] ?? "";
+        const editableValue = row[2 + index * 2] ?? "";
+        nextFields[field.key] = value;
+
+        const allowed = allowedByField.get(field.key);
+        if (allowed && !allowed.has(value)) {
+          errors.push(`${field.label}: ungültiger Wert "${value}"`);
+        }
+
+        if (field.key === "dauer" || field.key === "personen") {
+          if (!/^\d+$/.test(value)) {
+            errors.push(`${field.label}: muss eine ganze Zahl >= 0 sein`);
+          }
+        }
+
+        if (field.key === "wiederholungWochentage" && value) {
+          const days = value.split(",").map((entry) => entry.trim()).filter(Boolean);
+          const allowedDays = new Set(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]);
+          const invalid = days.filter((day) => !allowedDays.has(day));
+          if (invalid.length > 0) errors.push(`${field.label}: ungültige Wochentage ${invalid.join(", ")}`);
+        }
+
+        const editable = normalizeEditable(editableValue);
+        if (editable === null) {
+          errors.push(`${field.label} veränderbar: ungültiger Wert "${editableValue}" (erlaubt: Ja/Nein)`);
+        } else {
+          nextEditable[field.key] = editable;
+        }
+      });
+
+      if (errors.length > 0) {
+        rowErrors.push(`Zeile ${excelRowNumber}: ${errors.join("; ")}`);
+        return;
+      }
+
+      const existing = templates.find((template) => template.name === name);
+      validRows.push({
+        id: existing?.id ?? `tpl-${Date.now()}-${rowIndex}`,
+        name,
+        fields: nextFields,
+        editable: nextEditable,
+      });
+    });
+
+    setImportErrors(rowErrors);
+    if (validRows.length === 0) return;
+
+    setTemplates((prev) => {
+      const byName = new Map(prev.map((tpl) => [tpl.name, tpl]));
+      validRows.forEach((tpl) => byName.set(tpl.name, tpl));
+      return Array.from(byName.values());
+    });
+  };
 
   const selectedTemplate = useMemo(
     () => templates.find((entry) => entry.id === selectedTemplateId) ?? null,
@@ -245,12 +427,33 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
 
   useImperativeHandle(
     ref,
-    () => ({ openCreate: openCreatePanel, exportExcel: exportTemplatesExcel }),
+    () => ({ openCreate: openCreatePanel, exportExcel: exportTemplatesExcel, openImport: openImportPicker }),
     [templates],
   );
 
   return (
     <>
+      <input
+        id="templates-import-input"
+        key={filePickerKey}
+        type="file"
+        accept=".xlsx"
+        className="hidden"
+        onChange={async (event) => {
+          const file = event.target.files?.[0];
+          if (!file) return;
+          await importTemplatesExcel(file);
+          setFilePickerKey((prev) => prev + 1);
+        }}
+      />
+      {importErrors.length > 0 && (
+        <section className="border-b border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          <p className="font-semibold">Importfehler</p>
+          <ul className="mt-1 list-disc pl-6">
+            {importErrors.map((error) => <li key={error}>{error}</li>)}
+          </ul>
+        </section>
+      )}
       <section className="overflow-hidden border-y border-border/80 bg-background">
         <table className="w-full table-fixed text-sm">
           <thead className="bg-[#f1f1f3]"><tr className="border-b border-border/80"><th className="px-4 py-2 text-left text-xs font-semibold text-foreground">Name</th></tr></thead>
