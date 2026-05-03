@@ -112,12 +112,12 @@ export const PermissionLevelsView = () => {
   };
 
   return (
-    <div className="space-y-3 rounded-md border border-border bg-[#ededf0] p-4">
-      <section className="overflow-hidden rounded-md border border-border/80">
+    <>
+      <section className="overflow-hidden border-y border-border/80 bg-background">
         <table className="w-full table-fixed text-sm">
           <thead className="bg-[#f1f1f3]">
             <tr className="border-b border-border/80">
-                            <th className="w-1/2 px-4 py-2 text-left text-xs font-semibold text-foreground">
+              <th className="w-1/2 px-4 py-2 text-left text-xs font-semibold text-foreground">
                 <button type="button" className="inline-flex items-center gap-1" onClick={() => toggleSort("name")}>
                   Kategorie
                   <span aria-hidden="true">{getSortArrow("name")}</span>
@@ -131,11 +131,11 @@ export const PermissionLevelsView = () => {
               </th>
             </tr>
           </thead>
-          <tbody className="bg-[#f8f8f9]">
+          <tbody className="bg-background">
             {sortedCategories.map((entry) => (
               <tr
                 key={entry.id}
-                className="cursor-pointer border-b border-border/80 bg-[#f6f6f7] transition-colors duration-150 even:bg-[#f0f0f2] hover:bg-[#d6e2f4]"
+                className="cursor-pointer border-b border-border/80 transition-colors duration-150 even:bg-[#f7f7f9] hover:bg-[#d6e2f4]"
                 onClick={() => openPanel(entry.id)}
               >
                 <td className="px-4 py-2 text-[13px] text-foreground">{entry.name}</td>
@@ -193,6 +193,6 @@ export const PermissionLevelsView = () => {
           </aside>
         </div>
       )}
-    </div>
+    </>
   );
 };
