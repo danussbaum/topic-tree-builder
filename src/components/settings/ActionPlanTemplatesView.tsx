@@ -317,8 +317,8 @@ export const ActionPlanTemplatesView = () => {
               <div className="flex items-center gap-2">
                 <Button type="button" variant="ghost" onClick={closePanel} className="text-white hover:bg-white/10 hover:text-white">Abbrechen</Button>
                 {!isCreating && <Button type="button" variant="ghost" onClick={deleteSelectedTemplate} className="text-white hover:bg-white/10 hover:text-white">Löschen</Button>}
-                <Button type="button" variant="ghost" onClick={saveTemplate} className="text-white hover:bg-white/10 hover:text-white">Speichern</Button>
               </div>
+              <Button type="button" variant="ghost" onClick={saveTemplate} className="text-white hover:bg-white/10 hover:text-white">Speichern</Button>
             </div>
           </aside>
         </div>
