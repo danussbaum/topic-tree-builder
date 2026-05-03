@@ -332,4 +332,6 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
       )}
     </div>
   );
-};
+});
+ActionPlanTemplatesView.displayName = "ActionPlanTemplatesView";
+
