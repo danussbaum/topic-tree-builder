@@ -8,6 +8,9 @@ interface PermissionCategory {
   levels: [boolean, boolean, boolean];
 }
 
+type SortColumn = "name" | "levels";
+type SortDirection = "asc" | "desc";
+
 const initialCategories: PermissionCategory[] = [
   { id: "a", name: "A", levels: [true, false, false] },
   { id: "b", name: "B", levels: [false, true, false] },
@@ -24,6 +27,8 @@ const levelLabel = (levels: [boolean, boolean, boolean]) => {
 
 export const PermissionLevelsView = () => {
   const [categories, setCategories] = useState<PermissionCategory[]>(initialCategories);
+  const [sortColumn, setSortColumn] = useState<SortColumn>("name");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [isPanelMounted, setIsPanelMounted] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
@@ -33,6 +38,31 @@ export const PermissionLevelsView = () => {
     () => categories.find((entry) => entry.id === selectedCategoryId) ?? null,
     [categories, selectedCategoryId],
   );
+
+  const sortedCategories = useMemo(() => {
+    const sorted = [...categories].sort((a, b) => {
+      const leftValue = sortColumn === "name" ? a.name : levelLabel(a.levels);
+      const rightValue = sortColumn === "name" ? b.name : levelLabel(b.levels);
+      return leftValue.localeCompare(rightValue, "de", { sensitivity: "base" });
+    });
+
+    return sortDirection === "asc" ? sorted : sorted.reverse();
+  }, [categories, sortColumn, sortDirection]);
+
+  const toggleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+
+    setSortColumn(column);
+    setSortDirection("asc");
+  };
+
+  const getSortArrow = (column: SortColumn) => {
+    if (sortColumn !== column) return "↕";
+    return sortDirection === "asc" ? "↑" : "↓";
+  };
 
   useEffect(() => {
     if (!isPanelMounted) return;
@@ -87,12 +117,22 @@ export const PermissionLevelsView = () => {
         <table className="w-full table-fixed text-sm">
           <thead className="bg-[#f1f1f3]">
             <tr className="border-b border-border/80">
-              <th className="w-1/2 px-4 py-2 text-left text-xs font-semibold text-foreground">Kategorie</th>
-              <th className="w-1/2 px-4 py-2 text-left text-xs font-semibold text-foreground">Berechtigte Stufen</th>
+                            <th className="w-1/2 px-4 py-2 text-left text-xs font-semibold text-foreground">
+                <button type="button" className="inline-flex items-center gap-1" onClick={() => toggleSort("name")}>
+                  Kategorie
+                  <span aria-hidden="true">{getSortArrow("name")}</span>
+                </button>
+              </th>
+              <th className="w-1/2 px-4 py-2 text-left text-xs font-semibold text-foreground">
+                <button type="button" className="inline-flex items-center gap-1" onClick={() => toggleSort("levels")}>
+                  Berechtigte Stufen
+                  <span aria-hidden="true">{getSortArrow("levels")}</span>
+                </button>
+              </th>
             </tr>
           </thead>
           <tbody className="bg-[#f8f8f9]">
-            {categories.map((entry) => (
+            {sortedCategories.map((entry) => (
               <tr
                 key={entry.id}
                 className="cursor-pointer border-b border-border/80 bg-[#f6f6f7] transition-colors duration-150 even:bg-[#f0f0f2] hover:bg-[#d6e2f4]"
