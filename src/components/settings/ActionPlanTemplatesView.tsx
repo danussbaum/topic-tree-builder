@@ -170,14 +170,6 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
 
   const readBlobAsText = async (blob: Blob) => new TextDecoder().decode(await blob.arrayBuffer());
 
-  const getColumnIndexFromCellRef = (cellRef: string) => {
-    const letters = cellRef.match(/[A-Z]+/i)?.[0] ?? "A";
-    return letters
-      .toUpperCase()
-      .split("")
-      .reduce((acc, char) => acc * 26 + (char.charCodeAt(0) - 64), 0) - 1;
-  };
-
   const readZipEntries = async (file: File) => {
     const buffer = await file.arrayBuffer();
     const bytes = new Uint8Array(buffer);
@@ -211,38 +203,16 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
     return entries;
   };
 
-  const parseSharedStrings = (xml: string) => {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(xml, "application/xml");
-    return Array.from(doc.getElementsByTagName("si")).map((entry) =>
-      Array.from(entry.getElementsByTagName("t"))
-        .map((textNode) => textNode.textContent ?? "")
-        .join(""),
-    );
-  };
-
-  const parseWorksheetRows = (worksheetXml: string, sharedStrings: string[]) => {
+  const parseWorksheetRows = (worksheetXml: string) => {
     const parser = new DOMParser();
     const doc = parser.parseFromString(worksheetXml, "application/xml");
-    return Array.from(doc.getElementsByTagName("row")).map((row) => {
-      const values: string[] = [];
-      Array.from(row.getElementsByTagName("c")).forEach((cell) => {
-        const ref = cell.getAttribute("r") ?? "A1";
-        const colIndex = getColumnIndexFromCellRef(ref);
-        const type = cell.getAttribute("t");
+    return Array.from(doc.getElementsByTagName("row")).map((row) =>
+      Array.from(row.getElementsByTagName("c")).map((cell) => {
         const inlineText = cell.getElementsByTagName("t")[0]?.textContent;
-        const rawValue = cell.getElementsByTagName("v")[0]?.textContent ?? "";
-
-        let resolved = inlineText ?? rawValue;
-        if (type === "s") {
-          const sharedIndex = Number(rawValue);
-          resolved = Number.isInteger(sharedIndex) ? (sharedStrings[sharedIndex] ?? "") : "";
-        }
-
-        values[colIndex] = (resolved ?? "").trim();
-      });
-      return values;
-    });
+        const value = cell.getElementsByTagName("v")[0]?.textContent;
+        return (inlineText ?? value ?? "").trim();
+      }),
+    );
   };
 
   const normalizeEditable = (value: string) => {
@@ -265,12 +235,7 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
       return;
     }
 
-    const sharedStringsXml = entries.get("xl/sharedStrings.xml");
-    const sharedStrings = sharedStringsXml
-      ? parseSharedStrings(await readBlobAsText(new Blob([sharedStringsXml])))
-      : [];
-
-    const rows = parseWorksheetRows(await readBlobAsText(new Blob([worksheet])), sharedStrings);
+    const rows = parseWorksheetRows(await readBlobAsText(new Blob([worksheet])));
     const dataRows = rows.slice(1);
     const rowErrors: string[] = [];
     const validRows: ActionPlanTemplate[] = [];
