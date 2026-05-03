@@ -136,3 +136,10 @@
     padding: 0;
   }
 }
+
+
+@layer utilities {
+  .border-primary {
+    border-color: lightgray;
+  }
+}
