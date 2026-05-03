@@ -63,7 +63,7 @@ type ConfirmPayload =
   | { status: "done_as_planned"; result?: string; observations?: string }
   | {
       status: "done_with_deviation";
-      actualMinutes?: number;
+      actualMinutes: number;
       reason: string;
       result?: string;
       observations?: string;
