@@ -1,11 +1,10 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { SettingsRibbon } from "@/components/settings/SettingsRibbon";
 
 type TemplateFieldKey =
   | "titel"
@@ -143,11 +142,7 @@ const initialTemplates: ActionPlanTemplate[] = [
   },
 ];
 
-interface ActionPlanTemplatesViewProps {
-  onBack: () => void;
-}
-
-export const ActionPlanTemplatesView = ({ onBack }: ActionPlanTemplatesViewProps) => {
+export const ActionPlanTemplatesView = () => {
   const [templates, setTemplates] = useState<ActionPlanTemplate[]>(initialTemplates);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -215,14 +210,13 @@ export const ActionPlanTemplatesView = ({ onBack }: ActionPlanTemplatesViewProps
 
   return (
     <div className="space-y-3 rounded-md border border-border bg-[#ededf0] p-4">
-      <SettingsRibbon
-        actions={[
-          { key: "back", label: "Zurück", icon: ArrowLeft, onClick: onBack },
-          { key: "new", label: "Neue Vorlage", icon: Plus, onClick: openCreatePanel },
-        ]}
-      />
-
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Vorlagen</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Vorlagen</h2>
+        <Button type="button" size="sm" variant="outline" className="gap-2" onClick={openCreatePanel}>
+          <Plus className="h-4 w-4" />
+          Neue Vorlage
+        </Button>
+      </div>
 
       <div className="overflow-hidden rounded-md border border-border/80">
         <table className="w-full table-fixed text-sm">
