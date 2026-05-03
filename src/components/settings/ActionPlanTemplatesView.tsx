@@ -5,6 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 
 type TemplateFieldKey =
   | "titel"
@@ -213,13 +214,13 @@ export const ActionPlanTemplatesView = () => {
 
   return (
     <div className="space-y-3 rounded-md border border-border bg-[#ededf0] p-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Vorlagen</h2>
-        <Button type="button" onClick={openCreatePanel} className="gap-1.5">
-          <Plus className="h-4 w-4" />
-          Neu
-        </Button>
+      <div className="rounded-md border border-border bg-background">
+        <div className="flex items-center gap-1 bg-secondary/60 px-3 py-2">
+          <TemplateRibbonButton icon={Plus} label="Neu" onClick={openCreatePanel} />
+        </div>
       </div>
+
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Vorlagen</h2>
 
       <div className="overflow-hidden rounded-md border border-border/80">
         <table className="w-full table-fixed text-sm">
@@ -326,3 +327,27 @@ export const ActionPlanTemplatesView = () => {
     </div>
   );
 };
+
+function TemplateRibbonButton({
+  icon: Icon,
+  label,
+  onClick,
+}: {
+  icon: React.ElementType;
+  label: string;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex w-24 flex-col items-center justify-center gap-0.5 rounded px-2 py-1.5 text-foreground/80 transition-colors",
+        "hover:bg-secondary hover:text-foreground",
+      )}
+    >
+      <Icon className="h-5 w-5" />
+      <span className="text-center text-[11px] font-medium leading-tight whitespace-normal break-words">{label}</span>
+    </button>
+  );
+}
