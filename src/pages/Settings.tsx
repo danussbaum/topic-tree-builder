@@ -22,11 +22,11 @@ const Settings = () => {
       <main className="flex-1 min-w-0 flex flex-col min-h-0">
         <SettingsTopBar />
         {showPermissionLevels && (
-          <div className="h-12 border-b border-border bg-topbar px-4 text-topbar-foreground">
+          <div className="flex items-center border-b border-border bg-topbar px-4 py-2 text-topbar-foreground">
             <button
               type="button"
               onClick={() => setShowPermissionLevels(false)}
-              className="inline-flex h-full items-center gap-2 text-xs font-semibold uppercase tracking-wide text-topbar-foreground/90 transition-colors hover:text-topbar-foreground"
+              className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-topbar-foreground/90 transition-colors hover:text-topbar-foreground"
             >
               <ChevronLeft className="h-4 w-4" />
               Zurück
