@@ -314,6 +314,7 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
                   );
                 })}
               </div>
+            </div>
 
             <div className="flex items-center justify-between bg-primary px-6 py-3">
               <div className="flex items-center gap-2">
