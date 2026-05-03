@@ -1,20 +1,45 @@
-import { useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { useRef, useState } from "react";
+import { ArrowLeft, Plus } from "lucide-react";
 import { SettingsTopBar } from "@/components/settings/SettingsTopBar";
 import { SettingsCategorySidebar } from "@/components/settings/SettingsCategorySidebar";
 import { SettingsGrid } from "@/components/settings/SettingsGrid";
 import { PermissionLevelsView } from "@/components/settings/PermissionLevelsView";
-import { ActionPlanTemplatesView } from "@/components/settings/ActionPlanTemplatesView";
-import { SettingsRibbon } from "@/components/settings/SettingsRibbon";
+import {
+  ActionPlanTemplatesView,
+  type ActionPlanTemplatesHandle,
+} from "@/components/settings/ActionPlanTemplatesView";
+import { SettingsRibbon, type SettingsRibbonAction } from "@/components/settings/SettingsRibbon";
 
 const Settings = () => {
   const [activeGroup, setActiveGroup] = useState<string | undefined>();
   const [showPermissionLevels, setShowPermissionLevels] = useState(false);
   const [showActionPlanTemplates, setShowActionPlanTemplates] = useState(false);
+  const templatesRef = useRef<ActionPlanTemplatesHandle | null>(null);
+
   const handleBackToSettings = () => {
     setShowPermissionLevels(false);
     setShowActionPlanTemplates(false);
   };
+
+  const ribbonActions: SettingsRibbonAction[] = [
+    {
+      key: "back",
+      label: "Zurück",
+      icon: ArrowLeft,
+      onClick: handleBackToSettings,
+      dividerAfter: true,
+    },
+    ...(showActionPlanTemplates
+      ? [
+          {
+            key: "new-template",
+            label: "Neue Vorlage",
+            icon: Plus,
+            onClick: () => templatesRef.current?.openCreate(),
+          } satisfies SettingsRibbonAction,
+        ]
+      : []),
+  ];
 
   return (
     <div className="min-h-dvh flex w-full bg-background">
@@ -30,22 +55,15 @@ const Settings = () => {
       <main className="flex-1 min-w-0 flex flex-col min-h-0">
         <SettingsTopBar />
         {(showPermissionLevels || showActionPlanTemplates) && (
-          <div className="border-b border-border bg-background">
-            <div className="mx-auto max-w-[1600px] px-6 py-3">
-              <SettingsRibbon
-                className="rounded-none border-x-0 border-y-0"
-                actions={[{ key: "back", label: "Zurück", icon: ArrowLeft, onClick: handleBackToSettings }]}
-              />
-            </div>
-          </div>
+          <SettingsRibbon actions={ribbonActions} />
         )}
         <div className="flex-1 overflow-y-auto">
           {showPermissionLevels || showActionPlanTemplates ? (
-            <div className="px-6 pb-6 pt-0 max-w-[1600px] mx-auto">
+            <div className="px-6 py-6 max-w-[1600px] mx-auto">
               {showPermissionLevels ? (
                 <PermissionLevelsView />
               ) : (
-                <ActionPlanTemplatesView />
+                <ActionPlanTemplatesView ref={templatesRef} />
               )}
             </div>
           ) : (
