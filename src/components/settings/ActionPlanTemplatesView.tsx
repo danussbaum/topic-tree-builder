@@ -296,6 +296,15 @@ export const ActionPlanTemplatesView = () => {
                         );
                       })}
                     </div>
+                  ) : field.key === "dauer" ? (
+                    <Input
+                      type="number"
+                      min={0}
+                      step={1}
+                      inputMode="numeric"
+                      value={draftFields[field.key]}
+                      onChange={(event) => setDraftFields((prev) => ({ ...prev, [field.key]: event.target.value }))}
+                    />
                   ) : (
                     <Input value={draftFields[field.key]} onChange={(event) => setDraftFields((prev) => ({ ...prev, [field.key]: event.target.value }))} />
                   );
