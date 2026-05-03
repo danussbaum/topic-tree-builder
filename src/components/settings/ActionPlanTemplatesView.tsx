@@ -214,23 +214,19 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
   useImperativeHandle(ref, () => ({ openCreate: openCreatePanel }), []);
 
   return (
-    <div className="space-y-3 rounded-md border border-border bg-[#ededf0] p-4">
-      <div className="flex items-center">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Vorlagen</h2>
-      </div>
-
-      <div className="overflow-hidden rounded-md border border-border/80">
+    <>
+      <section className="overflow-hidden border-y border-border/80 bg-background">
         <table className="w-full table-fixed text-sm">
           <thead className="bg-[#f1f1f3]"><tr className="border-b border-border/80"><th className="px-4 py-2 text-left text-xs font-semibold text-foreground">Name</th></tr></thead>
-          <tbody className="bg-[#f8f8f9]">
+          <tbody className="bg-background">
             {templates.map((entry) => (
-              <tr key={entry.id} className="cursor-pointer border-b border-border/80 even:bg-[#f0f0f2] hover:bg-[#d6e2f4]" onClick={() => openEditPanel(entry.id)}>
+              <tr key={entry.id} className="cursor-pointer border-b border-border/80 even:bg-[#f7f7f9] hover:bg-[#d6e2f4]" onClick={() => openEditPanel(entry.id)}>
                 <td className="px-4 py-2 text-[13px] text-foreground">{entry.name}</td>
               </tr>
             ))}
           </tbody>
         </table>
-      </div>
+      </section>
 
       {isPanelMounted && (
         <div className={`pointer-events-none fixed inset-0 z-50 flex justify-end transition-opacity duration-300 ${isPanelOpen ? "opacity-100" : "opacity-0"}`}>
@@ -330,7 +326,7 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
           </aside>
         </div>
       )}
-    </div>
+    </>
   );
 });
 ActionPlanTemplatesView.displayName = "ActionPlanTemplatesView";

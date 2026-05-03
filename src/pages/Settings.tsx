@@ -41,6 +41,12 @@ const Settings = () => {
       : []),
   ];
 
+  const subPageTitle = showPermissionLevels
+    ? "Berechtigungsstufen"
+    : showActionPlanTemplates
+      ? "Vorlagen"
+      : null;
+
   return (
     <div className="min-h-dvh flex w-full bg-background">
       <SettingsCategorySidebar
@@ -54,18 +60,19 @@ const Settings = () => {
 
       <main className="flex-1 min-w-0 flex flex-col min-h-0">
         <SettingsTopBar />
-        {(showPermissionLevels || showActionPlanTemplates) && (
-          <SettingsRibbon actions={ribbonActions} />
-        )}
+        {subPageTitle && <SettingsRibbon actions={ribbonActions} />}
         <div className="flex-1 overflow-y-auto">
-          {showPermissionLevels || showActionPlanTemplates ? (
-            <div className="px-6 py-6 max-w-[1600px] mx-auto">
+          {subPageTitle ? (
+            <>
+              <div className="bg-[#ededf0] border-b border-border px-6 py-4">
+                <h1 className="text-2xl font-light text-foreground">{subPageTitle}</h1>
+              </div>
               {showPermissionLevels ? (
                 <PermissionLevelsView />
               ) : (
                 <ActionPlanTemplatesView ref={templatesRef} />
               )}
-            </div>
+            </>
           ) : (
             <div className="p-6 max-w-[1600px] mx-auto">
               <h1 className="text-2xl font-semibold text-foreground mb-6">Einstellungen</h1>
