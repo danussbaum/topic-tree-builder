@@ -1,18 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
-import { SettingsRibbon } from "@/components/settings/SettingsRibbon";
 
 interface PermissionCategory {
   id: string;
   name: string;
   levels: [boolean, boolean, boolean];
 }
-interface PermissionLevelsViewProps {
-  onBack: () => void;
-}
-
 type SortColumn = "name" | "levels";
 type SortDirection = "asc" | "desc";
 
@@ -30,7 +24,7 @@ const levelLabel = (levels: [boolean, boolean, boolean]) => {
   return labels.length > 0 ? labels.join(", ") : "Keine";
 };
 
-export const PermissionLevelsView = ({ onBack }: PermissionLevelsViewProps) => {
+export const PermissionLevelsView = () => {
   const [categories, setCategories] = useState<PermissionCategory[]>(initialCategories);
   const [sortColumn, setSortColumn] = useState<SortColumn>("name");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
@@ -119,10 +113,6 @@ export const PermissionLevelsView = ({ onBack }: PermissionLevelsViewProps) => {
 
   return (
     <div className="space-y-3 rounded-md border border-border bg-[#ededf0] p-4">
-      <SettingsRibbon
-        actions={[{ key: "back", label: "Zurück", icon: ArrowLeft, onClick: onBack }]}
-      />
-
       <section className="overflow-hidden rounded-md border border-border/80">
         <table className="w-full table-fixed text-sm">
           <thead className="bg-[#f1f1f3]">
