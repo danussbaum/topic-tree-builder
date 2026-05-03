@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import { ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
+import { SettingsRibbon } from "@/components/settings/SettingsRibbon";
 
 interface PermissionCategory {
   id: string;
@@ -26,6 +29,7 @@ const levelLabel = (levels: [boolean, boolean, boolean]) => {
 };
 
 export const PermissionLevelsView = () => {
+  const navigate = useNavigate();
   const [categories, setCategories] = useState<PermissionCategory[]>(initialCategories);
   const [sortColumn, setSortColumn] = useState<SortColumn>("name");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
@@ -94,6 +98,7 @@ export const PermissionLevelsView = () => {
     setDraftLevels([false, false, false]);
   };
 
+
   const saveChanges = () => {
     if (!selectedCategory) return;
 
@@ -112,8 +117,12 @@ export const PermissionLevelsView = () => {
   };
 
   return (
-    <div className="space-y-0 rounded-md border border-border bg-[#ededf0]">
-      <section className="overflow-hidden">
+    <div className="space-y-3 rounded-md border border-border bg-[#ededf0] p-4">
+      <SettingsRibbon
+        actions={[{ key: "back", label: "Zurück", icon: ArrowLeft, onClick: () => navigate("/settings") }]}
+      />
+
+      <section className="overflow-hidden rounded-md border border-border/80">
         <table className="w-full table-fixed text-sm">
           <thead className="bg-[#f1f1f3]">
             <tr className="border-b border-border/80">
