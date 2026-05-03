@@ -4,6 +4,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { createSimpleXlsxBlob } from "@/lib/xlsx";
 
 type TemplateFieldKey =
   | "titel"
@@ -143,6 +144,7 @@ const initialTemplates: ActionPlanTemplate[] = [
 
 export interface ActionPlanTemplatesHandle {
   openCreate: () => void;
+  exportExcel: () => void;
 }
 
 export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_props, ref) => {
@@ -211,7 +213,41 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
     closePanel();
   };
 
-  useImperativeHandle(ref, () => ({ openCreate: openCreatePanel }), []);
+  const exportTemplatesExcel = () => {
+    const headers = [
+      "Name",
+      ...templateFieldMeta.flatMap((field) => [field.label, `${field.label} veränderbar`]),
+    ];
+
+    const rows = templates.map((template) => [
+      template.name,
+      ...templateFieldMeta.flatMap((field) => [
+        template.fields[field.key] ?? "",
+        template.editable[field.key] ? "Ja" : "Nein",
+      ]),
+    ]);
+
+    const blob = createSimpleXlsxBlob({
+      sheetName: "Vorlagen",
+      headers,
+      rows,
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "vorlagen_attribute.xlsx";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  useImperativeHandle(
+    ref,
+    () => ({ openCreate: openCreatePanel, exportExcel: exportTemplatesExcel }),
+    [templates],
+  );
 
   return (
     <>
@@ -330,4 +366,3 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
   );
 });
 ActionPlanTemplatesView.displayName = "ActionPlanTemplatesView";
-

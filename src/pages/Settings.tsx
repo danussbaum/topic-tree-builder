@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { ArrowLeft, Plus } from "lucide-react";
+import { ArrowLeft, Download, Plus } from "lucide-react";
 import { SettingsTopBar } from "@/components/settings/SettingsTopBar";
 import { SettingsCategorySidebar } from "@/components/settings/SettingsCategorySidebar";
 import { SettingsGrid } from "@/components/settings/SettingsGrid";
@@ -36,6 +36,16 @@ const Settings = () => {
             label: "Neue Vorlage",
             icon: Plus,
             onClick: () => templatesRef.current?.openCreate(),
+          } satisfies SettingsRibbonAction,
+        ]
+      : []),
+    ...(showActionPlanTemplates
+      ? [
+          {
+            key: "export-templates",
+            label: "Export",
+            icon: Download,
+            onClick: () => templatesRef.current?.exportExcel(),
           } satisfies SettingsRibbonAction,
         ]
       : []),
