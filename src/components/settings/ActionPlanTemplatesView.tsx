@@ -1,5 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
-import { Plus } from "lucide-react";
+import { Fragment, forwardRef, useEffect, useImperativeHandle, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -142,7 +141,11 @@ const initialTemplates: ActionPlanTemplate[] = [
   },
 ];
 
-export const ActionPlanTemplatesView = () => {
+export interface ActionPlanTemplatesHandle {
+  openCreate: () => void;
+}
+
+export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_props, ref) => {
   const [templates, setTemplates] = useState<ActionPlanTemplate[]>(initialTemplates);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -208,14 +211,12 @@ export const ActionPlanTemplatesView = () => {
     closePanel();
   };
 
+  useImperativeHandle(ref, () => ({ openCreate: openCreatePanel }), []);
+
   return (
     <div className="space-y-3 rounded-md border border-border bg-[#ededf0] p-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Vorlagen</h2>
-        <Button type="button" size="sm" variant="outline" className="gap-2" onClick={openCreatePanel}>
-          <Plus className="h-4 w-4" />
-          Neue Vorlage
-        </Button>
       </div>
 
       <div className="overflow-hidden rounded-md border border-border/80">
@@ -331,4 +332,6 @@ export const ActionPlanTemplatesView = () => {
       )}
     </div>
   );
-};
+});
+ActionPlanTemplatesView.displayName = "ActionPlanTemplatesView";
+
