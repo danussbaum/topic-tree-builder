@@ -277,6 +277,10 @@ export function AssessmentOutline({
     targetId: string;
     selectedIds: string[];
   } | null>(null);
+  // Backward-compatible aliases to survive partial conflict resolutions
+  // where older variable names might still be referenced.
+  const templateDialog = templateInline;
+  const setTemplateDialog = setTemplateInline;
   const [availableTemplates, setAvailableTemplates] = useState<ActionPlanTemplate[]>([]);
   const [templateQuery, setTemplateQuery] = useState("");
   const [isTemplateDropdownOpen, setTemplateDropdownOpen] = useState(true);
