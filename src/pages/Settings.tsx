@@ -44,13 +44,13 @@ const Settings = () => {
           {
             key: "import-templates",
             label: "Import",
-            icon: Upload,
+            icon: Download,
             onClick: () => templatesRef.current?.openImport(),
           } satisfies SettingsRibbonAction,
           {
             key: "export-templates",
             label: "Export",
-            icon: Download,
+            icon: Upload,
             onClick: () => templatesRef.current?.exportCsv(),
           } satisfies SettingsRibbonAction,
         ]
