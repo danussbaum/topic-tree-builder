@@ -286,6 +286,23 @@ export function AssessmentOutline({
   const [dialogTarget, setDialogTarget] = useState<DialogTarget | null>(null);
   const today = format(new Date(), "yyyy-MM-dd");
 
+  const openAddActionDialog = (topicId: string, targetId: string) => {
+    setAvailableTemplates(loadActionPlanTemplates());
+    setTemplateDialog({ topicId, targetId, selectedIds: [] });
+  };
+
+  const toggleTemplateSelection = (templateId: string, checked: boolean) => {
+    setTemplateDialog((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        selectedIds: checked
+          ? [...prev.selectedIds, templateId]
+          : prev.selectedIds.filter((id) => id !== templateId),
+      };
+    });
+  };
+
   if (viewMode === "confirmation") {
     const getPeriodRange = () => {
       const current = new Date(`${selectedDate}T00:00:00`);
