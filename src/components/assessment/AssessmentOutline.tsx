@@ -288,6 +288,7 @@ export function AssessmentOutline({
   const [isTemplateDropdownOpen, setTemplateDropdownOpen] = useState(false);
   const [activeTemplateIndex, setActiveTemplateIndex] = useState(0);
   const [dialogTarget, setDialogTarget] = useState<DialogTarget | null>(null);
+  const templateInputRef = useRef<HTMLInputElement | null>(null);
   const today = format(new Date(), "yyyy-MM-dd");
 
   const openAddActionDialog = (topicId: string, targetId: string) => {
@@ -326,6 +327,13 @@ export function AssessmentOutline({
   useEffect(() => {
     setActiveTemplateIndex(0);
   }, [templateQuery, isTemplateDropdownOpen]);
+
+  useEffect(() => {
+    if (!templateInline) return;
+    window.requestAnimationFrame(() => {
+      templateInputRef.current?.focus();
+    });
+  }, [templateInline]);
 
   const selectTemplateAndClose = (templateId: string) => {
     toggleTemplateSelection(templateId, true);
@@ -800,7 +808,10 @@ export function AssessmentOutline({
                                 })}
                                 <Input
                                   value={templateQuery}
-                                  onChange={(e) => setTemplateQuery(e.target.value)}
+                                  onChange={(e) => {
+                                    setTemplateQuery(e.target.value);
+                                    setTemplateDropdownOpen(true);
+                                  }}
                                   onFocus={() => setTemplateDropdownOpen(true)}
                                   onKeyDown={(e) => {
                                     if (!isTemplateDropdownOpen && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
@@ -831,6 +842,7 @@ export function AssessmentOutline({
                                       setTemplateDropdownOpen(false);
                                     }
                                   }}
+                                  ref={templateInputRef}
                                   placeholder="Vorlagen suchen..."
                                   className="h-6 min-w-[12rem] border-0 bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0"
                                 />
