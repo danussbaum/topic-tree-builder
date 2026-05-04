@@ -850,6 +850,48 @@ export function AssessmentOutline({
           setDialogTarget(null);
         }}
       />
+      <Dialog open={Boolean(templateDialog)} onOpenChange={(open) => !open && setTemplateDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Vorlagen auswählen</DialogTitle>
+            <DialogDescription>
+              Optional: Eine oder mehrere Vorlagen auswählen. Ohne Auswahl wird eine leere Handlung angelegt.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+            {availableTemplates.length === 0 && (
+              <p className="text-sm text-muted-foreground">Keine Vorlagen im lokalen Speicher gefunden.</p>
+            )}
+            {availableTemplates.map((template) => {
+              const checked = templateDialog?.selectedIds.includes(template.id) ?? false;
+              return (
+                <label
+                  key={template.id}
+                  className="flex items-center gap-2 rounded border border-border px-3 py-2 text-sm cursor-pointer"
+                >
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={(value) => toggleTemplateSelection(template.id, value === true)}
+                  />
+                  <span>{template.name}</span>
+                </label>
+              );
+            })}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTemplateDialog(null)}>Abbrechen</Button>
+            <Button
+              onClick={() => {
+                if (!templateDialog) return;
+                onAddAction(templateDialog.topicId, templateDialog.targetId, templateDialog.selectedIds);
+                setTemplateDialog(null);
+              }}
+            >
+              Handlung erstellen
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1892,3 +1934,19 @@ function Notes({
     />
   );
 }
+  const openAddActionDialog = (topicId: string, targetId: string) => {
+    setAvailableTemplates(loadActionPlanTemplates());
+    setTemplateDialog({ topicId, targetId, selectedIds: [] });
+  };
+
+  const toggleTemplateSelection = (templateId: string, checked: boolean) => {
+    setTemplateDialog((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        selectedIds: checked
+          ? [...prev.selectedIds, templateId]
+          : prev.selectedIds.filter((id) => id !== templateId),
+      };
+    });
+  };
