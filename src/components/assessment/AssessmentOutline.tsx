@@ -19,21 +19,16 @@ import {
   CalendarIcon,
   ChevronLeft,
   ChevronRight,
+  Check,
+  ChevronUp,
 } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DatePickerInput } from "@/components/ui/date-picker-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -277,22 +272,26 @@ export function AssessmentOutline({
   onDeleteTarget,
   onDeleteAction,
 }: Props) {
-  const [templateDialog, setTemplateDialog] = useState<{
+  const [templateInline, setTemplateInline] = useState<{
     topicId: string;
     targetId: string;
     selectedIds: string[];
   } | null>(null);
   const [availableTemplates, setAvailableTemplates] = useState<ActionPlanTemplate[]>([]);
+  const [templateQuery, setTemplateQuery] = useState("");
+  const [isTemplateDropdownOpen, setTemplateDropdownOpen] = useState(true);
   const [dialogTarget, setDialogTarget] = useState<DialogTarget | null>(null);
   const today = format(new Date(), "yyyy-MM-dd");
 
   const openAddActionDialog = (topicId: string, targetId: string) => {
     setAvailableTemplates(loadActionPlanTemplates());
-    setTemplateDialog({ topicId, targetId, selectedIds: [] });
+    setTemplateInline({ topicId, targetId, selectedIds: [] });
+    setTemplateQuery("");
+    setTemplateDropdownOpen(true);
   };
 
   const toggleTemplateSelection = (templateId: string, checked: boolean) => {
-    setTemplateDialog((prev) => {
+    setTemplateInline((prev) => {
       if (!prev) return prev;
       return {
         ...prev,
@@ -302,6 +301,9 @@ export function AssessmentOutline({
       };
     });
   };
+  const filteredTemplates = availableTemplates.filter((template) =>
+    template.name.toLocaleLowerCase("de").includes(templateQuery.trim().toLocaleLowerCase("de")),
+  );
 
   if (viewMode === "confirmation") {
     const getPeriodRange = () => {
@@ -752,6 +754,54 @@ export function AssessmentOutline({
                       <Plus className="h-3.5 w-3.5" />
                       Handlung hinzufügen
                     </button>
+                    {templateInline?.topicId === topic.id && templateInline?.targetId === target.id && (
+                      <div className="mt-2 rounded-md border border-border bg-card p-3 space-y-2">
+                        <Label>Selectize</Label>
+                        <div className="rounded-md border border-input bg-background focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/30">
+                          <div className="flex items-start gap-2 p-2">
+                            <div className="flex-1 space-y-2">
+                              <div className="flex flex-wrap gap-1">
+                                {templateInline.selectedIds.map((id) => {
+                                  const template = availableTemplates.find((entry) => entry.id === id);
+                                  if (!template) return null;
+                                  return (
+                                    <Badge key={id} variant="secondary" className="gap-1">
+                                      {template.name}
+                                      <button type="button" className="text-xs leading-none" onClick={() => toggleTemplateSelection(id, false)}>×</button>
+                                    </Badge>
+                                  );
+                                })}
+                              </div>
+                              <Input value={templateQuery} onChange={(e) => setTemplateQuery(e.target.value)} placeholder="Vorlagen suchen..." className="h-8 border-0 px-0 shadow-none focus-visible:ring-0" />
+                            </div>
+                            <button type="button" className="mt-1 rounded p-1 text-muted-foreground hover:bg-secondary" onClick={() => setTemplateDropdownOpen((prev) => !prev)}>
+                              <ChevronUp className={cn("h-4 w-4 transition-transform", !isTemplateDropdownOpen && "rotate-180")} />
+                            </button>
+                          </div>
+                          {isTemplateDropdownOpen && (
+                            <div className="max-h-56 overflow-y-auto border-t border-border p-2">
+                              {filteredTemplates.map((template) => {
+                                const checked = templateInline.selectedIds.includes(template.id);
+                                return (
+                                  <button key={template.id} type="button" onClick={() => toggleTemplateSelection(template.id, !checked)} className={cn("flex w-full items-center gap-2 rounded border px-2 py-1.5 text-left text-sm hover:bg-secondary/60", checked && "border-primary bg-primary/10")}>
+                                    <span className={cn("inline-flex h-4 w-4 items-center justify-center rounded border", checked ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40")}>{checked && <Check className="h-3 w-3" />}</span>
+                                    <span className="truncate">{template.name}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" onClick={() => setTemplateInline(null)}>Abbrechen</Button>
+                          <Button onClick={() => {
+                            if (!templateInline) return;
+                            onAddAction(templateInline.topicId, templateInline.targetId, templateInline.selectedIds);
+                            setTemplateInline(null);
+                          }}>Handlung erstellen</Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
