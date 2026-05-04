@@ -88,6 +88,9 @@ export interface ActionNode {
   reason?: string;
   result?: string;
   observations?: string;
+  templateId?: string;
+  templateName?: string;
+  templateLockedFields?: string[];
 }
 
 export interface TargetNode {
