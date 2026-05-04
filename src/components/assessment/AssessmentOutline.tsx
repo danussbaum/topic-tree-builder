@@ -19,6 +19,8 @@ import {
   CalendarIcon,
   ChevronLeft,
   ChevronRight,
+  Check,
+  ChevronUp,
 } from "lucide-react";
 import {
   Dialog,
