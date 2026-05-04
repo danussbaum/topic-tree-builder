@@ -193,7 +193,10 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
   };
 
   const importTemplatesCsv = async (file: File) => {
-    const rows = parseCsvRows(await file.text());
+    const text = await file.text();
+    const utf8Bom = "\uFEFF";
+    const normalizedText = text.startsWith(utf8Bom) ? text.slice(1) : text;
+    const rows = parseCsvRows(normalizedText);
     const dataRows = rows.slice(1);
     const rowErrors: string[] = [];
     const validRows: ActionPlanTemplate[] = [];
@@ -335,7 +338,8 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
     const csvContent = [headers, ...rows]
       .map((row) => row.map((cell) => escapeCsvValue(String(cell ?? ""))).join(";"))
       .join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const utf8Bom = "\uFEFF";
+    const blob = new Blob([utf8Bom, csvContent], { type: "text/csv;charset=utf-8;" });
 
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
