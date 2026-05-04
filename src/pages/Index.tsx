@@ -43,6 +43,7 @@ import {
 } from "@/types/assessment-filter";
 import { cn } from "@/lib/utils";
 import { createSimpleXlsxBlob } from "@/lib/xlsx";
+import { buildDefaultTemplateFields, loadActionPlanTemplates } from "@/lib/action-plan-templates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DatePickerInput } from "@/components/ui/date-picker-input";
@@ -565,7 +566,63 @@ const Index = () => {
     );
   };
 
-  const addAction = (clientId: string, topicId: string, targetId: string) => {
+  const addAction = (clientId: string, topicId: string, targetId: string, templateIds: string[]) => {
+    const templates = loadActionPlanTemplates().filter((template) => templateIds.includes(template.id));
+    const weekdayMap: Record<string, Weekday> = {
+      mon: "monday",
+      tue: "tuesday",
+      wed: "wednesday",
+      thu: "thursday",
+      fri: "friday",
+      sat: "saturday",
+      sun: "sunday",
+    };
+
+    const createActionFromTemplate = (
+      template?: (typeof templates)[number],
+    ): ActionNode => {
+      const fields = template?.fields ?? buildDefaultTemplateFields();
+      const plannedMinutes = Number(fields.dauer);
+      const requiredPersons = Number(fields.personen);
+      const recurrenceWeekdays = fields.wiederholungWochentage
+        .split(",")
+        .map((value) => weekdayMap[value.trim().toLowerCase()])
+        .filter((value): value is Weekday => Boolean(value));
+      const lockedFieldKeys = template
+        ? Object.keys(template.editable).filter(
+            (key) => !template.editable[key as keyof typeof template.editable],
+          )
+        : [];
+
+      return {
+        id: uid(),
+        title: fields.titel,
+        notes: fields.beschreibung,
+        requiredResources: fields.hilfsmittel || undefined,
+        plannedMinutes: Number.isFinite(plannedMinutes) ? plannedMinutes : undefined,
+        requiredPersons: Number.isFinite(requiredPersons) ? requiredPersons : undefined,
+        category: fields.kategorie !== "none" ? (fields.kategorie as ActionNode["category"]) : undefined,
+        dayPart: fields.tageszeit !== "none" ? (fields.tageszeit as ActionNode["dayPart"]) : undefined,
+        resultRequirement: fields.resultat !== "none"
+          ? (fields.resultat as ActionNode["resultRequirement"])
+          : undefined,
+        recurrence: fields.wiederholung as ActionNode["recurrence"],
+        recurrenceWeekdays: recurrenceWeekdays.length > 0 ? recurrenceWeekdays : undefined,
+        recurrenceMonthlyPattern: fields.wiederholungMonatlich !== "none"
+          ? (fields.wiederholungMonatlich as ActionNode["recurrenceMonthlyPattern"])
+          : undefined,
+        status: "open",
+        done: false,
+        templateId: template?.id,
+        templateName: template?.name,
+        templateLockedFields: lockedFieldKeys,
+      };
+    };
+
+    const newActions = templates.length > 0
+      ? templates.map((template) => createActionFromTemplate(template))
+      : [createActionFromTemplate()];
+
     updateClientTopicsFor(clientId, (topics) =>
       topics.map((t) =>
         t.id !== topicId
@@ -579,13 +636,7 @@ const Index = () => {
                       ...tg,
                       actions: [
                         ...tg.actions,
-                        {
-                          id: uid(),
-                          title: "",
-                          notes: "",
-                          status: "open",
-                          done: false,
-                        },
+                        ...newActions,
                       ],
                     },
               ),
@@ -1650,7 +1701,9 @@ const Index = () => {
                       }
                       onAddTopic={() => addTopic(client.id)}
                       onAddTarget={(topicId) => addTarget(client.id, topicId)}
-                      onAddAction={(topicId, targetId) => addAction(client.id, topicId, targetId)}
+                      onAddAction={(topicId, targetId, templateIds) =>
+                        addAction(client.id, topicId, targetId, templateIds)
+                      }
                       onDeleteTopic={(topicId) => deleteTopic(client.id, topicId)}
                       onDeleteTarget={(topicId, targetId) =>
                         deleteTarget(client.id, topicId, targetId)
