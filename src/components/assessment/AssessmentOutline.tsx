@@ -19,7 +19,6 @@ import {
   CalendarIcon,
   ChevronLeft,
   ChevronRight,
-  Check,
   ChevronUp,
 } from "lucide-react";
 import {
@@ -286,7 +285,8 @@ export function AssessmentOutline({
   } | null>(null);
   const [availableTemplates, setAvailableTemplates] = useState<ActionPlanTemplate[]>([]);
   const [templateQuery, setTemplateQuery] = useState("");
-  const [isTemplateDropdownOpen, setTemplateDropdownOpen] = useState(true);
+  const [isTemplateDropdownOpen, setTemplateDropdownOpen] = useState(false);
+  const [activeTemplateIndex, setActiveTemplateIndex] = useState(0);
   const [dialogTarget, setDialogTarget] = useState<DialogTarget | null>(null);
   const today = format(new Date(), "yyyy-MM-dd");
 
@@ -294,7 +294,8 @@ export function AssessmentOutline({
     setAvailableTemplates(loadActionPlanTemplates());
     setTemplateInline({ topicId, targetId, selectedIds: [] });
     setTemplateQuery("");
-    setTemplateDropdownOpen(true);
+    setTemplateDropdownOpen(false);
+    setActiveTemplateIndex(0);
   };
 
   const toggleTemplateSelection = (templateId: string, checked: boolean) => {
@@ -303,14 +304,34 @@ export function AssessmentOutline({
       return {
         ...prev,
         selectedIds: checked
-          ? [...prev.selectedIds, templateId]
+          ? prev.selectedIds.includes(templateId)
+            ? prev.selectedIds
+            : [...prev.selectedIds, templateId]
           : prev.selectedIds.filter((id) => id !== templateId),
       };
     });
   };
-  const filteredTemplates = availableTemplates.filter((template) =>
-    template.name.toLocaleLowerCase("de").includes(templateQuery.trim().toLocaleLowerCase("de")),
-  );
+  const templateFilterQuery = templateQuery.toLocaleLowerCase("de");
+  const hasTemplateFilterInput = templateFilterQuery.length >= 3;
+  const filteredTemplates = hasTemplateFilterInput
+    ? availableTemplates.filter((template) => {
+        const wildcardQuery = templateFilterQuery
+          .replace(/[.*+?^${}()|[\]\\]/g, "$&")
+          .replace(/\s/g, ".*");
+
+        return new RegExp(wildcardQuery).test(template.name.toLocaleLowerCase("de"));
+      })
+    : [];
+
+  useEffect(() => {
+    setActiveTemplateIndex(0);
+  }, [templateQuery, isTemplateDropdownOpen]);
+
+  const selectTemplateAndClose = (templateId: string) => {
+    toggleTemplateSelection(templateId, true);
+    setTemplateQuery("");
+    setTemplateDropdownOpen(false);
+  };
 
   if (viewMode === "confirmation") {
     const getPeriodRange = () => {
@@ -780,6 +801,36 @@ export function AssessmentOutline({
                                 <Input
                                   value={templateQuery}
                                   onChange={(e) => setTemplateQuery(e.target.value)}
+                                  onFocus={() => setTemplateDropdownOpen(true)}
+                                  onKeyDown={(e) => {
+                                    if (!isTemplateDropdownOpen && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+                                      e.preventDefault();
+                                      setTemplateDropdownOpen(true);
+                                      return;
+                                    }
+                                    if (!isTemplateDropdownOpen || !hasTemplateFilterInput || filteredTemplates.length === 0) return;
+                                    if (e.key === "ArrowDown") {
+                                      e.preventDefault();
+                                      setActiveTemplateIndex((prev) => (prev + 1) % filteredTemplates.length);
+                                      return;
+                                    }
+                                    if (e.key === "ArrowUp") {
+                                      e.preventDefault();
+                                      setActiveTemplateIndex((prev) => (prev - 1 + filteredTemplates.length) % filteredTemplates.length);
+                                      return;
+                                    }
+                                    if (e.key === "Enter") {
+                                      e.preventDefault();
+                                      const activeTemplate = filteredTemplates[activeTemplateIndex];
+                                      if (!activeTemplate) return;
+                                      selectTemplateAndClose(activeTemplate.id);
+                                      return;
+                                    }
+                                    if (e.key === "Escape") {
+                                      e.preventDefault();
+                                      setTemplateDropdownOpen(false);
+                                    }
+                                  }}
                                   placeholder="Vorlagen suchen..."
                                   className="h-6 min-w-[12rem] border-0 bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0"
                                 />
@@ -789,13 +840,20 @@ export function AssessmentOutline({
                               <ChevronUp className={cn("h-4 w-4 transition-transform", !isTemplateDropdownOpen && "rotate-180")} />
                             </button>
                           </div>
-                          {isTemplateDropdownOpen && (
+                          {isTemplateDropdownOpen && hasTemplateFilterInput && (
                             <div className="max-h-56 overflow-y-auto border-t border-border/70 p-1.5">
                               {filteredTemplates.map((template) => {
-                                const checked = templateInline.selectedIds.includes(template.id);
                                 return (
-                                  <button key={template.id} type="button" onClick={() => toggleTemplateSelection(template.id, !checked)} className={cn("flex w-full items-center gap-2 rounded-sm px-2 py-1 text-left text-sm hover:bg-secondary/40", checked && "bg-primary/10 text-primary")}>
-                                    <span className={cn("inline-flex h-4 w-4 items-center justify-center rounded border", checked ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40")}>{checked && <Check className="h-3 w-3" />}</span>
+                                  <button
+                                    key={template.id}
+                                    type="button"
+                                    onClick={() => selectTemplateAndClose(template.id)}
+                                    onMouseEnter={() => setActiveTemplateIndex(filteredTemplates.findIndex((entry) => entry.id === template.id))}
+                                    className={cn(
+                                      "flex w-full items-center rounded-sm px-2 py-1 text-left text-sm hover:bg-secondary/40",
+                                      activeTemplateIndex === filteredTemplates.findIndex((entry) => entry.id === template.id) && "bg-primary/10 text-primary",
+                                    )}
+                                  >
                                     <span className="truncate">{template.name}</span>
                                   </button>
                                 );
