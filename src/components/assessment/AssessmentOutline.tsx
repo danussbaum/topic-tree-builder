@@ -35,7 +35,7 @@ import { Input } from "@/components/ui/input";
 import { DatePickerInput } from "@/components/ui/date-picker-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -285,16 +285,12 @@ export function AssessmentOutline({
     selectedIds: string[];
   } | null>(null);
   const [availableTemplates, setAvailableTemplates] = useState<ActionPlanTemplate[]>([]);
-  const [templateQuery, setTemplateQuery] = useState("");
-  const [isTemplateDropdownOpen, setTemplateDropdownOpen] = useState(true);
   const [dialogTarget, setDialogTarget] = useState<DialogTarget | null>(null);
   const today = format(new Date(), "yyyy-MM-dd");
 
   const openAddActionDialog = (topicId: string, targetId: string) => {
     setAvailableTemplates(loadActionPlanTemplates());
     setTemplateDialog({ topicId, targetId, selectedIds: [] });
-    setTemplateQuery("");
-    setTemplateDropdownOpen(true);
   };
 
   const toggleTemplateSelection = (templateId: string, checked: boolean) => {
@@ -807,89 +803,25 @@ export function AssessmentOutline({
               Optional: Eine oder mehrere Vorlagen auswählen. Ohne Auswahl wird eine leere Handlung angelegt.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            <Label>Selectize</Label>
-            <div className="rounded-md border border-input bg-background focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/30">
-              <div className="flex items-start gap-2 p-2">
-                <div className="flex-1 space-y-2">
-                  <div className="flex flex-wrap gap-1">
-                    {templateDialog?.selectedIds.map((id) => {
-                      const template = availableTemplates.find((entry) => entry.id === id);
-                      if (!template) return null;
-                      return (
-                        <Badge key={id} variant="secondary" className="gap-1">
-                          {template.name}
-                          <button
-                            type="button"
-                            className="text-xs leading-none"
-                            onClick={() => toggleTemplateSelection(id, false)}
-                            aria-label={`${template.name} entfernen`}
-                          >
-                            ×
-                          </button>
-                        </Badge>
-                      );
-                    })}
-                  </div>
-                  <Input
-                    value={templateQuery}
-                    onChange={(event) => setTemplateQuery(event.target.value)}
-                    placeholder="Vorlagen suchen..."
-                    className="h-8 border-0 px-0 shadow-none focus-visible:ring-0"
-                  />
-                </div>
-                <button
-                  type="button"
-                  className="mt-1 rounded p-1 text-muted-foreground hover:bg-secondary"
-                  onClick={() => setTemplateDropdownOpen((prev) => !prev)}
-                  aria-label={isTemplateDropdownOpen ? "Liste einklappen" : "Liste ausklappen"}
-                >
-                  <ChevronUp
-                    className={cn(
-                      "h-4 w-4 transition-transform",
-                      !isTemplateDropdownOpen && "rotate-180",
-                    )}
-                  />
-                </button>
-              </div>
-              {isTemplateDropdownOpen && (
-              <div className="max-h-64 overflow-y-auto border-t border-border p-2">
-                {filteredTemplates.length === 0 ? (
-                  <p className="px-2 py-1 text-sm text-muted-foreground">Keine Vorlagen gefunden.</p>
-                ) : (
-                  <div className="space-y-1">
-                    {filteredTemplates.map((template) => {
-                      const checked = templateDialog?.selectedIds.includes(template.id) ?? false;
-                      return (
-                        <button
-                          key={template.id}
-                          type="button"
-                          onClick={() => toggleTemplateSelection(template.id, !checked)}
-                          className={cn(
-                            "flex w-full items-center gap-2 rounded border px-2 py-1.5 text-left text-sm hover:bg-secondary/60",
-                            checked && "border-primary bg-primary/10",
-                          )}
-                        >
-                          <span
-                            className={cn(
-                              "inline-flex h-4 w-4 items-center justify-center rounded border",
-                              checked ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40",
-                            )}
-                          >
-                            {checked && <Check className="h-3 w-3" />}
-                          </span>
-                          <span className="truncate">{template.name}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-              )}
-            </div>
+          <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
             {availableTemplates.length === 0 && (
               <p className="text-sm text-muted-foreground">Keine Vorlagen im lokalen Speicher gefunden.</p>
             )}
+            {availableTemplates.map((template) => {
+              const checked = templateDialog?.selectedIds.includes(template.id) ?? false;
+              return (
+                <label
+                  key={template.id}
+                  className="flex items-center gap-2 rounded border border-border px-3 py-2 text-sm cursor-pointer"
+                >
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={(value) => toggleTemplateSelection(template.id, value === true)}
+                  />
+                  <span>{template.name}</span>
+                </label>
+              );
+            })}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setTemplateDialog(null)}>Abbrechen</Button>
@@ -1947,6 +1879,19 @@ function Notes({
     />
   );
 }
-  const filteredTemplates = availableTemplates.filter((template) =>
-    template.name.toLocaleLowerCase("de").includes(templateQuery.trim().toLocaleLowerCase("de")),
-  );
+  const openAddActionDialog = (topicId: string, targetId: string) => {
+    setAvailableTemplates(loadActionPlanTemplates());
+    setTemplateDialog({ topicId, targetId, selectedIds: [] });
+  };
+
+  const toggleTemplateSelection = (templateId: string, checked: boolean) => {
+    setTemplateDialog((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        selectedIds: checked
+          ? [...prev.selectedIds, templateId]
+          : prev.selectedIds.filter((id) => id !== templateId),
+      };
+    });
+  };
