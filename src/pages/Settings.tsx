@@ -51,7 +51,7 @@ const Settings = () => {
             key: "export-templates",
             label: "Export",
             icon: Download,
-            onClick: () => templatesRef.current?.exportExcel(),
+            onClick: () => templatesRef.current?.exportCsv(),
           } satisfies SettingsRibbonAction,
         ]
       : []),

@@ -4,7 +4,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { createSimpleXlsxBlob } from "@/lib/xlsx";
 
 type TemplateFieldKey =
   | "titel"
@@ -144,7 +143,7 @@ const initialTemplates: ActionPlanTemplate[] = [
 
 export interface ActionPlanTemplatesHandle {
   openCreate: () => void;
-  exportExcel: () => void;
+  exportCsv: () => void;
   openImport: () => void;
 }
 
@@ -168,51 +167,17 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
     return map;
   }, []);
 
-  const readBlobAsText = async (blob: Blob) => new TextDecoder().decode(await blob.arrayBuffer());
+  const parseCsvRows = (text: string) =>
+    text
+      .split(/\r?\n/)
+      .filter((row) => row.trim() !== "")
+      .map((row) => row.split(";").map((cell) => cell.trim()));
 
-  const readZipEntries = async (file: File) => {
-    const buffer = await file.arrayBuffer();
-    const bytes = new Uint8Array(buffer);
-    const entries = new Map<string, Uint8Array>();
-    let offset = 0;
-
-    while (offset + 30 <= bytes.length) {
-      const view = new DataView(buffer, offset);
-      if (view.getUint32(0, true) !== 0x04034b50) break;
-      const method = view.getUint16(8, true);
-      const compressedSize = view.getUint32(18, true);
-      const nameLength = view.getUint16(26, true);
-      const extraLength = view.getUint16(28, true);
-      const nameStart = offset + 30;
-      const dataStart = nameStart + nameLength + extraLength;
-      const dataEnd = dataStart + compressedSize;
-      const name = new TextDecoder().decode(bytes.slice(nameStart, nameStart + nameLength));
-      const compressedData = bytes.slice(dataStart, dataEnd);
-
-      if (method === 0) {
-        entries.set(name, compressedData);
-      } else if (method === 8) {
-        const stream = new Blob([compressedData]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
-        const inflated = new Uint8Array(await new Response(stream).arrayBuffer());
-        entries.set(name, inflated);
-      }
-
-      offset = dataEnd;
+  const escapeCsvValue = (value: string) => {
+    if (value.includes(";") || value.includes("\n") || value.includes("\"")) {
+      return `"${value.replaceAll("\"", "\"\"")}"`;
     }
-
-    return entries;
-  };
-
-  const parseWorksheetRows = (worksheetXml: string) => {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(worksheetXml, "application/xml");
-    return Array.from(doc.getElementsByTagName("row")).map((row) =>
-      Array.from(row.getElementsByTagName("c")).map((cell) => {
-        const inlineText = cell.getElementsByTagName("t")[0]?.textContent;
-        const value = cell.getElementsByTagName("v")[0]?.textContent;
-        return (inlineText ?? value ?? "").trim();
-      }),
-    );
+    return value;
   };
 
   const normalizeEditable = (value: string) => {
@@ -227,21 +192,17 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
     input?.click();
   };
 
-  const importTemplatesExcel = async (file: File) => {
-    const entries = await readZipEntries(file);
-    const worksheet = entries.get("xl/worksheets/sheet1.xml");
-    if (!worksheet) {
-      setImportErrors(["Datei enthält kein erwartetes Tabellenblatt (xl/worksheets/sheet1.xml)."]);
-      return;
-    }
-
-    const rows = parseWorksheetRows(await readBlobAsText(new Blob([worksheet])));
+  const importTemplatesCsv = async (file: File) => {
+    const text = await file.text();
+    const utf8Bom = "\uFEFF";
+    const normalizedText = text.startsWith(utf8Bom) ? text.slice(1) : text;
+    const rows = parseCsvRows(normalizedText);
     const dataRows = rows.slice(1);
     const rowErrors: string[] = [];
     const validRows: ActionPlanTemplate[] = [];
 
     dataRows.forEach((row, rowIndex) => {
-      const excelRowNumber = rowIndex + 2;
+      const rowNumber = rowIndex + 2;
       const errors: string[] = [];
       const name = row[0]?.trim() ?? "";
       if (!name) errors.push("Name fehlt");
@@ -281,7 +242,7 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
       });
 
       if (errors.length > 0) {
-        rowErrors.push(`Zeile ${excelRowNumber}: ${errors.join("; ")}`);
+        rowErrors.push(`Zeile ${rowNumber}: ${errors.join("; ")}`);
         return;
       }
 
@@ -360,7 +321,7 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
     closePanel();
   };
 
-  const exportTemplatesExcel = () => {
+  const exportTemplatesCsv = () => {
     const headers = [
       "Name",
       ...templateFieldMeta.flatMap((field) => [field.label, `${field.label} veränderbar`]),
@@ -374,16 +335,16 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
       ]),
     ]);
 
-    const blob = createSimpleXlsxBlob({
-      sheetName: "Vorlagen",
-      headers,
-      rows,
-    });
+    const csvContent = [headers, ...rows]
+      .map((row) => row.map((cell) => escapeCsvValue(String(cell ?? ""))).join(";"))
+      .join("\n");
+    const utf8Bom = "\uFEFF";
+    const blob = new Blob([utf8Bom, csvContent], { type: "text/csv;charset=utf-8;" });
 
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "vorlagen_attribute.xlsx";
+    link.download = "vorlagen_attribute.csv";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -392,7 +353,7 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
 
   useImperativeHandle(
     ref,
-    () => ({ openCreate: openCreatePanel, exportExcel: exportTemplatesExcel, openImport: openImportPicker }),
+    () => ({ openCreate: openCreatePanel, exportCsv: exportTemplatesCsv, openImport: openImportPicker }),
     [templates],
   );
 
@@ -402,12 +363,12 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
         id="templates-import-input"
         key={filePickerKey}
         type="file"
-        accept=".xlsx"
+        accept=".csv"
         className="hidden"
         onChange={async (event) => {
           const file = event.target.files?.[0];
           if (!file) return;
-          await importTemplatesExcel(file);
+          await importTemplatesCsv(file);
           setFilePickerKey((prev) => prev + 1);
         }}
       />
