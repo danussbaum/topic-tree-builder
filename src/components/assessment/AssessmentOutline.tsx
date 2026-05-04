@@ -19,6 +19,8 @@ import {
   CalendarIcon,
   ChevronLeft,
   ChevronRight,
+  Check,
+  ChevronUp,
 } from "lucide-react";
 import {
   Dialog,
@@ -33,6 +35,7 @@ import { Input } from "@/components/ui/input";
 import { DatePickerInput } from "@/components/ui/date-picker-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -58,6 +61,7 @@ import {
 } from "@/types/assessment-filter";
 import { cn } from "@/lib/utils";
 import { matchesConfirmationFilter } from "@/lib/confirmation-filter";
+import { loadActionPlanTemplates, type ActionPlanTemplate } from "@/lib/action-plan-templates";
 
 type ConfirmPayload =
   | { status: "done_as_planned"; result?: string; observations?: string }
@@ -126,7 +130,7 @@ interface Props {
     date?: string,
   ) => void;
   onAddTarget: (topicId: string) => void;
-  onAddAction: (topicId: string, targetId: string) => void;
+  onAddAction: (topicId: string, targetId: string, templateIds: string[]) => void;
   onAddTopic: () => void;
   onDeleteTopic: (topicId: string) => void;
   onDeleteTarget: (topicId: string, targetId: string) => void;
@@ -275,8 +279,35 @@ export function AssessmentOutline({
   onDeleteTarget,
   onDeleteAction,
 }: Props) {
+  const [templateDialog, setTemplateDialog] = useState<{
+    topicId: string;
+    targetId: string;
+    selectedIds: string[];
+  } | null>(null);
+  const [availableTemplates, setAvailableTemplates] = useState<ActionPlanTemplate[]>([]);
+  const [templateQuery, setTemplateQuery] = useState("");
+  const [isTemplateDropdownOpen, setTemplateDropdownOpen] = useState(true);
   const [dialogTarget, setDialogTarget] = useState<DialogTarget | null>(null);
   const today = format(new Date(), "yyyy-MM-dd");
+
+  const openAddActionDialog = (topicId: string, targetId: string) => {
+    setAvailableTemplates(loadActionPlanTemplates());
+    setTemplateDialog({ topicId, targetId, selectedIds: [] });
+    setTemplateQuery("");
+    setTemplateDropdownOpen(true);
+  };
+
+  const toggleTemplateSelection = (templateId: string, checked: boolean) => {
+    setTemplateDialog((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        selectedIds: checked
+          ? [...prev.selectedIds, templateId]
+          : prev.selectedIds.filter((id) => id !== templateId),
+      };
+    });
+  };
 
   if (viewMode === "confirmation") {
     const getPeriodRange = () => {
@@ -721,7 +752,7 @@ export function AssessmentOutline({
                     </div>
 
                     <button
-                      onClick={() => onAddAction(topic.id, target.id)}
+                      onClick={() => openAddActionDialog(topic.id, target.id)}
                       className="mt-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
                     >
                       <Plus className="h-3.5 w-3.5" />
@@ -768,6 +799,112 @@ export function AssessmentOutline({
           setDialogTarget(null);
         }}
       />
+      <Dialog open={Boolean(templateDialog)} onOpenChange={(open) => !open && setTemplateDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Vorlagen auswählen</DialogTitle>
+            <DialogDescription>
+              Optional: Eine oder mehrere Vorlagen auswählen. Ohne Auswahl wird eine leere Handlung angelegt.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Selectize</Label>
+            <div className="rounded-md border border-input bg-background focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/30">
+              <div className="flex items-start gap-2 p-2">
+                <div className="flex-1 space-y-2">
+                  <div className="flex flex-wrap gap-1">
+                    {templateDialog?.selectedIds.map((id) => {
+                      const template = availableTemplates.find((entry) => entry.id === id);
+                      if (!template) return null;
+                      return (
+                        <Badge key={id} variant="secondary" className="gap-1">
+                          {template.name}
+                          <button
+                            type="button"
+                            className="text-xs leading-none"
+                            onClick={() => toggleTemplateSelection(id, false)}
+                            aria-label={`${template.name} entfernen`}
+                          >
+                            ×
+                          </button>
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                  <Input
+                    value={templateQuery}
+                    onChange={(event) => setTemplateQuery(event.target.value)}
+                    placeholder="Vorlagen suchen..."
+                    className="h-8 border-0 px-0 shadow-none focus-visible:ring-0"
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="mt-1 rounded p-1 text-muted-foreground hover:bg-secondary"
+                  onClick={() => setTemplateDropdownOpen((prev) => !prev)}
+                  aria-label={isTemplateDropdownOpen ? "Liste einklappen" : "Liste ausklappen"}
+                >
+                  <ChevronUp
+                    className={cn(
+                      "h-4 w-4 transition-transform",
+                      !isTemplateDropdownOpen && "rotate-180",
+                    )}
+                  />
+                </button>
+              </div>
+              {isTemplateDropdownOpen && (
+              <div className="max-h-64 overflow-y-auto border-t border-border p-2">
+                {filteredTemplates.length === 0 ? (
+                  <p className="px-2 py-1 text-sm text-muted-foreground">Keine Vorlagen gefunden.</p>
+                ) : (
+                  <div className="space-y-1">
+                    {filteredTemplates.map((template) => {
+                      const checked = templateDialog?.selectedIds.includes(template.id) ?? false;
+                      return (
+                        <button
+                          key={template.id}
+                          type="button"
+                          onClick={() => toggleTemplateSelection(template.id, !checked)}
+                          className={cn(
+                            "flex w-full items-center gap-2 rounded border px-2 py-1.5 text-left text-sm hover:bg-secondary/60",
+                            checked && "border-primary bg-primary/10",
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "inline-flex h-4 w-4 items-center justify-center rounded border",
+                              checked ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40",
+                            )}
+                          >
+                            {checked && <Check className="h-3 w-3" />}
+                          </span>
+                          <span className="truncate">{template.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              )}
+            </div>
+            {availableTemplates.length === 0 && (
+              <p className="text-sm text-muted-foreground">Keine Vorlagen im lokalen Speicher gefunden.</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTemplateDialog(null)}>Abbrechen</Button>
+            <Button
+              onClick={() => {
+                if (!templateDialog) return;
+                onAddAction(templateDialog.topicId, templateDialog.targetId, templateDialog.selectedIds);
+                setTemplateDialog(null);
+              }}
+            >
+              Handlung erstellen
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -812,6 +949,8 @@ function ActionRow({
   onOpenDialog: () => void;
 }) {
   const isLocked = Object.keys(action.confirmations ?? {}).length > 0;
+  const templateLockedFields = new Set(action.templateLockedFields ?? []);
+  const isTemplateFieldLocked = (field: string) => templateLockedFields.has(field);
   const isConfirmationRestricted =
     viewMode === "confirmation" && !canConfirmAction(action);
   const weeklyDaysMissing =
@@ -880,7 +1019,7 @@ function ActionRow({
       <div className="flex-1 min-w-0">
         <input
           value={action.title}
-          readOnly={viewMode === "confirmation" || isLocked}
+          readOnly={viewMode === "confirmation" || isLocked || isTemplateFieldLocked("titel")}
           onChange={(e) =>
             onUpdateAction(topicId, targetId, action.id, "title", e.target.value)
           }
@@ -903,7 +1042,7 @@ function ActionRow({
               onChange={(v) =>
                 onUpdateAction(topicId, targetId, action.id, "notes", v)
               }
-              disabled={isLocked}
+              disabled={isLocked || isTemplateFieldLocked("beschreibung")}
               placeholder="Beschreibung zur Handlung..."
               className="text-foreground/70"
               compact
@@ -913,7 +1052,7 @@ function ActionRow({
               onChange={(v) =>
                 onUpdateAction(topicId, targetId, action.id, "requiredResources", v)
               }
-              disabled={isLocked}
+              disabled={isLocked || isTemplateFieldLocked("hilfsmittel")}
               placeholder="Hilfsmittel zur Durchführung..."
               className="text-foreground/70"
               compact
@@ -928,7 +1067,7 @@ function ActionRow({
               <span className="shrink-0 text-muted-foreground">Kategorie</span>
               <Select
                 value={action.category ?? "none"}
-                disabled={isLocked}
+                disabled={isLocked || isTemplateFieldLocked("kategorie")}
                 onValueChange={(v) =>
                   onUpdateActionField(
                     topicId,
@@ -955,7 +1094,7 @@ function ActionRow({
               <span className="shrink-0 text-muted-foreground">Tageszeit</span>
               <Select
                 value={action.dayPart ?? "none"}
-                disabled={isLocked}
+                disabled={isLocked || isTemplateFieldLocked("tageszeit")}
                 onValueChange={(v) =>
                   onUpdateActionField(
                     topicId,
@@ -986,7 +1125,7 @@ function ActionRow({
                 type="number"
                 min={0}
                 step={5}
-                disabled={isLocked}
+                disabled={isLocked || isTemplateFieldLocked("dauer")}
                 value={action.plannedMinutes ?? ""}
                 onChange={(e) =>
                   onUpdateActionField(
@@ -1012,7 +1151,7 @@ function ActionRow({
                 type="number"
                 min={1}
                 step={1}
-                disabled={isLocked}
+                disabled={isLocked || isTemplateFieldLocked("personen")}
                 value={action.requiredPersons ?? ""}
                 onChange={(e) => {
                   const value = Number(e.target.value);
@@ -1035,7 +1174,7 @@ function ActionRow({
               <span className="shrink-0 text-muted-foreground">Resultat</span>
               <Select
                 value={action.resultRequirement ?? "none"}
-                disabled={isLocked}
+                disabled={isLocked || isTemplateFieldLocked("resultat")}
                 onValueChange={(v) =>
                   onUpdateActionField(
                     topicId,
@@ -1060,7 +1199,7 @@ function ActionRow({
             <DateField
               label="Gültig ab"
               required
-              disabled={isLocked}
+              disabled={isLocked || isTemplateFieldLocked("wiederholung")}
               value={action.validFrom}
               onChange={(v) =>
                 onUpdateActionField(topicId, targetId, action.id, "validFrom", v)
@@ -1202,7 +1341,7 @@ function ActionRow({
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
             <Select
               value={action.dayPart ?? "none"}
-              disabled={isLocked}
+              disabled={isLocked || isTemplateFieldLocked("wiederholungWochentage")}
               onValueChange={(v) =>
                 onUpdateActionField(
                   topicId,
@@ -1231,7 +1370,7 @@ function ActionRow({
                 type="number"
                 min={0}
                 step={5}
-                disabled={isLocked}
+                  disabled={isLocked || isTemplateFieldLocked("wiederholungMonatlich")}
                 value={action.plannedMinutes ?? ""}
                 onChange={(e) =>
                   onUpdateActionField(
@@ -1808,3 +1947,6 @@ function Notes({
     />
   );
 }
+  const filteredTemplates = availableTemplates.filter((template) =>
+    template.name.toLocaleLowerCase("de").includes(templateQuery.trim().toLocaleLowerCase("de")),
+  );
