@@ -1144,7 +1144,7 @@ function ActionRow({
             <DateField
               label="Gültig ab"
               required
-              disabled={isLocked || isTemplateFieldLocked("wiederholung")}
+              disabled={isLocked}
               value={action.validFrom}
               onChange={(v) =>
                 onUpdateActionField(topicId, targetId, action.id, "validFrom", v)
