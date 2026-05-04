@@ -1,4 +1,5 @@
 import { Fragment, forwardRef, useEffect, useImperativeHandle, useMemo, useState } from "react";
+import { Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -119,6 +120,8 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
   const [draftFields, setDraftFields] = useState<Record<TemplateFieldKey, string>>(buildDefaultFields);
   const [draftEditable, setDraftEditable] = useState<Record<TemplateFieldKey, boolean>>(buildDefaultEditable);
   const [filePickerKey, setFilePickerKey] = useState(0);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const allowedByField = useMemo(() => {
     const map = new Map<TemplateFieldKey, Set<string>>();
@@ -230,6 +233,13 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
     () => templates.find((entry) => entry.id === selectedTemplateId) ?? null,
     [templates, selectedTemplateId],
   );
+
+  const visibleTemplates = useMemo(() => {
+    const query = searchQuery.trim().toLocaleLowerCase("de");
+    const filtered = templates.filter((entry) => entry.name.toLocaleLowerCase("de").includes(query));
+    const sorted = [...filtered].sort((a, b) => a.name.localeCompare(b.name, "de", { sensitivity: "base" }));
+    return sortDirection === "asc" ? sorted : sorted.reverse();
+  }, [searchQuery, sortDirection, templates]);
 
   useEffect(() => {
     if (!isPanelMounted) return;
@@ -345,11 +355,47 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
           </ul>
         </section>
       )}
+      <section className="border-y border-border/80 bg-[#f1f1f3] px-4 py-2">
+        <div className="flex justify-end">
+          <div className="relative w-full max-w-sm">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Vorlagen suchen"
+              className="h-9 bg-background pl-9 pr-9"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                aria-label="Suche zurücksetzen"
+              >
+                <X className="size-4" />
+              </button>
+            )}
+          </div>
+        </div>
+      </section>
       <section className="overflow-hidden border-y border-border/80 bg-background">
         <table className="w-full table-fixed text-sm">
-          <thead className="bg-[#f1f1f3]"><tr className="border-b border-border/80"><th className="px-4 py-2 text-left text-xs font-semibold text-foreground">Name</th></tr></thead>
+          <thead className="bg-[#f1f1f3]">
+            <tr className="border-b border-border/80">
+              <th className="px-4 py-2 text-left text-xs font-semibold text-foreground">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1"
+                  onClick={() => setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"))}
+                >
+                  Name
+                  <span aria-hidden="true">{sortDirection === "asc" ? "↑" : "↓"}</span>
+                </button>
+              </th>
+            </tr>
+          </thead>
           <tbody className="bg-background">
-            {templates.map((entry) => (
+            {visibleTemplates.map((entry) => (
               <tr key={entry.id} className="cursor-pointer border-b border-border/80 even:bg-[#f7f7f9] hover:bg-[#d6e2f4]" onClick={() => openEditPanel(entry.id)}>
                 <td className="px-4 py-2 text-[13px] text-foreground">{entry.name}</td>
               </tr>
