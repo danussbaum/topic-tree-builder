@@ -762,9 +762,8 @@ export function AssessmentOutline({
                       Handlung hinzufügen
                     </button>
                     {templateInline?.topicId === topic.id && templateInline?.targetId === target.id && (
-                      <div className="mt-2 rounded-md border border-border bg-card p-3 space-y-2">
-                        <Label>Selectize</Label>
-                        <div className="rounded-md border border-input bg-background focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/30">
+                      <div className="mt-2 rounded-md border border-border/60 bg-card p-3 space-y-2">
+                        <div className="rounded-md border border-input/70 bg-background shadow-sm focus-within:border-primary/70">
                           <div className="flex items-start gap-2 p-2">
                             <div className="flex-1 space-y-2">
                               <div className="flex flex-wrap gap-1">
@@ -772,25 +771,30 @@ export function AssessmentOutline({
                                   const template = availableTemplates.find((entry) => entry.id === id);
                                   if (!template) return null;
                                   return (
-                                    <Badge key={id} variant="secondary" className="gap-1">
+                                    <Badge key={id} variant="secondary" className="h-6 gap-1 rounded-sm border border-border/60 bg-secondary/40 px-1.5 font-normal text-foreground/90">
                                       {template.name}
-                                      <button type="button" className="text-xs leading-none" onClick={() => toggleTemplateSelection(id, false)}>×</button>
+                                      <button type="button" className="text-xs leading-none text-muted-foreground hover:text-foreground" onClick={() => toggleTemplateSelection(id, false)}>×</button>
                                     </Badge>
                                   );
                                 })}
+                                <Input
+                                  value={templateQuery}
+                                  onChange={(e) => setTemplateQuery(e.target.value)}
+                                  placeholder="Vorlagen suchen..."
+                                  className="h-6 min-w-[12rem] border-0 bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0"
+                                />
                               </div>
-                              <Input value={templateQuery} onChange={(e) => setTemplateQuery(e.target.value)} placeholder="Vorlagen suchen..." className="h-8 border-0 px-0 shadow-none focus-visible:ring-0" />
                             </div>
-                            <button type="button" className="mt-1 rounded p-1 text-muted-foreground hover:bg-secondary" onClick={() => setTemplateDropdownOpen((prev) => !prev)}>
+                            <button type="button" className="mt-0.5 rounded p-1 text-muted-foreground hover:bg-secondary/70" onClick={() => setTemplateDropdownOpen((prev) => !prev)}>
                               <ChevronUp className={cn("h-4 w-4 transition-transform", !isTemplateDropdownOpen && "rotate-180")} />
                             </button>
                           </div>
                           {isTemplateDropdownOpen && (
-                            <div className="max-h-56 overflow-y-auto border-t border-border p-2">
+                            <div className="max-h-56 overflow-y-auto border-t border-border/70 p-1.5">
                               {filteredTemplates.map((template) => {
                                 const checked = templateInline.selectedIds.includes(template.id);
                                 return (
-                                  <button key={template.id} type="button" onClick={() => toggleTemplateSelection(template.id, !checked)} className={cn("flex w-full items-center gap-2 rounded border px-2 py-1.5 text-left text-sm hover:bg-secondary/60", checked && "border-primary bg-primary/10")}>
+                                  <button key={template.id} type="button" onClick={() => toggleTemplateSelection(template.id, !checked)} className={cn("flex w-full items-center gap-2 rounded-sm px-2 py-1 text-left text-sm hover:bg-secondary/40", checked && "bg-primary/10 text-primary")}>
                                     <span className={cn("inline-flex h-4 w-4 items-center justify-center rounded border", checked ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40")}>{checked && <Check className="h-3 w-3" />}</span>
                                     <span className="truncate">{template.name}</span>
                                   </button>
