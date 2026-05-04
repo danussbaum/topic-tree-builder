@@ -4,6 +4,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  buildDefaultTemplateEditable as buildDefaultEditable,
+  buildDefaultTemplateFields as buildDefaultFields,
+  type ActionPlanTemplate,
+  loadActionPlanTemplates,
+  saveActionPlanTemplates,
+} from "@/lib/action-plan-templates";
 
 type TemplateFieldKey =
   | "titel"
@@ -23,13 +30,6 @@ interface TemplateFieldMeta {
   label: string;
   type: "text" | "textarea" | "select";
   options?: Array<{ value: string; label: string }>;
-}
-
-interface ActionPlanTemplate {
-  id: string;
-  name: string;
-  fields: Record<TemplateFieldKey, string>;
-  editable: Record<TemplateFieldKey, boolean>;
 }
 
 const templateFieldMeta: TemplateFieldMeta[] = [
@@ -102,45 +102,6 @@ const templateFieldMeta: TemplateFieldMeta[] = [
   },
 ];
 
-const buildDefaultFields = () =>
-  templateFieldMeta.reduce(
-    (acc, field) => {
-      acc[field.key] = field.options?.[0]?.value ?? "";
-      return acc;
-    },
-    {} as Record<TemplateFieldKey, string>,
-  );
-
-const buildDefaultEditable = (value = true) =>
-  templateFieldMeta.reduce(
-    (acc, field) => {
-      acc[field.key] = value;
-      return acc;
-    },
-    {} as Record<TemplateFieldKey, boolean>,
-  );
-
-const initialTemplates: ActionPlanTemplate[] = [
-  {
-    id: "tpl-1",
-    name: "Morgenroutine",
-    fields: {
-      titel: "Tagesstart begleiten",
-      beschreibung: "Begleitung bei der Morgenhygiene und Planung des Tagesablaufs.",
-      hilfsmittel: "Pflegeutensilien bereitstellen.",
-      dauer: "20",
-      personen: "1",
-      kategorie: "a",
-      tageszeit: "morning",
-      resultat: "required",
-      wiederholung: "daily",
-      wiederholungMonatlich: "none",
-      wiederholungWochentage: "mon,tue,wed,thu,fri",
-    },
-    editable: buildDefaultEditable(true),
-  },
-];
-
 export interface ActionPlanTemplatesHandle {
   openCreate: () => void;
   exportCsv: () => void;
@@ -148,7 +109,7 @@ export interface ActionPlanTemplatesHandle {
 }
 
 export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_props, ref) => {
-  const [templates, setTemplates] = useState<ActionPlanTemplate[]>(initialTemplates);
+  const [templates, setTemplates] = useState<ActionPlanTemplate[]>(() => loadActionPlanTemplates());
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isPanelMounted, setIsPanelMounted] = useState(false);
@@ -351,6 +312,10 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
     URL.revokeObjectURL(url);
   };
 
+
+  useEffect(() => {
+    saveActionPlanTemplates(templates);
+  }, [templates]);
   useImperativeHandle(
     ref,
     () => ({ openCreate: openCreatePanel, exportCsv: exportTemplatesCsv, openImport: openImportPicker }),
