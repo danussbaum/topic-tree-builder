@@ -25,6 +25,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DatePickerInput } from "@/components/ui/date-picker-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -788,7 +789,9 @@ export function AssessmentOutline({
                                 const checked = templateInline.selectedIds.includes(template.id);
                                 return (
                                   <button key={template.id} type="button" onClick={() => toggleTemplateSelection(template.id, !checked)} className={cn("flex w-full items-center gap-2 rounded border px-2 py-1.5 text-left text-sm hover:bg-secondary/60", checked && "border-primary bg-primary/10")}>
-                                    <span className={cn("inline-flex h-4 w-4 items-center justify-center rounded border", checked ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40")}>{checked && <Check className="h-3 w-3" />}</span>
+                                    <span onClick={(event) => event.preventDefault()}>
+                                      <Checkbox checked={checked} />
+                                    </span>
                                     <span className="truncate">{template.name}</span>
                                   </button>
                                 );
