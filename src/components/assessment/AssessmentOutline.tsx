@@ -35,16 +35,7 @@ import { Input } from "@/components/ui/input";
 import { DatePickerInput } from "@/components/ui/date-picker-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -294,7 +285,6 @@ export function AssessmentOutline({
     selectedIds: string[];
   } | null>(null);
   const [availableTemplates, setAvailableTemplates] = useState<ActionPlanTemplate[]>([]);
-  const [isTemplateSelectOpen, setTemplateSelectOpen] = useState(false);
   const [dialogTarget, setDialogTarget] = useState<DialogTarget | null>(null);
   const today = format(new Date(), "yyyy-MM-dd");
 
@@ -813,65 +803,25 @@ export function AssessmentOutline({
               Optional: Eine oder mehrere Vorlagen auswählen. Ohne Auswahl wird eine leere Handlung angelegt.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            <Label>Vorlagen (Mehrfachauswahl)</Label>
-            <Popover open={isTemplateSelectOpen} onOpenChange={setTemplateSelectOpen}>
-              <PopoverTrigger asChild>
-                <Button variant="outline" role="combobox" className="w-full justify-between">
-                  <span className="truncate">
-                    {(templateDialog?.selectedIds.length ?? 0) > 0
-                      ? `${templateDialog?.selectedIds.length} Vorlage(n) gewählt`
-                      : "Vorlagen auswählen..."}
-                  </span>
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-                <Command>
-                  <CommandInput placeholder="Vorlage suchen..." />
-                  <CommandList>
-                    <CommandEmpty>Keine Vorlagen gefunden.</CommandEmpty>
-                    <CommandGroup>
-                      {availableTemplates.map((template) => {
-                        const checked = templateDialog?.selectedIds.includes(template.id) ?? false;
-                        return (
-                          <CommandItem
-                            key={template.id}
-                            value={template.name}
-                            onSelect={() => toggleTemplateSelection(template.id, !checked)}
-                          >
-                            <Check className={cn("mr-2 h-4 w-4", checked ? "opacity-100" : "opacity-0")} />
-                            {template.name}
-                          </CommandItem>
-                        );
-                      })}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
-            <div className="flex flex-wrap gap-1">
-              {templateDialog?.selectedIds.map((id) => {
-                const template = availableTemplates.find((entry) => entry.id === id);
-                if (!template) return null;
-                return (
-                  <Badge key={id} variant="secondary" className="gap-1">
-                    {template.name}
-                    <button
-                      type="button"
-                      className="text-xs leading-none"
-                      onClick={() => toggleTemplateSelection(id, false)}
-                      aria-label={`${template.name} entfernen`}
-                    >
-                      ×
-                    </button>
-                  </Badge>
-                );
-              })}
-            </div>
+          <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
             {availableTemplates.length === 0 && (
               <p className="text-sm text-muted-foreground">Keine Vorlagen im lokalen Speicher gefunden.</p>
             )}
+            {availableTemplates.map((template) => {
+              const checked = templateDialog?.selectedIds.includes(template.id) ?? false;
+              return (
+                <label
+                  key={template.id}
+                  className="flex items-center gap-2 rounded border border-border px-3 py-2 text-sm cursor-pointer"
+                >
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={(value) => toggleTemplateSelection(template.id, value === true)}
+                  />
+                  <span>{template.name}</span>
+                </label>
+              );
+            })}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setTemplateDialog(null)}>Abbrechen</Button>
@@ -1929,3 +1879,19 @@ function Notes({
     />
   );
 }
+  const openAddActionDialog = (topicId: string, targetId: string) => {
+    setAvailableTemplates(loadActionPlanTemplates());
+    setTemplateDialog({ topicId, targetId, selectedIds: [] });
+  };
+
+  const toggleTemplateSelection = (templateId: string, checked: boolean) => {
+    setTemplateDialog((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        selectedIds: checked
+          ? [...prev.selectedIds, templateId]
+          : prev.selectedIds.filter((id) => id !== templateId),
+      };
+    });
+  };
