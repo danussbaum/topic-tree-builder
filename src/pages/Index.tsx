@@ -366,18 +366,63 @@ const seedClients: Client[] = [
   { id: uid(), firstName: "Marco", lastName: "Schneider", topics: [] },
 ];
 
+const ASSESSMENT_CACHE_KEY = "assessment:cached-state:v1";
+
+interface CachedAssessmentState {
+  viewMode: "planning" | "confirmation";
+  selectedDate: string;
+  confirmationPeriod: ConfirmationPeriod;
+  clients: Client[];
+  selectedClientIds: string[];
+  confirmationFilter: AssessmentFilterModel;
+  showCompletedTargets: boolean;
+}
+
+const loadCachedAssessmentState = (): CachedAssessmentState | null => {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(ASSESSMENT_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<CachedAssessmentState>;
+    if (!Array.isArray(parsed.clients) || !Array.isArray(parsed.selectedClientIds)) return null;
+    return {
+      viewMode: parsed.viewMode === "confirmation" ? "confirmation" : "planning",
+      selectedDate:
+        typeof parsed.selectedDate === "string" ? parsed.selectedDate : todayLocalISO(),
+      confirmationPeriod:
+        parsed.confirmationPeriod === "week" || parsed.confirmationPeriod === "month"
+          ? parsed.confirmationPeriod
+          : "day",
+      clients: parsed.clients,
+      selectedClientIds: parsed.selectedClientIds,
+      confirmationFilter: parsed.confirmationFilter ?? INITIAL_CONFIRMATION_FILTER,
+      showCompletedTargets: Boolean(parsed.showCompletedTargets),
+    };
+  } catch {
+    return null;
+  }
+};
+
 const Index = () => {
   const navigate = useNavigate();
-  const [viewMode, setViewMode] = useState<"planning" | "confirmation">("planning");
-  const [selectedDate, setSelectedDate] = useState<string>(todayLocalISO());
-  const [confirmationPeriod, setConfirmationPeriod] = useState<ConfirmationPeriod>("day");
-  const [clients, setClients] = useState<Client[]>(seedClients);
-  const [selectedClientIds, setSelectedClientIds] = useState<string[]>([
-    seedClients[0].id,
-  ]);
-  const [confirmationFilter, setConfirmationFilter] =
-    useState<AssessmentFilterModel>(INITIAL_CONFIRMATION_FILTER);
-  const [showCompletedTargets, setShowCompletedTargets] = useState(false);
+  const cached = loadCachedAssessmentState();
+  const [viewMode, setViewMode] = useState<"planning" | "confirmation">(
+    cached?.viewMode ?? "planning",
+  );
+  const [selectedDate, setSelectedDate] = useState<string>(cached?.selectedDate ?? todayLocalISO());
+  const [confirmationPeriod, setConfirmationPeriod] = useState<ConfirmationPeriod>(
+    cached?.confirmationPeriod ?? "day",
+  );
+  const [clients, setClients] = useState<Client[]>(cached?.clients ?? seedClients);
+  const [selectedClientIds, setSelectedClientIds] = useState<string[]>(
+    cached?.selectedClientIds ?? [seedClients[0].id],
+  );
+  const [confirmationFilter, setConfirmationFilter] = useState<AssessmentFilterModel>(
+    cached?.confirmationFilter ?? INITIAL_CONFIRMATION_FILTER,
+  );
+  const [showCompletedTargets, setShowCompletedTargets] = useState(
+    cached?.showCompletedTargets ?? false,
+  );
   const [draftFilter, setDraftFilter] = useState<AssessmentFilterModel>(confirmationFilter);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isTargetHiddenHintOpen, setIsTargetHiddenHintOpen] = useState(false);
@@ -385,6 +430,27 @@ const Index = () => {
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
   const filterButtonRef = useRef<HTMLDivElement | null>(null);
   const [filterMenuLeft, setFilterMenuLeft] = useState(0);
+
+  useEffect(() => {
+    const cachePayload: CachedAssessmentState = {
+      viewMode,
+      selectedDate,
+      confirmationPeriod,
+      clients,
+      selectedClientIds,
+      confirmationFilter,
+      showCompletedTargets,
+    };
+    window.localStorage.setItem(ASSESSMENT_CACHE_KEY, JSON.stringify(cachePayload));
+  }, [
+    viewMode,
+    selectedDate,
+    confirmationPeriod,
+    clients,
+    selectedClientIds,
+    confirmationFilter,
+    showCompletedTargets,
+  ]);
 
   useEffect(() => {
     if (!isFilterOpen || !filterButtonRef.current) return;
