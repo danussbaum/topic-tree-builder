@@ -16,7 +16,6 @@ import {
   Sunset,
   Moon,
   Tag,
-  CalendarIcon,
   ChevronLeft,
   ChevronRight,
   ChevronUp,
@@ -505,15 +504,21 @@ export function AssessmentOutline({
         <div className="space-y-4">
           {groupedFlatActions.map((dateGroup) => (
             <div key={dateGroup.dueDate} className="space-y-3">
+              {confirmationPeriod !== "day" && (
+                <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+                  <h3 className="text-sm font-semibold text-primary">
+                    {format(parseISO(dateGroup.dueDate), "EEEE, dd.MM.yyyy", { locale: de })}
+                  </h3>
+                </div>
+              )}
               {dateGroup.dayPartGroups.map((group) => (
                 <div key={`${dateGroup.dueDate}-${group.key}`}>
                   <DayPartHeader part={group.key} />
                   <div className="mt-2 overflow-hidden rounded-lg border border-border bg-card">
-                    <Table className="min-w-[1540px] table-fixed">
+                    <Table className="min-w-[1395px] table-fixed">
                       <TableHeader className="bg-secondary/40">
                         <TableRow className="hover:bg-transparent">
                           <TableHead className="w-[52px] px-3">Status</TableHead>
-                          <TableHead className="w-[145px] px-3">Datum</TableHead>
                           {clientName && <TableHead className="w-[170px] px-3">Klient/in</TableHead>}
                           <TableHead className="w-[300px] px-3">Handlung</TableHead>
                           <TableHead className="w-[210px] px-3">Schwerpunkt/Ziel</TableHead>
@@ -568,15 +573,6 @@ export function AssessmentOutline({
                             >
                               <TableCell className="px-3 py-3 align-top">
                                 <StatusIcon status={status} />
-                              </TableCell>
-                              <TableCell className="px-3 py-3 align-top text-xs text-muted-foreground">
-                                <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 font-semibold text-primary">
-                                  <CalendarIcon className="h-3 w-3" />
-                                  {format(parseISO(dueDate), "dd.MM.yyyy", { locale: de })}
-                                </div>
-                                <div className="mt-1 capitalize">
-                                  {format(parseISO(dueDate), "EEEE", { locale: de })}
-                                </div>
                               </TableCell>
                               {clientName && (
                                 <TableCell className="px-3 py-3 align-top text-xs">
