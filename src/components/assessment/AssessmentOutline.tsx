@@ -554,7 +554,7 @@ export function AssessmentOutline({
                 <div key={`${dateGroup.dueDate}-${group.key}`}>
                   <DayPartHeader part={group.key} />
                   <div className="mt-2 overflow-hidden rounded-lg border border-border bg-card">
-                    <Table className="min-w-[1395px] table-fixed">
+                    <Table className="min-w-[1465px] table-fixed">
                       <TableHeader className="bg-secondary/40">
                         <TableRow className="hover:bg-transparent">
                           <TableHead className="w-[52px] px-3">Status</TableHead>
@@ -562,7 +562,8 @@ export function AssessmentOutline({
                           <TableHead className="w-[300px] px-3">Handlung</TableHead>
                           <TableHead className="w-[210px] px-3">Schwerpunkt/Ziel</TableHead>
                           <TableHead className="w-[110px] px-3">Kategorie</TableHead>
-                          <TableHead className="w-[130px] px-3">Plan</TableHead>
+                          <TableHead className="w-[105px] px-3">Plan</TableHead>
+                          <TableHead className="w-[95px] px-3 whitespace-nowrap">Anz. Personen</TableHead>
                           <TableHead className="w-[120px] px-3">Ist</TableHead>
                           <TableHead className="w-[280px] px-3">Rückmeldung</TableHead>
                           <TableHead className="w-[190px] px-3 whitespace-nowrap">Bestätigung</TableHead>
@@ -645,23 +646,24 @@ export function AssessmentOutline({
                                 )}
                               </TableCell>
                               <TableCell className="px-3 py-3 align-top text-xs text-muted-foreground">
-                                <div className="space-y-1">
-                                  {action.plannedMinutes ? (
-                                    <div className="flex items-center gap-1">
-                                      <Clock className="h-3 w-3" />
-                                      {action.plannedMinutes} Min
-                                    </div>
-                                  ) : null}
-                                  {action.requiredPersons ? (
-                                    <div className="flex items-center gap-1">
-                                      <Users className="h-3 w-3" />
-                                      {action.requiredPersons} {action.requiredPersons === 1 ? "Person" : "Personen"}
-                                    </div>
-                                  ) : null}
-                                  {!action.plannedMinutes && !action.requiredPersons && (
-                                    <span className="text-muted-foreground/60">—</span>
-                                  )}
-                                </div>
+                                {action.plannedMinutes ? (
+                                  <div className="flex items-center gap-1">
+                                    <Clock className="h-3 w-3" />
+                                    {action.plannedMinutes} Min
+                                  </div>
+                                ) : (
+                                  <span className="text-muted-foreground/60">—</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="px-3 py-3 align-top text-xs text-muted-foreground">
+                                {action.requiredPersons ? (
+                                  <div className="flex items-center gap-1 font-medium text-foreground/80">
+                                    <Users className="h-3 w-3" />
+                                    <span className="tabular-nums">{action.requiredPersons}</span>
+                                  </div>
+                                ) : (
+                                  <span className="text-muted-foreground/60">—</span>
+                                )}
                               </TableCell>
                               <TableCell className="px-3 py-3 align-top text-xs">
                                 {status === "done_with_deviation" && conf?.actualMinutes != null ? (
