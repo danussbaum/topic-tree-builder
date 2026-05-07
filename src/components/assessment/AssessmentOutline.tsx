@@ -509,19 +509,19 @@ export function AssessmentOutline({
                 <div key={`${dateGroup.dueDate}-${group.key}`}>
                   <DayPartHeader part={group.key} />
                   <div className="mt-2 overflow-hidden rounded-lg border border-border bg-card">
-                    <Table className="min-w-[1180px] table-fixed">
+                    <Table className="min-w-[1540px] table-fixed">
                       <TableHeader className="bg-secondary/40">
                         <TableRow className="hover:bg-transparent">
                           <TableHead className="w-[52px] px-3">Status</TableHead>
                           <TableHead className="w-[145px] px-3">Datum</TableHead>
                           {clientName && <TableHead className="w-[170px] px-3">Klient/in</TableHead>}
                           <TableHead className="w-[300px] px-3">Handlung</TableHead>
-                          <TableHead className="w-[210px] px-3">Gruppierung</TableHead>
+                          <TableHead className="w-[210px] px-3">Schwerpunkt/Ziel</TableHead>
                           <TableHead className="w-[110px] px-3">Kategorie</TableHead>
                           <TableHead className="w-[130px] px-3">Plan</TableHead>
                           <TableHead className="w-[120px] px-3">Ist</TableHead>
-                          <TableHead className="px-3">Rückmeldung</TableHead>
-                          <TableHead className="w-[190px] px-3">Bestätigung</TableHead>
+                          <TableHead className="w-[280px] px-3">Rückmeldung</TableHead>
+                          <TableHead className="w-[190px] px-3 whitespace-nowrap">Bestätigung</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
