@@ -1843,10 +1843,17 @@ function ConfirmActionDialog({
     (mode === "done_as_planned" || mode === "done_with_deviation");
   const resultRequired = resultRequirement === "required";
   const showObservations = mode === "done_as_planned" || mode === "done_with_deviation";
+  const selectedModeOption = CONFIRMATION_MODE_OPTIONS.find((option) => option.mode === mode);
 
   return (
     <Dialog open={open} onOpenChange={(v) => (!v ? handleClose() : null)}>
       <DialogContent className="sm:max-w-lg">
+        {selectedModeOption && (
+          <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-sm">
+            <span className="text-muted-foreground">Gewählte Variante:</span>{" "}
+            <span className="font-semibold text-foreground">{selectedModeOption.label}</span>
+          </div>
+        )}
         <DialogHeader>
           <DialogTitle>Handlung bestätigen</DialogTitle>
           <DialogDescription className="line-clamp-2">
