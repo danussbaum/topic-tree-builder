@@ -572,15 +572,6 @@ export function AssessmentOutline({
                                   Keine Bestätigung möglich (zu geringe Berechtigung)
                                 </div>
                               )}
-                              {action.dayPart && (
-                                <div className="flex items-center gap-1">
-                                  {(() => {
-                                    const Icon = DAY_PART_ICONS[action.dayPart];
-                                    return <Icon className="h-3 w-3" />;
-                                  })()}
-                                  {DAY_PART_LABEL[action.dayPart]}
-                                </div>
-                              )}
                               {action.plannedMinutes && (
                                 <div className="flex items-center gap-1">
                                   <Clock className="h-3 w-3" />
