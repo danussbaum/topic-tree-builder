@@ -36,6 +36,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -95,6 +103,7 @@ interface Props {
   showCompletedTargets?: boolean;
   onSelectedDateChange: (date: string) => void;
   confirmationPeriod?: "day" | "week" | "month";
+  clientName?: string;
   topics: TopicNode[];
   hideConfirmationHeader?: boolean;
   showConfirmed?: boolean;
@@ -262,6 +271,7 @@ export function AssessmentOutline({
   onSelectedDateChange,
   showCompletedTargets = false,
   confirmationPeriod = "day",
+  clientName,
   topics,
   hideConfirmationHeader,
   confirmationFilter,
@@ -498,15 +508,28 @@ export function AssessmentOutline({
               {dateGroup.dayPartGroups.map((group) => (
                 <div key={`${dateGroup.dueDate}-${group.key}`}>
                   <DayPartHeader part={group.key} />
-                  <div className="grid gap-3 mt-2">
-                    {group.actions.map(({ topic, target, action, dueDate, status }) => {
-                      const conf = action.confirmations?.[dueDate];
-
-                      return (
-                        <button
-                          key={`${action.id}-${dueDate}`}
-                          onClick={() => {
-                            if (!canConfirmAction(action)) return;
+                  <div className="mt-2 overflow-hidden rounded-lg border border-border bg-card">
+                    <Table className="min-w-[1180px] table-fixed">
+                      <TableHeader className="bg-secondary/40">
+                        <TableRow className="hover:bg-transparent">
+                          <TableHead className="w-[52px] px-3">Status</TableHead>
+                          <TableHead className="w-[145px] px-3">Datum</TableHead>
+                          {clientName && <TableHead className="w-[170px] px-3">Klient/in</TableHead>}
+                          <TableHead className="w-[300px] px-3">Handlung</TableHead>
+                          <TableHead className="w-[210px] px-3">Gruppierung</TableHead>
+                          <TableHead className="w-[110px] px-3">Kategorie</TableHead>
+                          <TableHead className="w-[130px] px-3">Plan</TableHead>
+                          <TableHead className="w-[120px] px-3">Ist</TableHead>
+                          <TableHead className="px-3">Rückmeldung</TableHead>
+                          <TableHead className="w-[190px] px-3">Bestätigung</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {group.actions.map(({ topic, target, action, dueDate, status }) => {
+                          const conf = action.confirmations?.[dueDate];
+                          const canConfirm = canConfirmAction(action);
+                          const openConfirmationDialog = () => {
+                            if (!canConfirm) return;
                             setDialogTarget({
                               topicId: topic.id,
                               targetId: target.id,
@@ -520,115 +543,150 @@ export function AssessmentOutline({
                                 observations: conf?.observations,
                               },
                             });
-                          }}
-                          className={cn(
-                            "flex items-start gap-4 p-4 rounded-lg border transition-all text-left",
-                            status !== "open"
-                              ? "bg-primary/5 border-primary/20 shadow-sm"
-                              : "bg-card border-border hover:bg-secondary/40",
-                            !canConfirmAction(action) && "cursor-not-allowed hover:bg-card opacity-90"
-                          )}
-                          aria-disabled={!canConfirmAction(action)}
-                        >
-                          <div className="mt-1">
-                            <StatusIcon status={status} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary mb-2">
-                              <CalendarIcon className="h-3 w-3" />
-                              {format(parseISO(dueDate), "EEEE, dd.MM.yyyy", { locale: de })}
-                            </div>
-                            <div className={cn(
-                              "font-medium mb-1",
-                              status !== "open" && "text-foreground/70"
-                            )}>{action.title}</div>
-                            {action.notes.trim() && (
-                              <div className="mt-1 text-xs text-foreground/70 whitespace-pre-wrap">
-                                <span className="font-medium">Beschreibung:</span>{" "}
-                                {action.notes}
-                              </div>
-                            )}
-                            {action.requiredResources?.trim() && (
-                              <div className="mt-1 text-xs text-foreground/70 whitespace-pre-wrap">
-                                <span className="font-medium">Hilfsmittel:</span>{" "}
-                                {action.requiredResources}
-                              </div>
-                            )}
-                            <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                              <span className="font-medium text-primary/70">{topic.title}</span>
-                              <span className="text-border">|</span>
-                              <span>{target.title}</span>
-                            </div>
+                          };
 
-                            <div className="flex flex-wrap items-center gap-3 mt-2 text-[11px] text-muted-foreground/80">
-                              {action.category && (
-                                <div className="flex items-center gap-1">
-                                  <Tag className="h-3 w-3" />
-                                  Kategorie {CATEGORY_LABEL[action.category]}
-                                </div>
+                          return (
+                            <TableRow
+                              key={`${action.id}-${dueDate}`}
+                              role="button"
+                              tabIndex={canConfirm ? 0 : -1}
+                              aria-disabled={!canConfirm}
+                              onClick={openConfirmationDialog}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter" || event.key === " ") {
+                                  event.preventDefault();
+                                  openConfirmationDialog();
+                                }
+                              }}
+                              className={cn(
+                                "align-top transition-colors",
+                                status !== "open"
+                                  ? "bg-primary/5 hover:bg-primary/10"
+                                  : "bg-card hover:bg-secondary/40",
+                                canConfirm ? "cursor-pointer" : "cursor-not-allowed opacity-90 hover:bg-card",
                               )}
-                              {!canConfirmAction(action) && (
-                                <div className="text-[11px] text-muted-foreground/70 italic">
-                                  Keine Bestätigung möglich (zu geringe Berechtigung)
+                            >
+                              <TableCell className="px-3 py-3 align-top">
+                                <StatusIcon status={status} />
+                              </TableCell>
+                              <TableCell className="px-3 py-3 align-top text-xs text-muted-foreground">
+                                <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 font-semibold text-primary">
+                                  <CalendarIcon className="h-3 w-3" />
+                                  {format(parseISO(dueDate), "dd.MM.yyyy", { locale: de })}
                                 </div>
-                              )}
-                              {action.plannedMinutes && (
-                                <div className="flex items-center gap-1">
-                                  <Clock className="h-3 w-3" />
-                                  {action.plannedMinutes} Min geplant
+                                <div className="mt-1 capitalize">
+                                  {format(parseISO(dueDate), "EEEE", { locale: de })}
                                 </div>
+                              </TableCell>
+                              {clientName && (
+                                <TableCell className="px-3 py-3 align-top text-xs">
+                                  <div className="font-medium text-foreground/80 line-clamp-2">{clientName}</div>
+                                </TableCell>
                               )}
-                              {action.requiredPersons && (
-                                <div className="flex items-center gap-1">
-                                  <Users className="h-3 w-3" />
-                                  {action.requiredPersons}{" "}
-                                  {action.requiredPersons === 1 ? "Person" : "Personen"}
+                              <TableCell className="px-3 py-3 align-top">
+                                <div className={cn("font-medium leading-snug", status !== "open" && "text-foreground/70")}>
+                                  {action.title}
                                 </div>
-                              )}
-                              {status === "done_with_deviation" && conf?.actualMinutes != null && (
-                                <div className="flex items-center gap-1 text-accent font-medium">
-                                  <Clock className="h-3 w-3" />
-                                  {conf.actualMinutes} Min tatsächlich
-                                </div>
-                              )}
-                            </div>
-
-                            {(conf?.reason ||
-                              ((action.resultRequirement ?? "none") !== "none" && conf?.result) ||
-                              conf?.observations ||
-                              conf?.confirmedAt) && (
-                              <div className="mt-2 space-y-1">
-                                {conf.reason && (
-                                  <div className="text-xs italic text-destructive/80 line-clamp-2">
-                                    <span className="not-italic font-semibold mr-1">Grund:</span>
-                                    {conf.reason}
+                                {action.notes.trim() && (
+                                  <div className="mt-1 text-xs text-foreground/70 line-clamp-2 whitespace-pre-wrap">
+                                    <span className="font-medium">Beschreibung:</span> {action.notes}
                                   </div>
                                 )}
-                                {(action.resultRequirement ?? "none") !== "none" && conf.result && (
-                                  <div className="text-xs text-foreground/70 line-clamp-2 border-l-2 border-primary/20 pl-2">
-                                    <span className="font-semibold mr-1">Resultat:</span>
-                                    {conf.result}
+                                {action.requiredResources?.trim() && (
+                                  <div className="mt-1 text-xs text-foreground/70 line-clamp-2 whitespace-pre-wrap">
+                                    <span className="font-medium">Hilfsmittel:</span> {action.requiredResources}
                                   </div>
                                 )}
-                                {conf.observations && (
-                                  <div className="text-xs text-foreground/70 line-clamp-2 border-l-2 border-primary/20 pl-2">
-                                    <span className="font-semibold mr-1">Beobachtung:</span>
-                                    {conf.observations}
+                                {!canConfirm && (
+                                  <div className="mt-1 text-[11px] italic text-muted-foreground/70">
+                                    Keine Bestätigung möglich (zu geringe Berechtigung)
                                   </div>
                                 )}
-                                {conf.confirmedAt && (
-                                  <div className="text-xs text-muted-foreground">
-                                    <span className="font-semibold mr-1">Bestätigt durch:</span>
-                                    {conf.confirmedBy ?? "Unbekannt"} am{" "}
-                                    {format(parseISO(conf.confirmedAt), "dd.MM.yyyy HH:mm:ss", { locale: de })}
+                              </TableCell>
+                              <TableCell className="px-3 py-3 align-top text-xs">
+                                <div className="font-medium text-primary/70 line-clamp-2">{topic.title}</div>
+                                <div className="mt-1 text-muted-foreground line-clamp-2">{target.title}</div>
+                              </TableCell>
+                              <TableCell className="px-3 py-3 align-top text-xs text-muted-foreground">
+                                {action.category ? (
+                                  <div className="inline-flex items-center gap-1">
+                                    <Tag className="h-3 w-3" />
+                                    {CATEGORY_LABEL[action.category]}
                                   </div>
+                                ) : (
+                                  <span className="text-muted-foreground/60">—</span>
                                 )}
-                              </div>
-                            )}
-                          </div>
-                        </button>
-                      );
-                    })}
+                              </TableCell>
+                              <TableCell className="px-3 py-3 align-top text-xs text-muted-foreground">
+                                <div className="space-y-1">
+                                  {action.plannedMinutes ? (
+                                    <div className="flex items-center gap-1">
+                                      <Clock className="h-3 w-3" />
+                                      {action.plannedMinutes} Min
+                                    </div>
+                                  ) : null}
+                                  {action.requiredPersons ? (
+                                    <div className="flex items-center gap-1">
+                                      <Users className="h-3 w-3" />
+                                      {action.requiredPersons} {action.requiredPersons === 1 ? "Person" : "Personen"}
+                                    </div>
+                                  ) : null}
+                                  {!action.plannedMinutes && !action.requiredPersons && (
+                                    <span className="text-muted-foreground/60">—</span>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell className="px-3 py-3 align-top text-xs">
+                                {status === "done_with_deviation" && conf?.actualMinutes != null ? (
+                                  <div className="flex items-center gap-1 font-medium text-accent">
+                                    <Clock className="h-3 w-3" />
+                                    {conf.actualMinutes} Min
+                                  </div>
+                                ) : (
+                                  <span className="text-muted-foreground/60">—</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="px-3 py-3 align-top text-xs text-foreground/70">
+                                {conf?.reason || ((action.resultRequirement ?? "none") !== "none" && conf?.result) || conf?.observations ? (
+                                  <div className="space-y-1">
+                                    {conf.reason && (
+                                      <div className="line-clamp-2 italic text-destructive/80">
+                                        <span className="not-italic font-semibold mr-1">Grund:</span>
+                                        {conf.reason}
+                                      </div>
+                                    )}
+                                    {(action.resultRequirement ?? "none") !== "none" && conf.result && (
+                                      <div className="line-clamp-2 border-l-2 border-primary/20 pl-2">
+                                        <span className="font-semibold mr-1">Resultat:</span>
+                                        {conf.result}
+                                      </div>
+                                    )}
+                                    {conf.observations && (
+                                      <div className="line-clamp-2 border-l-2 border-primary/20 pl-2">
+                                        <span className="font-semibold mr-1">Beobachtung:</span>
+                                        {conf.observations}
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-muted-foreground/60">—</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="px-3 py-3 align-top text-xs text-muted-foreground">
+                                {conf?.confirmedAt ? (
+                                  <div className="space-y-1">
+                                    <div className="font-medium text-foreground/70">{conf.confirmedBy ?? "Unbekannt"}</div>
+                                    <div>{format(parseISO(conf.confirmedAt), "dd.MM.yyyy HH:mm:ss", { locale: de })}</div>
+                                  </div>
+                                ) : (
+                                  <span className="text-muted-foreground/60">—</span>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
                   </div>
                 </div>
               ))}

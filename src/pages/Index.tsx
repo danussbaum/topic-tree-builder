@@ -1761,6 +1761,7 @@ const Index = () => {
                       showCompletedTargets={showCompletedTargets}
                       onSelectedDateChange={setSelectedDate}
                       confirmationPeriod={confirmationPeriod}
+                      clientName={`${client.firstName} ${client.lastName}`.trim()}
                       topics={client.topics}
                       hideConfirmationHeader
                       filterModel={confirmationFilter}
