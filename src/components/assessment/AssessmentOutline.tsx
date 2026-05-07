@@ -43,6 +43,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -73,7 +79,7 @@ type ConfirmPayload =
   | { status: "done_as_planned"; result?: string; observations?: string }
   | {
       status: "done_with_deviation";
-      actualMinutes: number;
+      actualMinutes?: number;
       reason: string;
       result?: string;
       observations?: string;
@@ -144,11 +150,14 @@ interface Props {
   onDeleteAction: (topicId: string, targetId: string, actionId: string) => void;
 }
 
+type ConfirmationMode = Exclude<ActionStatus, "open">;
+
 interface DialogTarget {
   topicId: string;
   targetId: string;
   dueDate: string;
   action: ActionNode;
+  initialMode?: ConfirmationMode;
 }
 
 const DAY_PART_ICONS: Record<DayPart, typeof Sunrise> = {
@@ -163,6 +172,36 @@ const CATEGORY_LABEL: Record<ActionCategory, string> = {
   b: "B",
   c: "C",
 };
+
+const CONFIRMATION_MODE_OPTIONS: Array<{
+  mode: ConfirmationMode;
+  label: string;
+  description: string;
+  icon: typeof CheckCircle2;
+  iconClassName: string;
+}> = [
+  {
+    mode: "done_as_planned",
+    label: "Erledigt wie geplant",
+    description: "Handlung wie vorgesehen durchgeführt",
+    icon: CheckCircle2,
+    iconClassName: "text-primary",
+  },
+  {
+    mode: "done_with_deviation",
+    label: "Erledigt mit Abweichung",
+    description: "Andere tatsächliche Zeit oder Begründung zur Abweichung erfassen",
+    icon: AlertTriangle,
+    iconClassName: "text-accent",
+  },
+  {
+    mode: "not_done",
+    label: "Nicht durchgeführt",
+    description: "Handlung nicht durchgeführt und Begründung erfassen",
+    icon: XCircle,
+    iconClassName: "text-destructive",
+  },
+];
 
 const CATEGORY_CONFIRMATION_LEVELS: Partial<Record<ActionCategory, number[]>> = {
   a: [1],
@@ -533,12 +572,13 @@ export function AssessmentOutline({
                         {group.actions.map(({ topic, target, action, dueDate, status }) => {
                           const conf = action.confirmations?.[dueDate];
                           const canConfirm = canConfirmAction(action);
-                          const openConfirmationDialog = () => {
+                          const openConfirmationDialog = (initialMode: ConfirmationMode) => {
                             if (!canConfirm) return;
                             setDialogTarget({
                               topicId: topic.id,
                               targetId: target.id,
                               dueDate,
+                              initialMode,
                               action: {
                                 ...action,
                                 status,
@@ -553,22 +593,13 @@ export function AssessmentOutline({
                           return (
                             <TableRow
                               key={`${action.id}-${dueDate}`}
-                              role="button"
-                              tabIndex={canConfirm ? 0 : -1}
                               aria-disabled={!canConfirm}
-                              onClick={openConfirmationDialog}
-                              onKeyDown={(event) => {
-                                if (event.key === "Enter" || event.key === " ") {
-                                  event.preventDefault();
-                                  openConfirmationDialog();
-                                }
-                              }}
                               className={cn(
                                 "align-top transition-colors",
                                 status !== "open"
                                   ? "bg-primary/5 hover:bg-primary/10"
                                   : "bg-card hover:bg-secondary/40",
-                                canConfirm ? "cursor-pointer" : "cursor-not-allowed opacity-90 hover:bg-card",
+                                !canConfirm && "opacity-90",
                               )}
                             >
                               <TableCell className="px-3 py-3 align-top">
@@ -669,14 +700,59 @@ export function AssessmentOutline({
                                 )}
                               </TableCell>
                               <TableCell className="px-3 py-3 align-top text-xs text-muted-foreground">
-                                {conf?.confirmedAt ? (
-                                  <div className="space-y-1">
-                                    <div className="font-medium text-foreground/70">{conf.confirmedBy ?? "Unbekannt"}</div>
-                                    <div>{format(parseISO(conf.confirmedAt), "dd.MM.yyyy HH:mm:ss", { locale: de })}</div>
-                                  </div>
-                                ) : (
-                                  <span className="text-muted-foreground/60">—</span>
-                                )}
+                                <div className="space-y-2">
+                                  <TooltipProvider delayDuration={150}>
+                                    <div className="flex items-center gap-1.5">
+                                      {(status === "open"
+                                        ? CONFIRMATION_MODE_OPTIONS
+                                        : CONFIRMATION_MODE_OPTIONS.filter((option) => option.mode === status)
+                                      ).map((option) => {
+                                        const Icon = option.icon;
+                                        const isActive = status === option.mode;
+                                        return (
+                                          <Tooltip key={option.mode}>
+                                            <TooltipTrigger asChild>
+                                              <button
+                                                type="button"
+                                                onClick={() => openConfirmationDialog(option.mode)}
+                                                disabled={!canConfirm}
+                                                aria-label={option.label}
+                                                aria-pressed={isActive}
+                                                className={cn(
+                                                  "inline-flex h-8 w-8 items-center justify-center rounded-md border transition-colors",
+                                                  isActive
+                                                    ? "border-primary bg-primary/10"
+                                                    : "border-border bg-background hover:bg-secondary/60",
+                                                  !canConfirm && "cursor-not-allowed opacity-50 hover:bg-background",
+                                                )}
+                                              >
+                                                <Icon className={cn("h-4 w-4", option.iconClassName)} />
+                                              </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="top" align="center">
+                                              <div className="max-w-[220px] space-y-0.5">
+                                                <div className="font-medium">{option.label}</div>
+                                                <div className="text-xs text-muted-foreground">
+                                                  {canConfirm
+                                                    ? option.description
+                                                    : "Keine Bestätigung möglich (zu geringe Berechtigung)"}
+                                                </div>
+                                              </div>
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        );
+                                      })}
+                                    </div>
+                                  </TooltipProvider>
+                                  {conf?.confirmedAt ? (
+                                    <div className="space-y-1">
+                                      <div className="font-medium text-foreground/70">{conf.confirmedBy ?? "Unbekannt"}</div>
+                                      <div>{format(parseISO(conf.confirmedAt), "dd.MM.yyyy HH:mm:ss", { locale: de })}</div>
+                                    </div>
+                                  ) : (
+                                    <span className="text-muted-foreground/60">—</span>
+                                  )}
+                                </div>
                               </TableCell>
                             </TableRow>
                           );
@@ -815,11 +891,12 @@ export function AssessmentOutline({
                             onUpdateAction={onUpdateAction}
                             onUpdateActionField={onUpdateActionField}
                             onDeleteAction={onDeleteAction}
-                            onOpenDialog={() =>
+                            onOpenDialog={(initialMode) =>
                               setDialogTarget({
                                 topicId: topic.id,
                                 targetId: target.id,
                                 dueDate: selectedDate,
+                                initialMode,
                                 action,
                               })
                             }
@@ -1010,7 +1087,7 @@ function ActionRow({
   onUpdateAction: Props["onUpdateAction"];
   onUpdateActionField: Props["onUpdateActionField"];
   onDeleteAction: Props["onDeleteAction"];
-  onOpenDialog: () => void;
+  onOpenDialog: (initialMode: ConfirmationMode) => void;
 }) {
   const isLocked = Object.keys(action.confirmations ?? {}).length > 0;
   const templateLockedFields = new Set(action.templateLockedFields ?? []);
@@ -1063,7 +1140,7 @@ function ActionRow({
         <button
           onClick={() => {
             if (isConfirmationRestricted) return;
-            onOpenDialog();
+            onOpenDialog(action.status === "open" ? "done_as_planned" : action.status);
           }}
           className={cn(
             "mt-0.5 cursor-pointer",
@@ -1698,7 +1775,7 @@ function ConfirmActionDialog({
 
   useEffect(() => {
     if (target) {
-      setMode(target.action.status === "open" ? null : target.action.status);
+      setMode(target.initialMode ?? (target.action.status === "open" ? null : target.action.status));
       setActualMinutes(
         target.action.actualMinutes != null ? String(target.action.actualMinutes) : "",
       );
@@ -1754,6 +1831,7 @@ function ConfirmActionDialog({
   };
 
   const planned = target?.action.plannedMinutes;
+  const hasPlannedMinutes = planned != null;
   const requiredPersons = target?.action.requiredPersons;
   const description = target?.action.notes.trim();
   const requiredResources = target?.action.requiredResources?.trim();
@@ -1793,34 +1871,6 @@ function ConfirmActionDialog({
             </div>
           )}
         </DialogHeader>
-
-        <div className="space-y-2">
-          <ChoiceRow
-            active={mode === "done_as_planned"}
-            onClick={() => setMode("done_as_planned")}
-            icon={<CheckCircle2 className="h-5 w-5 text-primary" />}
-            title="Erledigt wie geplant"
-            description={
-              planned != null
-                ? `Tatsächliche Zeit = geplante ${planned} Min`
-                : "Handlung wie vorgesehen durchgeführt"
-            }
-          />
-          <ChoiceRow
-            active={mode === "done_with_deviation"}
-            onClick={() => setMode("done_with_deviation")}
-            icon={<AlertTriangle className="h-5 w-5 text-accent" />}
-            title="Erledigt mit Abweichung"
-            description="Andere tatsächliche Zeit – Begründung erforderlich"
-          />
-          <ChoiceRow
-            active={mode === "not_done"}
-            onClick={() => setMode("not_done")}
-            icon={<XCircle className="h-5 w-5 text-destructive" />}
-            title="Nicht durchgeführt"
-            description="Begründung erforderlich"
-          />
-        </div>
 
         {mode === "done_with_deviation" && (
           <div className="space-y-3 pt-2 border-t border-border">
@@ -1929,7 +1979,7 @@ function ConfirmActionDialog({
               disabled={
                 !mode ||
                 (mode === "done_with_deviation" &&
-                  (actualMinutes === "" || !reason.trim())) ||
+                  ((hasPlannedMinutes && actualMinutes === "") || !reason.trim())) ||
                 (mode === "not_done" && !reason.trim()) ||
                 (showResult && resultRequired && !result.trim())
               }
@@ -1940,39 +1990,6 @@ function ConfirmActionDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function ChoiceRow({
-  active,
-  onClick,
-  icon,
-  title,
-  description,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "w-full flex items-start gap-3 text-left p-3 rounded-sm border transition-colors",
-        active
-          ? "border-primary bg-primary/5"
-          : "border-border hover:bg-secondary/50",
-      )}
-    >
-      <div className="mt-0.5">{icon}</div>
-      <div className="flex-1 min-w-0">
-        <div className="text-sm font-semibold text-foreground">{title}</div>
-        <div className="text-xs text-muted-foreground">{description}</div>
-      </div>
-    </button>
   );
 }
 
