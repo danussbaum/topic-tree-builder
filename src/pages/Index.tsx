@@ -44,6 +44,12 @@ import {
 import { cn } from "@/lib/utils";
 import { createSimpleXlsxBlob } from "@/lib/xlsx";
 import { buildDefaultTemplateFields, loadActionPlanTemplates } from "@/lib/action-plan-templates";
+import {
+  loadCachedAssessmentState,
+  saveCachedAssessmentState,
+  type CachedAssessmentState,
+  type ConfirmationPeriod,
+} from "@/lib/assessment-cache";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DatePickerInput } from "@/components/ui/date-picker-input";
@@ -65,8 +71,6 @@ const todayLocalISO = () => {
   const day = String(now.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 };
-
-type ConfirmationPeriod = "day" | "week" | "month";
 
 const OPERATOR_OPTIONS: Array<{ value: NumericComparison["op"]; label: ">" | "<" | "=" }> = [
   { value: "gt", label: ">" },
@@ -366,46 +370,9 @@ const seedClients: Client[] = [
   { id: uid(), firstName: "Marco", lastName: "Schneider", topics: [] },
 ];
 
-const ASSESSMENT_CACHE_KEY = "assessment:cached-state:v1";
-
-interface CachedAssessmentState {
-  viewMode: "planning" | "confirmation";
-  selectedDate: string;
-  confirmationPeriod: ConfirmationPeriod;
-  clients: Client[];
-  selectedClientIds: string[];
-  confirmationFilter: AssessmentFilterModel;
-  showCompletedTargets: boolean;
-}
-
-const loadCachedAssessmentState = (): CachedAssessmentState | null => {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(ASSESSMENT_CACHE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<CachedAssessmentState>;
-    if (!Array.isArray(parsed.clients) || !Array.isArray(parsed.selectedClientIds)) return null;
-    return {
-      viewMode: parsed.viewMode === "confirmation" ? "confirmation" : "planning",
-      selectedDate:
-        typeof parsed.selectedDate === "string" ? parsed.selectedDate : todayLocalISO(),
-      confirmationPeriod:
-        parsed.confirmationPeriod === "week" || parsed.confirmationPeriod === "month"
-          ? parsed.confirmationPeriod
-          : "day",
-      clients: parsed.clients,
-      selectedClientIds: parsed.selectedClientIds,
-      confirmationFilter: parsed.confirmationFilter ?? INITIAL_CONFIRMATION_FILTER,
-      showCompletedTargets: Boolean(parsed.showCompletedTargets),
-    };
-  } catch {
-    return null;
-  }
-};
-
 const Index = () => {
   const navigate = useNavigate();
-  const cached = loadCachedAssessmentState();
+  const cached = loadCachedAssessmentState(todayLocalISO(), INITIAL_CONFIRMATION_FILTER);
   const [viewMode, setViewMode] = useState<"planning" | "confirmation">(
     cached?.viewMode ?? "planning",
   );
@@ -430,6 +397,21 @@ const Index = () => {
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
   const filterButtonRef = useRef<HTMLDivElement | null>(null);
   const [filterMenuLeft, setFilterMenuLeft] = useState(0);
+  const latestAssessmentStateRef = useRef<CachedAssessmentState>({
+    viewMode,
+    selectedDate,
+    confirmationPeriod,
+    clients,
+    selectedClientIds,
+    confirmationFilter,
+    showCompletedTargets,
+  });
+
+  const saveAssessmentStateImmediately = (patch: Partial<CachedAssessmentState>) => {
+    const nextState = { ...latestAssessmentStateRef.current, ...patch };
+    latestAssessmentStateRef.current = nextState;
+    saveCachedAssessmentState(nextState);
+  };
 
   useEffect(() => {
     const cachePayload: CachedAssessmentState = {
@@ -441,7 +423,8 @@ const Index = () => {
       confirmationFilter,
       showCompletedTargets,
     };
-    window.localStorage.setItem(ASSESSMENT_CACHE_KEY, JSON.stringify(cachePayload));
+    latestAssessmentStateRef.current = cachePayload;
+    saveCachedAssessmentState(cachePayload);
   }, [
     viewMode,
     selectedDate,
@@ -451,6 +434,15 @@ const Index = () => {
     confirmationFilter,
     showCompletedTargets,
   ]);
+
+  useEffect(() => {
+    const saveLatestStateBeforeUnload = () => {
+      saveCachedAssessmentState(latestAssessmentStateRef.current);
+    };
+
+    window.addEventListener("pagehide", saveLatestStateBeforeUnload);
+    return () => window.removeEventListener("pagehide", saveLatestStateBeforeUnload);
+  }, []);
 
   useEffect(() => {
     if (!isFilterOpen || !filterButtonRef.current) return;
@@ -496,9 +488,13 @@ const Index = () => {
       : selectedClients;
 
   const toggleClient = (id: string) => {
-    setSelectedClientIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
+    setSelectedClientIds((prev) => {
+      const nextSelectedClientIds = prev.includes(id)
+        ? prev.filter((x) => x !== id)
+        : [...prev, id];
+      saveAssessmentStateImmediately({ selectedClientIds: nextSelectedClientIds });
+      return nextSelectedClientIds;
+    });
   };
 
   const openFilter = () => {
@@ -585,7 +581,9 @@ const Index = () => {
       const allSelected =
         clientIds.length > 0 && clientIds.every((id) => prev.includes(id));
 
-      return allSelected ? [] : clientIds;
+      const nextSelectedClientIds = allSelected ? [] : clientIds;
+      saveAssessmentStateImmediately({ selectedClientIds: nextSelectedClientIds });
+      return nextSelectedClientIds;
     });
   };
 
@@ -593,9 +591,13 @@ const Index = () => {
     clientId: string,
     fn: (topics: TopicNode[]) => TopicNode[],
   ) => {
-    setClients((prev) =>
-      prev.map((c) => (c.id === clientId ? { ...c, topics: fn(c.topics) } : c)),
-    );
+    setClients((prev) => {
+      const nextClients = prev.map((c) =>
+        c.id === clientId ? { ...c, topics: fn(c.topics) } : c,
+      );
+      saveAssessmentStateImmediately({ clients: nextClients });
+      return nextClients;
+    });
   };
 
   const addClient = () => {
@@ -605,8 +607,16 @@ const Index = () => {
       lastName: "Klient/in",
       topics: [],
     };
-    setClients((prev) => [...prev, c]);
-    setSelectedClientIds((prev) => [...prev, c.id]);
+    setClients((prev) => {
+      const nextClients = [...prev, c];
+      saveAssessmentStateImmediately({ clients: nextClients });
+      return nextClients;
+    });
+    setSelectedClientIds((prev) => {
+      const nextSelectedClientIds = [...prev, c.id];
+      saveAssessmentStateImmediately({ selectedClientIds: nextSelectedClientIds });
+      return nextSelectedClientIds;
+    });
   };
 
   const addTopic = (clientId: string) => {
@@ -1041,9 +1051,13 @@ const Index = () => {
     field: "firstName" | "lastName",
     value: string,
   ) => {
-    setClients((prev) =>
-      prev.map((c) => (c.id === clientId ? { ...c, [field]: value } : c)),
-    );
+    setClients((prev) => {
+      const nextClients = prev.map((c) =>
+        c.id === clientId ? { ...c, [field]: value } : c,
+      );
+      saveAssessmentStateImmediately({ clients: nextClients });
+      return nextClients;
+    });
   };
 
   const shiftDate = (step: number) => {
