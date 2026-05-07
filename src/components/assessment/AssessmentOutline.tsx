@@ -563,8 +563,8 @@ export function AssessmentOutline({
                           <TableHead className="w-[210px] px-3">Schwerpunkt/Ziel</TableHead>
                           <TableHead className="w-[110px] px-3">Kategorie</TableHead>
                           <TableHead className="w-[105px] px-3">Plan</TableHead>
-                          <TableHead className="w-[95px] px-3 whitespace-nowrap">Anz. Personen</TableHead>
                           <TableHead className="w-[120px] px-3">Ist</TableHead>
+                          <TableHead className="w-[95px] px-3 whitespace-nowrap">Anz. Personen</TableHead>
                           <TableHead className="w-[280px] px-3">Rückmeldung</TableHead>
                           <TableHead className="w-[190px] px-3 whitespace-nowrap">Bestätigung</TableHead>
                         </TableRow>
@@ -646,7 +646,7 @@ export function AssessmentOutline({
                                 )}
                               </TableCell>
                               <TableCell className="px-3 py-3 align-top text-xs text-muted-foreground">
-                                {action.plannedMinutes ? (
+                                {action.plannedMinutes != null ? (
                                   <div className="flex items-center gap-1">
                                     <Clock className="h-3 w-3" />
                                     {action.plannedMinutes} Min
@@ -655,21 +655,26 @@ export function AssessmentOutline({
                                   <span className="text-muted-foreground/60">—</span>
                                 )}
                               </TableCell>
+                              <TableCell className="px-3 py-3 align-top text-xs">
+                                {status === "done_as_planned" && action.plannedMinutes != null ? (
+                                  <div className="flex items-center gap-1 font-medium text-foreground/80">
+                                    <Clock className="h-3 w-3" />
+                                    {action.plannedMinutes} Min
+                                  </div>
+                                ) : status === "done_with_deviation" && conf?.actualMinutes != null ? (
+                                  <div className="flex items-center gap-1 font-medium text-accent">
+                                    <Clock className="h-3 w-3" />
+                                    {conf.actualMinutes} Min
+                                  </div>
+                                ) : (
+                                  <span className="text-muted-foreground/60">-</span>
+                                )}
+                              </TableCell>
                               <TableCell className="px-3 py-3 align-top text-xs text-muted-foreground">
                                 {action.requiredPersons ? (
                                   <div className="flex items-center gap-1 font-medium text-foreground/80">
                                     <Users className="h-3 w-3" />
                                     <span className="tabular-nums">{action.requiredPersons}</span>
-                                  </div>
-                                ) : (
-                                  <span className="text-muted-foreground/60">—</span>
-                                )}
-                              </TableCell>
-                              <TableCell className="px-3 py-3 align-top text-xs">
-                                {status === "done_with_deviation" && conf?.actualMinutes != null ? (
-                                  <div className="flex items-center gap-1 font-medium text-accent">
-                                    <Clock className="h-3 w-3" />
-                                    {conf.actualMinutes} Min
                                   </div>
                                 ) : (
                                   <span className="text-muted-foreground/60">—</span>
