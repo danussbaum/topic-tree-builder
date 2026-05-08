@@ -902,7 +902,7 @@ const Index = () => {
     actionId: string,
     payload:
       | { status: "done_as_planned"; result?: string; observations?: string }
-      | { status: "done_with_deviation"; actualMinutes: number; reason: string; result?: string; observations?: string }
+      | { status: "done_with_deviation"; actualMinutes?: number; reason: string; result?: string; observations?: string }
       | { status: "not_done"; reason: string }
       | { status: "open" },
     date?: string,
