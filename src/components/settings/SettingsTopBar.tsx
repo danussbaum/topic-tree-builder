@@ -20,6 +20,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ApplicationLogoutButton } from "@/components/ApplicationLogoutButton";
 
 const primaryTabs = [
   { label: "Handlungsplanung", icon: Workflow, href: "/" },
@@ -77,6 +78,7 @@ export const SettingsTopBar = () => {
         >
           <HelpCircle className="h-5 w-5" />
         </button>
+        <ApplicationLogoutButton className="hover:bg-sidebar-primary text-sidebar-foreground/80" />
       </div>
     </div>
   );

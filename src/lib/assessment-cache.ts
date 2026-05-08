@@ -1,9 +1,14 @@
 import type { Client } from "@/types/assessment";
 import type { AssessmentFilterModel } from "@/types/assessment-filter";
+import {
+  APPLICATION_BROWSER_STORAGE_KEYS,
+  finishApplicationLogoutClearing,
+  isApplicationLogoutClearing,
+} from "@/lib/application-storage";
 
 export type ConfirmationPeriod = "day" | "week" | "month";
 
-export const ASSESSMENT_CACHE_KEY = "assessment:cached-state:v1";
+export const ASSESSMENT_CACHE_KEY = APPLICATION_BROWSER_STORAGE_KEYS[0];
 
 export interface CachedAssessmentState {
   viewMode: "planning" | "confirmation";
@@ -16,7 +21,7 @@ export interface CachedAssessmentState {
 }
 
 export const saveCachedAssessmentState = (state: CachedAssessmentState) => {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || isApplicationLogoutClearing()) return;
 
   try {
     window.localStorage.setItem(ASSESSMENT_CACHE_KEY, JSON.stringify(state));
@@ -30,6 +35,7 @@ export const loadCachedAssessmentState = (
   fallbackConfirmationFilter: AssessmentFilterModel,
 ): CachedAssessmentState | null => {
   if (typeof window === "undefined") return null;
+  finishApplicationLogoutClearing();
   try {
     const raw = window.localStorage.getItem(ASSESSMENT_CACHE_KEY);
     if (!raw) return null;
