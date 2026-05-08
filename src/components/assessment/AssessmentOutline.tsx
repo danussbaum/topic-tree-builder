@@ -709,49 +709,44 @@ export function AssessmentOutline({
                               </TableCell>
                               <TableCell className="px-3 py-3 align-top text-xs text-muted-foreground">
                                 <div className="space-y-2">
-                                  <TooltipProvider delayDuration={150}>
-                                    <div className="flex items-center gap-1.5">
-                                      {(status === "open"
-                                        ? CONFIRMATION_MODE_OPTIONS
-                                        : CONFIRMATION_MODE_OPTIONS.filter((option) => option.mode === status)
-                                      ).map((option) => {
-                                        const Icon = option.icon;
-                                        const isActive = status === option.mode;
-                                        return (
-                                          <Tooltip key={option.mode}>
-                                            <TooltipTrigger asChild>
-                                              <button
-                                                type="button"
-                                                onClick={() => openConfirmationDialog(option.mode)}
-                                                disabled={!canConfirm}
-                                                aria-label={option.label}
-                                                aria-pressed={isActive}
-                                                className={cn(
-                                                  "inline-flex h-8 w-8 items-center justify-center rounded-md border transition-colors",
-                                                  isActive
-                                                    ? "border-primary bg-primary/10"
-                                                    : "border-border bg-background hover:bg-secondary/60",
-                                                  !canConfirm && "cursor-not-allowed opacity-50 hover:bg-background",
-                                                )}
-                                              >
-                                                <Icon className={cn("h-4 w-4", option.iconClassName)} />
-                                              </button>
-                                            </TooltipTrigger>
-                                            <TooltipContent side="top" align="center">
-                                              <div className="max-w-[220px] space-y-0.5">
-                                                <div className="font-medium">{option.label}</div>
-                                                <div className="text-xs text-muted-foreground">
-                                                  {canConfirm
-                                                    ? option.description
-                                                    : "Keine Bestätigung möglich (zu geringe Berechtigung)"}
+                                  {status === "open" && (
+                                    <TooltipProvider delayDuration={150}>
+                                      <div className="flex items-center gap-1.5">
+                                        {CONFIRMATION_MODE_OPTIONS.map((option) => {
+                                          const Icon = option.icon;
+                                          return (
+                                            <Tooltip key={option.mode}>
+                                              <TooltipTrigger asChild>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => openConfirmationDialog(option.mode)}
+                                                  disabled={!canConfirm}
+                                                  aria-label={option.label}
+                                                  className={cn(
+                                                    "inline-flex h-8 w-8 items-center justify-center rounded-md border transition-colors",
+                                                    "border-border bg-background hover:bg-secondary/60",
+                                                    !canConfirm && "cursor-not-allowed opacity-50 hover:bg-background",
+                                                  )}
+                                                >
+                                                  <Icon className={cn("h-4 w-4", option.iconClassName)} />
+                                                </button>
+                                              </TooltipTrigger>
+                                              <TooltipContent side="top" align="center">
+                                                <div className="max-w-[220px] space-y-0.5">
+                                                  <div className="font-medium">{option.label}</div>
+                                                  <div className="text-xs text-muted-foreground">
+                                                    {canConfirm
+                                                      ? option.description
+                                                      : "Keine Bestätigung möglich (zu geringe Berechtigung)"}
+                                                  </div>
                                                 </div>
-                                              </div>
-                                            </TooltipContent>
-                                          </Tooltip>
-                                        );
-                                      })}
-                                    </div>
-                                  </TooltipProvider>
+                                              </TooltipContent>
+                                            </Tooltip>
+                                          );
+                                        })}
+                                      </div>
+                                    </TooltipProvider>
+                                  )}
                                   {conf?.confirmedAt ? (
                                     <div className="space-y-1">
                                       <div className="font-medium text-foreground/70">{conf.confirmedBy ?? "Unbekannt"}</div>
