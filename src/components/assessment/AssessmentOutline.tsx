@@ -10,6 +10,7 @@ import {
   AlertTriangle,
   XCircle,
   Circle,
+  Minus,
   RotateCcw,
   Sunrise,
   Sun,
