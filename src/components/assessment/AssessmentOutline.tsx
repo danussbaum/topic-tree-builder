@@ -554,19 +554,19 @@ export function AssessmentOutline({
                 <div key={`${dateGroup.dueDate}-${group.key}`}>
                   <DayPartHeader part={group.key} />
                   <div className="mt-2 overflow-hidden rounded-lg border border-border bg-card">
-                    <Table className="min-w-[1465px] table-fixed">
+                    <Table className="w-full table-fixed">
                       <TableHeader className="bg-secondary/40">
                         <TableRow className="hover:bg-transparent">
-                          <TableHead className="w-[52px] px-3">Status</TableHead>
-                          {clientName && <TableHead className="w-[170px] px-3">Klient/in</TableHead>}
-                          <TableHead className="w-[300px] px-3">Handlung</TableHead>
-                          <TableHead className="w-[210px] px-3">Schwerpunkt/Ziel</TableHead>
-                          <TableHead className="w-[110px] px-3">Kategorie</TableHead>
-                          <TableHead className="w-[105px] px-3">Plan</TableHead>
-                          <TableHead className="w-[120px] px-3">Ist</TableHead>
-                          <TableHead className="w-[95px] px-3 whitespace-nowrap">Anz. Personen</TableHead>
-                          <TableHead className="w-[280px] px-3">Rückmeldung</TableHead>
-                          <TableHead className="w-[190px] px-3 whitespace-nowrap">Bestätigung</TableHead>
+                          <TableHead className="w-[44px] px-2">Status</TableHead>
+                          {clientName && <TableHead className="w-[110px] px-2">Klient/in</TableHead>}
+                          <TableHead className="px-2">Handlung</TableHead>
+                          <TableHead className="w-[160px] px-2">Schwerpunkt/Ziel</TableHead>
+                          <TableHead className="w-[90px] px-2">Kategorie</TableHead>
+                          <TableHead className="w-[72px] px-2">Plan</TableHead>
+                          <TableHead className="w-[80px] px-2">Ist</TableHead>
+                          <TableHead className="w-[64px] px-2">Anz. Pers.</TableHead>
+                          <TableHead className="w-[200px] px-2">Rückmeldung</TableHead>
+                          <TableHead className="w-[150px] px-2">Bestätigung</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
