@@ -1,3 +1,5 @@
+import { APPLICATION_BROWSER_STORAGE_KEYS } from "@/lib/application-storage";
+
 export type TemplateFieldKey =
   | "titel"
   | "beschreibung"
@@ -18,7 +20,7 @@ export interface ActionPlanTemplate {
   editable: Record<TemplateFieldKey, boolean>;
 }
 
-export const ACTION_PLAN_TEMPLATES_STORAGE_KEY = "action-plan-templates-v1";
+export const ACTION_PLAN_TEMPLATES_STORAGE_KEY = APPLICATION_BROWSER_STORAGE_KEYS[1];
 
 export const buildDefaultTemplateFields = (): Record<TemplateFieldKey, string> => ({
   titel: "",

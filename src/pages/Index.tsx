@@ -30,6 +30,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { AssessmentOutline } from "@/components/assessment/AssessmentOutline";
+import { ApplicationLogoutButton } from "@/components/ApplicationLogoutButton";
 import type {
   ActionNode,
   Client,
@@ -1237,6 +1238,7 @@ const Index = () => {
               >
                 <HelpCircle className="h-5 w-5" />
               </button>
+              <ApplicationLogoutButton />
             </div>
           </div>
 
