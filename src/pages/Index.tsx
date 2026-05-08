@@ -902,7 +902,7 @@ const Index = () => {
     actionId: string,
     payload:
       | { status: "done_as_planned"; result?: string; observations?: string }
-      | { status: "done_with_deviation"; actualMinutes: number; reason: string; result?: string; observations?: string }
+      | { status: "done_with_deviation"; actualMinutes?: number; reason: string; result?: string; observations?: string }
       | { status: "not_done"; reason: string }
       | { status: "open" },
     date?: string,
@@ -1588,7 +1588,7 @@ const Index = () => {
                 <p className="text-lg">Wählen Sie eine oder mehrere Klient/innen in der Navigation.</p>
               </div>
             ) : (
-              <div className="px-6 lg:px-10 py-6 max-w-4xl mx-auto space-y-10">
+              <div className="px-6 lg:px-10 py-6 w-full space-y-10">
                 {viewMode === "confirmation" && (
                   <div className="flex items-center justify-between bg-secondary/30 p-4 rounded-lg border border-border sticky top-0 z-10">
                     <div className="flex items-center gap-4">
