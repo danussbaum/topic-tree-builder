@@ -1735,7 +1735,7 @@ function StatusIcon({ status }: { status: ActionStatus }) {
       return <XCircle className="h-5 w-5 text-destructive" />;
     default:
       return (
-        <Circle className="h-5 w-5 text-muted-foreground hover:text-primary transition-colors" />
+        <Minus className="h-4 w-4 text-muted-foreground/50" aria-label="offen" />
       );
   }
 }
