@@ -555,13 +555,18 @@ export function AssessmentOutline({
                 <div key={`${dateGroup.dueDate}-${group.key}`}>
                   <DayPartHeader part={group.key} />
                   <div className="mt-2 overflow-hidden rounded-lg border border-border bg-card">
-                    <Table className="w-full table-fixed">
+                    <Table
+                      className={cn(
+                        "w-full table-fixed",
+                        clientName ? "min-w-[1260px]" : "min-w-[1150px]",
+                      )}
+                    >
                       <TableHeader className="bg-secondary/40">
                         <TableRow className="hover:bg-transparent">
                           <TableHead className="w-[44px] px-2">Status</TableHead>
                           {clientName && <TableHead className="w-[110px] px-2">Klient/in</TableHead>}
-                          <TableHead className="px-2">Handlung</TableHead>
-                          <TableHead className="w-[160px] px-2">Schwerpunkt/Ziel</TableHead>
+                          <TableHead className="w-[260px] px-2">Handlung</TableHead>
+                          <TableHead className="w-[180px] px-2">Schwerpunkt/Ziel</TableHead>
                           <TableHead className="w-[90px] px-2">Kategorie</TableHead>
                           <TableHead className="w-[72px] px-2">Plan</TableHead>
                           <TableHead className="w-[80px] px-2">Ist</TableHead>
@@ -612,17 +617,17 @@ export function AssessmentOutline({
                                   <div className="font-medium text-foreground/80 line-clamp-2">{clientName}</div>
                                 </TableCell>
                               )}
-                              <TableCell className="px-3 py-3 align-top">
-                                <div className={cn("font-medium leading-snug", status !== "open" && "text-foreground/70")}>
+                              <TableCell className="px-3 py-3 align-top break-words">
+                                <div className={cn("font-medium leading-snug break-words", status !== "open" && "text-foreground/70")}>
                                   {action.title}
                                 </div>
                                 {action.notes.trim() && (
-                                  <div className="mt-1 text-xs text-foreground/70 line-clamp-2 whitespace-pre-wrap">
+                                  <div className="mt-1 text-xs text-foreground/70 line-clamp-2 whitespace-pre-wrap break-words">
                                     <span className="font-medium">Beschreibung:</span> {action.notes}
                                   </div>
                                 )}
                                 {action.requiredResources?.trim() && (
-                                  <div className="mt-1 text-xs text-foreground/70 line-clamp-2 whitespace-pre-wrap">
+                                  <div className="mt-1 text-xs text-foreground/70 line-clamp-2 whitespace-pre-wrap break-words">
                                     <span className="font-medium">Hilfsmittel:</span> {action.requiredResources}
                                   </div>
                                 )}
@@ -632,9 +637,9 @@ export function AssessmentOutline({
                                   </div>
                                 )}
                               </TableCell>
-                              <TableCell className="px-3 py-3 align-top text-xs">
-                                <div className="font-medium text-primary/70 line-clamp-2">{topic.title}</div>
-                                <div className="mt-1 text-muted-foreground line-clamp-2">{target.title}</div>
+                              <TableCell className="px-3 py-3 align-top text-xs break-words">
+                                <div className="font-medium text-primary/70 line-clamp-2 break-words">{topic.title}</div>
+                                <div className="mt-1 text-muted-foreground line-clamp-2 break-words">{target.title}</div>
                               </TableCell>
                               <TableCell className="px-3 py-3 align-top text-xs text-muted-foreground">
                                 {action.category ? (
