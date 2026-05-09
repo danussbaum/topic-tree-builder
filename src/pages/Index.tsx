@@ -681,6 +681,7 @@ const Index = () => {
         requiredPersons: Number.isFinite(requiredPersons) ? requiredPersons : undefined,
         category: fields.kategorie !== "none" ? (fields.kategorie as ActionNode["category"]) : undefined,
         dayPart: fields.tageszeit !== "none" ? (fields.tageszeit as ActionNode["dayPart"]) : undefined,
+        scheduledTime: fields.uhrzeit || undefined,
         resultRequirement: fields.resultat !== "none"
           ? (fields.resultat as ActionNode["resultRequirement"])
           : undefined,
@@ -800,6 +801,7 @@ const Index = () => {
       | "actualMinutes"
       | "reason"
       | "dayPart"
+      | "scheduledTime"
       | "category"
       | "validFrom"
       | "validTo"
@@ -1108,6 +1110,7 @@ const Index = () => {
           "Gültig ab": action.validFrom ?? "",
           "Gültig bis": action.validTo ?? "",
           "Tageszeit": action.dayPart ? DAY_PART_LABEL[action.dayPart] : "",
+          "Uhrzeit": action.scheduledTime ?? "",
           Kategorie: action.category ?? "",
           "Minuten geplant": action.plannedMinutes ?? "",
           "Minuten tatsächlich": confirmation?.actualMinutes ?? "",
@@ -1130,6 +1133,7 @@ const Index = () => {
       "Gültig ab",
       "Gültig bis",
       "Tageszeit",
+      "Uhrzeit",
       "Kategorie",
       "Minuten geplant",
       "Minuten tatsächlich",

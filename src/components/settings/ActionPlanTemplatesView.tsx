@@ -23,6 +23,7 @@ type TemplateFieldKey =
   | "personen"
   | "kategorie"
   | "tageszeit"
+  | "uhrzeit"
   | "resultat"
   | "wiederholung"
   | "wiederholungWochentage"
@@ -31,7 +32,7 @@ type TemplateFieldKey =
 interface TemplateFieldMeta {
   key: TemplateFieldKey;
   label: string;
-  type: "text" | "textarea" | "select";
+  type: "text" | "textarea" | "select" | "time";
   options?: Array<{ value: string; label: string }>;
 }
 
@@ -58,6 +59,7 @@ const templateFieldMeta: TemplateFieldMeta[] = [
     type: "select",
     options: DAY_PART_SELECT_OPTIONS,
   },
+  { key: "uhrzeit", label: "Uhrzeit", type: "time" },
   {
     key: "resultat",
     label: "Resultat",
@@ -187,6 +189,10 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
           if (!/^\d+$/.test(value)) {
             errors.push(`${field.label}: muss eine ganze Zahl >= 0 sein`);
           }
+        }
+
+        if (field.key === "uhrzeit" && value && !/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) {
+          errors.push(`${field.label}: muss im Format HH:mm sein`);
         }
 
         if (field.key === "wiederholungWochentage" && value) {
@@ -328,7 +334,6 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
   useImperativeHandle(
     ref,
     () => ({ openCreate: openCreatePanel, exportCsv: exportTemplatesCsv, openImport: openImportPicker }),
-    [templates],
   );
 
   return (
@@ -432,6 +437,12 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>{field.options?.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
                     </Select>
+                  ) : field.type === "time" ? (
+                    <Input
+                      type="time"
+                      value={draftFields[field.key]}
+                      onChange={(event) => setDraftFields((prev) => ({ ...prev, [field.key]: event.target.value }))}
+                    />
                   ) : field.key === "wiederholungWochentage" ? (
                     <div className="flex flex-wrap gap-1 select-none">
                       {[
