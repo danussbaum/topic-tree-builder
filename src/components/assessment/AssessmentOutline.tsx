@@ -586,6 +586,8 @@ export function AssessmentOutline({
                               targetId: target.id,
                               dueDate,
                               initialMode,
+                              confirmedBy: conf?.confirmedBy,
+                              confirmedAt: conf?.confirmedAt,
                               action: {
                                 ...action,
                                 status,
