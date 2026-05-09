@@ -635,10 +635,10 @@ export function AssessmentOutline({
                                     Keine Umsetzung möglich (zu geringe Berechtigung)
                                   </div>
                                 )}
-                              </TableCell>
-                              <TableCell className="px-3 py-3 align-top text-xs break-words">
-                                <div className="font-medium text-primary/70 line-clamp-2 break-words">{topic.title}</div>
-                                <div className="mt-1 text-muted-foreground line-clamp-2 break-words">{target.title}</div>
+                                <div className="mt-2 text-xs break-words">
+                                  <div className="font-medium text-primary/70 line-clamp-2 break-words">{topic.title}</div>
+                                  <div className="mt-1 text-muted-foreground line-clamp-2 break-words">{target.title}</div>
+                                </div>
                               </TableCell>
                               <TableCell className="px-3 py-3 align-top text-xs text-muted-foreground">
                                 {action.category ? (
