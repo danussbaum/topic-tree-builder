@@ -742,7 +742,7 @@ export function AssessmentOutline({
                                                   <div className="text-xs text-muted-foreground">
                                                     {canConfirm
                                                       ? option.description
-                                                      : "Keine Bestätigung möglich (zu geringe Berechtigung)"}
+                                                      : "Keine Umsetzung möglich (zu geringe Berechtigung)"}
                                                   </div>
                                                 </div>
                                               </TooltipContent>
