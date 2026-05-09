@@ -572,7 +572,7 @@ export function AssessmentOutline({
                           <TableHead className="w-[80px] px-2">Ist</TableHead>
                           <TableHead className="w-[64px] px-2">Anz. Pers.</TableHead>
                           <TableHead className="w-[200px] px-2">Rückmeldung</TableHead>
-                          <TableHead className="w-[150px] px-2">Bestätigung</TableHead>
+                          <TableHead className="w-[150px] px-2">Umsetzung</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
