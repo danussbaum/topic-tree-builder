@@ -1266,7 +1266,7 @@ const Index = () => {
             />
             <RibbonButton
               icon={ClipboardCheck}
-              label="Bestätigung"
+              label="Umsetzung"
               onClick={() => setViewMode("confirmation")}
               disabled={viewMode === "confirmation"}
               active={viewMode === "confirmation"}
