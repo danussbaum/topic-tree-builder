@@ -633,7 +633,7 @@ export function AssessmentOutline({
                                 )}
                                 {!canConfirm && (
                                   <div className="mt-1 text-[11px] italic text-muted-foreground/70">
-                                    Keine Bestätigung möglich (zu geringe Berechtigung)
+                                    Keine Umsetzung möglich (zu geringe Berechtigung)
                                   </div>
                                 )}
                               </TableCell>
