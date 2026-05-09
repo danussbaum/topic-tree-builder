@@ -66,7 +66,7 @@ import type {
   MonthlyRecurrencePattern,
   TopicNode,
 } from "@/types/assessment";
-import { DAY_PART_LABEL, DAY_PART_ORDER } from "@/types/assessment";
+import { DAY_PART_LABEL, DAY_PART_ORDER, DAY_PART_SELECT_OPTIONS } from "@/types/assessment";
 import {
   DEFAULT_ASSESSMENT_FILTER,
   matchesAssessmentFilter,
@@ -166,6 +166,7 @@ interface DialogTarget {
 const DAY_PART_ICONS: Record<DayPart, typeof Sunrise> = {
   morning: Sunrise,
   noon: Sun,
+  afternoon: Sun,
   evening: Sunset,
   night: Moon,
 };
@@ -1269,11 +1270,11 @@ function ActionRow({
                   <SelectValue placeholder="Keine Angabe" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Keine Angabe</SelectItem>
-                  <SelectItem value="morning">Morgen</SelectItem>
-                  <SelectItem value="noon">Mittag</SelectItem>
-                  <SelectItem value="evening">Abend</SelectItem>
-                  <SelectItem value="night">Nacht</SelectItem>
+                  {DAY_PART_SELECT_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -1516,11 +1517,11 @@ function ActionRow({
                 <SelectValue placeholder="Tageszeit" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">Keine Angabe</SelectItem>
-                <SelectItem value="morning">Morgen</SelectItem>
-                <SelectItem value="noon">Mittag</SelectItem>
-                <SelectItem value="evening">Abend</SelectItem>
-                <SelectItem value="night">Nacht</SelectItem>
+                {DAY_PART_SELECT_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <label className="inline-flex items-center gap-1.5">

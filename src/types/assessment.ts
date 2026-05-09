@@ -4,7 +4,7 @@ export type ActionStatus =
   | "done_with_deviation"
   | "not_done";
 
-export type DayPart = "morning" | "noon" | "evening" | "night";
+export type DayPart = "morning" | "noon" | "afternoon" | "evening" | "night";
 export type ActionCategory = "a" | "b" | "c";
 export type ResultRequirement = "none" | "optional" | "required";
 export type NumericComparisonOperator = "gt" | "lt" | "eq";
@@ -123,6 +123,7 @@ export const DAY_PART_ORDER: (DayPart | "none")[] = [
   "none",
   "morning",
   "noon",
+  "afternoon",
   "evening",
   "night",
 ];
@@ -130,6 +131,20 @@ export const DAY_PART_ORDER: (DayPart | "none")[] = [
 export const DAY_PART_LABEL: Record<DayPart, string> = {
   morning: "Morgen",
   noon: "Mittag",
+  afternoon: "Nachmittag",
   evening: "Abend",
   night: "Nacht",
 };
+
+export const DAY_PART_OPTIONS: Array<{ value: DayPart; label: string }> = [
+  { value: "morning", label: DAY_PART_LABEL.morning },
+  { value: "noon", label: DAY_PART_LABEL.noon },
+  { value: "afternoon", label: DAY_PART_LABEL.afternoon },
+  { value: "evening", label: DAY_PART_LABEL.evening },
+  { value: "night", label: DAY_PART_LABEL.night },
+];
+
+export const DAY_PART_SELECT_OPTIONS: Array<{ value: DayPart | "none"; label: string }> = [
+  { value: "none", label: "Keine Angabe" },
+  ...DAY_PART_OPTIONS,
+];

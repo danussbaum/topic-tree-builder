@@ -5,11 +5,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DAY_PART_SELECT_OPTIONS } from "@/types/assessment";
 import {
   buildDefaultTemplateEditable as buildDefaultEditable,
   buildDefaultTemplateFields as buildDefaultFields,
   type ActionPlanTemplate,
   loadActionPlanTemplates,
+  normalizeTemplateSelectValue,
   saveActionPlanTemplates,
 } from "@/lib/action-plan-templates";
 
@@ -54,13 +56,7 @@ const templateFieldMeta: TemplateFieldMeta[] = [
     key: "tageszeit",
     label: "Tageszeit",
     type: "select",
-    options: [
-      { value: "none", label: "Keine Angabe" },
-      { value: "morning", label: "Morgen" },
-      { value: "noon", label: "Mittag" },
-      { value: "evening", label: "Abend" },
-      { value: "night", label: "Nacht" },
-    ],
+    options: DAY_PART_SELECT_OPTIONS,
   },
   {
     key: "resultat",
@@ -175,13 +171,16 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
       const nextEditable = buildDefaultEditable(true);
 
       templateFieldMeta.forEach((field, index) => {
-        const value = row[1 + index * 2] ?? "";
+        const rawValue = row[1 + index * 2] ?? "";
+        const value = field.options
+          ? normalizeTemplateSelectValue(rawValue, field.options)
+          : rawValue;
         const editableValue = row[2 + index * 2] ?? "";
         nextFields[field.key] = value;
 
         const allowed = allowedByField.get(field.key);
         if (allowed && !allowed.has(value)) {
-          errors.push(`${field.label}: ungültiger Wert "${value}"`);
+          errors.push(`${field.label}: ungültiger Wert "${rawValue}"`);
         }
 
         if (field.key === "dauer" || field.key === "personen") {
