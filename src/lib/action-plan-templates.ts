@@ -20,6 +20,25 @@ export interface ActionPlanTemplate {
   editable: Record<TemplateFieldKey, boolean>;
 }
 
+export interface TemplateSelectOption {
+  value: string;
+  label: string;
+}
+
+export const normalizeTemplateSelectValue = (
+  value: string,
+  options: TemplateSelectOption[],
+) => {
+  const trimmed = value.trim();
+  const normalized = trimmed.toLocaleLowerCase("de");
+  const option = options.find(
+    (entry) =>
+      entry.value.toLocaleLowerCase("de") === normalized ||
+      entry.label.toLocaleLowerCase("de") === normalized,
+  );
+  return option?.value ?? trimmed;
+};
+
 export const ACTION_PLAN_TEMPLATES_STORAGE_KEY = APPLICATION_BROWSER_STORAGE_KEYS[1];
 
 export const buildDefaultTemplateFields = (): Record<TemplateFieldKey, string> => ({

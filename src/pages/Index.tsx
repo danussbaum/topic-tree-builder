@@ -37,6 +37,7 @@ import type {
   TopicNode,
   Weekday,
 } from "@/types/assessment";
+import { DAY_PART_LABEL, DAY_PART_SELECT_OPTIONS } from "@/types/assessment";
 import {
   matchesAssessmentFilter,
   type AssessmentFilterModel,
@@ -1106,7 +1107,7 @@ const Index = () => {
           Beobachtungen: confirmation?.observations ?? "",
           "Gültig ab": action.validFrom ?? "",
           "Gültig bis": action.validTo ?? "",
-          "Tageszeit": action.dayPart ?? "",
+          "Tageszeit": action.dayPart ? DAY_PART_LABEL[action.dayPart] : "",
           Kategorie: action.category ?? "",
           "Minuten geplant": action.plannedMinutes ?? "",
           "Minuten tatsächlich": confirmation?.actualMinutes ?? "",
@@ -1479,11 +1480,11 @@ const Index = () => {
                         <SelectTrigger><SelectValue placeholder="Tageszeit" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">Alle Tageszeiten</SelectItem>
-                          <SelectItem value="none">Keine Angabe</SelectItem>
-                          <SelectItem value="morning">Morgen</SelectItem>
-                          <SelectItem value="noon">Mittag</SelectItem>
-                          <SelectItem value="evening">Abend</SelectItem>
-                          <SelectItem value="night">Nacht</SelectItem>
+                          {DAY_PART_SELECT_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
