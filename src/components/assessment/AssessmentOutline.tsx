@@ -558,12 +558,12 @@ export function AssessmentOutline({
                     <Table
                       className={cn(
                         "w-full table-fixed",
-                        clientName ? "min-w-[1170px]" : "min-w-[1060px]",
+                        clientName ? "min-w-[1010px]" : "min-w-[900px]",
                       )}
                     >
                       <TableHeader className="bg-secondary/40">
                         <TableRow className="hover:bg-transparent">
-                          <TableHead className="w-[220px] px-2">Umsetzung</TableHead>
+                          <TableHead className="w-[60px] px-2">Umsetzung</TableHead>
                           {clientName && <TableHead className="w-[110px] px-2">Klient/in</TableHead>}
                           <TableHead className="w-[320px] px-2">Handlung</TableHead>
                           <TableHead className="w-[90px] px-2">Kategorie</TableHead>
