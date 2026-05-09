@@ -558,7 +558,7 @@ export function AssessmentOutline({
                     <Table
                       className={cn(
                         "w-full table-fixed",
-                        clientName ? "min-w-[1260px]" : "min-w-[1150px]",
+                        clientName ? "min-w-[1140px]" : "min-w-[1030px]",
                       )}
                     >
                       <TableHeader className="bg-secondary/40">
