@@ -646,7 +646,7 @@ export function AssessmentOutline({
                                     </div>
                                   </TooltipProvider>
                                 ) : (
-                                  <div className="flex items-start gap-2">
+                                  <div className="flex justify-center">
                                     <button
                                       type="button"
                                       onClick={() =>
@@ -666,12 +666,6 @@ export function AssessmentOutline({
                                     >
                                       <StatusIcon status={status} />
                                     </button>
-                                    {conf?.confirmedAt ? (
-                                      <div className="space-y-0.5 leading-tight">
-                                        <div className="font-medium text-foreground/70">{conf.confirmedBy ?? "Unbekannt"}</div>
-                                        <div>{format(parseISO(conf.confirmedAt), "dd.MM.yyyy HH:mm:ss", { locale: de })}</div>
-                                      </div>
-                                    ) : null}
                                   </div>
                                 )}
                               </TableCell>
