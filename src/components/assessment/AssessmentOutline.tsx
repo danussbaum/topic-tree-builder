@@ -560,12 +560,12 @@ export function AssessmentOutline({
                     <Table
                       className={cn(
                         "w-full table-fixed",
-                        clientName ? "min-w-[1010px]" : "min-w-[900px]",
+                        clientName ? "min-w-[998px]" : "min-w-[888px]",
                       )}
                     >
                       <TableHeader className="bg-secondary/40">
                         <TableRow className="hover:bg-transparent">
-                          <TableHead className="w-[60px] px-2">Umsetzung</TableHead>
+                          <TableHead className="w-[48px] px-1"><span className="sr-only">Umsetzung</span></TableHead>
                           {clientName && <TableHead className="w-[110px] px-2">Klient/in</TableHead>}
                           <TableHead className="w-[320px] px-2">Handlung</TableHead>
                           <TableHead className="w-[90px] px-2">Kategorie</TableHead>
@@ -611,7 +611,7 @@ export function AssessmentOutline({
                                 !canConfirm && "opacity-90",
                               )}
                             >
-                              <TableCell className="px-3 py-3 align-top text-xs text-muted-foreground">
+                              <TableCell className="px-2 py-3 align-top text-xs text-muted-foreground">
                                 {status === "open" ? (
                                   <TooltipProvider delayDuration={150}>
                                     <div className="flex flex-col items-center gap-1.5">
