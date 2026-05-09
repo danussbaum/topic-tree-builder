@@ -565,8 +565,7 @@ export function AssessmentOutline({
                         <TableRow className="hover:bg-transparent">
                           <TableHead className="w-[44px] px-2">Status</TableHead>
                           {clientName && <TableHead className="w-[110px] px-2">Klient/in</TableHead>}
-                          <TableHead className="w-[260px] px-2">Handlung</TableHead>
-                          <TableHead className="w-[180px] px-2">Schwerpunkt/Ziel</TableHead>
+                          <TableHead className="w-[320px] px-2">Handlung</TableHead>
                           <TableHead className="w-[90px] px-2">Kategorie</TableHead>
                           <TableHead className="w-[72px] px-2">Plan</TableHead>
                           <TableHead className="w-[80px] px-2">Ist</TableHead>
