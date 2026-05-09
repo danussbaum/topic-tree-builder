@@ -95,6 +95,7 @@ type ActionField =
   | "actualMinutes"
   | "reason"
   | "dayPart"
+  | "scheduledTime"
   | "category"
   | "validFrom"
   | "validTo"
@@ -561,7 +562,7 @@ export function AssessmentOutline({
                     <Table
                       className={cn(
                         "w-full table-fixed",
-                        clientName ? "min-w-[998px]" : "min-w-[888px]",
+                        clientName ? "min-w-[1078px]" : "min-w-[968px]",
                       )}
                     >
                       <TableHeader className="bg-secondary/40">
@@ -570,6 +571,7 @@ export function AssessmentOutline({
                           {clientName && <TableHead className="w-[110px] px-2">Klient/in</TableHead>}
                           <TableHead className="w-[320px] px-2">Handlung</TableHead>
                           <TableHead className="w-[90px] px-2">Kategorie</TableHead>
+                          <TableHead className="w-[80px] px-2">Uhrzeit</TableHead>
                           <TableHead className="w-[72px] px-2">Plan</TableHead>
                           <TableHead className="w-[80px] px-2">Ist</TableHead>
                           <TableHead className="w-[64px] px-2">Anz. Pers.</TableHead>
@@ -708,6 +710,16 @@ export function AssessmentOutline({
                                   <div className="inline-flex items-center gap-1">
                                     <Tag className="h-3 w-3" />
                                     {CATEGORY_LABEL[action.category]}
+                                  </div>
+                                ) : (
+                                  <span className="text-muted-foreground/60">—</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="px-3 py-3 align-top text-xs">
+                                {action.scheduledTime ? (
+                                  <div className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-100 px-2 py-1 font-bold text-amber-900 shadow-sm">
+                                    <Clock className="h-3.5 w-3.5" />
+                                    <span className="tabular-nums">{action.scheduledTime}</span>
                                   </div>
                                 ) : (
                                   <span className="text-muted-foreground/60">—</span>
@@ -1281,6 +1293,26 @@ function ActionRow({
 
             <label className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1.5">
               <Clock className="h-3.5 w-3.5 shrink-0" />
+              <span className="shrink-0">Uhrzeit</span>
+              <input
+                type="time"
+                disabled={isLocked || isTemplateFieldLocked("uhrzeit")}
+                value={action.scheduledTime ?? ""}
+                onChange={(e) =>
+                  onUpdateActionField(
+                    topicId,
+                    targetId,
+                    action.id,
+                    "scheduledTime",
+                    e.target.value || undefined,
+                  )
+                }
+                className="h-7 w-full min-w-0 bg-transparent border border-border rounded focus:border-primary outline-none px-2 py-0.5 tabular-nums"
+              />
+            </label>
+
+            <label className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1.5">
+              <Clock className="h-3.5 w-3.5 shrink-0" />
               <span className="shrink-0">geplante Minuten</span>
               <input
                 type="number"
@@ -1524,6 +1556,12 @@ function ActionRow({
                 ))}
               </SelectContent>
             </Select>
+            {action.scheduledTime && (
+              <span className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-100 px-2 py-1 font-bold text-amber-900 shadow-sm">
+                <Clock className="h-3.5 w-3.5" />
+                <span className="tabular-nums">{action.scheduledTime}</span>
+              </span>
+            )}
             <label className="inline-flex items-center gap-1.5">
               <Clock className="h-3.5 w-3.5" />
               <span>geplant</span>
@@ -1888,6 +1926,11 @@ function ConfirmActionDialog({
           <DialogTitle>Handlung bestätigen</DialogTitle>
           <DialogDescription className="line-clamp-2">
             {target?.action.title || "Handlung"}
+            {target?.action.scheduledTime && (
+              <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-900">
+                · Uhrzeit {target.action.scheduledTime}
+              </span>
+            )}
             {planned != null && (
               <span className="ml-2 text-xs">· geplant {planned} Min</span>
             )}

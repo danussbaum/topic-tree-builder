@@ -8,6 +8,7 @@ export type TemplateFieldKey =
   | "personen"
   | "kategorie"
   | "tageszeit"
+  | "uhrzeit"
   | "resultat"
   | "wiederholung"
   | "wiederholungWochentage"
@@ -49,6 +50,7 @@ export const buildDefaultTemplateFields = (): Record<TemplateFieldKey, string> =
   personen: "",
   kategorie: "none",
   tageszeit: "none",
+  uhrzeit: "",
   resultat: "none",
   wiederholung: "daily",
   wiederholungWochentage: "",
@@ -63,6 +65,7 @@ export const buildDefaultTemplateEditable = (value = true): Record<TemplateField
   personen: value,
   kategorie: value,
   tageszeit: value,
+  uhrzeit: value,
   resultat: value,
   wiederholung: value,
   wiederholungWochentage: value,
@@ -81,6 +84,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       personen: "1",
       kategorie: "a",
       tageszeit: "morning",
+      uhrzeit: "07:30",
       resultat: "required",
       wiederholung: "daily",
       wiederholungMonatlich: "none",
@@ -97,7 +101,11 @@ export const loadActionPlanTemplates = (): ActionPlanTemplate[] => {
   try {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return initialTemplates;
-    return parsed;
+    return parsed.map((template) => ({
+      ...template,
+      fields: { ...buildDefaultTemplateFields(), ...(template.fields ?? {}) },
+      editable: { ...buildDefaultTemplateEditable(true), ...(template.editable ?? {}) },
+    }));
   } catch {
     return initialTemplates;
   }

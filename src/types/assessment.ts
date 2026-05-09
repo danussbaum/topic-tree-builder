@@ -66,6 +66,8 @@ export interface ActionNode {
   resultRequirement?: ResultRequirement;
   /** Tageszeit zur Gruppierung */
   dayPart?: DayPart;
+  /** Exakte Uhrzeit zur Durchführung (HH:mm) */
+  scheduledTime?: string;
   /** Kategorie fuer optionale Einteilung */
   category?: ActionCategory;
   /** Gültig ab (ISO Datum, zwingend bei erfasster Handlung) */
