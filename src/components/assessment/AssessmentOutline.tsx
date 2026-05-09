@@ -159,6 +159,8 @@ interface DialogTarget {
   dueDate: string;
   action: ActionNode;
   initialMode?: ConfirmationMode;
+  confirmedBy?: string;
+  confirmedAt?: string;
 }
 
 const DAY_PART_ICONS: Record<DayPart, typeof Sunrise> = {
@@ -558,12 +560,12 @@ export function AssessmentOutline({
                     <Table
                       className={cn(
                         "w-full table-fixed",
-                        clientName ? "min-w-[1170px]" : "min-w-[1060px]",
+                        clientName ? "min-w-[1010px]" : "min-w-[900px]",
                       )}
                     >
                       <TableHeader className="bg-secondary/40">
                         <TableRow className="hover:bg-transparent">
-                          <TableHead className="w-[220px] px-2">Umsetzung</TableHead>
+                          <TableHead className="w-[60px] px-2">Umsetzung</TableHead>
                           {clientName && <TableHead className="w-[110px] px-2">Klient/in</TableHead>}
                           <TableHead className="w-[320px] px-2">Handlung</TableHead>
                           <TableHead className="w-[90px] px-2">Kategorie</TableHead>
@@ -584,6 +586,8 @@ export function AssessmentOutline({
                               targetId: target.id,
                               dueDate,
                               initialMode,
+                              confirmedBy: conf?.confirmedBy,
+                              confirmedAt: conf?.confirmedAt,
                               action: {
                                 ...action,
                                 status,
@@ -610,7 +614,7 @@ export function AssessmentOutline({
                               <TableCell className="px-3 py-3 align-top text-xs text-muted-foreground">
                                 {status === "open" ? (
                                   <TooltipProvider delayDuration={150}>
-                                    <div className="flex items-center gap-1.5">
+                                    <div className="flex flex-col items-center gap-1.5">
                                       {CONFIRMATION_MODE_OPTIONS.map((option) => {
                                         const Icon = option.icon;
                                         return (
@@ -646,7 +650,7 @@ export function AssessmentOutline({
                                     </div>
                                   </TooltipProvider>
                                 ) : (
-                                  <div className="flex items-start gap-2">
+                                  <div className="flex justify-center">
                                     <button
                                       type="button"
                                       onClick={() =>
@@ -666,12 +670,6 @@ export function AssessmentOutline({
                                     >
                                       <StatusIcon status={status} />
                                     </button>
-                                    {conf?.confirmedAt ? (
-                                      <div className="space-y-0.5 leading-tight">
-                                        <div className="font-medium text-foreground/70">{conf.confirmedBy ?? "Unbekannt"}</div>
-                                        <div>{format(parseISO(conf.confirmedAt), "dd.MM.yyyy HH:mm:ss", { locale: de })}</div>
-                                      </div>
-                                    ) : null}
                                   </div>
                                 )}
                               </TableCell>
@@ -1871,6 +1869,18 @@ function ConfirmActionDialog({
           <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-sm">
             <span className="text-muted-foreground">Gewählte Variante:</span>{" "}
             <span className="font-semibold text-foreground">{selectedModeOption.label}</span>
+            {target?.confirmedAt && (
+              <div className="mt-1 text-xs text-muted-foreground">
+                Bestätigt von{" "}
+                <span className="font-medium text-foreground/80">
+                  {target.confirmedBy ?? "Unbekannt"}
+                </span>{" "}
+                am{" "}
+                <span className="font-medium text-foreground/80">
+                  {format(parseISO(target.confirmedAt), "dd.MM.yyyy HH:mm:ss", { locale: de })}
+                </span>
+              </div>
+            )}
           </div>
         )}
         <DialogHeader>
