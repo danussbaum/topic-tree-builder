@@ -1869,6 +1869,18 @@ function ConfirmActionDialog({
           <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-sm">
             <span className="text-muted-foreground">Gewählte Variante:</span>{" "}
             <span className="font-semibold text-foreground">{selectedModeOption.label}</span>
+            {target?.confirmedAt && (
+              <div className="mt-1 text-xs text-muted-foreground">
+                Bestätigt von{" "}
+                <span className="font-medium text-foreground/80">
+                  {target.confirmedBy ?? "Unbekannt"}
+                </span>{" "}
+                am{" "}
+                <span className="font-medium text-foreground/80">
+                  {format(parseISO(target.confirmedAt), "dd.MM.yyyy HH:mm:ss", { locale: de })}
+                </span>
+              </div>
+            )}
           </div>
         )}
         <DialogHeader>
