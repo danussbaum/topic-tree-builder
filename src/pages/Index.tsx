@@ -1138,7 +1138,7 @@ const Index = () => {
     const numberHeaders = new Set(["Minuten geplant", "Minuten tatsächlich"]);
 
     const blob = createSimpleXlsxBlob({
-      sheetName: "Bestätigungen",
+      sheetName: "Umsetzungen",
       headers: allHeaders,
       rows: rows.map((row) =>
         allHeaders.map((header) => {
@@ -1266,7 +1266,7 @@ const Index = () => {
             />
             <RibbonButton
               icon={ClipboardCheck}
-              label="Bestätigung"
+              label="Umsetzung"
               onClick={() => setViewMode("confirmation")}
               disabled={viewMode === "confirmation"}
               active={viewMode === "confirmation"}

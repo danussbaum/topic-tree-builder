@@ -572,7 +572,7 @@ export function AssessmentOutline({
                           <TableHead className="w-[80px] px-2">Ist</TableHead>
                           <TableHead className="w-[64px] px-2">Anz. Pers.</TableHead>
                           <TableHead className="w-[200px] px-2">Rückmeldung</TableHead>
-                          <TableHead className="w-[150px] px-2">Bestätigung</TableHead>
+                          <TableHead className="w-[150px] px-2">Umsetzung</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -633,7 +633,7 @@ export function AssessmentOutline({
                                 )}
                                 {!canConfirm && (
                                   <div className="mt-1 text-[11px] italic text-muted-foreground/70">
-                                    Keine Bestätigung möglich (zu geringe Berechtigung)
+                                    Keine Umsetzung möglich (zu geringe Berechtigung)
                                   </div>
                                 )}
                               </TableCell>
@@ -742,7 +742,7 @@ export function AssessmentOutline({
                                                   <div className="text-xs text-muted-foreground">
                                                     {canConfirm
                                                       ? option.description
-                                                      : "Keine Bestätigung möglich (zu geringe Berechtigung)"}
+                                                      : "Keine Umsetzung möglich (zu geringe Berechtigung)"}
                                                   </div>
                                                 </div>
                                               </TooltipContent>
@@ -1157,7 +1157,7 @@ function ActionRow({
           aria-label="Status ändern"
           title={
             isConfirmationRestricted
-              ? "Keine Rechte zur Bestätigung von Kategorie A"
+              ? "Keine Rechte zur Umsetzung von Kategorie A"
               : "Status ändern"
           }
           aria-disabled={isConfirmationRestricted}
