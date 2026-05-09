@@ -558,15 +558,14 @@ export function AssessmentOutline({
                     <Table
                       className={cn(
                         "w-full table-fixed",
-                        clientName ? "min-w-[1260px]" : "min-w-[1150px]",
+                        clientName ? "min-w-[1140px]" : "min-w-[1030px]",
                       )}
                     >
                       <TableHeader className="bg-secondary/40">
                         <TableRow className="hover:bg-transparent">
                           <TableHead className="w-[44px] px-2">Status</TableHead>
                           {clientName && <TableHead className="w-[110px] px-2">Klient/in</TableHead>}
-                          <TableHead className="w-[260px] px-2">Handlung</TableHead>
-                          <TableHead className="w-[180px] px-2">Schwerpunkt/Ziel</TableHead>
+                          <TableHead className="w-[320px] px-2">Handlung</TableHead>
                           <TableHead className="w-[90px] px-2">Kategorie</TableHead>
                           <TableHead className="w-[72px] px-2">Plan</TableHead>
                           <TableHead className="w-[80px] px-2">Ist</TableHead>
@@ -636,10 +635,10 @@ export function AssessmentOutline({
                                     Keine Umsetzung möglich (zu geringe Berechtigung)
                                   </div>
                                 )}
-                              </TableCell>
-                              <TableCell className="px-3 py-3 align-top text-xs break-words">
-                                <div className="font-medium text-primary/70 line-clamp-2 break-words">{topic.title}</div>
-                                <div className="mt-1 text-muted-foreground line-clamp-2 break-words">{target.title}</div>
+                                <div className="mt-2 text-xs break-words">
+                                  <div className="font-medium text-primary/70 line-clamp-2 break-words">{topic.title}</div>
+                                  <div className="mt-1 text-muted-foreground line-clamp-2 break-words">{target.title}</div>
+                                </div>
                               </TableCell>
                               <TableCell className="px-3 py-3 align-top text-xs text-muted-foreground">
                                 {action.category ? (
