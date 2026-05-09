@@ -558,12 +558,12 @@ export function AssessmentOutline({
                     <Table
                       className={cn(
                         "w-full table-fixed",
-                        clientName ? "min-w-[1140px]" : "min-w-[1030px]",
+                        clientName ? "min-w-[1170px]" : "min-w-[1060px]",
                       )}
                     >
                       <TableHeader className="bg-secondary/40">
                         <TableRow className="hover:bg-transparent">
-                          <TableHead className="w-[44px] px-2">Status</TableHead>
+                          <TableHead className="w-[220px] px-2">Umsetzung</TableHead>
                           {clientName && <TableHead className="w-[110px] px-2">Klient/in</TableHead>}
                           <TableHead className="w-[320px] px-2">Handlung</TableHead>
                           <TableHead className="w-[90px] px-2">Kategorie</TableHead>
@@ -571,7 +571,6 @@ export function AssessmentOutline({
                           <TableHead className="w-[80px] px-2">Ist</TableHead>
                           <TableHead className="w-[64px] px-2">Anz. Pers.</TableHead>
                           <TableHead className="w-[200px] px-2">Rückmeldung</TableHead>
-                          <TableHead className="w-[150px] px-2">Umsetzung</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -608,8 +607,73 @@ export function AssessmentOutline({
                                 !canConfirm && "opacity-90",
                               )}
                             >
-                              <TableCell className="px-3 py-3 align-top">
-                                <StatusIcon status={status} />
+                              <TableCell className="px-3 py-3 align-top text-xs text-muted-foreground">
+                                {status === "open" ? (
+                                  <TooltipProvider delayDuration={150}>
+                                    <div className="flex items-center gap-1.5">
+                                      {CONFIRMATION_MODE_OPTIONS.map((option) => {
+                                        const Icon = option.icon;
+                                        return (
+                                          <Tooltip key={option.mode}>
+                                            <TooltipTrigger asChild>
+                                              <button
+                                                type="button"
+                                                onClick={() => openConfirmationDialog(option.mode)}
+                                                disabled={!canConfirm}
+                                                aria-label={option.label}
+                                                className={cn(
+                                                  "inline-flex h-8 w-8 items-center justify-center rounded-md border transition-colors",
+                                                  "border-border bg-background hover:bg-secondary/60",
+                                                  !canConfirm && "cursor-not-allowed opacity-50 hover:bg-background",
+                                                )}
+                                              >
+                                                <Icon className={cn("h-4 w-4", option.iconClassName)} />
+                                              </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="top" align="center">
+                                              <div className="max-w-[220px] space-y-0.5">
+                                                <div className="font-medium">{option.label}</div>
+                                                <div className="text-xs text-muted-foreground">
+                                                  {canConfirm
+                                                    ? option.description
+                                                    : "Keine Umsetzung möglich (zu geringe Berechtigung)"}
+                                                </div>
+                                              </div>
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        );
+                                      })}
+                                    </div>
+                                  </TooltipProvider>
+                                ) : (
+                                  <div className="flex items-start gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        openConfirmationDialog(status as ConfirmationMode)
+                                      }
+                                      disabled={!canConfirm}
+                                      aria-label="Umsetzung bearbeiten"
+                                      title={
+                                        canConfirm
+                                          ? "Umsetzung bearbeiten"
+                                          : "Keine Umsetzung möglich (zu geringe Berechtigung)"
+                                      }
+                                      className={cn(
+                                        "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background transition-colors hover:bg-secondary/60",
+                                        !canConfirm && "cursor-not-allowed opacity-50 hover:bg-background",
+                                      )}
+                                    >
+                                      <StatusIcon status={status} />
+                                    </button>
+                                    {conf?.confirmedAt ? (
+                                      <div className="space-y-0.5 leading-tight">
+                                        <div className="font-medium text-foreground/70">{conf.confirmedBy ?? "Unbekannt"}</div>
+                                        <div>{format(parseISO(conf.confirmedAt), "dd.MM.yyyy HH:mm:ss", { locale: de })}</div>
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                )}
                               </TableCell>
                               {clientName && (
                                 <TableCell className="px-3 py-3 align-top text-xs">
@@ -710,56 +774,6 @@ export function AssessmentOutline({
                                 ) : (
                                   <span className="text-muted-foreground/60">—</span>
                                 )}
-                              </TableCell>
-                              <TableCell className="px-3 py-3 align-top text-xs text-muted-foreground">
-                                <div className="space-y-2">
-                                  {status === "open" && (
-                                    <TooltipProvider delayDuration={150}>
-                                      <div className="flex items-center gap-1.5">
-                                        {CONFIRMATION_MODE_OPTIONS.map((option) => {
-                                          const Icon = option.icon;
-                                          return (
-                                            <Tooltip key={option.mode}>
-                                              <TooltipTrigger asChild>
-                                                <button
-                                                  type="button"
-                                                  onClick={() => openConfirmationDialog(option.mode)}
-                                                  disabled={!canConfirm}
-                                                  aria-label={option.label}
-                                                  className={cn(
-                                                    "inline-flex h-8 w-8 items-center justify-center rounded-md border transition-colors",
-                                                    "border-border bg-background hover:bg-secondary/60",
-                                                    !canConfirm && "cursor-not-allowed opacity-50 hover:bg-background",
-                                                  )}
-                                                >
-                                                  <Icon className={cn("h-4 w-4", option.iconClassName)} />
-                                                </button>
-                                              </TooltipTrigger>
-                                              <TooltipContent side="top" align="center">
-                                                <div className="max-w-[220px] space-y-0.5">
-                                                  <div className="font-medium">{option.label}</div>
-                                                  <div className="text-xs text-muted-foreground">
-                                                    {canConfirm
-                                                      ? option.description
-                                                      : "Keine Umsetzung möglich (zu geringe Berechtigung)"}
-                                                  </div>
-                                                </div>
-                                              </TooltipContent>
-                                            </Tooltip>
-                                          );
-                                        })}
-                                      </div>
-                                    </TooltipProvider>
-                                  )}
-                                  {conf?.confirmedAt ? (
-                                    <div className="space-y-1">
-                                      <div className="font-medium text-foreground/70">{conf.confirmedBy ?? "Unbekannt"}</div>
-                                      <div>{format(parseISO(conf.confirmedAt), "dd.MM.yyyy HH:mm:ss", { locale: de })}</div>
-                                    </div>
-                                  ) : (
-                                    <span className="text-muted-foreground/60">—</span>
-                                  )}
-                                </div>
                               </TableCell>
                             </TableRow>
                           );
