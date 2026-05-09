@@ -1157,7 +1157,7 @@ function ActionRow({
           aria-label="Status ändern"
           title={
             isConfirmationRestricted
-              ? "Keine Rechte zur Bestätigung von Kategorie A"
+              ? "Keine Rechte zur Umsetzung von Kategorie A"
               : "Status ändern"
           }
           aria-disabled={isConfirmationRestricted}
