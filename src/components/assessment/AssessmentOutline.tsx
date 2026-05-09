@@ -159,6 +159,8 @@ interface DialogTarget {
   dueDate: string;
   action: ActionNode;
   initialMode?: ConfirmationMode;
+  confirmedBy?: string;
+  confirmedAt?: string;
 }
 
 const DAY_PART_ICONS: Record<DayPart, typeof Sunrise> = {
