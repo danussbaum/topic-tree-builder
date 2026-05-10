@@ -561,13 +561,11 @@ export function AssessmentOutline({
         <div className="space-y-4">
           {groupedFlatActions.map((dateGroup) => (
             <div key={dateGroup.dueDate} className="space-y-3">
-              {confirmationPeriod !== "day" && (
-                <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
-                  <h3 className="text-sm font-semibold text-primary">
-                    {format(parseISO(dateGroup.dueDate), "EEEE, dd.MM.yyyy", { locale: de })}
-                  </h3>
-                </div>
-              )}
+              <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+                <h3 className="text-sm font-semibold text-primary">
+                  {format(parseISO(dateGroup.dueDate), "EEEE, dd.MM.yyyy", { locale: de })}
+                </h3>
+              </div>
               {dateGroup.dayPartGroups.map((group) => (
                 <div key={`${dateGroup.dueDate}-${group.key}`}>
                   <DayPartHeader part={group.key} />
