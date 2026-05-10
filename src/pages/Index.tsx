@@ -47,6 +47,7 @@ import { cn } from "@/lib/utils";
 import { createSimpleXlsxBlob } from "@/lib/xlsx";
 import { buildDefaultTemplateFields, loadActionPlanTemplates } from "@/lib/action-plan-templates";
 import {
+  DEFAULT_LAST_N_DAYS,
   loadCachedAssessmentState,
   saveCachedAssessmentState,
   type CachedAssessmentState,
@@ -83,6 +84,8 @@ const OPERATOR_OPTIONS: Array<{ value: NumericComparison["op"]; label: ">" | "<"
 const INITIAL_CONFIRMATION_FILTER: AssessmentFilterModel = {
   statuses: ["open"],
 };
+
+const clampLastNDays = (value: number) => Math.max(1, Math.floor(value));
 const CONFIRMED_STATUSES: ActionNode["status"][] = [
   "done_as_planned",
   "done_with_deviation",
@@ -175,14 +178,16 @@ const hasVisibleConfirmationItems = (
   selectedDate: string,
   period: ConfirmationPeriod,
   filterModel: AssessmentFilterModel,
+  lastNDays: number = DEFAULT_LAST_N_DAYS,
 ) => {
-  return getVisibleConfirmationRows(client, selectedDate, period, filterModel).length > 0;
+  return getVisibleConfirmationRows(client, selectedDate, period, filterModel, lastNDays).length > 0;
 };
 
 const getDueDatesInPeriod = (
   action: ActionNode,
   selectedDate: string,
   period: ConfirmationPeriod,
+  lastNDays: number = DEFAULT_LAST_N_DAYS,
 ) => {
   if (!action.recurrence) return [];
 
@@ -191,7 +196,7 @@ const getDueDatesInPeriod = (
     return isRecurringOnDate(action, selected) ? [selectedDate] : [];
   }
 
-  const { start, end } = getPeriodRange(selectedDate, period);
+  const { start, end } = getPeriodRange(selectedDate, period, lastNDays);
   const dueDates: string[] = [];
   const current = new Date(`${start}T00:00:00`);
   const endDate = new Date(`${end}T00:00:00`);
@@ -216,6 +221,7 @@ const getVisibleConfirmationRows = (
   selectedDate: string,
   period: ConfirmationPeriod,
   filterModel: AssessmentFilterModel,
+  lastNDays: number = DEFAULT_LAST_N_DAYS,
 ) => {
   const rows: Array<{
     dueDate: string;
@@ -225,7 +231,7 @@ const getVisibleConfirmationRows = (
     status: ActionNode["status"];
   }> = [];
 
-  const { start, end } = getPeriodRange(selectedDate, period);
+  const { start, end } = getPeriodRange(selectedDate, period, lastNDays);
 
   client.topics.forEach((topic) => {
     topic.targets.forEach((target) => {
@@ -233,7 +239,7 @@ const getVisibleConfirmationRows = (
         if (action.validFrom && action.validFrom > end) return;
         if (action.validTo && action.validTo < start) return;
 
-        const dueDates = getDueDatesInPeriod(action, selectedDate, period);
+        const dueDates = getDueDatesInPeriod(action, selectedDate, period, lastNDays);
         dueDates.forEach((dueDate) => {
           const confirmation = action.confirmations?.[dueDate];
           const status = confirmation?.status || "open";
@@ -245,6 +251,11 @@ const getVisibleConfirmationRows = (
   });
 
   return rows;
+};
+
+const formatGermanDate = (isoDate: string) => {
+  const [year, month, day] = isoDate.split("-");
+  return `${day}.${month}.${year}`;
 };
 
 const dateToISO = (date: Date) => {
@@ -262,7 +273,11 @@ const getWeekStartDate = (date: Date) => {
   return result;
 };
 
-const getPeriodRange = (selectedDate: string, period: ConfirmationPeriod) => {
+const getPeriodRange = (
+  selectedDate: string,
+  period: ConfirmationPeriod,
+  lastNDays: number = DEFAULT_LAST_N_DAYS,
+) => {
   const date = new Date(`${selectedDate}T00:00:00`);
   if (period === "day") {
     return { start: selectedDate, end: selectedDate };
@@ -271,6 +286,12 @@ const getPeriodRange = (selectedDate: string, period: ConfirmationPeriod) => {
     const start = getWeekStartDate(date);
     const end = new Date(start);
     end.setDate(start.getDate() + 6);
+    return { start: dateToISO(start), end: dateToISO(end) };
+  }
+  if (period === "lastNDays") {
+    const end = new Date(`${todayLocalISO()}T00:00:00`);
+    const start = new Date(end);
+    start.setDate(end.getDate() - clampLastNDays(lastNDays));
     return { start: dateToISO(start), end: dateToISO(end) };
   }
   const start = new Date(date.getFullYear(), date.getMonth(), 1);
@@ -290,6 +311,11 @@ const getWeekValue = (selectedDate: string) => {
   );
   const week = Math.floor(diffInDays / 7) + 1;
   return `${thursday.getFullYear()}-W${String(week).padStart(2, "0")}`;
+};
+
+const formatLastNDaysRange = (lastNDays: number) => {
+  const { start, end } = getPeriodRange(todayLocalISO(), "lastNDays", lastNDays);
+  return `${formatGermanDate(end)} - ${formatGermanDate(start)}`;
 };
 
 const weekValueToDate = (weekValue: string) => {
@@ -382,6 +408,9 @@ const Index = () => {
   const [confirmationPeriod, setConfirmationPeriod] = useState<ConfirmationPeriod>(
     cached?.confirmationPeriod ?? "day",
   );
+  const [lastNDays, setLastNDays] = useState<number>(
+    cached?.lastNDays ?? DEFAULT_LAST_N_DAYS,
+  );
   const [clients, setClients] = useState<Client[]>(cached?.clients ?? seedClients);
   const [selectedClientIds, setSelectedClientIds] = useState<string[]>(
     cached?.selectedClientIds ?? [seedClients[0].id],
@@ -403,6 +432,7 @@ const Index = () => {
     viewMode,
     selectedDate,
     confirmationPeriod,
+    lastNDays,
     clients,
     selectedClientIds,
     confirmationFilter,
@@ -420,6 +450,7 @@ const Index = () => {
       viewMode,
       selectedDate,
       confirmationPeriod,
+      lastNDays,
       clients,
       selectedClientIds,
       confirmationFilter,
@@ -431,6 +462,7 @@ const Index = () => {
     viewMode,
     selectedDate,
     confirmationPeriod,
+    lastNDays,
     clients,
     selectedClientIds,
     confirmationFilter,
@@ -485,6 +517,7 @@ const Index = () => {
             selectedDate,
             confirmationPeriod,
             confirmationFilter,
+            lastNDays,
           ),
         )
       : selectedClients;
@@ -1066,6 +1099,7 @@ const Index = () => {
 
   const shiftDate = (step: number) => {
     const d = new Date(`${selectedDate}T00:00:00`);
+    if (confirmationPeriod === "lastNDays") return;
     if (confirmationPeriod === "day") {
       d.setDate(d.getDate() + step);
     } else if (confirmationPeriod === "week") {
@@ -1086,6 +1120,7 @@ const Index = () => {
         selectedDate,
         confirmationPeriod,
         confirmationFilter,
+        lastNDays,
       ).map(({ dueDate, topic, target, action, status }) => {
         const confirmation = action.confirmations?.[dueDate];
         return {
@@ -1165,7 +1200,9 @@ const Index = () => {
               const [year, week] = getWeekValue(selectedDate).split("-W");
               return `KW${week}-${year}`;
             })()
-          : selectedDate.slice(0, 7);
+          : confirmationPeriod === "lastNDays"
+            ? `letzte-${lastNDays}-tage`
+            : selectedDate.slice(0, 7);
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -1633,58 +1670,92 @@ const Index = () => {
                         >
                           Monat
                         </button>
-                      </div>
-                      <div className="flex items-center gap-1 bg-background border border-border rounded-md p-1">
                         <button
-                          className="h-8 w-8 inline-flex items-center justify-center rounded hover:bg-secondary"
-                          onClick={() => shiftDate(-1)}
-                          aria-label={
-                            confirmationPeriod === "day"
-                              ? "Vorheriger Tag"
-                              : confirmationPeriod === "week"
-                                ? "Vorherige Woche"
-                                : "Vorheriger Monat"
-                          }
+                          className={cn(
+                            "h-8 px-2 text-xs rounded",
+                            confirmationPeriod === "lastNDays"
+                              ? "bg-secondary text-foreground"
+                              : "hover:bg-secondary",
+                          )}
+                          onClick={() => setConfirmationPeriod("lastNDays")}
                         >
-                          ‹
-                        </button>
-                        {confirmationPeriod === "day" && (
-                          <DatePickerInput
-                            value={selectedDate}
-                            onChange={setSelectedDate}
-                            className="h-8 w-[170px] border-0 bg-transparent text-sm shadow-none"
-                          />
-                        )}
-                        {confirmationPeriod === "week" && (
-                          <input
-                            type="week"
-                            value={getWeekValue(selectedDate)}
-                            onChange={(e) => setSelectedDate(weekValueToDate(e.target.value))}
-                            className="bg-transparent text-sm px-2 py-1 outline-none"
-                          />
-                        )}
-                        {confirmationPeriod === "month" && (
-                          <input
-                            type="month"
-                            value={selectedDate.slice(0, 7)}
-                            onChange={(e) => setSelectedDate(`${e.target.value}-01`)}
-                            className="bg-transparent text-sm px-2 py-1 outline-none"
-                          />
-                        )}
-                        <button
-                          className="h-8 w-8 inline-flex items-center justify-center rounded hover:bg-secondary"
-                          onClick={() => shiftDate(1)}
-                          aria-label={
-                            confirmationPeriod === "day"
-                              ? "Nächster Tag"
-                              : confirmationPeriod === "week"
-                                ? "Nächste Woche"
-                                : "Nächster Monat"
-                          }
-                        >
-                          ›
+                          Letzte N Tage
                         </button>
                       </div>
+                      {confirmationPeriod === "lastNDays" ? (
+                        <div className="flex items-center gap-2 bg-background border border-border rounded-md px-3 py-1">
+                          <label className="text-xs text-muted-foreground" htmlFor="last-n-days-input">
+                            Tage
+                          </label>
+                          <Input
+                            id="last-n-days-input"
+                            type="number"
+                            min={1}
+                            step={1}
+                            value={lastNDays}
+                            onChange={(e) => {
+                              const value = Number(e.target.value);
+                              setLastNDays(Number.isFinite(value) ? clampLastNDays(value) : DEFAULT_LAST_N_DAYS);
+                            }}
+                            className="h-8 w-20"
+                          />
+                          <span className="text-sm text-muted-foreground whitespace-nowrap">
+                            Zeitraum: {formatLastNDaysRange(lastNDays)}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1 bg-background border border-border rounded-md p-1">
+                          <button
+                            className="h-8 w-8 inline-flex items-center justify-center rounded hover:bg-secondary"
+                            onClick={() => shiftDate(-1)}
+                            aria-label={
+                              confirmationPeriod === "day"
+                                ? "Vorheriger Tag"
+                                : confirmationPeriod === "week"
+                                  ? "Vorherige Woche"
+                                  : "Vorheriger Monat"
+                            }
+                          >
+                            ‹
+                          </button>
+                          {confirmationPeriod === "day" && (
+                            <DatePickerInput
+                              value={selectedDate}
+                              onChange={setSelectedDate}
+                              className="h-8 w-[170px] border-0 bg-transparent text-sm shadow-none"
+                            />
+                          )}
+                          {confirmationPeriod === "week" && (
+                            <input
+                              type="week"
+                              value={getWeekValue(selectedDate)}
+                              onChange={(e) => setSelectedDate(weekValueToDate(e.target.value))}
+                              className="bg-transparent text-sm px-2 py-1 outline-none"
+                            />
+                          )}
+                          {confirmationPeriod === "month" && (
+                            <input
+                              type="month"
+                              value={selectedDate.slice(0, 7)}
+                              onChange={(e) => setSelectedDate(`${e.target.value}-01`)}
+                              className="bg-transparent text-sm px-2 py-1 outline-none"
+                            />
+                          )}
+                          <button
+                            className="h-8 w-8 inline-flex items-center justify-center rounded hover:bg-secondary"
+                            onClick={() => shiftDate(1)}
+                            aria-label={
+                              confirmationPeriod === "day"
+                                ? "Nächster Tag"
+                                : confirmationPeriod === "week"
+                                  ? "Nächste Woche"
+                                  : "Nächster Monat"
+                            }
+                          >
+                            ›
+                          </button>
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-3">
                       <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
@@ -1768,6 +1839,7 @@ const Index = () => {
                       showCompletedTargets={showCompletedTargets}
                       onSelectedDateChange={setSelectedDate}
                       confirmationPeriod={confirmationPeriod}
+                      lastNDays={lastNDays}
                       clientName={`${client.firstName} ${client.lastName}`.trim()}
                       topics={client.topics}
                       hideConfirmationHeader

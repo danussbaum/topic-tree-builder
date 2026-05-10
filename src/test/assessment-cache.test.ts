@@ -12,6 +12,7 @@ const cachedState: CachedAssessmentState = {
   viewMode: "confirmation",
   selectedDate: "2026-05-07",
   confirmationPeriod: "week",
+  lastNDays: 5,
   clients: [
     {
       id: "client-1",
@@ -89,10 +90,28 @@ describe("assessment browser cache", () => {
       viewMode: "planning",
       selectedDate: "2026-01-01",
       confirmationPeriod: "day",
+      lastNDays: 3,
       clients: cachedState.clients,
       selectedClientIds: ["client-1"],
       confirmationFilter: fallbackFilter,
       showCompletedTargets: false,
     });
   });
+
+  it("lädt den Zeitraum Letzte N Tage aus dem Cache", () => {
+    window.localStorage.setItem(
+      ASSESSMENT_CACHE_KEY,
+      JSON.stringify({
+        ...cachedState,
+        confirmationPeriod: "lastNDays",
+        lastNDays: 7,
+      }),
+    );
+
+    expect(loadCachedAssessmentState("2026-01-01", fallbackFilter)).toMatchObject({
+      confirmationPeriod: "lastNDays",
+      lastNDays: 7,
+    });
+  });
+
 });

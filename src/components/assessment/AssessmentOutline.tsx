@@ -75,6 +75,7 @@ import {
 import { cn } from "@/lib/utils";
 import { matchesConfirmationFilter } from "@/lib/confirmation-filter";
 import { loadActionPlanTemplates, type ActionPlanTemplate } from "@/lib/action-plan-templates";
+import { DEFAULT_LAST_N_DAYS, type ConfirmationPeriod } from "@/lib/assessment-cache";
 
 type ConfirmPayload =
   | { status: "done_as_planned"; result?: string; observations?: string }
@@ -109,7 +110,8 @@ interface Props {
   selectedDate: string;
   showCompletedTargets?: boolean;
   onSelectedDateChange: (date: string) => void;
-  confirmationPeriod?: "day" | "week" | "month";
+  confirmationPeriod?: ConfirmationPeriod;
+  lastNDays?: number;
   clientName?: string;
   topics: TopicNode[];
   hideConfirmationHeader?: boolean;
@@ -314,6 +316,7 @@ export function AssessmentOutline({
   onSelectedDateChange,
   showCompletedTargets = false,
   confirmationPeriod = "day",
+  lastNDays = DEFAULT_LAST_N_DAYS,
   clientName,
   topics,
   hideConfirmationHeader,
@@ -407,6 +410,16 @@ export function AssessmentOutline({
         start.setDate(current.getDate() + diff);
         const end = new Date(start);
         end.setDate(start.getDate() + 6);
+        return {
+          start: format(start, "yyyy-MM-dd"),
+          end: format(end, "yyyy-MM-dd"),
+        };
+      }
+      if (confirmationPeriod === "lastNDays") {
+        const end = new Date();
+        end.setHours(0, 0, 0, 0);
+        const start = new Date(end);
+        start.setDate(end.getDate() - Math.max(1, Math.floor(lastNDays)));
         return {
           start: format(start, "yyyy-MM-dd"),
           end: format(end, "yyyy-MM-dd"),

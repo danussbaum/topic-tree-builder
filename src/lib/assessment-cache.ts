@@ -6,7 +6,9 @@ import {
   isApplicationLogoutClearing,
 } from "@/lib/application-storage";
 
-export type ConfirmationPeriod = "day" | "week" | "month";
+export type ConfirmationPeriod = "day" | "week" | "month" | "lastNDays";
+
+export const DEFAULT_LAST_N_DAYS = 3;
 
 export const ASSESSMENT_CACHE_KEY = APPLICATION_BROWSER_STORAGE_KEYS[0];
 
@@ -14,6 +16,7 @@ export interface CachedAssessmentState {
   viewMode: "planning" | "confirmation";
   selectedDate: string;
   confirmationPeriod: ConfirmationPeriod;
+  lastNDays: number;
   clients: Client[];
   selectedClientIds: string[];
   confirmationFilter: AssessmentFilterModel;
@@ -46,9 +49,15 @@ export const loadCachedAssessmentState = (
       selectedDate:
         typeof parsed.selectedDate === "string" ? parsed.selectedDate : fallbackSelectedDate,
       confirmationPeriod:
-        parsed.confirmationPeriod === "week" || parsed.confirmationPeriod === "month"
+        parsed.confirmationPeriod === "week" ||
+        parsed.confirmationPeriod === "month" ||
+        parsed.confirmationPeriod === "lastNDays"
           ? parsed.confirmationPeriod
           : "day",
+      lastNDays:
+        typeof parsed.lastNDays === "number" && Number.isFinite(parsed.lastNDays) && parsed.lastNDays > 0
+          ? Math.floor(parsed.lastNDays)
+          : DEFAULT_LAST_N_DAYS,
       clients: parsed.clients,
       selectedClientIds: parsed.selectedClientIds,
       confirmationFilter: parsed.confirmationFilter ?? fallbackConfirmationFilter,
