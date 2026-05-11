@@ -14,6 +14,7 @@ import {
   RotateCcw,
   Sunrise,
   Sun,
+  Utensils,
   Sunset,
   Moon,
   Tag,
@@ -168,7 +169,7 @@ interface DialogTarget {
 
 const DAY_PART_ICONS: Record<DayPart, typeof Sunrise> = {
   morning: Sunrise,
-  noon: Sun,
+  noon: Utensils,
   afternoon: Sun,
   evening: Sunset,
   night: Moon,
