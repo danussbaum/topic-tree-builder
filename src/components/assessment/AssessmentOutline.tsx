@@ -337,6 +337,7 @@ export function AssessmentOutline({
   const [templateInline, setTemplateInline] = useState<{
     topicId: string;
     targetId: string;
+    creationMode: "scratch" | "template";
     selectedIds: string[];
   } | null>(null);
   const [availableTemplates, setAvailableTemplates] = useState<ActionPlanTemplate[]>([]);
@@ -349,9 +350,9 @@ export function AssessmentOutline({
 
   const openAddActionDialog = (topicId: string, targetId: string) => {
     setAvailableTemplates(loadActionPlanTemplates());
-    setTemplateInline({ topicId, targetId, selectedIds: [] });
+    setTemplateInline({ topicId, targetId, creationMode: "template", selectedIds: [] });
     setTemplateQuery("");
-    setTemplateDropdownOpen(false);
+    setTemplateDropdownOpen(true);
     setActiveTemplateIndex(0);
   };
 
@@ -956,95 +957,174 @@ export function AssessmentOutline({
                       Handlung hinzufügen
                     </button>
                     {templateInline?.topicId === topic.id && templateInline?.targetId === target.id && (
-                      <div className="mt-2 rounded-md border border-border/60 bg-card p-3 space-y-2">
-                        <div className="rounded-md border border-input/70 bg-background shadow-sm focus-within:border-primary/70">
-                          <div className="flex items-start gap-2 p-2">
-                            <div className="flex-1 space-y-2">
-                              <div className="flex flex-wrap gap-1">
-                                {templateInline.selectedIds.map((id) => {
-                                  const template = availableTemplates.find((entry) => entry.id === id);
-                                  if (!template) return null;
+                      <div className="mt-2 rounded-md border border-border/60 bg-card p-3 space-y-3">
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTemplateInline((prev) =>
+                                prev ? { ...prev, creationMode: "template" } : prev,
+                              );
+                              setTemplateDropdownOpen(true);
+                            }}
+                            className={cn(
+                              "rounded-md border p-3 text-left transition-colors",
+                              templateInline.creationMode === "template"
+                                ? "border-primary bg-primary/10 text-primary"
+                                : "border-border hover:bg-secondary/40",
+                            )}
+                          >
+                            <div className="text-sm font-medium">Ab Vorlage verwenden</div>
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              Übernimmt Vorlagenwerte als Startpunkt; alle Felder bleiben danach editierbar.
+                            </div>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTemplateInline((prev) =>
+                                prev
+                                  ? {
+                                      ...prev,
+                                      creationMode: "scratch",
+                                      selectedIds: [],
+                                    }
+                                  : prev,
+                              );
+                              setTemplateDropdownOpen(false);
+                              setTemplateQuery("");
+                            }}
+                            className={cn(
+                              "rounded-md border p-3 text-left transition-colors",
+                              templateInline.creationMode === "scratch"
+                                ? "border-primary bg-primary/10 text-primary"
+                                : "border-border hover:bg-secondary/40",
+                            )}
+                          >
+                            <div className="text-sm font-medium">Ohne Vorlage erfassen</div>
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              Erstellt eine leere Handlung, deren Felder direkt ausgefüllt werden können.
+                            </div>
+                          </button>
+                        </div>
+
+                        {templateInline.creationMode === "template" && (
+                          <div className="rounded-md border border-input/70 bg-background shadow-sm focus-within:border-primary/70">
+                            <div className="flex items-start gap-2 p-2">
+                              <div className="flex-1 space-y-2">
+                                <div className="flex flex-wrap gap-1">
+                                  {templateInline.selectedIds.map((id) => {
+                                    const template = availableTemplates.find((entry) => entry.id === id);
+                                    if (!template) return null;
+                                    return (
+                                      <Badge
+                                        key={id}
+                                        variant="secondary"
+                                        className="h-6 gap-1 rounded-sm border border-border/60 bg-secondary/40 px-1.5 font-normal text-foreground/90"
+                                      >
+                                        {template.name}
+                                        <button
+                                          type="button"
+                                          className="text-xs leading-none text-muted-foreground hover:text-foreground"
+                                          onClick={() => toggleTemplateSelection(id, false)}
+                                        >
+                                          ×
+                                        </button>
+                                      </Badge>
+                                    );
+                                  })}
+                                  <Input
+                                    value={templateQuery}
+                                    onChange={(e) => {
+                                      setTemplateQuery(e.target.value);
+                                      setTemplateDropdownOpen(true);
+                                    }}
+                                    onFocus={() => setTemplateDropdownOpen(true)}
+                                    onKeyDown={(e) => {
+                                      if (!isTemplateDropdownOpen && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+                                        e.preventDefault();
+                                        setTemplateDropdownOpen(true);
+                                        return;
+                                      }
+                                      if (!isTemplateDropdownOpen || !hasTemplateFilterInput || filteredTemplates.length === 0) return;
+                                      if (e.key === "ArrowDown") {
+                                        e.preventDefault();
+                                        setActiveTemplateIndex((prev) => (prev + 1) % filteredTemplates.length);
+                                        return;
+                                      }
+                                      if (e.key === "ArrowUp") {
+                                        e.preventDefault();
+                                        setActiveTemplateIndex((prev) => (prev - 1 + filteredTemplates.length) % filteredTemplates.length);
+                                        return;
+                                      }
+                                      if (e.key === "Enter") {
+                                        e.preventDefault();
+                                        const activeTemplate = filteredTemplates[activeTemplateIndex];
+                                        if (!activeTemplate) return;
+                                        selectTemplateAndClose(activeTemplate.id);
+                                        return;
+                                      }
+                                      if (e.key === "Escape") {
+                                        e.preventDefault();
+                                        setTemplateDropdownOpen(false);
+                                      }
+                                    }}
+                                    ref={templateInputRef}
+                                    placeholder="Vorlagen suchen..."
+                                    className="h-6 min-w-[12rem] border-0 bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0"
+                                  />
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                className="mt-0.5 rounded p-1 text-muted-foreground hover:bg-secondary/70"
+                                onClick={() => setTemplateDropdownOpen((prev) => !prev)}
+                              >
+                                <ChevronUp className={cn("h-4 w-4 transition-transform", !isTemplateDropdownOpen && "rotate-180")} />
+                              </button>
+                            </div>
+                            {isTemplateDropdownOpen && hasTemplateFilterInput && (
+                              <div className="max-h-56 overflow-y-auto border-t border-border/70 p-1.5">
+                                {filteredTemplates.map((template) => {
+                                  const templateIndex = filteredTemplates.findIndex((entry) => entry.id === template.id);
                                   return (
-                                    <Badge key={id} variant="secondary" className="h-6 gap-1 rounded-sm border border-border/60 bg-secondary/40 px-1.5 font-normal text-foreground/90">
-                                      {template.name}
-                                      <button type="button" className="text-xs leading-none text-muted-foreground hover:text-foreground" onClick={() => toggleTemplateSelection(id, false)}>×</button>
-                                    </Badge>
+                                    <button
+                                      key={template.id}
+                                      type="button"
+                                      onClick={() => selectTemplateAndClose(template.id)}
+                                      onMouseEnter={() => setActiveTemplateIndex(templateIndex)}
+                                      className={cn(
+                                        "flex w-full items-center rounded-sm px-2 py-1 text-left text-sm hover:bg-secondary/40",
+                                        activeTemplateIndex === templateIndex && "bg-primary/10 text-primary",
+                                      )}
+                                    >
+                                      <span className="truncate">{template.name}</span>
+                                    </button>
                                   );
                                 })}
-                                <Input
-                                  value={templateQuery}
-                                  onChange={(e) => {
-                                    setTemplateQuery(e.target.value);
-                                    setTemplateDropdownOpen(true);
-                                  }}
-                                  onFocus={() => setTemplateDropdownOpen(true)}
-                                  onKeyDown={(e) => {
-                                    if (!isTemplateDropdownOpen && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
-                                      e.preventDefault();
-                                      setTemplateDropdownOpen(true);
-                                      return;
-                                    }
-                                    if (!isTemplateDropdownOpen || !hasTemplateFilterInput || filteredTemplates.length === 0) return;
-                                    if (e.key === "ArrowDown") {
-                                      e.preventDefault();
-                                      setActiveTemplateIndex((prev) => (prev + 1) % filteredTemplates.length);
-                                      return;
-                                    }
-                                    if (e.key === "ArrowUp") {
-                                      e.preventDefault();
-                                      setActiveTemplateIndex((prev) => (prev - 1 + filteredTemplates.length) % filteredTemplates.length);
-                                      return;
-                                    }
-                                    if (e.key === "Enter") {
-                                      e.preventDefault();
-                                      const activeTemplate = filteredTemplates[activeTemplateIndex];
-                                      if (!activeTemplate) return;
-                                      selectTemplateAndClose(activeTemplate.id);
-                                      return;
-                                    }
-                                    if (e.key === "Escape") {
-                                      e.preventDefault();
-                                      setTemplateDropdownOpen(false);
-                                    }
-                                  }}
-                                  ref={templateInputRef}
-                                  placeholder="Vorlagen suchen..."
-                                  className="h-6 min-w-[12rem] border-0 bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0"
-                                />
                               </div>
-                            </div>
-                            <button type="button" className="mt-0.5 rounded p-1 text-muted-foreground hover:bg-secondary/70" onClick={() => setTemplateDropdownOpen((prev) => !prev)}>
-                              <ChevronUp className={cn("h-4 w-4 transition-transform", !isTemplateDropdownOpen && "rotate-180")} />
-                            </button>
+                            )}
                           </div>
-                          {isTemplateDropdownOpen && hasTemplateFilterInput && (
-                            <div className="max-h-56 overflow-y-auto border-t border-border/70 p-1.5">
-                              {filteredTemplates.map((template) => {
-                                return (
-                                  <button
-                                    key={template.id}
-                                    type="button"
-                                    onClick={() => selectTemplateAndClose(template.id)}
-                                    onMouseEnter={() => setActiveTemplateIndex(filteredTemplates.findIndex((entry) => entry.id === template.id))}
-                                    className={cn(
-                                      "flex w-full items-center rounded-sm px-2 py-1 text-left text-sm hover:bg-secondary/40",
-                                      activeTemplateIndex === filteredTemplates.findIndex((entry) => entry.id === template.id) && "bg-primary/10 text-primary",
-                                    )}
-                                  >
-                                    <span className="truncate">{template.name}</span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
+                        )}
                         <div className="flex justify-end gap-2">
                           <Button variant="outline" onClick={() => setTemplateInline(null)}>Abbrechen</Button>
-                          <Button onClick={() => {
-                            if (!templateInline) return;
-                            onAddAction(templateInline.topicId, templateInline.targetId, templateInline.selectedIds);
-                            setTemplateInline(null);
-                          }}>Handlung erstellen</Button>
+                          <Button
+                            disabled={
+                              templateInline.creationMode === "template" &&
+                              templateInline.selectedIds.length === 0
+                            }
+                            onClick={() => {
+                              if (!templateInline) return;
+                              onAddAction(
+                                templateInline.topicId,
+                                templateInline.targetId,
+                                templateInline.creationMode === "template" ? templateInline.selectedIds : [],
+                              );
+                              setTemplateInline(null);
+                            }}
+                          >
+                            Handlung erstellen
+                          </Button>
                         </div>
                       </div>
                     )}
@@ -1133,8 +1213,6 @@ function ActionRow({
   onOpenDialog: (initialMode: ConfirmationMode) => void;
 }) {
   const isLocked = Object.keys(action.confirmations ?? {}).length > 0;
-  const templateLockedFields = new Set(action.templateLockedFields ?? []);
-  const isTemplateFieldLocked = (field: string) => templateLockedFields.has(field);
   const isConfirmationRestricted =
     viewMode === "confirmation" && !canConfirmAction(action);
   const weeklyDaysMissing =
@@ -1203,7 +1281,7 @@ function ActionRow({
       <div className="flex-1 min-w-0">
         <input
           value={action.title}
-          readOnly={viewMode === "confirmation" || isLocked || isTemplateFieldLocked("titel")}
+          readOnly={viewMode === "confirmation" || isLocked}
           onChange={(e) =>
             onUpdateAction(topicId, targetId, action.id, "title", e.target.value)
           }
@@ -1226,7 +1304,7 @@ function ActionRow({
               onChange={(v) =>
                 onUpdateAction(topicId, targetId, action.id, "notes", v)
               }
-              disabled={isLocked || isTemplateFieldLocked("beschreibung")}
+              disabled={isLocked}
               placeholder="Beschreibung zur Handlung..."
               className="text-foreground/70"
               compact
@@ -1236,7 +1314,7 @@ function ActionRow({
               onChange={(v) =>
                 onUpdateAction(topicId, targetId, action.id, "requiredResources", v)
               }
-              disabled={isLocked || isTemplateFieldLocked("hilfsmittel")}
+              disabled={isLocked}
               placeholder="Hilfsmittel zur Durchführung..."
               className="text-foreground/70"
               compact
@@ -1251,7 +1329,7 @@ function ActionRow({
               <span className="shrink-0 text-muted-foreground">Kategorie</span>
               <Select
                 value={action.category ?? "none"}
-                disabled={isLocked || isTemplateFieldLocked("kategorie")}
+                disabled={isLocked}
                 onValueChange={(v) =>
                   onUpdateActionField(
                     topicId,
@@ -1278,7 +1356,7 @@ function ActionRow({
               <span className="shrink-0 text-muted-foreground">Tageszeit</span>
               <Select
                 value={action.dayPart ?? "none"}
-                disabled={isLocked || isTemplateFieldLocked("tageszeit")}
+                disabled={isLocked}
                 onValueChange={(v) =>
                   onUpdateActionField(
                     topicId,
@@ -1307,7 +1385,7 @@ function ActionRow({
               <span className="shrink-0">Uhrzeit</span>
               <input
                 type="time"
-                disabled={isLocked || isTemplateFieldLocked("uhrzeit")}
+                disabled={isLocked}
                 value={action.scheduledTime ?? ""}
                 onChange={(e) =>
                   onUpdateActionField(
@@ -1329,7 +1407,7 @@ function ActionRow({
                 type="number"
                 min={0}
                 step={5}
-                disabled={isLocked || isTemplateFieldLocked("dauer")}
+                disabled={isLocked}
                 value={action.plannedMinutes ?? ""}
                 onChange={(e) =>
                   onUpdateActionField(
@@ -1355,7 +1433,7 @@ function ActionRow({
                 type="number"
                 min={1}
                 step={1}
-                disabled={isLocked || isTemplateFieldLocked("personen")}
+                disabled={isLocked}
                 value={action.requiredPersons ?? ""}
                 onChange={(e) => {
                   const value = Number(e.target.value);
@@ -1378,7 +1456,7 @@ function ActionRow({
               <span className="shrink-0 text-muted-foreground">Resultat</span>
               <Select
                 value={action.resultRequirement ?? "none"}
-                disabled={isLocked || isTemplateFieldLocked("resultat")}
+                disabled={isLocked}
                 onValueChange={(v) =>
                   onUpdateActionField(
                     topicId,
@@ -1545,7 +1623,7 @@ function ActionRow({
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
             <Select
               value={action.dayPart ?? "none"}
-              disabled={isLocked || isTemplateFieldLocked("wiederholungWochentage")}
+              disabled={isLocked}
               onValueChange={(v) =>
                 onUpdateActionField(
                   topicId,
@@ -1580,7 +1658,7 @@ function ActionRow({
                 type="number"
                 min={0}
                 step={5}
-                  disabled={isLocked || isTemplateFieldLocked("wiederholungMonatlich")}
+                disabled={isLocked}
                 value={action.plannedMinutes ?? ""}
                 onChange={(e) =>
                   onUpdateActionField(
