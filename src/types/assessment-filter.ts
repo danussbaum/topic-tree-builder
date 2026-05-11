@@ -31,7 +31,7 @@ export interface AssessmentFilterModel {
 }
 
 export const DEFAULT_ASSESSMENT_FILTER: AssessmentFilterModel = {
-  statuses: ["open"],
+  statuses: ["open", "postponed"],
 };
 
 interface FilterInput {

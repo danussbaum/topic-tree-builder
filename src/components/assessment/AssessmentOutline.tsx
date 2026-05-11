@@ -5,6 +5,7 @@ import {
   Plus,
   Trash2,
   Clock,
+  CalendarClock,
   Users,
   CheckCircle2,
   AlertTriangle,
@@ -88,6 +89,7 @@ type ConfirmPayload =
       observations?: string;
     }
   | { status: "not_done"; reason: string }
+  | { status: "postponed"; postponedToDate?: string; postponedToTime?: string }
   | { status: "open" };
 
 type ActionField =
@@ -155,7 +157,7 @@ interface Props {
   onDeleteAction: (topicId: string, targetId: string, actionId: string) => void;
 }
 
-type ConfirmationMode = Exclude<ActionStatus, "open">;
+type ConfirmationMode = "done_as_planned" | "done_with_deviation" | "not_done" | "postponed";
 
 interface DialogTarget {
   topicId: string;
@@ -208,6 +210,13 @@ const CONFIRMATION_MODE_OPTIONS: Array<{
     description: "Handlung nicht durchgeführt und Begründung erfassen",
     icon: XCircle,
     iconClassName: "text-destructive",
+  },
+  {
+    mode: "postponed",
+    label: "Später machen",
+    description: "Handlung auf ein späteres Datum und/oder eine spätere Uhrzeit verschieben",
+    icon: CalendarClock,
+    iconClassName: "text-muted-foreground",
   },
 ];
 
@@ -310,6 +319,16 @@ function groupFlatActionsByDateThenDayPart<T extends { action: ActionNode; dueDa
       dayPartGroups: groupFlatActionsByDayPart(dateItems),
     }));
 }
+
+const buildPlannedDateTime = (date: string, time?: string) =>
+  new Date(`${date}T${time || "00:00"}:00`);
+
+const getPostponedLabel = (date?: string, time?: string) => {
+  if (!date && !time) return "später";
+  const datePart = date ? format(parseISO(date), "dd.MM.yyyy", { locale: de }) : undefined;
+  if (datePart && time) return `${datePart}, ${time}`;
+  return datePart ?? time ?? "später";
+};
 
 export function AssessmentOutline({
   viewMode,
@@ -474,6 +493,7 @@ export function AssessmentOutline({
       target: { id: string; title: string; notes: string };
       action: ActionNode;
       dueDate: string;
+      confirmationDate: string;
       status: ActionStatus;
     }> = [];
 
@@ -489,9 +509,26 @@ export function AssessmentOutline({
           const dueDates = getDueDatesInPeriod(action);
           dueDates.forEach((dueDate) => {
             const confirmation = action.confirmations?.[dueDate];
+            if (confirmation?.postponedToDate) return;
             const status = getStatusForDate(action, dueDate);
             if (!matchesAssessmentFilter({ action, status, confirmation }, filterModel)) return;
-            flatActions.push({ topic, target, action, dueDate, status });
+            flatActions.push({ topic, target, action, dueDate, confirmationDate: dueDate, status });
+          });
+
+          Object.entries(action.confirmations ?? {}).forEach(([confirmationDate, confirmation]) => {
+            if (!confirmation.postponedToDate) return;
+            if (confirmation.postponedToDate < periodRange.start || confirmation.postponedToDate > periodRange.end) {
+              return;
+            }
+            if (!matchesAssessmentFilter({ action, status: confirmation.status, confirmation }, filterModel)) return;
+            flatActions.push({
+              topic,
+              target,
+              action,
+              dueDate: confirmation.postponedToDate,
+              confirmationDate,
+              status: confirmation.status,
+            });
           });
         });
       });
@@ -592,15 +629,15 @@ export function AssessmentOutline({
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {group.actions.map(({ topic, target, action, dueDate, status }) => {
-                          const conf = action.confirmations?.[dueDate];
+                        {group.actions.map(({ topic, target, action, dueDate, confirmationDate, status }) => {
+                          const conf = action.confirmations?.[confirmationDate];
                           const canConfirm = canConfirmAction(action);
                           const openConfirmationDialog = (initialMode: ConfirmationMode) => {
                             if (!canConfirm) return;
                             setDialogTarget({
                               topicId: topic.id,
                               targetId: target.id,
-                              dueDate,
+                              dueDate: confirmationDate,
                               initialMode,
                               confirmedBy: conf?.confirmedBy,
                               confirmedAt: conf?.confirmedAt,
@@ -617,18 +654,20 @@ export function AssessmentOutline({
 
                           return (
                             <TableRow
-                              key={`${action.id}-${dueDate}`}
+                              key={`${action.id}-${confirmationDate}-${dueDate}`}
                               aria-disabled={!canConfirm}
                               className={cn(
                                 "align-top transition-colors",
-                                status !== "open"
-                                  ? "bg-primary/5 hover:bg-primary/10"
-                                  : "bg-card hover:bg-secondary/40",
+                                status === "postponed"
+                                  ? "bg-muted/20 hover:bg-muted/30"
+                                  : status !== "open"
+                                    ? "bg-primary/5 hover:bg-primary/10"
+                                    : "bg-card hover:bg-secondary/40",
                                 !canConfirm && "opacity-90",
                               )}
                             >
                               <TableCell className="px-2 py-3 align-top text-xs text-muted-foreground">
-                                {status === "open" ? (
+                                {status === "open" || status === "postponed" ? (
                                   <TooltipProvider delayDuration={150}>
                                     <div className="flex flex-col items-center gap-1.5">
                                       {CONFIRMATION_MODE_OPTIONS.map((option) => {
@@ -698,6 +737,12 @@ export function AssessmentOutline({
                                 <div className={cn("font-medium leading-snug break-words", status !== "open" && "text-foreground/70")}>
                                   {action.title}
                                 </div>
+                                {conf?.postponedToDate && (
+                                  <div className="mt-1 inline-flex items-center gap-1 rounded border border-border bg-muted/40 px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                                    <CalendarClock className="h-3 w-3" />
+                                    Verschoben von {format(parseISO(confirmationDate), "dd.MM.yyyy", { locale: de })} auf {getPostponedLabel(conf.postponedToDate, conf.postponedToTime)}
+                                  </div>
+                                )}
                                 {action.notes.trim() && (
                                   <div className="mt-1 text-xs text-foreground/70 line-clamp-2 whitespace-pre-wrap break-words">
                                     <span className="font-medium">Beschreibung:</span> {action.notes}
@@ -729,10 +774,10 @@ export function AssessmentOutline({
                                 )}
                               </TableCell>
                               <TableCell className="px-3 py-3 align-top text-xs">
-                                {action.scheduledTime ? (
+                                {(conf?.postponedToTime ?? action.scheduledTime) ? (
                                   <div className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-100 px-2 py-1 font-bold text-amber-900 shadow-sm">
                                     <Clock className="h-3.5 w-3.5" />
-                                    <span className="tabular-nums">{action.scheduledTime}</span>
+                                    <span className="tabular-nums">{conf?.postponedToTime ?? action.scheduledTime}</span>
                                   </div>
                                 ) : (
                                   <span className="text-muted-foreground/60">—</span>
@@ -1874,6 +1919,8 @@ function StatusIcon({ status }: { status: ActionStatus }) {
       return <AlertTriangle className="h-5 w-5 text-accent" />;
     case "not_done":
       return <XCircle className="h-5 w-5 text-destructive" />;
+    case "postponed":
+      return <CalendarClock className="h-5 w-5 text-muted-foreground" />;
     default:
       return (
         <Minus className="h-4 w-4 text-muted-foreground/50" aria-label="offen" />
@@ -1890,6 +1937,7 @@ function StatusBadge({ action }: { action: ActionNode }) {
       cls: "bg-accent/15 text-accent",
     },
     not_done: { label: "nicht durchgeführt", cls: "bg-destructive/10 text-destructive" },
+    postponed: { label: "verschoben", cls: "bg-muted text-muted-foreground" },
   } as const;
   const m = map[action.status];
   return (
@@ -1918,6 +1966,9 @@ function ConfirmActionDialog({
   const [reason, setReason] = useState<string>("");
   const [result, setResult] = useState<string>("");
   const [observations, setObservations] = useState<string>("");
+  const [postponedDate, setPostponedDate] = useState<string>("");
+  const [postponedTime, setPostponedTime] = useState<string>("");
+  const [postponedError, setPostponedError] = useState<string>("");
 
   const open = target !== null;
 
@@ -1930,6 +1981,10 @@ function ConfirmActionDialog({
       setReason(target.action.reason ?? "");
       setResult(target.action.result ?? "");
       setObservations(target.action.observations ?? "");
+      const confirmation = target.action.confirmations?.[target.dueDate];
+      setPostponedDate(confirmation?.postponedToDate ?? "");
+      setPostponedTime(confirmation?.postponedToTime ?? "");
+      setPostponedError("");
     }
   }, [target]);
 
@@ -1939,6 +1994,9 @@ function ConfirmActionDialog({
     setReason("");
     setResult("");
     setObservations("");
+    setPostponedDate("");
+    setPostponedTime("");
+    setPostponedError("");
     onClose();
   };
 
@@ -1970,12 +2028,36 @@ function ConfirmActionDialog({
     } else if (mode === "not_done") {
       if (!reason.trim()) return;
       onConfirm({ status: "not_done", reason: reason.trim() });
+    } else if (mode === "postponed") {
+      const nextDate = postponedDate || undefined;
+      const nextTime = postponedTime || undefined;
+      if (!nextDate && !nextTime) {
+        setPostponedError("Bitte ein neues Datum und/oder eine neue Uhrzeit erfassen.");
+        return;
+      }
+
+      const plannedDateTime = buildPlannedDateTime(target.dueDate, target.action.scheduledTime);
+      const shiftedDateTime = buildPlannedDateTime(
+        nextDate ?? target.dueDate,
+        nextTime ?? target.action.scheduledTime,
+      );
+
+      if (shiftedDateTime <= plannedDateTime) {
+        setPostponedError("Die Verschiebung muss später als der bisher geplante Zeitpunkt liegen.");
+        return;
+      }
+
+      setPostponedError("");
+      onConfirm({ status: "postponed", postponedToDate: nextDate, postponedToTime: nextTime });
     }
     setMode(null);
     setActualMinutes("");
     setReason("");
     setResult("");
     setObservations("");
+    setPostponedDate("");
+    setPostponedTime("");
+    setPostponedError("");
   };
 
   const planned = target?.action.plannedMinutes;
@@ -1990,6 +2072,7 @@ function ConfirmActionDialog({
   const resultRequired = resultRequirement === "required";
   const showObservations = mode === "done_as_planned" || mode === "done_with_deviation";
   const selectedModeOption = CONFIRMATION_MODE_OPTIONS.find((option) => option.mode === mode);
+  const activeConfirmation = target?.action.confirmations?.[target.dueDate];
 
   return (
     <Dialog open={open} onOpenChange={(v) => (!v ? handleClose() : null)}>
@@ -2007,6 +2090,18 @@ function ConfirmActionDialog({
                 am{" "}
                 <span className="font-medium text-foreground/80">
                   {format(parseISO(target.confirmedAt), "dd.MM.yyyy HH:mm:ss", { locale: de })}
+                </span>
+              </div>
+            )}
+            {activeConfirmation?.postponedAt && (
+              <div className="mt-1 text-xs text-muted-foreground">
+                Verschoben von{" "}
+                <span className="font-medium text-foreground/80">
+                  {activeConfirmation.postponedBy ?? "Unbekannt"}
+                </span>{" "}
+                am{" "}
+                <span className="font-medium text-foreground/80">
+                  {format(parseISO(activeConfirmation.postponedAt), "dd.MM.yyyy HH:mm:ss", { locale: de })}
                 </span>
               </div>
             )}
@@ -2086,6 +2181,40 @@ function ConfirmActionDialog({
           </div>
         )}
 
+        {mode === "postponed" && (
+          <div className="space-y-3 pt-2 border-t border-border">
+            <div className="text-sm text-muted-foreground">
+              Bisher geplant: {target?.dueDate ? format(parseISO(target.dueDate), "dd.MM.yyyy", { locale: de }) : "—"}
+              {target?.action.scheduledTime ? `, ${target.action.scheduledTime}` : ""}. Die neue Planung muss später liegen.
+            </div>
+            <DateField
+              label="Neues Datum"
+              value={postponedDate}
+              onChange={(value) => {
+                setPostponedDate(value ?? "");
+                setPostponedError("");
+              }}
+            />
+            <div className="space-y-1.5">
+              <Label htmlFor="postponed-time">Neue Uhrzeit</Label>
+              <Input
+                id="postponed-time"
+                type="time"
+                value={postponedTime}
+                onChange={(event) => {
+                  setPostponedTime(event.target.value);
+                  setPostponedError("");
+                }}
+              />
+            </div>
+            {postponedError && (
+              <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                {postponedError}
+              </div>
+            )}
+          </div>
+        )}
+
         {showResult && (
           <div className="space-y-1.5 pt-2 border-t border-border">
             <Label htmlFor="result">
@@ -2133,6 +2262,9 @@ function ConfirmActionDialog({
                 setReason("");
                 setResult("");
                 setObservations("");
+                setPostponedDate("");
+                setPostponedTime("");
+                setPostponedError("");
               }}
               className="gap-1.5"
             >
@@ -2153,6 +2285,7 @@ function ConfirmActionDialog({
                 (mode === "done_with_deviation" &&
                   ((hasPlannedMinutes && actualMinutes === "") || !reason.trim())) ||
                 (mode === "not_done" && !reason.trim()) ||
+                (mode === "postponed" && !postponedDate && !postponedTime) ||
                 (showResult && resultRequired && !result.trim())
               }
             >

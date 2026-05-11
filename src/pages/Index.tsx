@@ -82,7 +82,7 @@ const OPERATOR_OPTIONS: Array<{ value: NumericComparison["op"]; label: ">" | "<"
 ];
 
 const INITIAL_CONFIRMATION_FILTER: AssessmentFilterModel = {
-  statuses: ["open"],
+  statuses: ["open", "postponed"],
 };
 
 const clampLastNDays = (value: number) => Math.max(1, Math.floor(value));
@@ -91,6 +91,7 @@ const CONFIRMED_STATUSES: ActionNode["status"][] = [
   "done_with_deviation",
   "not_done",
 ];
+const OPEN_CONFIRMATION_STATUSES: ActionNode["status"][] = ["open", "postponed"];
 
 const WEEKDAY_TO_INDEX: Record<Weekday, number> = {
   monday: 1,
@@ -228,6 +229,7 @@ const getVisibleConfirmationRows = (
     topic: TopicNode;
     target: { id: string; title: string; notes: string };
     action: ActionNode;
+    confirmationDate: string;
     status: ActionNode["status"];
   }> = [];
 
@@ -242,9 +244,24 @@ const getVisibleConfirmationRows = (
         const dueDates = getDueDatesInPeriod(action, selectedDate, period, lastNDays);
         dueDates.forEach((dueDate) => {
           const confirmation = action.confirmations?.[dueDate];
+          if (confirmation?.postponedToDate) return;
           const status = confirmation?.status || "open";
           if (!matchesAssessmentFilter({ action, status, confirmation }, filterModel)) return;
-          rows.push({ dueDate, topic, target, action, status });
+          rows.push({ dueDate, topic, target, action, confirmationDate: dueDate, status });
+        });
+
+        Object.entries(action.confirmations ?? {}).forEach(([confirmationDate, confirmation]) => {
+          if (!confirmation.postponedToDate) return;
+          if (confirmation.postponedToDate < start || confirmation.postponedToDate > end) return;
+          if (!matchesAssessmentFilter({ action, status: confirmation.status, confirmation }, filterModel)) return;
+          rows.push({
+            dueDate: confirmation.postponedToDate,
+            topic,
+            target,
+            action,
+            confirmationDate,
+            status: confirmation.status,
+          });
         });
       });
     });
@@ -490,7 +507,8 @@ const Index = () => {
   const isFilterActive = (() => {
     const f = confirmationFilter;
     const statusesDefault =
-      f.statuses.length === 1 && f.statuses[0] === "open";
+      f.statuses.length === OPEN_CONFIRMATION_STATUSES.length &&
+      OPEN_CONFIRMATION_STATUSES.every((status) => f.statuses.includes(status));
     return (
       !statusesDefault ||
       f.plannedMinutes != null ||
@@ -503,7 +521,9 @@ const Index = () => {
       f.result != null
     );
   })();
-  const isOpenVisible = confirmationFilter.statuses.includes("open");
+  const isOpenVisible = OPEN_CONFIRMATION_STATUSES.some((status) =>
+    confirmationFilter.statuses.includes(status),
+  );
   const isConfirmedVisible = CONFIRMED_STATUSES.some((status) =>
     confirmationFilter.statuses.includes(status),
   );
@@ -934,6 +954,7 @@ const Index = () => {
       | { status: "done_as_planned"; result?: string; observations?: string }
       | { status: "done_with_deviation"; actualMinutes?: number; reason: string; result?: string; observations?: string }
       | { status: "not_done"; reason: string }
+      | { status: "postponed"; postponedToDate?: string; postponedToTime?: string }
       | { status: "open" },
     date?: string,
   ) => {
@@ -959,6 +980,16 @@ const Index = () => {
 
                         const nextConfirmations = { ...(a.confirmations || {}) };
 
+                        const existing = nextConfirmations[date];
+                        const postponementAudit = existing
+                          ? {
+                              postponedToDate: existing.postponedToDate,
+                              postponedToTime: existing.postponedToTime,
+                              postponedBy: existing.postponedBy,
+                              postponedAt: existing.postponedAt,
+                            }
+                          : {};
+
                         if (payload.status === "open") {
                           delete nextConfirmations[date];
                         } else if (payload.status === "done_as_planned") {
@@ -968,6 +999,7 @@ const Index = () => {
                             actualMinutes: a.plannedMinutes,
                             result: payload.result,
                             observations: payload.observations,
+                            ...postponementAudit,
                             ...auditTrail,
                           };
                         } else if (payload.status === "done_with_deviation") {
@@ -978,6 +1010,7 @@ const Index = () => {
                             reason: payload.reason,
                             result: payload.result,
                             observations: payload.observations,
+                            ...postponementAudit,
                             ...auditTrail,
                           };
                         } else if (payload.status === "not_done") {
@@ -985,7 +1018,18 @@ const Index = () => {
                             status: "not_done",
                             done: true,
                             reason: payload.reason,
+                            ...postponementAudit,
                             ...auditTrail,
+                          };
+                        } else if (payload.status === "postponed") {
+                          nextConfirmations[date] = {
+                            ...existing,
+                            status: "postponed",
+                            done: false,
+                            postponedToDate: payload.postponedToDate,
+                            postponedToTime: payload.postponedToTime,
+                            postponedBy: auditTrail.confirmedBy,
+                            postponedAt: auditTrail.confirmedAt,
                           };
                         }
 
@@ -1114,8 +1158,8 @@ const Index = () => {
         confirmationPeriod,
         confirmationFilter,
         lastNDays,
-      ).map(({ dueDate, topic, target, action, status }) => {
-        const confirmation = action.confirmations?.[dueDate];
+      ).map(({ dueDate, topic, target, action, confirmationDate, status }) => {
+        const confirmation = action.confirmations?.[confirmationDate];
         return {
           Datum: dueDate,
           "Klient/in": `${client.firstName} ${client.lastName}`.trim(),
@@ -1131,10 +1175,16 @@ const Index = () => {
                 ? "Mit Abweichung durchgeführt"
                 : status === "not_done"
                   ? "Nicht durchgeführt"
-                  : "Offen",
+                  : status === "postponed"
+                    ? "Verschoben"
+                    : "Offen",
           Grund: confirmation?.reason ?? "",
           Resultat: confirmation?.result ?? "",
           Beobachtungen: confirmation?.observations ?? "",
+          "Verschoben auf Datum": confirmation?.postponedToDate ?? "",
+          "Verschoben auf Uhrzeit": confirmation?.postponedToTime ?? "",
+          "Verschoben von": confirmation?.postponedBy ?? "",
+          "Verschoben am": confirmation?.postponedAt ?? "",
           Benutzername: confirmation?.confirmedBy ?? "",
           Timestamp: confirmation?.confirmedAt ?? "",
           "Gültig ab": action.validFrom ?? "",
@@ -1160,6 +1210,10 @@ const Index = () => {
       "Grund",
       "Resultat",
       "Beobachtungen",
+      "Verschoben auf Datum",
+      "Verschoben auf Uhrzeit",
+      "Verschoben von",
+      "Verschoben am",
       "Benutzername",
       "Timestamp",
       "Gültig ab",
@@ -1171,7 +1225,7 @@ const Index = () => {
       "Minuten tatsächlich",
     ];
 
-    const dateHeaders = new Set(["Datum", "Gültig ab", "Gültig bis"]);
+    const dateHeaders = new Set(["Datum", "Verschoben auf Datum", "Gültig ab", "Gültig bis"]);
     const numberHeaders = new Set(["Minuten geplant", "Minuten tatsächlich"]);
 
     const blob = createSimpleXlsxBlob({
@@ -1354,6 +1408,7 @@ const Index = () => {
                         { value: "done_as_planned", label: "Erledigt wie geplant" },
                         { value: "done_with_deviation", label: "Erledigt mit Abweichung" },
                         { value: "not_done", label: "Nicht durchgeführt" },
+                        { value: "postponed", label: "Verschoben" },
                       ].map((item) => (
                         <label key={item.value} className="inline-flex items-center gap-2">
                           <input
@@ -1763,8 +1818,8 @@ const Index = () => {
                             setConfirmationFilter((prev) => ({
                               ...prev,
                               statuses: e.target.checked
-                                ? (Array.from(new Set(["open" as ActionNode["status"], ...prev.statuses])))
-                                : prev.statuses.filter((status) => status !== "open"),
+                                ? [...new Set([...OPEN_CONFIRMATION_STATUSES, ...prev.statuses])]
+                                : prev.statuses.filter((status) => !OPEN_CONFIRMATION_STATUSES.includes(status)),
                             }))
                           }
                           className="h-4 w-4 rounded border-border accent-primary"
