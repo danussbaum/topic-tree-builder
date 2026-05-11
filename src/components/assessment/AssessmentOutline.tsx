@@ -350,9 +350,9 @@ export function AssessmentOutline({
 
   const openAddActionDialog = (topicId: string, targetId: string) => {
     setAvailableTemplates(loadActionPlanTemplates());
-    setTemplateInline({ topicId, targetId, creationMode: "scratch", selectedIds: [] });
+    setTemplateInline({ topicId, targetId, creationMode: "template", selectedIds: [] });
     setTemplateQuery("");
-    setTemplateDropdownOpen(false);
+    setTemplateDropdownOpen(true);
     setActiveTemplateIndex(0);
   };
 
@@ -963,6 +963,26 @@ export function AssessmentOutline({
                             type="button"
                             onClick={() => {
                               setTemplateInline((prev) =>
+                                prev ? { ...prev, creationMode: "template" } : prev,
+                              );
+                              setTemplateDropdownOpen(true);
+                            }}
+                            className={cn(
+                              "rounded-md border p-3 text-left transition-colors",
+                              templateInline.creationMode === "template"
+                                ? "border-primary bg-primary/10 text-primary"
+                                : "border-border hover:bg-secondary/40",
+                            )}
+                          >
+                            <div className="text-sm font-medium">Ab Vorlage verwenden</div>
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              Übernimmt Vorlagenwerte als Startpunkt; alle Felder bleiben danach editierbar.
+                            </div>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTemplateInline((prev) =>
                                 prev
                                   ? {
                                       ...prev,
@@ -981,29 +1001,9 @@ export function AssessmentOutline({
                                 : "border-border hover:bg-secondary/40",
                             )}
                           >
-                            <div className="text-sm font-medium">Von Grund auf erfassen</div>
+                            <div className="text-sm font-medium">Ohne Vorlage erfassen</div>
                             <div className="mt-1 text-xs text-muted-foreground">
                               Erstellt eine leere Handlung, deren Felder direkt ausgefüllt werden können.
-                            </div>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setTemplateInline((prev) =>
-                                prev ? { ...prev, creationMode: "template" } : prev,
-                              );
-                              setTemplateDropdownOpen(true);
-                            }}
-                            className={cn(
-                              "rounded-md border p-3 text-left transition-colors",
-                              templateInline.creationMode === "template"
-                                ? "border-primary bg-primary/10 text-primary"
-                                : "border-border hover:bg-secondary/40",
-                            )}
-                          >
-                            <div className="text-sm font-medium">Ab Vorlage verwenden</div>
-                            <div className="mt-1 text-xs text-muted-foreground">
-                              Übernimmt Vorlagenwerte als Startpunkt; alle Felder bleiben danach editierbar.
                             </div>
                           </button>
                         </div>
