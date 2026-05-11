@@ -53,5 +53,5 @@ export const getConfirmationFilterForShowConfirmed = (
   showConfirmed: boolean,
 ): ConfirmationFilter => {
   if (showConfirmed) return {};
-  return { statuses: ["open"] };
+  return { statuses: ["open", "postponed"] };
 };

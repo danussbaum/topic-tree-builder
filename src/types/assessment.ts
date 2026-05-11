@@ -2,7 +2,8 @@ export type ActionStatus =
   | "open"
   | "done_as_planned"
   | "done_with_deviation"
-  | "not_done";
+  | "not_done"
+  | "postponed";
 
 export type DayPart = "morning" | "noon" | "afternoon" | "evening" | "night";
 export type ActionCategory = "a" | "b" | "c";
@@ -49,6 +50,14 @@ export interface ActionConfirmation {
   confirmedBy?: string;
   /** ISO timestamp in UTC with second precision, e.g. 2026-04-29T10:15:30Z */
   confirmedAt?: string;
+  /** New scheduled date when this occurrence was postponed (ISO yyyy-MM-dd) */
+  postponedToDate?: string;
+  /** New scheduled time when this occurrence was postponed (HH:mm) */
+  postponedToTime?: string;
+  /** User who postponed this occurrence */
+  postponedBy?: string;
+  /** ISO timestamp in UTC with second precision when this occurrence was postponed */
+  postponedAt?: string;
   done: boolean;
 }
 
