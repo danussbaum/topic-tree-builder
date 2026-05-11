@@ -699,12 +699,6 @@ const Index = () => {
         .split(",")
         .map((value) => weekdayMap[value.trim().toLowerCase()])
         .filter((value): value is Weekday => Boolean(value));
-      const lockedFieldKeys = template
-        ? Object.keys(template.editable).filter(
-            (key) => !template.editable[key as keyof typeof template.editable],
-          )
-        : [];
-
       return {
         id: uid(),
         title: fields.titel,
@@ -727,7 +721,6 @@ const Index = () => {
         done: false,
         templateId: template?.id,
         templateName: template?.name,
-        templateLockedFields: lockedFieldKeys,
       };
     };
 
