@@ -681,7 +681,7 @@ export function AssessmentOutline({
                                                 disabled={!canConfirm}
                                                 aria-label={option.label}
                                                 className={cn(
-                                                  "inline-flex h-8 w-8 items-center justify-center rounded-md border transition-colors",
+                                                  "pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-md border transition-colors",
                                                   "border-border bg-background hover:bg-secondary/60",
                                                   !canConfirm && "cursor-not-allowed opacity-50 hover:bg-background",
                                                 )}
@@ -719,7 +719,7 @@ export function AssessmentOutline({
                                           : "Keine Umsetzung möglich (zu geringe Berechtigung)"
                                       }
                                       className={cn(
-                                        "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background transition-colors hover:bg-secondary/60",
+                                        "pointer-events-auto inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background transition-colors hover:bg-secondary/60",
                                         !canConfirm && "cursor-not-allowed opacity-50 hover:bg-background",
                                       )}
                                     >
@@ -1310,7 +1310,7 @@ function ActionRow({
             onOpenDialog(action.status === "open" ? "done_as_planned" : action.status);
           }}
           className={cn(
-            "mt-0.5 cursor-pointer",
+            "pointer-events-auto mt-0.5 cursor-pointer",
             isConfirmationRestricted && "cursor-not-allowed opacity-70",
           )}
           aria-label="Status ändern"
