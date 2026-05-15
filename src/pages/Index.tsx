@@ -33,6 +33,7 @@ import { AssessmentOutline } from "@/components/assessment/AssessmentOutline";
 import { ApplicationLogoutButton } from "@/components/ApplicationLogoutButton";
 import type {
   ActionNode,
+  ActionServiceType,
   Client,
   TopicNode,
   Weekday,
@@ -45,7 +46,11 @@ import {
 } from "@/types/assessment-filter";
 import { cn } from "@/lib/utils";
 import { createSimpleXlsxBlob } from "@/lib/xlsx";
-import { buildDefaultTemplateFields, loadActionPlanTemplates } from "@/lib/action-plan-templates";
+import {
+  buildDefaultTemplateFields,
+  getActionServiceTypeLabel,
+  loadActionPlanTemplates,
+} from "@/lib/action-plan-templates";
 import {
   DEFAULT_LAST_N_DAYS,
   loadCachedAssessmentState,
@@ -697,7 +702,13 @@ const Index = () => {
     );
   };
 
-  const addAction = (clientId: string, topicId: string, targetId: string, templateIds: string[]) => {
+  const addAction = (
+    clientId: string,
+    topicId: string,
+    targetId: string,
+    templateIds: string[],
+    serviceType?: ActionServiceType,
+  ) => {
     const templates = loadActionPlanTemplates().filter((template) => templateIds.includes(template.id));
     const weekdayMap: Record<string, Weekday> = {
       mon: "monday",
@@ -711,10 +722,16 @@ const Index = () => {
 
     const createActionFromTemplate = (
       template?: (typeof templates)[number],
+      scratchServiceType?: ActionServiceType,
     ): ActionNode => {
       const fields = template?.fields ?? buildDefaultTemplateFields();
       const plannedMinutes = Number(fields.dauer);
       const requiredPersons = Number(fields.personen);
+      const selectedServiceType = template
+        ? fields.leistungsart !== "none"
+          ? (fields.leistungsart as ActionServiceType)
+          : undefined
+        : scratchServiceType;
       const recurrenceWeekdays = fields.wiederholungWochentage
         .split(",")
         .map((value) => weekdayMap[value.trim().toLowerCase()])
@@ -727,6 +744,7 @@ const Index = () => {
         plannedMinutes: Number.isFinite(plannedMinutes) ? plannedMinutes : undefined,
         requiredPersons: Number.isFinite(requiredPersons) ? requiredPersons : undefined,
         category: fields.kategorie !== "none" ? (fields.kategorie as ActionNode["category"]) : undefined,
+        serviceType: selectedServiceType,
         dayPart: fields.tageszeit !== "none" ? (fields.tageszeit as ActionNode["dayPart"]) : undefined,
         scheduledTime: fields.uhrzeit || undefined,
         resultRequirement: fields.resultat !== "none"
@@ -746,7 +764,7 @@ const Index = () => {
 
     const newActions = templates.length > 0
       ? templates.map((template) => createActionFromTemplate(template))
-      : [createActionFromTemplate()];
+      : [createActionFromTemplate(undefined, serviceType)];
 
     updateClientTopicsFor(clientId, (topics) =>
       topics.map((t) =>
@@ -849,6 +867,7 @@ const Index = () => {
       | "dayPart"
       | "scheduledTime"
       | "category"
+      | "serviceType"
       | "validFrom"
       | "validTo"
       | "recurrence"
@@ -995,6 +1014,7 @@ const Index = () => {
                         } else if (payload.status === "done_as_planned") {
                           nextConfirmations[date] = {
                             status: "done_as_planned",
+                            serviceType: a.serviceType,
                             done: true,
                             actualMinutes: a.plannedMinutes,
                             result: payload.result,
@@ -1005,6 +1025,7 @@ const Index = () => {
                         } else if (payload.status === "done_with_deviation") {
                           nextConfirmations[date] = {
                             status: "done_with_deviation",
+                            serviceType: a.serviceType,
                             done: true,
                             actualMinutes: payload.actualMinutes,
                             reason: payload.reason,
@@ -1025,6 +1046,7 @@ const Index = () => {
                           nextConfirmations[date] = {
                             ...existing,
                             status: "postponed",
+                            serviceType: undefined,
                             done: false,
                             postponedToDate: payload.postponedToDate,
                             postponedToTime: payload.postponedToTime,
@@ -1192,6 +1214,10 @@ const Index = () => {
           "Tageszeit": action.dayPart ? DAY_PART_LABEL[action.dayPart] : "",
           "Uhrzeit": action.scheduledTime ?? "",
           Kategorie: action.category ?? "",
+          Leistungsart:
+            confirmation?.done && confirmation.status !== "not_done"
+              ? getActionServiceTypeLabel(confirmation.serviceType)
+              : "",
           "Minuten geplant": action.plannedMinutes ?? "",
           "Minuten tatsächlich": confirmation?.actualMinutes ?? "",
         };
@@ -1221,6 +1247,7 @@ const Index = () => {
       "Tageszeit",
       "Uhrzeit",
       "Kategorie",
+      "Leistungsart",
       "Minuten geplant",
       "Minuten tatsächlich",
     ];
@@ -1913,8 +1940,8 @@ const Index = () => {
                       }
                       onAddTopic={() => addTopic(client.id)}
                       onAddTarget={(topicId) => addTarget(client.id, topicId)}
-                      onAddAction={(topicId, targetId, templateIds) =>
-                        addAction(client.id, topicId, targetId, templateIds)
+                      onAddAction={(topicId, targetId, templateIds, serviceType) =>
+                        addAction(client.id, topicId, targetId, templateIds, serviceType)
                       }
                       onDeleteTopic={(topicId) => deleteTopic(client.id, topicId)}
                       onDeleteTarget={(topicId, targetId) =>

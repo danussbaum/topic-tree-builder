@@ -7,6 +7,7 @@ export type ActionStatus =
 
 export type DayPart = "morning" | "noon" | "afternoon" | "evening" | "night";
 export type ActionCategory = "a" | "b" | "c";
+export type ActionServiceType = "spitex-klv-a" | "spitex-klv-b" | "spitex-klv-c";
 export type ResultRequirement = "none" | "optional" | "required";
 export type NumericComparisonOperator = "gt" | "lt" | "eq";
 export type RecurrenceType = "daily" | "weekly" | "monthly";
@@ -43,6 +44,8 @@ export interface ConfirmationFilter {
 
 export interface ActionConfirmation {
   status: ActionStatus;
+  /** Snapshot der Leistungsart zum Zeitpunkt der Umsetzung */
+  serviceType?: ActionServiceType;
   actualMinutes?: number;
   reason?: string;
   result?: string;
@@ -79,6 +82,8 @@ export interface ActionNode {
   scheduledTime?: string;
   /** Kategorie fuer optionale Einteilung */
   category?: ActionCategory;
+  /** Leistungsart fuer Abrechnung/Planung */
+  serviceType?: ActionServiceType;
   /** Gültig ab (ISO Datum, zwingend bei erfasster Handlung) */
   validFrom?: string;
   /** Gültig bis (ISO Datum, optional) */

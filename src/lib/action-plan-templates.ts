@@ -27,6 +27,18 @@ export interface TemplateSelectOption {
   label: string;
 }
 
+export const ACTION_SERVICE_TYPE_SELECT_OPTIONS: TemplateSelectOption[] = [
+  { value: "none", label: "<leer>" },
+  { value: "spitex-klv-a", label: "Spitex, KLV a" },
+  { value: "spitex-klv-b", label: "Spitex, KLV b" },
+  { value: "spitex-klv-c", label: "Spitex, KLV c" },
+];
+
+export const getActionServiceTypeLabel = (value?: string) => {
+  if (!value || value === "none") return "";
+  return ACTION_SERVICE_TYPE_SELECT_OPTIONS.find((option) => option.value === value)?.label ?? value;
+};
+
 export const normalizeTemplateSelectValue = (
   value: string,
   options: TemplateSelectOption[],
