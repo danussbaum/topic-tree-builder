@@ -33,7 +33,7 @@ const Settings = () => {
       ? [
           {
             key: "new-template",
-            label: "Neue Vorlage",
+            label: "Neue Handlungsvorlage",
             icon: Plus,
             onClick: () => templatesRef.current?.openCreate(),
           } satisfies SettingsRibbonAction,
@@ -60,7 +60,7 @@ const Settings = () => {
   const subPageTitle = showPermissionLevels
     ? "Berechtigungsstufen"
     : showActionPlanTemplates
-      ? "Vorlagen"
+      ? "Handlungsvorlagen"
       : null;
 
   return (
@@ -99,7 +99,7 @@ const Settings = () => {
                     setShowPermissionLevels(true);
                     setShowActionPlanTemplates(false);
                   }
-                  if (catId === "handlungsplanung" && label === "Vorlagen") {
+                  if (catId === "handlungsplanung" && label === "Handlungsvorlagen") {
                     setShowActionPlanTemplates(true);
                     setShowPermissionLevels(false);
                   }
