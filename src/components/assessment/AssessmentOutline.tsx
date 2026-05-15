@@ -81,6 +81,7 @@ import { matchesConfirmationFilter } from "@/lib/confirmation-filter";
 import {
   ACTION_SERVICE_TYPE_SELECT_OPTIONS,
   loadActionPlanTemplates,
+  templateMatchesDiscipline,
   type ActionPlanTemplate,
 } from "@/lib/action-plan-templates";
 import { DEFAULT_LAST_N_DAYS, type ConfirmationPeriod } from "@/lib/assessment-cache";
@@ -423,7 +424,11 @@ export function AssessmentOutline({
   }, [bulkNotDoneMode]);
 
   const openAddActionDialog = (topicId: string, targetId: string) => {
-    setAvailableTemplates(loadActionPlanTemplates());
+    const topic = topics.find((entry) => entry.id === topicId);
+    const topicDisciplineId = topic ? getTopicDisciplineId(topic) : undefined;
+    setAvailableTemplates(
+      loadActionPlanTemplates().filter((template) => templateMatchesDiscipline(template, topicDisciplineId)),
+    );
     setTemplateInline({
       topicId,
       targetId,

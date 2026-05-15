@@ -7,6 +7,8 @@ import {
   buildDefaultTemplateFields,
   getActionServiceTypeLabel,
   loadActionPlanTemplates,
+  resolveTemplateDisciplineIds,
+  templateMatchesDiscipline,
   normalizeTemplateSelectValue,
 } from "@/lib/action-plan-templates";
 
@@ -65,8 +67,33 @@ describe("action plan template fields", () => {
     );
 
     expect(loadActionPlanTemplates()[0]).toMatchObject({
+      disciplineIds: [],
       fields: { titel: "Alte Handlung", uhrzeit: "", leistungsart: "none" },
       editable: { titel: false, uhrzeit: true, leistungsart: false },
+    });
+  });
+});
+
+describe("action plan template disciplines", () => {
+  const disciplines = [
+    { id: "discipline-ihp", title: "IHP", authorizedRoleIds: [] },
+    { id: "discipline-physio", title: "Physiotherapie", authorizedRoleIds: [] },
+  ];
+
+  it("zeigt Vorlagen ohne Disziplin für alle Planungs-Disziplinen an", () => {
+    expect(templateMatchesDiscipline({ disciplineIds: [] }, "discipline-ihp")).toBe(true);
+    expect(templateMatchesDiscipline({ disciplineIds: [] }, "discipline-physio")).toBe(true);
+  });
+
+  it("zeigt Vorlagen mit Disziplin nur für passende Planungs-Disziplinen an", () => {
+    expect(templateMatchesDiscipline({ disciplineIds: ["discipline-ihp"] }, "discipline-ihp")).toBe(true);
+    expect(templateMatchesDiscipline({ disciplineIds: ["discipline-ihp"] }, "discipline-physio")).toBe(false);
+  });
+
+  it("löst importierte Disziplinen über Titel und IDs auf", () => {
+    expect(resolveTemplateDisciplineIds("IHP, discipline-physio, Unbekannt", disciplines)).toEqual({
+      disciplineIds: ["discipline-ihp", "discipline-physio"],
+      invalidEntries: ["Unbekannt"],
     });
   });
 });
