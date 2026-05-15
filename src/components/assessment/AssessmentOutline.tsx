@@ -35,6 +35,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DatePickerInput } from "@/components/ui/date-picker-input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -178,6 +179,15 @@ interface DialogTarget {
   initialMode?: ConfirmationMode;
   confirmedBy?: string;
   confirmedAt?: string;
+}
+
+interface BulkNotDoneTarget {
+  key: string;
+  topicId: string;
+  targetId: string;
+  actionId: string;
+  dueDate: string;
+  actionTitle: string;
 }
 
 const DAY_PART_ICONS: Record<DayPart, typeof Sunrise> = {
@@ -334,6 +344,9 @@ function groupFlatActionsByDateThenDayPart<T extends { action: ActionNode; dueDa
 const buildPlannedDateTime = (date: string, time?: string) =>
   new Date(`${date}T${time || "00:00"}:00`);
 
+const buildBulkNotDoneKey = (topicId: string, targetId: string, actionId: string, dueDate: string) =>
+  `${topicId}::${targetId}::${actionId}::${dueDate}`;
+
 const getPostponedLabel = (date?: string, time?: string) => {
   if (!date && !time) return "später";
   const datePart = date ? format(parseISO(date), "dd.MM.yyyy", { locale: de }) : undefined;
@@ -377,6 +390,8 @@ export function AssessmentOutline({
   const [isTemplateDropdownOpen, setTemplateDropdownOpen] = useState(false);
   const [activeTemplateIndex, setActiveTemplateIndex] = useState(0);
   const [dialogTarget, setDialogTarget] = useState<DialogTarget | null>(null);
+  const [selectedBulkNotDoneKeys, setSelectedBulkNotDoneKeys] = useState<Set<string>>(new Set());
+  const [bulkNotDoneDialogOpen, setBulkNotDoneDialogOpen] = useState(false);
   const templateInputRef = useRef<HTMLInputElement | null>(null);
   const today = format(new Date(), "yyyy-MM-dd");
 
@@ -579,6 +594,50 @@ export function AssessmentOutline({
       return left.action.title.localeCompare(right.action.title, "de", { sensitivity: "base" });
     });
     const groupedFlatActions = groupFlatActionsByDateThenDayPart(sortedFlatActions);
+    const bulkNotDoneTargets: BulkNotDoneTarget[] = sortedFlatActions
+      .filter(({ action, status }) => canConfirmAction(action) && (status === "open" || status === "postponed"))
+      .map(({ topic, target, action, confirmationDate }) => ({
+        key: buildBulkNotDoneKey(topic.id, target.id, action.id, confirmationDate),
+        topicId: topic.id,
+        targetId: target.id,
+        actionId: action.id,
+        dueDate: confirmationDate,
+        actionTitle: action.title,
+      }));
+    const bulkNotDoneTargetsByKey = new Map(bulkNotDoneTargets.map((target) => [target.key, target]));
+    const selectedBulkNotDoneTargets = [...selectedBulkNotDoneKeys]
+      .map((key) => bulkNotDoneTargetsByKey.get(key))
+      .filter((target): target is BulkNotDoneTarget => Boolean(target));
+    const visibleBulkNotDoneKeys = bulkNotDoneTargets.map((target) => target.key);
+    const allVisibleBulkNotDoneSelected =
+      visibleBulkNotDoneKeys.length > 0 && visibleBulkNotDoneKeys.every((key) => selectedBulkNotDoneKeys.has(key));
+    const someVisibleBulkNotDoneSelected = visibleBulkNotDoneKeys.some((key) => selectedBulkNotDoneKeys.has(key));
+
+    const toggleBulkNotDoneSelection = (key: string, checked: boolean) => {
+      setSelectedBulkNotDoneKeys((prev) => {
+        const next = new Set(prev);
+        if (checked) {
+          next.add(key);
+        } else {
+          next.delete(key);
+        }
+        return next;
+      });
+    };
+
+    const toggleAllVisibleBulkNotDoneSelection = (checked: boolean) => {
+      setSelectedBulkNotDoneKeys((prev) => {
+        const next = new Set(prev);
+        visibleBulkNotDoneKeys.forEach((key) => {
+          if (checked) {
+            next.add(key);
+          } else {
+            next.delete(key);
+          }
+        });
+        return next;
+      });
+    };
 
     const shiftDate = (days: number) => {
       const d = new Date(`${selectedDate}T00:00:00`);
@@ -615,6 +674,38 @@ export function AssessmentOutline({
           </div>
         )}
 
+        <div className="rounded-lg border border-border bg-card p-3 shadow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <Checkbox
+                id="bulk-not-done-select-all"
+                checked={allVisibleBulkNotDoneSelected || (someVisibleBulkNotDoneSelected && "indeterminate")}
+                disabled={visibleBulkNotDoneKeys.length === 0}
+                onCheckedChange={(checked) => toggleAllVisibleBulkNotDoneSelection(checked === true)}
+                aria-label="Alle offenen Handlungen für Mehrfachbestätigung auswählen"
+              />
+              <Label htmlFor="bulk-not-done-select-all" className="text-sm font-medium">
+                Offene/verschobene Handlungen auswählen
+              </Label>
+              <span className="rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
+                {selectedBulkNotDoneTargets.length} ausgewählt
+              </span>
+            </div>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              disabled={selectedBulkNotDoneTargets.length === 0}
+              onClick={() => setBulkNotDoneDialogOpen(true)}
+            >
+              Ausgewählte als „Nicht durchgeführt“ bestätigen
+            </Button>
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Erfasse eine Begründung einmalig und kopiere sie auf alle ausgewählten Handlungen. Bereits abgeschlossene Handlungen werden nicht in die Mehrfachauswahl aufgenommen.
+          </p>
+        </div>
+
         <div className="space-y-4">
           {groupedFlatActions.map((dateGroup) => (
             <div key={dateGroup.dueDate} className="space-y-3">
@@ -630,11 +721,12 @@ export function AssessmentOutline({
                     <Table
                       className={cn(
                         "w-full table-fixed",
-                        clientName ? "min-w-[1078px]" : "min-w-[968px]",
+                        clientName ? "min-w-[1126px]" : "min-w-[1016px]",
                       )}
                     >
                       <TableHeader className="bg-secondary/40">
                         <TableRow className="hover:bg-transparent">
+                          <TableHead className="w-[48px] px-2"><span className="sr-only">Mehrfachauswahl</span></TableHead>
                           <TableHead className="w-[48px] px-1"><span className="sr-only">Umsetzung</span></TableHead>
                           {clientName && <TableHead className="w-[110px] px-2">Klient/in</TableHead>}
                           <TableHead className="w-[320px] px-2">Handlung</TableHead>
@@ -650,6 +742,8 @@ export function AssessmentOutline({
                         {group.actions.map(({ topic, target, action, dueDate, confirmationDate, status }) => {
                           const conf = action.confirmations?.[confirmationDate];
                           const canConfirm = canConfirmAction(action);
+                          const bulkNotDoneKey = buildBulkNotDoneKey(topic.id, target.id, action.id, confirmationDate);
+                          const isBulkNotDoneSelectable = canConfirm && (status === "open" || status === "postponed");
                           const openConfirmationDialog = (initialMode: ConfirmationMode) => {
                             if (!canConfirm) return;
                             setDialogTarget({
@@ -684,6 +778,16 @@ export function AssessmentOutline({
                                 !canConfirm && "opacity-90",
                               )}
                             >
+                              <TableCell className="px-2 py-3 align-top text-center">
+                                <Checkbox
+                                  checked={selectedBulkNotDoneKeys.has(bulkNotDoneKey)}
+                                  disabled={!isBulkNotDoneSelectable}
+                                  onCheckedChange={(checked) =>
+                                    toggleBulkNotDoneSelection(bulkNotDoneKey, checked === true)
+                                  }
+                                  aria-label={`Handlung ${action.title} für Mehrfachbestätigung auswählen`}
+                                />
+                              </TableCell>
                               <TableCell className="px-2 py-3 align-top text-xs text-muted-foreground">
                                 {status === "open" || status === "postponed" ? (
                                   <TooltipProvider delayDuration={150}>
@@ -887,6 +991,24 @@ export function AssessmentOutline({
               dialogTarget.dueDate
             );
             setDialogTarget(null);
+          }}
+        />
+        <BulkNotDoneDialog
+          open={bulkNotDoneDialogOpen}
+          targets={selectedBulkNotDoneTargets}
+          onClose={() => setBulkNotDoneDialogOpen(false)}
+          onConfirm={(reason) => {
+            selectedBulkNotDoneTargets.forEach((target) => {
+              onConfirmAction(
+                target.topicId,
+                target.targetId,
+                target.actionId,
+                { status: "not_done", reason },
+                target.dueDate,
+              );
+            });
+            setSelectedBulkNotDoneKeys(new Set());
+            setBulkNotDoneDialogOpen(false);
           }}
         />
       </div>
@@ -2002,6 +2124,80 @@ function StatusBadge({ action }: { action: ActionNode }) {
     >
       {m.label}
     </span>
+  );
+}
+
+function BulkNotDoneDialog({
+  open,
+  targets,
+  onClose,
+  onConfirm,
+}: {
+  open: boolean;
+  targets: BulkNotDoneTarget[];
+  onClose: () => void;
+  onConfirm: (reason: string) => void;
+}) {
+  const [reason, setReason] = useState("");
+
+  useEffect(() => {
+    if (!open) setReason("");
+  }, [open]);
+
+  const handleClose = () => {
+    setReason("");
+    onClose();
+  };
+
+  const submit = () => {
+    const trimmedReason = reason.trim();
+    if (!trimmedReason || targets.length === 0) return;
+    onConfirm(trimmedReason);
+    setReason("");
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(value) => (!value ? handleClose() : null)}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Mehrere Handlungen nicht durchgeführt bestätigen</DialogTitle>
+          <DialogDescription>
+            Die Begründung wird auf {targets.length} ausgewählte {targets.length === 1 ? "Handlung" : "Handlungen"} kopiert.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="max-h-36 overflow-y-auto rounded-md border border-border bg-muted/20 p-2 text-sm">
+            {targets.length > 0 ? (
+              <ul className="space-y-1">
+                {targets.map((target) => (
+                  <li key={target.key} className="line-clamp-1 text-foreground/80">
+                    {target.actionTitle}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="text-muted-foreground">Keine Handlungen ausgewählt.</div>
+            )}
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="bulk-not-done-reason">Begründung</Label>
+            <Textarea
+              id="bulk-not-done-reason"
+              rows={4}
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              placeholder="Warum wurden die ausgewählten Handlungen nicht durchgeführt?"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={handleClose}>Abbrechen</Button>
+          <Button variant="destructive" onClick={submit} disabled={!reason.trim() || targets.length === 0}>
+            {targets.length} als „Nicht durchgeführt“ bestätigen
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
