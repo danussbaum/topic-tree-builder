@@ -120,6 +120,8 @@ export interface TopicNode {
   id: string;
   title: string;
   notes: string;
+  /** Zugeordnete Disziplin aus den Einstellungen */
+  disciplineId?: string;
   targets: TargetNode[];
 }
 

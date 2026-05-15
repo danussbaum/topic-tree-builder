@@ -28,6 +28,7 @@ export interface AssessmentFilterModel {
   category?: ActionCategory | "none";
   persons?: PersonsFilter;
   result?: "none" | "with_result";
+  disciplineIds?: string[];
 }
 
 export const DEFAULT_ASSESSMENT_FILTER: AssessmentFilterModel = {
@@ -38,6 +39,7 @@ interface FilterInput {
   action: ActionNode;
   status: ActionStatus;
   confirmation?: ActionConfirmation;
+  disciplineId?: string;
 }
 
 const matchesNumericComparison = (value: number | undefined, comparison?: NumericComparison) => {
@@ -68,10 +70,14 @@ const getDifferencePercent = (plannedMinutes?: number, actualMinutes?: number) =
 };
 
 export const matchesAssessmentFilter = (
-  { action, status, confirmation }: FilterInput,
+  { action, status, confirmation, disciplineId }: FilterInput,
   filter: AssessmentFilterModel,
 ) => {
   if (!filter.statuses.includes(status)) return false;
+
+  if (filter.disciplineIds && filter.disciplineIds.length > 0) {
+    if (!disciplineId || !filter.disciplineIds.includes(disciplineId)) return false;
+  }
 
   const plannedMinutes = action.plannedMinutes;
   const actualMinutes = confirmation?.actualMinutes;

@@ -1,4 +1,4 @@
-import type { Client } from "@/types/assessment";
+import type { Client, TopicNode } from "@/types/assessment";
 import type { AssessmentFilterModel } from "@/types/assessment-filter";
 import {
   APPLICATION_BROWSER_STORAGE_KEYS,
@@ -11,6 +11,22 @@ export type ConfirmationPeriod = "day" | "week" | "month" | "lastNDays";
 export const DEFAULT_LAST_N_DAYS = 3;
 
 export const ASSESSMENT_CACHE_KEY = APPLICATION_BROWSER_STORAGE_KEYS[0];
+
+export const DEFAULT_CACHED_DISCIPLINE_ID = "discipline-inhouse-spitex";
+
+const migrateCachedTopicsToDisciplines = (clients: Client[]): Client[] =>
+  clients.map((client) => ({
+    ...client,
+    topics: Array.isArray(client.topics)
+      ? client.topics.map((topic: TopicNode) => ({
+          ...topic,
+          disciplineId:
+            typeof topic.disciplineId === "string" && topic.disciplineId.trim()
+              ? topic.disciplineId
+              : DEFAULT_CACHED_DISCIPLINE_ID,
+        }))
+      : [],
+  }));
 
 export interface CachedAssessmentState {
   viewMode: "planning" | "confirmation";
@@ -58,7 +74,7 @@ export const loadCachedAssessmentState = (
         typeof parsed.lastNDays === "number" && Number.isFinite(parsed.lastNDays) && parsed.lastNDays > 0
           ? Math.floor(parsed.lastNDays)
           : DEFAULT_LAST_N_DAYS,
-      clients: parsed.clients,
+      clients: migrateCachedTopicsToDisciplines(parsed.clients as Client[]),
       selectedClientIds: parsed.selectedClientIds,
       confirmationFilter: parsed.confirmationFilter ?? fallbackConfirmationFilter,
       showCompletedTargets: Boolean(parsed.showCompletedTargets),
