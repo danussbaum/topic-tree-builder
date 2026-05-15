@@ -87,7 +87,7 @@ export const settingsCategories: SettingsCategory[] = [
     id: "handlungsplanung",
     title: "Handlungsplanung",
     icon: Workflow,
-    links: [{ label: "Berechtigungsstufen" }, { label: "Handlungsvorlagen" }],
+    links: [{ label: "Berechtigungsstufen" }, { label: "Handlungsvorlagen" }, { label: "Disziplinen" }],
   },
 
   {
