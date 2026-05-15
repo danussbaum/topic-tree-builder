@@ -3,6 +3,7 @@ export const APPLICATION_LOGOUT_CLEARING_KEY = "topic-tree-builder:logout-cleari
 export const APPLICATION_BROWSER_STORAGE_KEYS = [
   "assessment:cached-state:v1",
   "action-plan-templates-v1",
+  "action-plan-disciplines-v1",
 ] as const;
 
 export const isApplicationLogoutClearing = () => {

@@ -8,17 +8,28 @@ import {
   ActionPlanTemplatesView,
   type ActionPlanTemplatesHandle,
 } from "@/components/settings/ActionPlanTemplatesView";
-import { SettingsRibbon, type SettingsRibbonAction } from "@/components/settings/SettingsRibbon";
+import {
+  ActionPlanDisciplinesView,
+  type ActionPlanDisciplinesHandle,
+} from "@/components/settings/ActionPlanDisciplinesView";
+import {
+  SettingsRibbon,
+  type SettingsRibbonAction,
+} from "@/components/settings/SettingsRibbon";
 
 const Settings = () => {
   const [activeGroup, setActiveGroup] = useState<string | undefined>();
   const [showPermissionLevels, setShowPermissionLevels] = useState(false);
   const [showActionPlanTemplates, setShowActionPlanTemplates] = useState(false);
+  const [showActionPlanDisciplines, setShowActionPlanDisciplines] =
+    useState(false);
   const templatesRef = useRef<ActionPlanTemplatesHandle | null>(null);
+  const disciplinesRef = useRef<ActionPlanDisciplinesHandle | null>(null);
 
   const handleBackToSettings = () => {
     setShowPermissionLevels(false);
     setShowActionPlanTemplates(false);
+    setShowActionPlanDisciplines(false);
   };
 
   const ribbonActions: SettingsRibbonAction[] = [
@@ -29,13 +40,16 @@ const Settings = () => {
       onClick: handleBackToSettings,
       dividerAfter: true,
     },
-    ...(showActionPlanTemplates
+    ...(showActionPlanTemplates || showActionPlanDisciplines
       ? [
           {
-            key: "new-template",
-            label: "Neue Handlungsvorlage",
+            key: showActionPlanDisciplines ? "new-discipline" : "new-template",
+            label: showActionPlanDisciplines ? "Neu" : "Neue Handlungsvorlage",
             icon: Plus,
-            onClick: () => templatesRef.current?.openCreate(),
+            onClick: () =>
+              showActionPlanDisciplines
+                ? disciplinesRef.current?.openCreate()
+                : templatesRef.current?.openCreate(),
           } satisfies SettingsRibbonAction,
         ]
       : []),
@@ -61,7 +75,9 @@ const Settings = () => {
     ? "Berechtigungsstufen"
     : showActionPlanTemplates
       ? "Handlungsvorlagen"
-      : null;
+      : showActionPlanDisciplines
+        ? "Disziplinen"
+        : null;
 
   return (
     <div className="min-h-dvh flex w-full bg-background">
@@ -71,6 +87,7 @@ const Settings = () => {
           setActiveGroup(id);
           setShowPermissionLevels(false);
           setShowActionPlanTemplates(false);
+          setShowActionPlanDisciplines(false);
         }}
       />
 
@@ -81,27 +98,46 @@ const Settings = () => {
           {subPageTitle ? (
             <>
               <div className="bg-[#ededf0] border-b border-border px-6 py-4">
-                <h1 className="text-2xl font-light text-foreground">{subPageTitle}</h1>
+                <h1 className="text-2xl font-light text-foreground">
+                  {subPageTitle}
+                </h1>
               </div>
               {showPermissionLevels ? (
                 <PermissionLevelsView />
-              ) : (
+              ) : showActionPlanTemplates ? (
                 <ActionPlanTemplatesView ref={templatesRef} />
+              ) : (
+                <ActionPlanDisciplinesView ref={disciplinesRef} />
               )}
             </>
           ) : (
             <div className="p-6 max-w-[1600px] mx-auto">
-              <h1 className="text-2xl font-semibold text-foreground mb-6">Einstellungen</h1>
+              <h1 className="text-2xl font-semibold text-foreground mb-6">
+                Einstellungen
+              </h1>
               <SettingsGrid
                 onLinkClick={(catId, label) => {
                   setActiveGroup(catId);
-                  if (catId === "handlungsplanung" && label === "Berechtigungsstufen") {
+                  if (
+                    catId === "handlungsplanung" &&
+                    label === "Berechtigungsstufen"
+                  ) {
                     setShowPermissionLevels(true);
                     setShowActionPlanTemplates(false);
+                    setShowActionPlanDisciplines(false);
                   }
-                  if (catId === "handlungsplanung" && label === "Handlungsvorlagen") {
+                  if (
+                    catId === "handlungsplanung" &&
+                    label === "Handlungsvorlagen"
+                  ) {
                     setShowActionPlanTemplates(true);
                     setShowPermissionLevels(false);
+                    setShowActionPlanDisciplines(false);
+                  }
+                  if (catId === "handlungsplanung" && label === "Disziplinen") {
+                    setShowActionPlanDisciplines(true);
+                    setShowPermissionLevels(false);
+                    setShowActionPlanTemplates(false);
                   }
                 }}
               />
