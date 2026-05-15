@@ -62,4 +62,62 @@ describe("AssessmentOutline confirmation actions", () => {
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     expect(screen.getAllByText("Vergangene offene Handlung").length).toBeGreaterThan(0);
   });
+  it("confirms multiple selected actions as not done with one shared reason", async () => {
+    const onConfirmAction = vi.fn();
+
+    render(
+      <AssessmentOutline
+        viewMode="confirmation"
+        selectedDate="2026-05-12"
+        onSelectedDateChange={vi.fn()}
+        confirmationPeriod="lastNDays"
+        lastNDays={3}
+        clientName="Test Klient"
+        topics={topics}
+        hideConfirmationHeader
+        filterModel={{ statuses: ["open", "postponed"] }}
+        onUpdateTopic={vi.fn()}
+        onUpdateTarget={vi.fn()}
+        onUpdateAction={vi.fn()}
+        onUpdateActionField={vi.fn()}
+        onConfirmAction={onConfirmAction}
+        onAddTarget={vi.fn()}
+        onAddAction={vi.fn()}
+        onAddTopic={vi.fn()}
+        onDeleteTopic={vi.fn()}
+        onDeleteTarget={vi.fn()}
+        onDeleteAction={vi.fn()}
+      />,
+    );
+
+    const rowCheckboxes = screen.getAllByRole("checkbox", {
+      name: /Handlung Vergangene offene Handlung für Mehrfachbestätigung auswählen/,
+    });
+    fireEvent.click(rowCheckboxes[0]);
+    fireEvent.click(rowCheckboxes[1]);
+
+    fireEvent.click(screen.getByRole("button", { name: /Ausgewählte als „Nicht durchgeführt“ bestätigen/ }));
+
+    const reasonInput = await screen.findByLabelText("Begründung");
+    fireEvent.change(reasonInput, { target: { value: "Klient war abwesend" } });
+    fireEvent.click(screen.getByRole("button", { name: /2 als „Nicht durchgeführt“ bestätigen/ }));
+
+    expect(onConfirmAction).toHaveBeenCalledTimes(2);
+    expect(onConfirmAction).toHaveBeenNthCalledWith(
+      1,
+      "topic-1",
+      "target-1",
+      "action-past-open",
+      { status: "not_done", reason: "Klient war abwesend" },
+      expect.any(String),
+    );
+    expect(onConfirmAction).toHaveBeenNthCalledWith(
+      2,
+      "topic-1",
+      "target-1",
+      "action-past-open",
+      { status: "not_done", reason: "Klient war abwesend" },
+      expect.any(String),
+    );
+  });
 });
