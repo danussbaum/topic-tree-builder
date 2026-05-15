@@ -447,6 +447,7 @@ const Index = () => {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isTargetHiddenHintOpen, setIsTargetHiddenHintOpen] = useState(false);
   const [hideTargetHiddenHint, setHideTargetHiddenHint] = useState(false);
+  const [bulkNotDoneClientIds, setBulkNotDoneClientIds] = useState<Set<string>>(new Set());
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
   const filterButtonRef = useRef<HTMLDivElement | null>(null);
   const [filterMenuLeft, setFilterMenuLeft] = useState(0);
@@ -460,6 +461,18 @@ const Index = () => {
     confirmationFilter,
     showCompletedTargets,
   });
+
+  const setClientBulkNotDoneMode = (clientId: string, enabled: boolean) => {
+    setBulkNotDoneClientIds((prev) => {
+      const next = new Set(prev);
+      if (enabled) {
+        next.add(clientId);
+      } else {
+        next.delete(clientId);
+      }
+      return next;
+    });
+  };
 
   const saveAssessmentStateImmediately = (patch: Partial<CachedAssessmentState>) => {
     const nextState = { ...latestAssessmentStateRef.current, ...patch };
@@ -490,6 +503,12 @@ const Index = () => {
     confirmationFilter,
     showCompletedTargets,
   ]);
+
+  useEffect(() => {
+    if (viewMode !== "confirmation") {
+      setBulkNotDoneClientIds(new Set());
+    }
+  }, [viewMode]);
 
   useEffect(() => {
     const saveLatestStateBeforeUnload = () => {
@@ -1910,6 +1929,32 @@ const Index = () => {
                           />
                         </div>
                       </div>
+                      {viewMode === "confirmation" && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 shrink-0 text-muted-foreground"
+                              aria-label="Aktionen für Klient/in öffnen"
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="min-w-64">
+                            {bulkNotDoneClientIds.has(client.id) ? (
+                              <DropdownMenuItem onClick={() => setClientBulkNotDoneMode(client.id, false)}>
+                                Mehrfachauswahl beenden
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem onClick={() => setClientBulkNotDoneMode(client.id, true)}>
+                                Mehrere als nicht durchgeführt abschliessen
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
                     </div>
 
                     <AssessmentOutline
@@ -1922,6 +1967,8 @@ const Index = () => {
                       clientName={`${client.firstName} ${client.lastName}`.trim()}
                       topics={client.topics}
                       hideConfirmationHeader
+                      bulkNotDoneMode={bulkNotDoneClientIds.has(client.id)}
+                      onBulkNotDoneModeChange={(enabled) => setClientBulkNotDoneMode(client.id, enabled)}
                       filterModel={confirmationFilter}
                       onUpdateTopic={(topicId, field, value) =>
                         updateTopic(client.id, topicId, field, value)
