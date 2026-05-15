@@ -1,4 +1,5 @@
 import { APPLICATION_BROWSER_STORAGE_KEYS } from "@/lib/application-storage";
+import type { ActionPlanDiscipline } from "@/lib/action-plan-disciplines";
 
 export type TemplateFieldKey =
   | "titel"
@@ -18,6 +19,7 @@ export type TemplateFieldKey =
 export interface ActionPlanTemplate {
   id: string;
   name: string;
+  disciplineIds: string[];
   fields: Record<TemplateFieldKey, string>;
   editable: Record<TemplateFieldKey, boolean>;
 }
@@ -56,6 +58,66 @@ export const normalizeTemplateSelectValue = (
 
 export const ACTION_PLAN_TEMPLATES_STORAGE_KEY = APPLICATION_BROWSER_STORAGE_KEYS[1];
 
+export const normalizeTemplateDisciplineIds = (
+  disciplineIds: unknown,
+  disciplines: ActionPlanDiscipline[],
+): string[] => {
+  if (!Array.isArray(disciplineIds)) return [];
+
+  const validDisciplineIds = new Set(disciplines.map((discipline) => discipline.id));
+  return Array.from(
+    new Set(
+      disciplineIds.filter(
+        (disciplineId): disciplineId is string =>
+          typeof disciplineId === "string" && validDisciplineIds.has(disciplineId),
+      ),
+    ),
+  );
+};
+
+export const templateMatchesDiscipline = (
+  template: Pick<ActionPlanTemplate, "disciplineIds">,
+  disciplineId?: string,
+): boolean => {
+  if (template.disciplineIds.length === 0) return true;
+  if (!disciplineId) return false;
+  return template.disciplineIds.includes(disciplineId);
+};
+
+export const getTemplateDisciplineLabels = (
+  disciplineIds: string[],
+  disciplines: ActionPlanDiscipline[],
+): string[] => {
+  const labelsById = new Map(disciplines.map((discipline) => [discipline.id, discipline.title]));
+  return disciplineIds.map((disciplineId) => labelsById.get(disciplineId) ?? disciplineId);
+};
+
+export const resolveTemplateDisciplineIds = (
+  value: string,
+  disciplines: ActionPlanDiscipline[],
+): { disciplineIds: string[]; invalidEntries: string[] } => {
+  const entries = value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  const disciplineById = new Map(disciplines.map((discipline) => [discipline.id.toLocaleLowerCase("de"), discipline]));
+  const disciplineByTitle = new Map(disciplines.map((discipline) => [discipline.title.toLocaleLowerCase("de"), discipline]));
+  const disciplineIds: string[] = [];
+  const invalidEntries: string[] = [];
+
+  entries.forEach((entry) => {
+    const normalized = entry.toLocaleLowerCase("de");
+    const discipline = disciplineById.get(normalized) ?? disciplineByTitle.get(normalized);
+    if (!discipline) {
+      invalidEntries.push(entry);
+      return;
+    }
+    if (!disciplineIds.includes(discipline.id)) disciplineIds.push(discipline.id);
+  });
+
+  return { disciplineIds, invalidEntries };
+};
+
 export const buildDefaultTemplateFields = (): Record<TemplateFieldKey, string> => ({
   titel: "",
   beschreibung: "",
@@ -92,6 +154,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
   {
     id: "tpl-1",
     name: "Morgenroutine",
+    disciplineIds: [],
     fields: {
       titel: "Tagesstart begleiten",
       beschreibung: "Begleitung bei der Morgenhygiene und Planung des Tagesablaufs.",
@@ -120,6 +183,9 @@ export const loadActionPlanTemplates = (): ActionPlanTemplate[] => {
     if (!Array.isArray(parsed)) return initialTemplates;
     return parsed.map((template) => ({
       ...template,
+      disciplineIds: Array.isArray(template.disciplineIds)
+        ? template.disciplineIds.filter((disciplineId): disciplineId is string => typeof disciplineId === "string")
+        : [],
       fields: { ...buildDefaultTemplateFields(), ...(template.fields ?? {}) },
       editable: { ...buildDefaultTemplateEditable(true), ...(template.editable ?? {}) },
     }));

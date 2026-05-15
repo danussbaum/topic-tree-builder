@@ -10,11 +10,15 @@ import {
   ACTION_SERVICE_TYPE_SELECT_OPTIONS,
   buildDefaultTemplateEditable as buildDefaultEditable,
   buildDefaultTemplateFields as buildDefaultFields,
+  getTemplateDisciplineLabels,
   type ActionPlanTemplate,
   loadActionPlanTemplates,
+  normalizeTemplateDisciplineIds,
   normalizeTemplateSelectValue,
+  resolveTemplateDisciplineIds,
   saveActionPlanTemplates,
 } from "@/lib/action-plan-templates";
+import { loadActionPlanDisciplines } from "@/lib/action-plan-disciplines";
 
 type TemplateFieldKey =
   | "titel"
@@ -124,12 +128,14 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
   const [isPanelMounted, setIsPanelMounted] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [draftName, setDraftName] = useState("");
+  const [draftDisciplineIds, setDraftDisciplineIds] = useState<string[]>([]);
   const [importErrors, setImportErrors] = useState<string[]>([]);
   const [draftFields, setDraftFields] = useState<Record<TemplateFieldKey, string>>(buildDefaultFields);
   const [draftEditable, setDraftEditable] = useState<Record<TemplateFieldKey, boolean>>(buildDefaultEditable);
   const [filePickerKey, setFilePickerKey] = useState(0);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [searchQuery, setSearchQuery] = useState("");
+  const disciplineOptions = loadActionPlanDisciplines();
 
   const allowedByField = useMemo(() => {
     const map = new Map<TemplateFieldKey, Set<string>>();
@@ -169,6 +175,8 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
     const utf8Bom = "\uFEFF";
     const normalizedText = text.startsWith(utf8Bom) ? text.slice(1) : text;
     const rows = parseCsvRows(normalizedText);
+    const headerRow = rows[0] ?? [];
+    const hasDisciplineColumn = headerRow[1]?.toLocaleLowerCase("de") === "disziplinen";
     const dataRows = rows.slice(1);
     const rowErrors: string[] = [];
     const validRows: ActionPlanTemplate[] = [];
@@ -181,8 +189,17 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
 
       const nextFields = buildDefaultFields();
       const nextEditable = buildDefaultEditable(true);
+      let nextDisciplineIds: string[] = [];
 
       let columnIndex = 1;
+      if (hasDisciplineColumn) {
+        const { disciplineIds, invalidEntries } = resolveTemplateDisciplineIds(row[columnIndex] ?? "", disciplineOptions);
+        nextDisciplineIds = disciplineIds;
+        if (invalidEntries.length > 0) {
+          errors.push(`Disziplinen: unbekannte Werte ${invalidEntries.join(", ")}`);
+        }
+        columnIndex += 1;
+      }
       templateFieldMeta.forEach((field) => {
         const rawValue = row[columnIndex] ?? "";
         columnIndex += 1;
@@ -236,6 +253,7 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
       validRows.push({
         id: existing?.id ?? `tpl-${Date.now()}-${rowIndex}`,
         name,
+        disciplineIds: nextDisciplineIds,
         fields: nextFields,
         editable: nextEditable,
       });
@@ -273,6 +291,7 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
     setIsCreating(true);
     setSelectedTemplateId(null);
     setDraftName("Neue Handlungsvorlage");
+    setDraftDisciplineIds([]);
     setDraftFields(buildDefaultFields());
     setDraftEditable(buildDefaultEditable(true));
     setIsPanelMounted(true);
@@ -284,6 +303,7 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
     setIsCreating(false);
     setSelectedTemplateId(templateId);
     setDraftName(template.name);
+    setDraftDisciplineIds(normalizeTemplateDisciplineIds(template.disciplineIds, disciplineOptions));
     setDraftFields({ ...template.fields });
     setDraftEditable({ ...template.editable });
     setIsPanelMounted(true);
@@ -299,12 +319,12 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
 
   const saveTemplate = () => {
     if (isCreating) {
-      setTemplates((prev) => [...prev, { id: `tpl-${Date.now()}`, name: draftName.trim() || "Neue Handlungsvorlage", fields: draftFields, editable: draftEditable }]);
+      setTemplates((prev) => [...prev, { id: `tpl-${Date.now()}`, name: draftName.trim() || "Neue Handlungsvorlage", disciplineIds: draftDisciplineIds, fields: draftFields, editable: draftEditable }]);
       closePanel();
       return;
     }
     if (!selectedTemplate) return;
-    setTemplates((prev) => prev.map((entry) => (entry.id === selectedTemplate.id ? { ...entry, name: draftName.trim() || entry.name, fields: draftFields, editable: draftEditable } : entry)));
+    setTemplates((prev) => prev.map((entry) => (entry.id === selectedTemplate.id ? { ...entry, name: draftName.trim() || entry.name, disciplineIds: draftDisciplineIds, fields: draftFields, editable: draftEditable } : entry)));
     closePanel();
   };
 
@@ -317,11 +337,13 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
   const exportTemplatesCsv = () => {
     const headers = [
       "Name",
+      "Disziplinen",
       ...templateFieldMeta.flatMap((field) => (field.editable === false ? [field.label] : [field.label, `${field.label} veränderbar`])),
     ];
 
     const rows = templates.map((template) => [
       template.name,
+      getTemplateDisciplineLabels(template.disciplineIds, disciplineOptions).join(", "),
       ...templateFieldMeta.flatMap((field) => (
         field.editable === false
           ? [template.fields[field.key] ?? ""]
@@ -404,6 +426,7 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
         <table className="w-full table-fixed text-sm">
           <thead className="bg-[#f1f1f3]">
             <tr className="border-b border-border/80">
+              <th className="w-64 px-4 py-2 text-left text-xs font-semibold text-foreground">Disziplinen</th>
               <th className="px-4 py-2 text-left text-xs font-semibold text-foreground">
                 <button
                   type="button"
@@ -419,6 +442,9 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
           <tbody className="bg-background">
             {visibleTemplates.map((entry) => (
               <tr key={entry.id} className="cursor-pointer border-b border-border/80 even:bg-[#f7f7f9] hover:bg-[#d6e2f4]" onClick={() => openEditPanel(entry.id)}>
+                <td className="px-4 py-2 text-[13px] text-muted-foreground">
+                  {getTemplateDisciplineLabels(entry.disciplineIds, disciplineOptions).join(", ") || "Alle"}
+                </td>
                 <td className="px-4 py-2 text-[13px] text-foreground">{entry.name}</td>
               </tr>
             ))}
@@ -438,6 +464,28 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
                 <label className="pt-2 text-sm text-foreground">Handlungsvorlagenname</label>
                 <Input value={draftName} onChange={(event) => setDraftName(event.target.value)} />
                 <span className="pt-2 text-xs text-muted-foreground">immer editierbar</span>
+
+                <label className="pt-2 text-sm text-foreground">Disziplin</label>
+                <div className="flex flex-wrap gap-2 rounded-md border border-input bg-background p-2">
+                  {disciplineOptions.map((discipline) => (
+                    <label key={discipline.id} className="inline-flex items-center gap-2 rounded border border-border px-2 py-1 text-xs">
+                      <Checkbox
+                        checked={draftDisciplineIds.includes(discipline.id)}
+                        onCheckedChange={(checked) => {
+                          setDraftDisciplineIds((prev) =>
+                            checked === true
+                              ? prev.includes(discipline.id)
+                                ? prev
+                                : [...prev, discipline.id]
+                              : prev.filter((disciplineId) => disciplineId !== discipline.id),
+                          );
+                        }}
+                      />
+                      {discipline.title}
+                    </label>
+                  ))}
+                </div>
+                <span className="pt-2 text-xs text-muted-foreground">leer = alle Disziplinen</span>
 
                 {templateFieldMeta.map((field) => {
                   if (field.key === "wiederholungWochentage" && draftFields.wiederholung !== "weekly") {
