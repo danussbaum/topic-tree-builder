@@ -34,6 +34,7 @@ const cachedState: CachedAssessmentState = {
                   title: "Handlung",
                   notes: "",
                   plannedMinutes: 30,
+                  serviceType: "spitex-klv-b",
                   validFrom: "2026-05-07",
                   recurrence: "daily",
                   status: "open",
@@ -41,6 +42,7 @@ const cachedState: CachedAssessmentState = {
                   confirmations: {
                     "2026-05-07": {
                       status: "done_as_planned",
+                      serviceType: "spitex-klv-b",
                       actualMinutes: 30,
                       done: true,
                     },

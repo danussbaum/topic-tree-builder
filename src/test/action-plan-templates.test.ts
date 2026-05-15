@@ -2,8 +2,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import { DAY_PART_SELECT_OPTIONS } from "@/types/assessment";
 import {
   ACTION_PLAN_TEMPLATES_STORAGE_KEY,
+  ACTION_SERVICE_TYPE_SELECT_OPTIONS,
   buildDefaultTemplateEditable,
   buildDefaultTemplateFields,
+  getActionServiceTypeLabel,
   loadActionPlanTemplates,
   normalizeTemplateSelectValue,
 } from "@/lib/action-plan-templates";
@@ -35,6 +37,18 @@ describe("action plan template fields", () => {
   it("stellt Leistungsart als internes Vorlagenfeld ohne Veränderbarkeit bereit", () => {
     expect(buildDefaultTemplateFields().leistungsart).toBe("none");
     expect(buildDefaultTemplateEditable(true).leistungsart).toBe(false);
+    expect(ACTION_SERVICE_TYPE_SELECT_OPTIONS).toEqual([
+      { value: "none", label: "<leer>" },
+      { value: "spitex-klv-a", label: "Spitex, KLV a" },
+      { value: "spitex-klv-b", label: "Spitex, KLV b" },
+      { value: "spitex-klv-c", label: "Spitex, KLV c" },
+    ]);
+  });
+
+  it("liefert Export-Labels für Leistungsarten", () => {
+    expect(getActionServiceTypeLabel("spitex-klv-b")).toBe("Spitex, KLV b");
+    expect(getActionServiceTypeLabel("none")).toBe("");
+    expect(getActionServiceTypeLabel()).toBe("");
   });
 
   it("ergänzt geladene ältere Vorlagen um das Uhrzeit-Feld", () => {

@@ -64,6 +64,7 @@ import type {
   ConfirmationFilter,
   DayPart,
   ActionCategory,
+  ActionServiceType,
   Weekday,
   MonthlyRecurrencePattern,
   TopicNode,
@@ -76,7 +77,11 @@ import {
 } from "@/types/assessment-filter";
 import { cn } from "@/lib/utils";
 import { matchesConfirmationFilter } from "@/lib/confirmation-filter";
-import { loadActionPlanTemplates, type ActionPlanTemplate } from "@/lib/action-plan-templates";
+import {
+  ACTION_SERVICE_TYPE_SELECT_OPTIONS,
+  loadActionPlanTemplates,
+  type ActionPlanTemplate,
+} from "@/lib/action-plan-templates";
 import { DEFAULT_LAST_N_DAYS, type ConfirmationPeriod } from "@/lib/assessment-cache";
 
 type ConfirmPayload =
@@ -101,6 +106,7 @@ type ActionField =
   | "dayPart"
   | "scheduledTime"
   | "category"
+  | "serviceType"
   | "validFrom"
   | "validTo"
   | "recurrence"
@@ -150,7 +156,12 @@ interface Props {
     date?: string,
   ) => void;
   onAddTarget: (topicId: string) => void;
-  onAddAction: (topicId: string, targetId: string, templateIds: string[]) => void;
+  onAddAction: (
+    topicId: string,
+    targetId: string,
+    templateIds: string[],
+    serviceType?: ActionServiceType,
+  ) => void;
   onAddTopic: () => void;
   onDeleteTopic: (topicId: string) => void;
   onDeleteTarget: (topicId: string, targetId: string) => void;
@@ -359,6 +370,7 @@ export function AssessmentOutline({
     targetId: string;
     creationMode: "scratch" | "template";
     selectedIds: string[];
+    serviceType: ActionServiceType | "none";
   } | null>(null);
   const [availableTemplates, setAvailableTemplates] = useState<ActionPlanTemplate[]>([]);
   const [templateQuery, setTemplateQuery] = useState("");
@@ -370,7 +382,13 @@ export function AssessmentOutline({
 
   const openAddActionDialog = (topicId: string, targetId: string) => {
     setAvailableTemplates(loadActionPlanTemplates());
-    setTemplateInline({ topicId, targetId, creationMode: "template", selectedIds: [] });
+    setTemplateInline({
+      topicId,
+      targetId,
+      creationMode: "template",
+      selectedIds: [],
+      serviceType: "none",
+    });
     setTemplateQuery("");
     setTemplateDropdownOpen(true);
     setActiveTemplateIndex(0);
@@ -1034,6 +1052,7 @@ export function AssessmentOutline({
                                       ...prev,
                                       creationMode: "scratch",
                                       selectedIds: [],
+                                      serviceType: prev.serviceType ?? "none",
                                     }
                                   : prev,
                               );
@@ -1053,6 +1072,36 @@ export function AssessmentOutline({
                             </div>
                           </button>
                         </div>
+
+                        {templateInline.creationMode === "scratch" && (
+                          <div className="grid gap-1.5">
+                            <Label className="text-xs text-muted-foreground">Leistungsart</Label>
+                            <Select
+                              value={templateInline.serviceType}
+                              onValueChange={(value) =>
+                                setTemplateInline((prev) =>
+                                  prev
+                                    ? {
+                                        ...prev,
+                                        serviceType: value as ActionServiceType | "none",
+                                      }
+                                    : prev,
+                                )
+                              }
+                            >
+                              <SelectTrigger className="h-9 bg-background">
+                                <SelectValue placeholder="Leistungsart auswählen" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {ACTION_SERVICE_TYPE_SELECT_OPTIONS.map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
 
                         {templateInline.creationMode === "template" && (
                           <div className="rounded-md border border-input/70 bg-background shadow-sm focus-within:border-primary/70">
@@ -1165,6 +1214,10 @@ export function AssessmentOutline({
                                 templateInline.topicId,
                                 templateInline.targetId,
                                 templateInline.creationMode === "template" ? templateInline.selectedIds : [],
+                                templateInline.creationMode === "scratch" &&
+                                  templateInline.serviceType !== "none"
+                                  ? templateInline.serviceType
+                                  : undefined,
                               );
                               setTemplateInline(null);
                             }}

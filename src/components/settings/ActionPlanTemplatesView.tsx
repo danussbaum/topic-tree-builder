@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DAY_PART_SELECT_OPTIONS } from "@/types/assessment";
 import {
+  ACTION_SERVICE_TYPE_SELECT_OPTIONS,
   buildDefaultTemplateEditable as buildDefaultEditable,
   buildDefaultTemplateFields as buildDefaultFields,
   type ActionPlanTemplate,
@@ -106,12 +107,7 @@ const templateFieldMeta: TemplateFieldMeta[] = [
     label: "Leistungsart",
     type: "select",
     editable: false,
-    options: [
-      { value: "none", label: "<leer>" },
-      { value: "spitex-klv-a", label: "Spitex, KLV a" },
-      { value: "spitex-klv-b", label: "Spitex, KLV b" },
-      { value: "spitex-klv-c", label: "Spitex, KLV c" },
-    ],
+    options: ACTION_SERVICE_TYPE_SELECT_OPTIONS,
   },
 ];
 
