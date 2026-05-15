@@ -12,7 +12,8 @@ export type TemplateFieldKey =
   | "resultat"
   | "wiederholung"
   | "wiederholungWochentage"
-  | "wiederholungMonatlich";
+  | "wiederholungMonatlich"
+  | "leistungsart";
 
 export interface ActionPlanTemplate {
   id: string;
@@ -32,6 +33,7 @@ export const normalizeTemplateSelectValue = (
 ) => {
   const trimmed = value.trim();
   const normalized = trimmed.toLocaleLowerCase("de");
+  if (!trimmed && options.some((entry) => entry.value === "none")) return "none";
   const option = options.find(
     (entry) =>
       entry.value.toLocaleLowerCase("de") === normalized ||
@@ -55,6 +57,7 @@ export const buildDefaultTemplateFields = (): Record<TemplateFieldKey, string> =
   wiederholung: "daily",
   wiederholungWochentage: "",
   wiederholungMonatlich: "none",
+  leistungsart: "none",
 });
 
 export const buildDefaultTemplateEditable = (value = true): Record<TemplateFieldKey, boolean> => ({
@@ -70,6 +73,7 @@ export const buildDefaultTemplateEditable = (value = true): Record<TemplateField
   wiederholung: value,
   wiederholungWochentage: value,
   wiederholungMonatlich: value,
+  leistungsart: false,
 });
 
 export const initialTemplates: ActionPlanTemplate[] = [
@@ -89,6 +93,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholung: "daily",
       wiederholungMonatlich: "none",
       wiederholungWochentage: "mon,tue,wed,thu,fri",
+      leistungsart: "none",
     },
     editable: buildDefaultTemplateEditable(true),
   },

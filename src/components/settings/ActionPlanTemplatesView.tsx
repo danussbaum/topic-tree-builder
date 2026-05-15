@@ -27,13 +27,15 @@ type TemplateFieldKey =
   | "resultat"
   | "wiederholung"
   | "wiederholungWochentage"
-  | "wiederholungMonatlich";
+  | "wiederholungMonatlich"
+  | "leistungsart";
 
 interface TemplateFieldMeta {
   key: TemplateFieldKey;
   label: string;
   type: "text" | "textarea" | "select" | "time";
   options?: Array<{ value: string; label: string }>;
+  editable?: boolean;
 }
 
 const templateFieldMeta: TemplateFieldMeta[] = [
@@ -98,6 +100,18 @@ const templateFieldMeta: TemplateFieldMeta[] = [
     key: "wiederholungWochentage",
     label: "Wochentage",
     type: "text",
+  },
+  {
+    key: "leistungsart",
+    label: "Leistungsart",
+    type: "select",
+    editable: false,
+    options: [
+      { value: "none", label: "<leer>" },
+      { value: "spitex-klv-a", label: "Spitex, KLV a" },
+      { value: "spitex-klv-b", label: "Spitex, KLV b" },
+      { value: "spitex-klv-c", label: "Spitex, KLV c" },
+    ],
   },
 ];
 
@@ -172,12 +186,15 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
       const nextFields = buildDefaultFields();
       const nextEditable = buildDefaultEditable(true);
 
-      templateFieldMeta.forEach((field, index) => {
-        const rawValue = row[1 + index * 2] ?? "";
+      let columnIndex = 1;
+      templateFieldMeta.forEach((field) => {
+        const rawValue = row[columnIndex] ?? "";
+        columnIndex += 1;
         const value = field.options
           ? normalizeTemplateSelectValue(rawValue, field.options)
           : rawValue;
-        const editableValue = row[2 + index * 2] ?? "";
+        const editableValue = field.editable === false ? "Nein" : row[columnIndex] ?? "";
+        if (field.editable !== false) columnIndex += 1;
         nextFields[field.key] = value;
 
         const allowed = allowedByField.get(field.key);
@@ -202,11 +219,15 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
           if (invalid.length > 0) errors.push(`${field.label}: ungültige Wochentage ${invalid.join(", ")}`);
         }
 
-        const editable = normalizeEditable(editableValue);
-        if (editable === null) {
-          errors.push(`${field.label} veränderbar: ungültiger Wert "${editableValue}" (erlaubt: Ja/Nein)`);
+        if (field.editable === false) {
+          nextEditable[field.key] = false;
         } else {
-          nextEditable[field.key] = editable;
+          const editable = normalizeEditable(editableValue);
+          if (editable === null) {
+            errors.push(`${field.label} veränderbar: ungültiger Wert "${editableValue}" (erlaubt: Ja/Nein)`);
+          } else {
+            nextEditable[field.key] = editable;
+          }
         }
       });
 
@@ -255,7 +276,7 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
   const openCreatePanel = () => {
     setIsCreating(true);
     setSelectedTemplateId(null);
-    setDraftName("Neue Vorlage");
+    setDraftName("Neue Handlungsvorlage");
     setDraftFields(buildDefaultFields());
     setDraftEditable(buildDefaultEditable(true));
     setIsPanelMounted(true);
@@ -282,7 +303,7 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
 
   const saveTemplate = () => {
     if (isCreating) {
-      setTemplates((prev) => [...prev, { id: `tpl-${Date.now()}`, name: draftName.trim() || "Neue Vorlage", fields: draftFields, editable: draftEditable }]);
+      setTemplates((prev) => [...prev, { id: `tpl-${Date.now()}`, name: draftName.trim() || "Neue Handlungsvorlage", fields: draftFields, editable: draftEditable }]);
       closePanel();
       return;
     }
@@ -300,15 +321,16 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
   const exportTemplatesCsv = () => {
     const headers = [
       "Name",
-      ...templateFieldMeta.flatMap((field) => [field.label, `${field.label} veränderbar`]),
+      ...templateFieldMeta.flatMap((field) => (field.editable === false ? [field.label] : [field.label, `${field.label} veränderbar`])),
     ];
 
     const rows = templates.map((template) => [
       template.name,
-      ...templateFieldMeta.flatMap((field) => [
-        template.fields[field.key] ?? "",
-        template.editable[field.key] ? "Ja" : "Nein",
-      ]),
+      ...templateFieldMeta.flatMap((field) => (
+        field.editable === false
+          ? [template.fields[field.key] ?? ""]
+          : [template.fields[field.key] ?? "", template.editable[field.key] ? "Ja" : "Nein"]
+      )),
     ]);
 
     const csvContent = [headers, ...rows]
@@ -320,7 +342,7 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "vorlagen_attribute.csv";
+    link.download = "handlungsvorlagen_attribute.csv";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -366,7 +388,7 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
             <Input
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Vorlagen suchen"
+              placeholder="Handlungsvorlagen suchen"
               className="h-9 bg-background pl-9 pr-9"
             />
             {searchQuery && (
@@ -412,12 +434,12 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
         <div className={`pointer-events-none fixed inset-0 z-50 flex justify-end transition-opacity duration-300 ${isPanelOpen ? "opacity-100" : "opacity-0"}`}>
           <aside className={`pointer-events-auto flex h-full w-full max-w-4xl flex-col bg-[#f3f3f5] shadow-2xl transition-transform duration-300 ease-out ${isPanelOpen ? "translate-x-0" : "translate-x-full"}`} onTransitionEnd={handlePanelAnimationEnd}>
             <div className="flex items-center justify-between border-b border-border px-6 py-4">
-              <h2 className="text-3xl font-light text-foreground">{isCreating ? "Neue Vorlage" : draftName}</h2>
+              <h2 className="text-3xl font-light text-foreground">{isCreating ? "Neue Handlungsvorlage" : draftName}</h2>
               <button type="button" onClick={closePanel} className="text-muted-foreground hover:text-foreground">✕</button>
             </div>
             <div className="flex-1 space-y-4 overflow-y-auto px-6 py-6">
               <div className="grid grid-cols-[200px_minmax(0,1fr)_auto] items-start gap-x-4 gap-y-3">
-                <label className="pt-2 text-sm text-foreground">Vorlagenname</label>
+                <label className="pt-2 text-sm text-foreground">Handlungsvorlagenname</label>
                 <Input value={draftName} onChange={(event) => setDraftName(event.target.value)} />
                 <span className="pt-2 text-xs text-muted-foreground">immer editierbar</span>
 
@@ -492,10 +514,14 @@ export const ActionPlanTemplatesView = forwardRef<ActionPlanTemplatesHandle>((_p
                     <Fragment key={field.key}>
                       <label className="pt-2 text-sm text-foreground">{field.label}</label>
                       <div>{control}</div>
-                      <label className="inline-flex items-center gap-2 pt-2 text-xs text-muted-foreground">
-                        <Checkbox checked={draftEditable[field.key]} onCheckedChange={(checked) => setDraftEditable((prev) => ({ ...prev, [field.key]: checked === true }))} />
-                        veränderbar
-                      </label>
+                      {field.editable === false ? (
+                        <span aria-hidden="true" />
+                      ) : (
+                        <label className="inline-flex items-center gap-2 pt-2 text-xs text-muted-foreground">
+                          <Checkbox checked={draftEditable[field.key]} onCheckedChange={(checked) => setDraftEditable((prev) => ({ ...prev, [field.key]: checked === true }))} />
+                          veränderbar
+                        </label>
+                      )}
                     </Fragment>
                   );
                 })}
