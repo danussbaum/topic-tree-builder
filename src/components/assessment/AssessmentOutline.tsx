@@ -125,6 +125,8 @@ interface Props {
   clientName?: string;
   topics: TopicNode[];
   hideConfirmationHeader?: boolean;
+  bulkNotDoneMode?: boolean;
+  onBulkNotDoneModeChange?: (enabled: boolean) => void;
   showConfirmed?: boolean;
   confirmationFilter?: ConfirmationFilter;
   filterModel?: AssessmentFilterModel;
@@ -364,6 +366,8 @@ export function AssessmentOutline({
   clientName,
   topics,
   hideConfirmationHeader,
+  bulkNotDoneMode = false,
+  onBulkNotDoneModeChange,
   confirmationFilter,
   filterModel = DEFAULT_ASSESSMENT_FILTER,
   onUpdateTopic,
@@ -394,6 +398,13 @@ export function AssessmentOutline({
   const [bulkNotDoneDialogOpen, setBulkNotDoneDialogOpen] = useState(false);
   const templateInputRef = useRef<HTMLInputElement | null>(null);
   const today = format(new Date(), "yyyy-MM-dd");
+
+  useEffect(() => {
+    if (!bulkNotDoneMode) {
+      setSelectedBulkNotDoneKeys(new Set());
+      setBulkNotDoneDialogOpen(false);
+    }
+  }, [bulkNotDoneMode]);
 
   const openAddActionDialog = (topicId: string, targetId: string) => {
     setAvailableTemplates(loadActionPlanTemplates());
@@ -674,37 +685,51 @@ export function AssessmentOutline({
           </div>
         )}
 
-        <div className="rounded-lg border border-border bg-card p-3 shadow-sm">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3">
-              <Checkbox
-                id="bulk-not-done-select-all"
-                checked={allVisibleBulkNotDoneSelected || (someVisibleBulkNotDoneSelected && "indeterminate")}
-                disabled={visibleBulkNotDoneKeys.length === 0}
-                onCheckedChange={(checked) => toggleAllVisibleBulkNotDoneSelection(checked === true)}
-                aria-label="Alle offenen Handlungen für Mehrfachbestätigung auswählen"
-              />
-              <Label htmlFor="bulk-not-done-select-all" className="text-sm font-medium">
-                Offene/verschobene Handlungen auswählen
-              </Label>
-              <span className="rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
-                {selectedBulkNotDoneTargets.length} ausgewählt
-              </span>
+        {bulkNotDoneMode && (
+          <div className="rounded-lg border border-border/60 bg-muted/20 p-2.5">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2.5">
+                <Checkbox
+                  id="bulk-not-done-select-all"
+                  checked={allVisibleBulkNotDoneSelected || (someVisibleBulkNotDoneSelected && "indeterminate")}
+                  disabled={visibleBulkNotDoneKeys.length === 0}
+                  onCheckedChange={(checked) => toggleAllVisibleBulkNotDoneSelection(checked === true)}
+                  aria-label="Alle offenen Handlungen für Mehrfachbestätigung auswählen"
+                />
+                <Label htmlFor="bulk-not-done-select-all" className="text-sm font-normal text-muted-foreground">
+                  Offene/verschobene Handlungen auswählen
+                </Label>
+                <span className="rounded-full bg-background px-2 py-0.5 text-xs text-muted-foreground">
+                  {selectedBulkNotDoneTargets.length} ausgewählt
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2 sm:justify-end">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground"
+                  onClick={() => onBulkNotDoneModeChange?.(false)}
+                >
+                  Mehrfachauswahl beenden
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="border-border/70 bg-background/50 text-muted-foreground hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive"
+                  disabled={selectedBulkNotDoneTargets.length === 0}
+                  onClick={() => setBulkNotDoneDialogOpen(true)}
+                >
+                  Ausgewählte als „Nicht durchgeführt“ bestätigen
+                </Button>
+              </div>
             </div>
-            <Button
-              type="button"
-              variant="destructive"
-              size="sm"
-              disabled={selectedBulkNotDoneTargets.length === 0}
-              onClick={() => setBulkNotDoneDialogOpen(true)}
-            >
-              Ausgewählte als „Nicht durchgeführt“ bestätigen
-            </Button>
+            <p className="mt-1.5 text-xs text-muted-foreground/80">
+              Ausnahmefall: Begründung einmalig erfassen und auf alle ausgewählten Handlungen kopieren. Bereits abgeschlossene Handlungen werden nicht in die Mehrfachauswahl aufgenommen.
+            </p>
           </div>
-          <p className="mt-2 text-xs text-muted-foreground">
-            Erfasse eine Begründung einmalig und kopiere sie auf alle ausgewählten Handlungen. Bereits abgeschlossene Handlungen werden nicht in die Mehrfachauswahl aufgenommen.
-          </p>
-        </div>
+        )}
 
         <div className="space-y-4">
           {groupedFlatActions.map((dateGroup) => (
@@ -721,12 +746,20 @@ export function AssessmentOutline({
                     <Table
                       className={cn(
                         "w-full table-fixed",
-                        clientName ? "min-w-[1126px]" : "min-w-[1016px]",
+                        bulkNotDoneMode
+                          ? clientName
+                            ? "min-w-[1126px]"
+                            : "min-w-[1016px]"
+                          : clientName
+                            ? "min-w-[1078px]"
+                            : "min-w-[968px]",
                       )}
                     >
                       <TableHeader className="bg-secondary/40">
                         <TableRow className="hover:bg-transparent">
-                          <TableHead className="w-[48px] px-2"><span className="sr-only">Mehrfachauswahl</span></TableHead>
+                          {bulkNotDoneMode && (
+                            <TableHead className="w-[48px] px-2"><span className="sr-only">Mehrfachauswahl</span></TableHead>
+                          )}
                           <TableHead className="w-[48px] px-1"><span className="sr-only">Umsetzung</span></TableHead>
                           {clientName && <TableHead className="w-[110px] px-2">Klient/in</TableHead>}
                           <TableHead className="w-[320px] px-2">Handlung</TableHead>
@@ -778,16 +811,18 @@ export function AssessmentOutline({
                                 !canConfirm && "opacity-90",
                               )}
                             >
-                              <TableCell className="px-2 py-3 align-top text-center">
-                                <Checkbox
-                                  checked={selectedBulkNotDoneKeys.has(bulkNotDoneKey)}
-                                  disabled={!isBulkNotDoneSelectable}
-                                  onCheckedChange={(checked) =>
-                                    toggleBulkNotDoneSelection(bulkNotDoneKey, checked === true)
-                                  }
-                                  aria-label={`Handlung ${action.title} für Mehrfachbestätigung auswählen`}
-                                />
-                              </TableCell>
+                              {bulkNotDoneMode && (
+                                <TableCell className="px-2 py-3 align-top text-center">
+                                  <Checkbox
+                                    checked={selectedBulkNotDoneKeys.has(bulkNotDoneKey)}
+                                    disabled={!isBulkNotDoneSelectable}
+                                    onCheckedChange={(checked) =>
+                                      toggleBulkNotDoneSelection(bulkNotDoneKey, checked === true)
+                                    }
+                                    aria-label={`Handlung ${action.title} für Mehrfachbestätigung auswählen`}
+                                  />
+                                </TableCell>
+                              )}
                               <TableCell className="px-2 py-3 align-top text-xs text-muted-foreground">
                                 {status === "open" || status === "postponed" ? (
                                   <TooltipProvider delayDuration={150}>

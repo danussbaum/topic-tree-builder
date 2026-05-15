@@ -62,6 +62,77 @@ describe("AssessmentOutline confirmation actions", () => {
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     expect(screen.getAllByText("Vergangene offene Handlung").length).toBeGreaterThan(0);
   });
+  it("hides bulk not-done controls until the bulk mode is active", () => {
+    render(
+      <AssessmentOutline
+        viewMode="confirmation"
+        selectedDate="2026-05-12"
+        onSelectedDateChange={vi.fn()}
+        confirmationPeriod="lastNDays"
+        lastNDays={3}
+        clientName="Test Klient"
+        topics={topics}
+        hideConfirmationHeader
+        filterModel={{ statuses: ["open", "postponed"] }}
+        onUpdateTopic={vi.fn()}
+        onUpdateTarget={vi.fn()}
+        onUpdateAction={vi.fn()}
+        onUpdateActionField={vi.fn()}
+        onConfirmAction={vi.fn()}
+        onAddTarget={vi.fn()}
+        onAddAction={vi.fn()}
+        onAddTopic={vi.fn()}
+        onDeleteTopic={vi.fn()}
+        onDeleteTarget={vi.fn()}
+        onDeleteAction={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: /Ausgewählte als „Nicht durchgeführt“ bestätigen/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("checkbox", {
+        name: /Handlung Vergangene offene Handlung für Mehrfachbestätigung auswählen/,
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("allows leaving the bulk not-done mode without changing the view", () => {
+    const onBulkNotDoneModeChange = vi.fn();
+
+    render(
+      <AssessmentOutline
+        viewMode="confirmation"
+        selectedDate="2026-05-12"
+        onSelectedDateChange={vi.fn()}
+        confirmationPeriod="lastNDays"
+        lastNDays={3}
+        clientName="Test Klient"
+        topics={topics}
+        hideConfirmationHeader
+        bulkNotDoneMode
+        onBulkNotDoneModeChange={onBulkNotDoneModeChange}
+        filterModel={{ statuses: ["open", "postponed"] }}
+        onUpdateTopic={vi.fn()}
+        onUpdateTarget={vi.fn()}
+        onUpdateAction={vi.fn()}
+        onUpdateActionField={vi.fn()}
+        onConfirmAction={vi.fn()}
+        onAddTarget={vi.fn()}
+        onAddAction={vi.fn()}
+        onAddTopic={vi.fn()}
+        onDeleteTopic={vi.fn()}
+        onDeleteTarget={vi.fn()}
+        onDeleteAction={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Mehrfachauswahl beenden" }));
+
+    expect(onBulkNotDoneModeChange).toHaveBeenCalledWith(false);
+  });
+
   it("confirms multiple selected actions as not done with one shared reason", async () => {
     const onConfirmAction = vi.fn();
 
@@ -75,6 +146,7 @@ describe("AssessmentOutline confirmation actions", () => {
         clientName="Test Klient"
         topics={topics}
         hideConfirmationHeader
+        bulkNotDoneMode
         filterModel={{ statuses: ["open", "postponed"] }}
         onUpdateTopic={vi.fn()}
         onUpdateTarget={vi.fn()}
