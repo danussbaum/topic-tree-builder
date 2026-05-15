@@ -3,12 +3,16 @@ import {
   useEffect,
   useImperativeHandle,
   useMemo,
+  useRef,
   useState,
 } from "react";
-import { Search, X } from "lucide-react";
+import { ChevronUp, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import {
+  ACTION_PLAN_AUTHORIZED_ROLE_OPTIONS,
   loadActionPlanDisciplines,
   saveActionPlanDisciplines,
   type ActionPlanDiscipline,
@@ -30,6 +34,13 @@ export const ActionPlanDisciplinesView =
     const [isPanelMounted, setIsPanelMounted] = useState(false);
     const [isPanelOpen, setIsPanelOpen] = useState(false);
     const [draftTitle, setDraftTitle] = useState("");
+    const [draftAuthorizedRoleIds, setDraftAuthorizedRoleIds] = useState<
+      string[]
+    >([]);
+    const [roleQuery, setRoleQuery] = useState("");
+    const [isRoleDropdownOpen, setRoleDropdownOpen] = useState(false);
+    const [activeRoleIndex, setActiveRoleIndex] = useState(0);
+    const roleInputRef = useRef<HTMLInputElement | null>(null);
     const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
     const [searchQuery, setSearchQuery] = useState("");
 
@@ -38,6 +49,35 @@ export const ActionPlanDisciplinesView =
         disciplines.find((entry) => entry.id === selectedDisciplineId) ?? null,
       [disciplines, selectedDisciplineId],
     );
+
+    const selectedAuthorizedRoles = useMemo(
+      () =>
+        draftAuthorizedRoleIds
+          .map((roleId) =>
+            ACTION_PLAN_AUTHORIZED_ROLE_OPTIONS.find(
+              (role) => role.id === roleId,
+            ),
+          )
+          .filter(
+            (
+              role,
+            ): role is (typeof ACTION_PLAN_AUTHORIZED_ROLE_OPTIONS)[number] =>
+              Boolean(role),
+          ),
+      [draftAuthorizedRoleIds],
+    );
+
+    const filteredAuthorizedRoles = useMemo(() => {
+      const query = roleQuery.trim().toLocaleLowerCase("de");
+      return ACTION_PLAN_AUTHORIZED_ROLE_OPTIONS.filter(
+        (role) =>
+          !draftAuthorizedRoleIds.includes(role.id) &&
+          (!query || role.label.toLocaleLowerCase("de").includes(query)),
+      );
+    }, [draftAuthorizedRoleIds, roleQuery]);
+
+    const hasRoleFilterInput =
+      roleQuery.trim().length > 0 || filteredAuthorizedRoles.length > 0;
 
     const visibleDisciplines = useMemo(() => {
       const query = searchQuery.trim().toLocaleLowerCase("de");
@@ -60,6 +100,9 @@ export const ActionPlanDisciplinesView =
       setIsCreating(true);
       setSelectedDisciplineId(null);
       setDraftTitle("Neue Disziplin");
+      setDraftAuthorizedRoleIds([]);
+      setRoleQuery("");
+      setRoleDropdownOpen(false);
       setIsPanelMounted(true);
     };
 
@@ -69,6 +112,9 @@ export const ActionPlanDisciplinesView =
       setIsCreating(false);
       setSelectedDisciplineId(disciplineId);
       setDraftTitle(discipline.title);
+      setDraftAuthorizedRoleIds(discipline.authorizedRoleIds);
+      setRoleQuery("");
+      setRoleDropdownOpen(false);
       setIsPanelMounted(true);
     };
 
@@ -79,6 +125,24 @@ export const ActionPlanDisciplinesView =
       setIsPanelMounted(false);
       setIsCreating(false);
       setSelectedDisciplineId(null);
+      setDraftAuthorizedRoleIds([]);
+      setRoleQuery("");
+      setRoleDropdownOpen(false);
+    };
+
+    const selectAuthorizedRole = (roleId: string) => {
+      setDraftAuthorizedRoleIds((prev) =>
+        prev.includes(roleId) ? prev : [...prev, roleId],
+      );
+      setRoleQuery("");
+      setActiveRoleIndex(0);
+      requestAnimationFrame(() => roleInputRef.current?.focus());
+    };
+
+    const removeAuthorizedRole = (roleId: string) => {
+      setDraftAuthorizedRoleIds((prev) => prev.filter((id) => id !== roleId));
+      setRoleDropdownOpen(true);
+      requestAnimationFrame(() => roleInputRef.current?.focus());
     };
 
     const saveDiscipline = () => {
@@ -86,7 +150,11 @@ export const ActionPlanDisciplinesView =
       if (isCreating) {
         setDisciplines((prev) => [
           ...prev,
-          { id: `discipline-${Date.now()}`, title },
+          {
+            id: `discipline-${Date.now()}`,
+            title,
+            authorizedRoleIds: draftAuthorizedRoleIds,
+          },
         ]);
         closePanel();
         return;
@@ -94,7 +162,9 @@ export const ActionPlanDisciplinesView =
       if (!selectedDiscipline) return;
       setDisciplines((prev) =>
         prev.map((entry) =>
-          entry.id === selectedDiscipline.id ? { ...entry, title } : entry,
+          entry.id === selectedDiscipline.id
+            ? { ...entry, title, authorizedRoleIds: draftAuthorizedRoleIds }
+            : entry,
         ),
       );
       closePanel();
@@ -206,6 +276,130 @@ export const ActionPlanDisciplinesView =
                   />
                   <span className="pt-2 text-xs text-muted-foreground">
                     immer editierbar
+                  </span>
+
+                  <label className="pt-2 text-sm text-foreground">
+                    Berechtigte Rollen
+                  </label>
+                  <div className="min-h-10 rounded-md border border-input bg-background shadow-sm">
+                    <div className="flex items-start gap-2 px-3 py-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap gap-1">
+                          {selectedAuthorizedRoles.map((role) => (
+                            <Badge
+                              key={role.id}
+                              variant="secondary"
+                              className="h-6 gap-1 rounded-sm border border-border/60 bg-secondary/40 px-1.5 font-normal text-foreground/90"
+                            >
+                              {role.label}
+                              <button
+                                type="button"
+                                className="text-xs leading-none text-muted-foreground hover:text-foreground"
+                                onClick={() => removeAuthorizedRole(role.id)}
+                                aria-label={`${role.label} entfernen`}
+                              >
+                                ×
+                              </button>
+                            </Badge>
+                          ))}
+                          <Input
+                            ref={roleInputRef}
+                            value={roleQuery}
+                            onChange={(event) => {
+                              setRoleQuery(event.target.value);
+                              setRoleDropdownOpen(true);
+                              setActiveRoleIndex(0);
+                            }}
+                            onFocus={() => setRoleDropdownOpen(true)}
+                            onKeyDown={(event) => {
+                              if (
+                                !isRoleDropdownOpen &&
+                                (event.key === "ArrowDown" ||
+                                  event.key === "ArrowUp")
+                              ) {
+                                event.preventDefault();
+                                setRoleDropdownOpen(true);
+                                return;
+                              }
+                              if (
+                                !isRoleDropdownOpen ||
+                                !hasRoleFilterInput ||
+                                filteredAuthorizedRoles.length === 0
+                              )
+                                return;
+                              if (event.key === "ArrowDown") {
+                                event.preventDefault();
+                                setActiveRoleIndex(
+                                  (prev) =>
+                                    (prev + 1) % filteredAuthorizedRoles.length,
+                                );
+                                return;
+                              }
+                              if (event.key === "ArrowUp") {
+                                event.preventDefault();
+                                setActiveRoleIndex(
+                                  (prev) =>
+                                    (prev -
+                                      1 +
+                                      filteredAuthorizedRoles.length) %
+                                    filteredAuthorizedRoles.length,
+                                );
+                                return;
+                              }
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                const activeRole =
+                                  filteredAuthorizedRoles[activeRoleIndex];
+                                if (activeRole)
+                                  selectAuthorizedRole(activeRole.id);
+                                return;
+                              }
+                              if (event.key === "Escape") {
+                                event.preventDefault();
+                                setRoleDropdownOpen(false);
+                              }
+                            }}
+                            placeholder="Berechtigte Rollen suchen..."
+                            className="h-6 min-w-[16rem] border-0 bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0"
+                          />
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="mt-0.5 rounded p-1 text-muted-foreground hover:bg-secondary/70"
+                        onClick={() => setRoleDropdownOpen((prev) => !prev)}
+                        aria-label="Berechtigte Rollen anzeigen"
+                      >
+                        <ChevronUp
+                          className={cn(
+                            "h-4 w-4 transition-transform",
+                            !isRoleDropdownOpen && "rotate-180",
+                          )}
+                        />
+                      </button>
+                    </div>
+                    {isRoleDropdownOpen && hasRoleFilterInput && (
+                      <div className="max-h-56 overflow-y-auto border-t border-border/70 p-1.5">
+                        {filteredAuthorizedRoles.map((role, roleIndex) => (
+                          <button
+                            key={role.id}
+                            type="button"
+                            onClick={() => selectAuthorizedRole(role.id)}
+                            onMouseEnter={() => setActiveRoleIndex(roleIndex)}
+                            className={cn(
+                              "flex w-full items-center rounded-sm px-2 py-1 text-left text-sm hover:bg-secondary/40",
+                              activeRoleIndex === roleIndex &&
+                                "bg-primary/10 text-primary",
+                            )}
+                          >
+                            <span className="truncate">{role.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <span className="pt-2 text-xs text-muted-foreground">
+                    Mehrfachauswahl
                   </span>
                 </div>
               </div>
