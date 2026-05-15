@@ -58,6 +58,10 @@ import {
   type CachedAssessmentState,
   type ConfirmationPeriod,
 } from "@/lib/assessment-cache";
+import {
+  initialActionPlanDisciplines,
+  loadActionPlanDisciplines,
+} from "@/lib/action-plan-disciplines";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DatePickerInput } from "@/components/ui/date-picker-input";
@@ -89,6 +93,8 @@ const OPERATOR_OPTIONS: Array<{ value: NumericComparison["op"]; label: ">" | "<"
 const INITIAL_CONFIRMATION_FILTER: AssessmentFilterModel = {
   statuses: ["open", "postponed"],
 };
+
+const DEFAULT_SEED_DISCIPLINE_ID = "discipline-kja-foerderplanung";
 
 const clampLastNDays = (value: number) => Math.max(1, Math.floor(value));
 const CONFIRMED_STATUSES: ActionNode["status"][] = [
@@ -251,14 +257,14 @@ const getVisibleConfirmationRows = (
           const confirmation = action.confirmations?.[dueDate];
           if (confirmation?.postponedToDate) return;
           const status = confirmation?.status || "open";
-          if (!matchesAssessmentFilter({ action, status, confirmation }, filterModel)) return;
+          if (!matchesAssessmentFilter({ action, status, confirmation, disciplineId: topic.disciplineId }, filterModel)) return;
           rows.push({ dueDate, topic, target, action, confirmationDate: dueDate, status });
         });
 
         Object.entries(action.confirmations ?? {}).forEach(([confirmationDate, confirmation]) => {
           if (!confirmation.postponedToDate) return;
           if (confirmation.postponedToDate < start || confirmation.postponedToDate > end) return;
-          if (!matchesAssessmentFilter({ action, status: confirmation.status, confirmation }, filterModel)) return;
+          if (!matchesAssessmentFilter({ action, status: confirmation.status, confirmation, disciplineId: topic.disciplineId }, filterModel)) return;
           rows.push({
             dueDate: confirmation.postponedToDate,
             topic,
@@ -361,6 +367,7 @@ const seedClients: Client[] = [
       {
         id: uid(),
         title: "Förderziele KJA",
+        disciplineId: DEFAULT_SEED_DISCIPLINE_ID,
         notes:
           "Strukturierte Förderziele für die Kinder- und Jugendarbeit, gegliedert nach Leistungstypen und individuellen Handlungen.",
         targets: [
@@ -404,6 +411,7 @@ const seedClients: Client[] = [
       {
         id: uid(),
         title: "Tagesstruktur",
+        disciplineId: DEFAULT_SEED_DISCIPLINE_ID,
         notes: "Aufbau einer stabilen Tages- und Wochenstruktur.",
         targets: [
           {
@@ -434,6 +442,7 @@ const Index = () => {
     cached?.lastNDays ?? DEFAULT_LAST_N_DAYS,
   );
   const [clients, setClients] = useState<Client[]>(cached?.clients ?? seedClients);
+  const [availableDisciplines] = useState(() => loadActionPlanDisciplines());
   const [selectedClientIds, setSelectedClientIds] = useState<string[]>(
     cached?.selectedClientIds ?? [seedClients[0].id],
   );
@@ -541,6 +550,7 @@ const Index = () => {
       f.differencePercent != null ||
       f.dayPart != null ||
       f.category != null ||
+      (f.disciplineIds?.length ?? 0) > 0 ||
       f.persons != null ||
       f.result != null
     );
@@ -641,6 +651,19 @@ const Index = () => {
     });
   };
 
+  const toggleDraftDiscipline = (disciplineId: string) => {
+    setDraftFilter((prev) => {
+      const selected = prev.disciplineIds ?? [];
+      const disciplineIds = selected.includes(disciplineId)
+        ? selected.filter((id) => id !== disciplineId)
+        : [...selected, disciplineId];
+      return {
+        ...prev,
+        disciplineIds: disciplineIds.length > 0 ? disciplineIds : undefined,
+      };
+    });
+  };
+
   const setOptionalNumber = (
     value: string,
     onDefined: (num: number) => void,
@@ -698,10 +721,16 @@ const Index = () => {
     });
   };
 
-  const addTopic = (clientId: string) => {
+  const addTopic = (clientId: string, disciplineId?: string) => {
     updateClientTopicsFor(clientId, (topics) => [
       ...topics,
-      { id: uid(), title: "", notes: "", targets: [] },
+      {
+        id: uid(),
+        title: "",
+        notes: "",
+        disciplineId: disciplineId ?? availableDisciplines[0]?.id ?? DEFAULT_SEED_DISCIPLINE_ID,
+        targets: [],
+      },
     ]);
   };
 
@@ -815,6 +844,39 @@ const Index = () => {
   ) => {
     updateClientTopicsFor(clientId, (topics) =>
       topics.map((t) => (t.id === topicId ? { ...t, [field]: value } : t)),
+    );
+  };
+
+  const updateTopicDiscipline = (
+    clientId: string,
+    topicId: string,
+    disciplineId: string,
+  ) => {
+    updateClientTopicsFor(clientId, (topics) =>
+      topics.map((topic) =>
+        topic.id === topicId ? { ...topic, disciplineId } : topic,
+      ),
+    );
+  };
+
+  const deleteDiscipline = (clientId: string, disciplineId: string) => {
+    const client = clients.find((c) => c.id === clientId);
+    const topicsInDiscipline = client?.topics.filter(
+      (topic) => (topic.disciplineId ?? DEFAULT_SEED_DISCIPLINE_ID) === disciplineId,
+    ) ?? [];
+    const hasNestedPlanning = topicsInDiscipline.length > 0;
+
+    if (
+      hasNestedPlanning &&
+      !window.confirm(
+        "Diese Disziplin enthält Schwerpunkte, Ziele oder Handlungen. Beim Löschen werden alle verknüpften Daten ebenfalls gelöscht. Möchten Sie fortfahren?",
+      )
+    ) {
+      return;
+    }
+
+    updateClientTopicsFor(clientId, (topics) =>
+      topics.filter((topic) => (topic.disciplineId ?? DEFAULT_SEED_DISCIPLINE_ID) !== disciplineId),
     );
   };
 
@@ -1204,6 +1266,10 @@ const Index = () => {
         return {
           Datum: dueDate,
           "Klient/in": `${client.firstName} ${client.lastName}`.trim(),
+          Disziplin:
+            availableDisciplines.find((discipline) => discipline.id === topic.disciplineId)?.title ??
+            topic.disciplineId ??
+            "",
           Schwerpunkt: topic.title,
           Ziel: target.title,
           Handlung: action.title,
@@ -1246,6 +1312,7 @@ const Index = () => {
     const allHeaders = [
       "Datum",
       "Klient/in",
+      "Disziplin",
       "Schwerpunkt",
       "Ziel",
       "Handlung",
@@ -1609,6 +1676,32 @@ const Index = () => {
 
                   <div className="space-y-3">
                     <div className="space-y-1.5">
+                      <div className="font-medium">Disziplin</div>
+                      <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border border-border bg-background p-2">
+                        {availableDisciplines.map((discipline) => (
+                          <label
+                            key={discipline.id}
+                            className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-secondary/50"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={(draftFilter.disciplineIds ?? []).includes(discipline.id)}
+                              onChange={() => toggleDraftDiscipline(discipline.id)}
+                              className="h-4 w-4 rounded border-border accent-primary"
+                            />
+                            <span>{discipline.title}</span>
+                          </label>
+                        ))}
+                        {availableDisciplines.length === 0 && (
+                          <div className="px-2 py-1 text-sm text-muted-foreground">Keine Disziplinen erfasst</div>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Keine Auswahl zeigt alle Disziplinen.
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
                       <div className="font-medium">Tageszeit</div>
                       <Select
                         value={draftFilter.dayPart ?? "all"}
@@ -1966,6 +2059,7 @@ const Index = () => {
                       lastNDays={lastNDays}
                       clientName={`${client.firstName} ${client.lastName}`.trim()}
                       topics={client.topics}
+                      disciplines={availableDisciplines.length > 0 ? availableDisciplines : initialActionPlanDisciplines}
                       hideConfirmationHeader
                       bulkNotDoneMode={bulkNotDoneClientIds.has(client.id)}
                       onBulkNotDoneModeChange={(enabled) => setClientBulkNotDoneMode(client.id, enabled)}
@@ -1985,7 +2079,11 @@ const Index = () => {
                       onConfirmAction={(topicId, targetId, actionId, payload, date) =>
                         confirmAction(client.id, topicId, targetId, actionId, payload, date)
                       }
-                      onAddTopic={() => addTopic(client.id)}
+                      onAddTopic={(disciplineId) => addTopic(client.id, disciplineId)}
+                      onUpdateTopicDiscipline={(topicId, disciplineId) =>
+                        updateTopicDiscipline(client.id, topicId, disciplineId)
+                      }
+                      onDeleteDiscipline={(disciplineId) => deleteDiscipline(client.id, disciplineId)}
                       onAddTarget={(topicId) => addTarget(client.id, topicId)}
                       onAddAction={(topicId, targetId, templateIds, serviceType) =>
                         addAction(client.id, topicId, targetId, templateIds, serviceType)

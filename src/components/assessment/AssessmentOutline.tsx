@@ -84,6 +84,10 @@ import {
   type ActionPlanTemplate,
 } from "@/lib/action-plan-templates";
 import { DEFAULT_LAST_N_DAYS, type ConfirmationPeriod } from "@/lib/assessment-cache";
+import {
+  initialActionPlanDisciplines,
+  type ActionPlanDiscipline,
+} from "@/lib/action-plan-disciplines";
 
 type ConfirmPayload =
   | { status: "done_as_planned"; result?: string; observations?: string }
@@ -124,6 +128,7 @@ interface Props {
   lastNDays?: number;
   clientName?: string;
   topics: TopicNode[];
+  disciplines?: ActionPlanDiscipline[];
   hideConfirmationHeader?: boolean;
   bulkNotDoneMode?: boolean;
   onBulkNotDoneModeChange?: (enabled: boolean) => void;
@@ -165,7 +170,9 @@ interface Props {
     templateIds: string[],
     serviceType?: ActionServiceType,
   ) => void;
-  onAddTopic: () => void;
+  onAddTopic: (disciplineId?: string) => void;
+  onUpdateTopicDiscipline?: (topicId: string, disciplineId: string) => void;
+  onDeleteDiscipline?: (disciplineId: string) => void;
   onDeleteTopic: (topicId: string) => void;
   onDeleteTarget: (topicId: string, targetId: string) => void;
   onDeleteAction: (topicId: string, targetId: string, actionId: string) => void;
@@ -365,6 +372,7 @@ export function AssessmentOutline({
   lastNDays = DEFAULT_LAST_N_DAYS,
   clientName,
   topics,
+  disciplines = initialActionPlanDisciplines,
   hideConfirmationHeader,
   bulkNotDoneMode = false,
   onBulkNotDoneModeChange,
@@ -378,6 +386,8 @@ export function AssessmentOutline({
   onAddTarget,
   onAddAction,
   onAddTopic,
+  onUpdateTopicDiscipline,
+  onDeleteDiscipline,
   onDeleteTopic,
   onDeleteTarget,
   onDeleteAction,
@@ -393,11 +403,17 @@ export function AssessmentOutline({
   const [templateQuery, setTemplateQuery] = useState("");
   const [isTemplateDropdownOpen, setTemplateDropdownOpen] = useState(false);
   const [activeTemplateIndex, setActiveTemplateIndex] = useState(0);
+  const [newTopicDisciplineId, setNewTopicDisciplineId] = useState(
+    disciplines[0]?.id ?? initialActionPlanDisciplines[0]?.id ?? "",
+  );
   const [dialogTarget, setDialogTarget] = useState<DialogTarget | null>(null);
   const [selectedBulkNotDoneKeys, setSelectedBulkNotDoneKeys] = useState<Set<string>>(new Set());
   const [bulkNotDoneDialogOpen, setBulkNotDoneDialogOpen] = useState(false);
   const templateInputRef = useRef<HTMLInputElement | null>(null);
   const today = format(new Date(), "yyyy-MM-dd");
+  const disciplineOptions = disciplines.length > 0 ? disciplines : initialActionPlanDisciplines;
+  const getTopicDisciplineId = (topic: TopicNode) =>
+    topic.disciplineId ?? disciplineOptions[0]?.id ?? "";
 
   useEffect(() => {
     if (!bulkNotDoneMode) {
@@ -555,7 +571,7 @@ export function AssessmentOutline({
             const confirmation = action.confirmations?.[dueDate];
             if (confirmation?.postponedToDate) return;
             const status = getStatusForDate(action, dueDate);
-            if (!matchesAssessmentFilter({ action, status, confirmation }, filterModel)) return;
+            if (!matchesAssessmentFilter({ action, status, confirmation, disciplineId: topic.disciplineId }, filterModel)) return;
             flatActions.push({ topic, target, action, dueDate, confirmationDate: dueDate, status });
           });
 
@@ -564,7 +580,7 @@ export function AssessmentOutline({
             if (confirmation.postponedToDate < periodRange.start || confirmation.postponedToDate > periodRange.end) {
               return;
             }
-            if (!matchesAssessmentFilter({ action, status: confirmation.status, confirmation }, filterModel)) return;
+            if (!matchesAssessmentFilter({ action, status: confirmation.status, confirmation, disciplineId: topic.disciplineId }, filterModel)) return;
             flatActions.push({
               topic,
               target,
@@ -917,7 +933,12 @@ export function AssessmentOutline({
                                   </div>
                                 )}
                                 <div className="mt-2 text-xs break-words">
-                                  <div className="font-medium text-primary/70 line-clamp-2 break-words">{topic.title}</div>
+                                  <div className="text-muted-foreground/70 line-clamp-2 break-words">
+                                    {disciplineOptions.find((discipline) => discipline.id === topic.disciplineId)?.title ??
+                                      topic.disciplineId ??
+                                      "Ohne Disziplin"}
+                                  </div>
+                                  <div className="mt-1 font-medium text-primary/70 line-clamp-2 break-words">{topic.title}</div>
                                   <div className="mt-1 text-muted-foreground line-clamp-2 break-words">{target.title}</div>
                                 </div>
                               </TableCell>
@@ -1056,8 +1077,25 @@ export function AssessmentOutline({
     return (
       <div className="border border-dashed border-border rounded-sm p-12 text-center text-muted-foreground">
         <p className="mb-4">Noch keine Schwerpunkte erfasst.</p>
+        <div className="mx-auto mb-4 max-w-xs text-left">
+          <Label className="mb-1 block text-xs uppercase tracking-widest text-muted-foreground">
+            Disziplin
+          </Label>
+          <Select value={newTopicDisciplineId} onValueChange={setNewTopicDisciplineId}>
+            <SelectTrigger className="bg-background">
+              <SelectValue placeholder="Disziplin auswählen" />
+            </SelectTrigger>
+            <SelectContent>
+              {disciplineOptions.map((discipline) => (
+                <SelectItem key={discipline.id} value={discipline.id}>
+                  {discipline.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <button
-          onClick={onAddTopic}
+          onClick={() => onAddTopic(newTopicDisciplineId)}
           className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-sm text-sm font-medium hover:bg-primary/90"
         >
           <Plus className="h-4 w-4" />
@@ -1070,7 +1108,43 @@ export function AssessmentOutline({
   return (
     <div className="space-y-10">
       {topics.map((topic) => (
-        <section key={topic.id} className="group/topic">
+        <section key={topic.id} className="group/topic space-y-3">
+          <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] uppercase tracking-widest font-semibold text-primary mb-1">
+                  Disziplin
+                </div>
+                <Select
+                  value={getTopicDisciplineId(topic)}
+                  onValueChange={(value) =>
+                    onUpdateTopicDiscipline?.(topic.id, value)
+                  }
+                >
+                  <SelectTrigger className="max-w-sm border-primary/20 bg-background/80 font-medium">
+                    <SelectValue placeholder="Disziplin auswählen" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {disciplineOptions.map((discipline) => (
+                      <SelectItem key={discipline.id} value={discipline.id}>
+                        {discipline.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <button
+                type="button"
+                onClick={() => onDeleteDiscipline?.(getTopicDisciplineId(topic))}
+                className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                aria-label="Disziplin löschen"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Disziplin löschen
+              </button>
+            </div>
+          </div>
+
           {/* Topic header */}
           <div className="flex items-start gap-3 pb-2 border-b-2 border-primary/30">
             <div className="flex-1 min-w-0">
@@ -1402,9 +1476,26 @@ export function AssessmentOutline({
         </section>
       ))}
 
-      <div className="pt-4 border-t border-dashed border-border">
+      <div className="flex flex-col gap-3 border-t border-dashed border-border pt-4 sm:flex-row sm:items-end">
+        <div className="w-full max-w-xs">
+          <Label className="mb-1 block text-xs uppercase tracking-widest text-muted-foreground">
+            Disziplin für neuen Schwerpunkt
+          </Label>
+          <Select value={newTopicDisciplineId} onValueChange={setNewTopicDisciplineId}>
+            <SelectTrigger>
+              <SelectValue placeholder="Disziplin auswählen" />
+            </SelectTrigger>
+            <SelectContent>
+              {disciplineOptions.map((discipline) => (
+                <SelectItem key={discipline.id} value={discipline.id}>
+                  {discipline.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <button
-          onClick={onAddTopic}
+          onClick={() => onAddTopic(newTopicDisciplineId)}
           className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-sm text-sm font-medium hover:bg-primary/90"
         >
           <Plus className="h-4 w-4" />

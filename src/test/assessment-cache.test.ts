@@ -22,6 +22,7 @@ const cachedState: CachedAssessmentState = {
         {
           id: "topic-1",
           title: "Schwerpunkt",
+          disciplineId: "discipline-kja-foerderplanung",
           notes: "",
           targets: [
             {
@@ -98,6 +99,24 @@ describe("assessment browser cache", () => {
       confirmationFilter: fallbackFilter,
       showCompletedTargets: false,
     });
+  });
+
+  it("migriert bestehende Cache-Planungen einmalig zur Inhouse-Spitex", () => {
+    const legacyClients = [
+      {
+        ...cachedState.clients[0],
+        topics: cachedState.clients[0].topics.map(({ disciplineId: _disciplineId, ...topic }) => topic),
+      },
+    ];
+
+    window.localStorage.setItem(
+      ASSESSMENT_CACHE_KEY,
+      JSON.stringify({ ...cachedState, clients: legacyClients }),
+    );
+
+    expect(loadCachedAssessmentState("2026-01-01", fallbackFilter)?.clients[0].topics[0].disciplineId).toBe(
+      "discipline-inhouse-spitex",
+    );
   });
 
   it("lädt den Zeitraum Letzte N Tage aus dem Cache", () => {
