@@ -715,12 +715,13 @@ export function AssessmentOutline({
                 </Button>
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="destructive"
                   size="sm"
-                  className="border-border/70 bg-background/50 text-muted-foreground hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive"
+                  className="shadow-sm shadow-destructive/20 hover:shadow-md hover:shadow-destructive/25"
                   disabled={selectedBulkNotDoneTargets.length === 0}
                   onClick={() => setBulkNotDoneDialogOpen(true)}
                 >
+                  <XCircle className="h-4 w-4" aria-hidden="true" />
                   Ausgewählte als „Nicht durchgeführt“ bestätigen
                 </Button>
               </div>
@@ -1044,6 +1045,7 @@ export function AssessmentOutline({
             });
             setSelectedBulkNotDoneKeys(new Set());
             setBulkNotDoneDialogOpen(false);
+            onBulkNotDoneModeChange?.(false);
           }}
         />
       </div>

@@ -133,8 +133,9 @@ describe("AssessmentOutline confirmation actions", () => {
     expect(onBulkNotDoneModeChange).toHaveBeenCalledWith(false);
   });
 
-  it("confirms multiple selected actions as not done with one shared reason", async () => {
+  it("confirms multiple selected actions as not done with one shared reason and leaves bulk mode", async () => {
     const onConfirmAction = vi.fn();
+    const onBulkNotDoneModeChange = vi.fn();
 
     render(
       <AssessmentOutline
@@ -147,6 +148,7 @@ describe("AssessmentOutline confirmation actions", () => {
         topics={topics}
         hideConfirmationHeader
         bulkNotDoneMode
+        onBulkNotDoneModeChange={onBulkNotDoneModeChange}
         filterModel={{ statuses: ["open", "postponed"] }}
         onUpdateTopic={vi.fn()}
         onUpdateTarget={vi.fn()}
@@ -191,5 +193,6 @@ describe("AssessmentOutline confirmation actions", () => {
       { status: "not_done", reason: "Klient war abwesend" },
       expect.any(String),
     );
+    expect(onBulkNotDoneModeChange).toHaveBeenCalledWith(false);
   });
 });
