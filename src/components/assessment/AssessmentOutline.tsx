@@ -2372,6 +2372,15 @@ function StatusBadge({ action }: { action: ActionNode }) {
 }
 
 
+const buildEmptyUnplannedTemplateDraft = (dayPart?: DayPart | "none"): UnplannedActionDraft => {
+  const defaultFields = buildDefaultTemplateFields();
+  return {
+    title: "",
+    notes: defaultFields.beschreibung,
+    dayPart: dayPart === "none" ? undefined : dayPart,
+  };
+};
+
 export function UnplannedActionDialog({
   target,
   onClose,
@@ -2390,6 +2399,13 @@ export function UnplannedActionDialog({
   const templateInputRef = useRef<HTMLInputElement | null>(null);
   const [draft, setDraft] = useState<UnplannedActionDraft>({ title: "", notes: "" });
   const open = target !== null;
+
+  const clearTemplateSelection = () => {
+    setSelectedTemplateId("");
+    setTemplateQuery("");
+    setTemplateDropdownOpen(false);
+    setDraft(buildEmptyUnplannedTemplateDraft(target?.dayPart));
+  };
 
   const applyTemplate = (templateId: string, fallbackDayPart: DayPart | "none") => {
     const template = templates.find((entry) => entry.id === templateId);
@@ -2414,20 +2430,20 @@ export function UnplannedActionDialog({
   };
 
   useEffect(() => {
-    if (!target) return;
-    const loadedTemplates = loadActionPlanTemplates();
-    setTemplates(loadedTemplates);
-    setCreationMode("template");
+    setSelectedTemplateId("");
     setTemplateQuery("");
     setTemplateDropdownOpen(false);
     setActiveTemplateIndex(0);
-    const defaultFields = buildDefaultTemplateFields();
-    setSelectedTemplateId("");
-    setDraft({
-      title: "",
-      notes: defaultFields.beschreibung,
-      dayPart: target.dayPart === "none" ? undefined : target.dayPart,
-    });
+
+    if (!target) {
+      setDraft({ title: "", notes: "" });
+      return;
+    }
+
+    const loadedTemplates = loadActionPlanTemplates();
+    setTemplates(loadedTemplates);
+    setCreationMode("template");
+    setDraft(buildEmptyUnplannedTemplateDraft(target.dayPart));
   }, [target]);
 
   const selectedTemplate = templates.find((template) => template.id === selectedTemplateId);
@@ -2476,15 +2492,10 @@ export function UnplannedActionDialog({
       });
       return;
     }
-    const defaultFields = buildDefaultTemplateFields();
     setSelectedTemplateId("");
     setTemplateQuery("");
     setTemplateDropdownOpen(true);
-    setDraft({
-      title: "",
-      notes: defaultFields.beschreibung,
-      dayPart: target?.dayPart === "none" ? undefined : target?.dayPart,
-    });
+    setDraft(buildEmptyUnplannedTemplateDraft(target?.dayPart));
   };
 
   const submit = () => {
@@ -2549,6 +2560,14 @@ export function UnplannedActionDialog({
                           className="h-6 max-w-full gap-1 rounded-sm border border-border/60 bg-secondary/40 px-1.5 font-normal text-foreground/90"
                         >
                           <span className="truncate">{selectedTemplate.name}</span>
+                          <button
+                            type="button"
+                            aria-label="Vorlage entfernen"
+                            className="text-xs leading-none text-muted-foreground hover:text-foreground"
+                            onClick={clearTemplateSelection}
+                          >
+                            <span aria-hidden="true">×</span>
+                          </button>
                         </Badge>
                       )}
                       <Input
