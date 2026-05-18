@@ -2,6 +2,11 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AssessmentOutline, UnplannedActionDialog } from "@/components/assessment/AssessmentOutline";
 import type { TopicNode } from "@/types/assessment";
+import {
+  ACTION_PLAN_TEMPLATES_STORAGE_KEY,
+  buildDefaultTemplateEditable,
+  buildDefaultTemplateFields,
+} from "@/lib/action-plan-templates";
 
 const topics: TopicNode[] = [
   {
@@ -243,6 +248,165 @@ describe("AssessmentOutline confirmation actions", () => {
       expect.any(String),
     );
     expect(onBulkNotDoneModeChange).toHaveBeenCalledWith(false);
+  });
+
+  it("sperrt die Kategorie im ungeplanten Vorlagendialog, wenn die Vorlage Kategorie nicht veränderbar setzt", async () => {
+    window.localStorage.setItem(
+      ACTION_PLAN_TEMPLATES_STORAGE_KEY,
+      JSON.stringify([
+        {
+          id: "tpl-locked-category",
+          name: "Kategorie gesperrt",
+          disciplineIds: [],
+          fields: {
+            ...buildDefaultTemplateFields(),
+            beschreibung: "Fixe Beschreibung",
+            hilfsmittel: "Fixes Hilfsmittel",
+            dauer: "25",
+            personen: "2",
+            kategorie: "b",
+            tageszeit: "morning",
+            uhrzeit: "08:15",
+            resultat: "required",
+          },
+          editable: {
+            ...buildDefaultTemplateEditable(true),
+            beschreibung: false,
+            hilfsmittel: false,
+            dauer: false,
+            personen: false,
+            kategorie: false,
+            tageszeit: false,
+            uhrzeit: false,
+            resultat: false,
+          },
+        },
+      ]),
+    );
+
+    render(
+      <UnplannedActionDialog
+        target={{ dueDate: "2026-05-12", dayPart: "none" }}
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByPlaceholderText("Vorlagen suchen..."), { target: { value: "Kat" } });
+    fireEvent.click(await within(dialog).findByText("Kategorie gesperrt"));
+
+    expect(within(dialog).getByLabelText("Beschreibung")).toBeDisabled();
+    expect(within(dialog).getByLabelText("Hilfsmittel")).toBeDisabled();
+    expect(within(dialog).getByRole("combobox", { name: "Tageszeit" })).toBeDisabled();
+    expect(within(dialog).getByLabelText("Uhrzeit")).toBeDisabled();
+    expect(within(dialog).getByLabelText("Geplante Minuten")).toBeDisabled();
+    expect(within(dialog).getByLabelText("Anz. Personen")).toBeDisabled();
+    expect(within(dialog).getByRole("combobox", { name: "Kategorie" })).toBeDisabled();
+    expect(within(dialog).getByRole("combobox", { name: "Resultat" })).toBeDisabled();
+  });
+
+  it("deaktiviert alle gesperrten Vorlagenfelder in der Planung", () => {
+    const onUpdateActionField = vi.fn();
+    const lockedTopics: TopicNode[] = [
+      {
+        id: "topic-locked",
+        title: "Schwerpunkt",
+        notes: "",
+        targets: [
+          {
+            id: "target-locked",
+            title: "Ziel",
+            notes: "",
+            actions: [
+              {
+                id: "action-locked-monthly",
+                title: "Gesperrte Vorlage",
+                notes: "Fixe Beschreibung",
+                requiredResources: "Fixes Hilfsmittel",
+                status: "open",
+                done: false,
+                validFrom: "2026-05-01",
+                recurrence: "monthly",
+                recurrenceMonthlyPattern: "first_day",
+                category: "b",
+                dayPart: "morning",
+                scheduledTime: "08:15",
+                plannedMinutes: 25,
+                requiredPersons: 2,
+                resultRequirement: "required",
+                templateLockedFields: [
+                  "title",
+                  "notes",
+                  "requiredResources",
+                  "category",
+                  "dayPart",
+                  "scheduledTime",
+                  "plannedMinutes",
+                  "requiredPersons",
+                  "resultRequirement",
+                  "recurrence",
+                  "recurrenceMonthlyPattern",
+                ],
+              },
+              {
+                id: "action-locked-weekly",
+                title: "Gesperrte Wochentage",
+                notes: "",
+                status: "open",
+                done: false,
+                validFrom: "2026-05-01",
+                recurrence: "weekly",
+                recurrenceWeekdays: ["monday"],
+                templateLockedFields: ["recurrenceWeekdays"],
+              },
+            ],
+          },
+        ],
+      },
+    ];
+
+    render(
+      <AssessmentOutline
+        selectedDate="2026-05-12"
+        onSelectedDateChange={vi.fn()}
+        clientName="Test Klient"
+        topics={lockedTopics}
+        hideConfirmationHeader
+        onUpdateTopic={vi.fn()}
+        onUpdateTarget={vi.fn()}
+        onUpdateAction={vi.fn()}
+        onUpdateActionField={onUpdateActionField}
+        onConfirmAction={vi.fn()}
+        onAddTarget={vi.fn()}
+        onAddAction={vi.fn()}
+        onAddTopic={vi.fn()}
+        onDeleteTopic={vi.fn()}
+        onDeleteTarget={vi.fn()}
+        onDeleteAction={vi.fn()}
+        viewMode="planning"
+      />,
+    );
+
+    const monthlyAction = screen.getByDisplayValue("Gesperrte Vorlage").closest("li");
+    expect(monthlyAction).not.toBeNull();
+    const monthlyScope = within(monthlyAction as HTMLElement);
+
+    expect(monthlyScope.getByDisplayValue("Gesperrte Vorlage")).toHaveAttribute("readonly");
+    expect(monthlyScope.getByPlaceholderText("Beschreibung zur Handlung...")).toBeDisabled();
+    expect(monthlyScope.getByPlaceholderText("Hilfsmittel zur Durchführung...")).toBeDisabled();
+    expect(monthlyScope.getByRole("combobox", { name: "Kategorie" })).toBeDisabled();
+    expect(monthlyScope.getByRole("combobox", { name: "Tageszeit" })).toBeDisabled();
+    expect(monthlyScope.getByLabelText("Uhrzeit")).toBeDisabled();
+    expect(monthlyScope.getByDisplayValue("25")).toBeDisabled();
+    expect(monthlyScope.getByDisplayValue("2")).toBeDisabled();
+    expect(monthlyScope.getByRole("combobox", { name: "Resultat" })).toBeDisabled();
+    expect(monthlyScope.getByRole("combobox", { name: "Wiederholung" })).toBeDisabled();
+    expect(monthlyScope.getByRole("combobox", { name: "Monatliche Regel" })).toBeDisabled();
+
+    const weeklyAction = screen.getByDisplayValue("Gesperrte Wochentage").closest("li");
+    expect(weeklyAction).not.toBeNull();
+    expect(within(weeklyAction as HTMLElement).getByRole("button", { name: "Mo" })).toBeDisabled();
   });
 
   it("opens unplanned template creation without a preselected template or visible title field", async () => {
