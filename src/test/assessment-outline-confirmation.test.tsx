@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
-import { AssessmentOutline } from "@/components/assessment/AssessmentOutline";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { AssessmentOutline, UnplannedActionDialog } from "@/components/assessment/AssessmentOutline";
 import type { TopicNode } from "@/types/assessment";
 
 const topics: TopicNode[] = [
@@ -31,6 +31,9 @@ const topics: TopicNode[] = [
 ];
 
 describe("AssessmentOutline confirmation actions", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
 
   it("allows confirming category A actions for the simulated Inhouse-Spitex A role", async () => {
     render(
@@ -241,4 +244,47 @@ describe("AssessmentOutline confirmation actions", () => {
     );
     expect(onBulkNotDoneModeChange).toHaveBeenCalledWith(false);
   });
+
+  it("opens unplanned template creation without a preselected template or visible title field", async () => {
+    const onAddUnplannedAction = vi.fn();
+
+    render(
+      <UnplannedActionDialog
+        target={{ dueDate: "2026-05-12", dayPart: "none" }}
+        onClose={vi.fn()}
+        onConfirm={onAddUnplannedAction}
+      />,
+    );
+
+    const dialog = await screen.findByRole("dialog");
+
+    expect(within(dialog).queryByText("Morgenroutine")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("Titel")).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Bestätigen" })).toBeDisabled();
+  });
+
+  it("uses the selected template name as title for unplanned template actions", async () => {
+    const onAddUnplannedAction = vi.fn();
+
+    render(
+      <UnplannedActionDialog
+        target={{ dueDate: "2026-05-12", dayPart: "none" }}
+        onClose={vi.fn()}
+        onConfirm={onAddUnplannedAction}
+      />,
+    );
+
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByPlaceholderText("Vorlagen suchen..."), { target: { value: "Morg" } });
+    fireEvent.click(await within(dialog).findByText("Morgenroutine"));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Bestätigen" }));
+
+    expect(onAddUnplannedAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Morgenroutine",
+        templateName: "Morgenroutine",
+      }),
+    );
+  });
+
 });
