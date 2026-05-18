@@ -1148,12 +1148,17 @@ const Index = () => {
   const deleteTopic = (clientId: string, topicId: string) => {
     const client = clients.find((c) => c.id === clientId);
     const topic = client?.topics.find((t) => t.id === topicId);
+    const hasTitle = (topic?.title ?? "").trim().length > 0;
+    const hasNotes = (topic?.notes ?? "").trim().length > 0;
     const hasTargets = (topic?.targets.length ?? 0) > 0;
+    const requiresConfirmation = hasTitle || hasNotes || hasTargets;
 
     if (
-      hasTargets &&
+      requiresConfirmation &&
       !window.confirm(
-        "Dieser Schwerpunkt enthält Ziele. Beim Löschen werden alle verknüpften Daten ebenfalls gelöscht. Möchten Sie fortfahren?",
+        hasTargets
+          ? "Dieser Schwerpunkt enthält Ziele oder Handlungen. Beim Löschen werden alle verknüpften Daten ebenfalls gelöscht. Möchten Sie fortfahren?"
+          : "Diesen Schwerpunkt wirklich löschen?",
       )
     ) {
       return;

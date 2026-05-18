@@ -1145,15 +1145,6 @@ export function AssessmentOutline({
                       </SelectContent>
                     </Select>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => onDeleteDiscipline?.(getTopicDisciplineId(topic))}
-                    className="opacity-0 group-hover/topic:opacity-100 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground transition-opacity hover:bg-destructive/10 hover:text-destructive"
-                    aria-label="Disziplin löschen"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                    Disziplin löschen
-                  </button>
                 </div>
                 <div className="text-[10px] uppercase tracking-widest font-semibold text-accent mb-1">
                   Schwerpunkt
