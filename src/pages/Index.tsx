@@ -939,6 +939,8 @@ const Index = () => {
         };
       });
     });
+
+    return actionId;
   };
 
   const updateTopic = (
