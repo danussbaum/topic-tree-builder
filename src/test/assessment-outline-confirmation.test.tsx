@@ -287,4 +287,138 @@ describe("AssessmentOutline confirmation actions", () => {
     );
   });
 
+  it("keeps a newly created confirmed unplanned action visible while the unconfirmed filter is active", () => {
+    render(
+      <AssessmentOutline
+        viewMode="confirmation"
+        selectedDate="2026-05-12"
+        onSelectedDateChange={vi.fn()}
+        confirmationPeriod="day"
+        clientName="Test Klient"
+        topics={[
+          {
+            id: "topic-unplanned",
+            title: "Ungeplante Handlungen",
+            notes: "",
+            targets: [
+              {
+                id: "target-unplanned",
+                title: "Direkt in der Umsetzung erfasst",
+                notes: "",
+                actions: [
+                  {
+                    id: "unplanned-confirmed",
+                    title: "Spontane Begleitung",
+                    notes: "",
+                    status: "done_as_planned",
+                    done: true,
+                    validFrom: "2026-05-12",
+                    validTo: "2026-05-12",
+                    recurrence: "daily",
+                    isUnplanned: true,
+                    confirmations: {
+                      "2026-05-12": {
+                        status: "done_as_planned",
+                        done: true,
+                        actualMinutes: 20,
+                      },
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        ]}
+        hideConfirmationHeader
+        filterModel={{ statuses: ["open", "postponed"] }}
+        transientUnplannedActionIds={new Set(["unplanned-confirmed"])}
+        onUpdateTopic={vi.fn()}
+        onUpdateTarget={vi.fn()}
+        onUpdateAction={vi.fn()}
+        onUpdateActionField={vi.fn()}
+        onConfirmAction={vi.fn()}
+        onAddTarget={vi.fn()}
+        onAddAction={vi.fn()}
+        onAddTopic={vi.fn()}
+        onDeleteTopic={vi.fn()}
+        onDeleteTarget={vi.fn()}
+        onDeleteAction={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Spontane Begleitung")).toBeInTheDocument();
+  });
+
+  it("allows deleting a confirmed unplanned action from the confirmation dialog", async () => {
+    const onDeleteAction = vi.fn();
+
+    render(
+      <AssessmentOutline
+        viewMode="confirmation"
+        selectedDate="2026-05-12"
+        onSelectedDateChange={vi.fn()}
+        confirmationPeriod="day"
+        clientName="Test Klient"
+        topics={[
+          {
+            id: "topic-unplanned",
+            title: "Ungeplante Handlungen",
+            notes: "",
+            targets: [
+              {
+                id: "target-unplanned",
+                title: "Direkt in der Umsetzung erfasst",
+                notes: "",
+                actions: [
+                  {
+                    id: "unplanned-confirmed",
+                    title: "Spontane Begleitung",
+                    notes: "",
+                    status: "done_as_planned",
+                    done: true,
+                    validFrom: "2026-05-12",
+                    validTo: "2026-05-12",
+                    recurrence: "daily",
+                    isUnplanned: true,
+                    confirmations: {
+                      "2026-05-12": {
+                        status: "done_as_planned",
+                        done: true,
+                        actualMinutes: 20,
+                      },
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        ]}
+        hideConfirmationHeader
+        filterModel={{ statuses: ["done_as_planned"] }}
+        onUpdateTopic={vi.fn()}
+        onUpdateTarget={vi.fn()}
+        onUpdateAction={vi.fn()}
+        onUpdateActionField={vi.fn()}
+        onConfirmAction={vi.fn()}
+        onAddTarget={vi.fn()}
+        onAddAction={vi.fn()}
+        onAddTopic={vi.fn()}
+        onDeleteTopic={vi.fn()}
+        onDeleteTarget={vi.fn()}
+        onDeleteAction={onDeleteAction}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Umsetzung bearbeiten" }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Löschen" }));
+
+    expect(onDeleteAction).toHaveBeenCalledWith(
+      "topic-unplanned",
+      "target-unplanned",
+      "unplanned-confirmed",
+    );
+  });
+
 });

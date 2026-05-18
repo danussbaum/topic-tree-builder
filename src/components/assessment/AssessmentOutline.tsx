@@ -165,6 +165,7 @@ interface Props {
   showConfirmed?: boolean;
   confirmationFilter?: ConfirmationFilter;
   filterModel?: AssessmentFilterModel;
+  transientUnplannedActionIds?: Set<string>;
   onUpdateTopic: (topicId: string, field: "title" | "notes", value: string) => void;
   onUpdateTarget: (
     topicId: string,
@@ -401,6 +402,7 @@ export function AssessmentOutline({
   onBulkNotDoneModeChange,
   confirmationFilter,
   filterModel = DEFAULT_ASSESSMENT_FILTER,
+  transientUnplannedActionIds = new Set(),
   onUpdateTopic,
   onUpdateTarget,
   onUpdateAction,
@@ -434,7 +436,6 @@ export function AssessmentOutline({
   const [selectedBulkNotDoneKeys, setSelectedBulkNotDoneKeys] = useState<Set<string>>(new Set());
   const [bulkNotDoneDialogOpen, setBulkNotDoneDialogOpen] = useState(false);
   const [unplannedDialogTarget, setUnplannedDialogTarget] = useState<{ dueDate: string; dayPart: DayPart | "none" } | null>(null);
-  const [transientUnplannedActionIds, setTransientUnplannedActionIds] = useState<Set<string>>(new Set());
   const templateInputRef = useRef<HTMLInputElement | null>(null);
   const today = format(new Date(), "yyyy-MM-dd");
   const disciplineOptions = disciplines.length > 0 ? disciplines : initialActionPlanDisciplines;
@@ -471,10 +472,6 @@ export function AssessmentOutline({
       setBulkNotDoneDialogOpen(false);
     }
   }, [bulkNotDoneMode]);
-
-  useEffect(() => {
-    setTransientUnplannedActionIds(new Set());
-  }, [confirmationFilter, filterModel]);
 
   const openAddActionDialog = (topicId: string, targetId: string) => {
     const topic = topics.find((entry) => entry.id === topicId);
@@ -1140,16 +1137,18 @@ export function AssessmentOutline({
             );
             setDialogTarget(null);
           }}
+          onDelete={dialogTarget?.action.isUnplanned ? () => {
+            if (!dialogTarget) return;
+            onDeleteAction(dialogTarget.topicId, dialogTarget.targetId, dialogTarget.action.id);
+            setDialogTarget(null);
+          } : undefined}
         />
         <UnplannedActionDialog
           target={unplannedDialogTarget}
           onClose={() => setUnplannedDialogTarget(null)}
           onConfirm={(draft) => {
             if (!unplannedDialogTarget || !onAddUnplannedAction) return;
-            const createdActionId = onAddUnplannedAction(unplannedDialogTarget.dueDate, unplannedDialogTarget.dayPart, draft);
-            if (typeof createdActionId === "string") {
-              setTransientUnplannedActionIds((prev) => new Set(prev).add(createdActionId));
-            }
+            onAddUnplannedAction(unplannedDialogTarget.dueDate, unplannedDialogTarget.dayPart, draft);
             setUnplannedDialogTarget(null);
           }}
         />
@@ -2790,10 +2789,12 @@ function ConfirmActionDialog({
   target,
   onClose,
   onConfirm,
+  onDelete,
 }: {
   target: DialogTarget | null;
   onClose: () => void;
   onConfirm: (p: ConfirmPayload) => void;
+  onDelete?: () => void;
 }) {
   const [mode, setMode] = useState<ActionStatus | null>(null);
   const [actualMinutes, setActualMinutes] = useState<string>("");
@@ -3104,6 +3105,15 @@ function ConfirmActionDialog({
             >
               <RotateCcw className="h-4 w-4" />
               Zurücksetzen
+            </Button>
+          ) : target?.action.status !== "open" && target?.action.isUnplanned && onDelete ? (
+            <Button
+              variant="ghost"
+              onClick={onDelete}
+              className="gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
+            >
+              <Trash2 className="h-4 w-4" />
+              Löschen
             </Button>
           ) : (
             <span />
