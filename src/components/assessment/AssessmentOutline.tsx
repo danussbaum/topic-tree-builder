@@ -822,11 +822,11 @@ export function AssessmentOutline({
                         "w-full table-fixed",
                         bulkNotDoneMode
                           ? clientName
-                            ? "min-w-[1126px]"
-                            : "min-w-[1016px]"
+                            ? "min-w-[1102px]"
+                            : "min-w-[992px]"
                           : clientName
-                            ? "min-w-[1078px]"
-                            : "min-w-[968px]",
+                            ? "min-w-[1054px]"
+                            : "min-w-[944px]",
                       )}
                     >
                       <TableHeader className="bg-secondary/40">
@@ -836,7 +836,7 @@ export function AssessmentOutline({
                           )}
                           <TableHead className="w-[48px] px-1"><span className="sr-only">Umsetzung</span></TableHead>
                           {clientName && <TableHead className="w-[110px] px-2">Klient/in</TableHead>}
-                          <TableHead className="w-[320px] px-2">Handlung</TableHead>
+                          <TableHead className="w-[296px] px-2">Handlung</TableHead>
                           <TableHead className="w-[90px] px-2">Kategorie</TableHead>
                           <TableHead className="w-[80px] px-2">Uhrzeit</TableHead>
                           <TableHead className="w-[72px] px-2">Plan</TableHead>
@@ -969,22 +969,20 @@ export function AssessmentOutline({
                                 </TableCell>
                               )}
                               <TableCell className="px-3 py-3 align-top break-words">
-                                <div className="flex items-start gap-2">
-                                  <div className={cn("min-w-0 flex-1 font-medium leading-snug break-words", status !== "open" && "text-foreground/70")}>
-                                    <span>{action.title}</span>
-                                    {action.isUnplanned && (
-                                      <Badge variant="outline" className="ml-2 border-amber-300 bg-amber-50 align-middle text-[10px] text-amber-800">
-                                        Ungeplant
-                                      </Badge>
-                                    )}
-                                  </div>
+                                <div className={cn("min-w-0 font-medium leading-snug break-words", status !== "open" && "text-foreground/70")}>
+                                  <span>{action.title}</span>
+                                  {action.isUnplanned && (
+                                    <Badge variant="outline" className="ml-2 border-amber-300 bg-amber-50 align-middle text-[10px] text-amber-800">
+                                      Ungeplant
+                                    </Badge>
+                                  )}
                                   <TooltipProvider delayDuration={150}>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
                                         <span
                                           tabIndex={0}
                                           aria-label="Details zu Disziplin, Schwerpunkt und Ziel anzeigen"
-                                          className="mt-0.5 inline-flex h-6 w-6 shrink-0 cursor-help items-center justify-center rounded-full border border-border bg-background text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                          className="ml-1.5 inline-flex h-6 w-6 shrink-0 cursor-help items-center justify-center rounded-full border border-border bg-background align-middle text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                                         >
                                           <Info className="h-3.5 w-3.5" aria-hidden="true" />
                                         </span>
