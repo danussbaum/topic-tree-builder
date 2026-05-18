@@ -228,9 +228,6 @@ export const ActionPlanDisciplinesView =
                     value={draftAuthorizedRoleIds}
                     onChange={setDraftAuthorizedRoleIds}
                   />
-                  <span className="pt-2 text-xs text-muted-foreground">
-                    Mehrfachauswahl
-                  </span>
                 </div>
               </div>
 
