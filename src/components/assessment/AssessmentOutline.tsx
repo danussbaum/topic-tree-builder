@@ -204,7 +204,7 @@ interface Props {
     dueDate: string,
     dayPart: DayPart | "none",
     draft: UnplannedActionDraft,
-  ) => void;
+  ) => string | void;
   onAddTopic: (disciplineId?: string) => void;
   onUpdateTopicDiscipline?: (topicId: string, disciplineId: string) => void;
   onDeleteDiscipline?: (disciplineId: string) => void;
@@ -434,6 +434,7 @@ export function AssessmentOutline({
   const [selectedBulkNotDoneKeys, setSelectedBulkNotDoneKeys] = useState<Set<string>>(new Set());
   const [bulkNotDoneDialogOpen, setBulkNotDoneDialogOpen] = useState(false);
   const [unplannedDialogTarget, setUnplannedDialogTarget] = useState<{ dueDate: string; dayPart: DayPart | "none" } | null>(null);
+  const [transientUnplannedActionIds, setTransientUnplannedActionIds] = useState<Set<string>>(new Set());
   const templateInputRef = useRef<HTMLInputElement | null>(null);
   const today = format(new Date(), "yyyy-MM-dd");
   const disciplineOptions = disciplines.length > 0 ? disciplines : initialActionPlanDisciplines;
@@ -470,6 +471,10 @@ export function AssessmentOutline({
       setBulkNotDoneDialogOpen(false);
     }
   }, [bulkNotDoneMode]);
+
+  useEffect(() => {
+    setTransientUnplannedActionIds(new Set());
+  }, [confirmationFilter, filterModel]);
 
   const openAddActionDialog = (topicId: string, targetId: string) => {
     const topic = topics.find((entry) => entry.id === topicId);
@@ -624,7 +629,8 @@ export function AssessmentOutline({
             const confirmation = action.confirmations?.[dueDate];
             if (confirmation?.postponedToDate) return;
             const status = getStatusForDate(action, dueDate);
-            if (!matchesAssessmentFilter({ action, status, confirmation, disciplineId: topic.disciplineId }, filterModel)) return;
+            const forceShowTransientUnplanned = action.isUnplanned && transientUnplannedActionIds.has(action.id);
+            if (!forceShowTransientUnplanned && !matchesAssessmentFilter({ action, status, confirmation, disciplineId: topic.disciplineId }, filterModel)) return;
             flatActions.push({ topic, target, action, dueDate, confirmationDate: dueDate, status });
           });
 
@@ -633,7 +639,8 @@ export function AssessmentOutline({
             if (confirmation.postponedToDate < periodRange.start || confirmation.postponedToDate > periodRange.end) {
               return;
             }
-            if (!matchesAssessmentFilter({ action, status: confirmation.status, confirmation, disciplineId: topic.disciplineId }, filterModel)) return;
+            const forceShowTransientUnplanned = action.isUnplanned && transientUnplannedActionIds.has(action.id);
+            if (!forceShowTransientUnplanned && !matchesAssessmentFilter({ action, status: confirmation.status, confirmation, disciplineId: topic.disciplineId }, filterModel)) return;
             flatActions.push({
               topic,
               target,
@@ -657,7 +664,7 @@ export function AssessmentOutline({
     };
 
     const filteredFlatActions = flatActions.filter(({ action, status, dueDate }) =>
-      matchesFilter(action, status, dueDate),
+      (action.isUnplanned && transientUnplannedActionIds.has(action.id)) || matchesFilter(action, status, dueDate),
     );
 
     const sortedFlatActions = [...filteredFlatActions].sort((left, right) => {
@@ -1139,7 +1146,10 @@ export function AssessmentOutline({
           onClose={() => setUnplannedDialogTarget(null)}
           onConfirm={(draft) => {
             if (!unplannedDialogTarget || !onAddUnplannedAction) return;
-            onAddUnplannedAction(unplannedDialogTarget.dueDate, unplannedDialogTarget.dayPart, draft);
+            const createdActionId = onAddUnplannedAction(unplannedDialogTarget.dueDate, unplannedDialogTarget.dayPart, draft);
+            if (typeof createdActionId === "string") {
+              setTransientUnplannedActionIds((prev) => new Set(prev).add(createdActionId));
+            }
             setUnplannedDialogTarget(null);
           }}
         />
@@ -2375,6 +2385,10 @@ function UnplannedActionDialog({
   const [creationMode, setCreationMode] = useState<"template" | "scratch">("template");
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [templates, setTemplates] = useState<ActionPlanTemplate[]>([]);
+  const [templateQuery, setTemplateQuery] = useState("");
+  const [isTemplateDropdownOpen, setTemplateDropdownOpen] = useState(false);
+  const [activeTemplateIndex, setActiveTemplateIndex] = useState(0);
+  const templateInputRef = useRef<HTMLInputElement | null>(null);
   const [draft, setDraft] = useState<UnplannedActionDraft>({ title: "", notes: "" });
   const open = target !== null;
 
@@ -2405,6 +2419,9 @@ function UnplannedActionDialog({
     const loadedTemplates = loadActionPlanTemplates();
     setTemplates(loadedTemplates);
     setCreationMode("template");
+    setTemplateQuery("");
+    setTemplateDropdownOpen(false);
+    setActiveTemplateIndex(0);
     const defaultFields = buildDefaultTemplateFields();
     setSelectedTemplateId(loadedTemplates[0]?.id ?? "");
     setDraft({
@@ -2433,6 +2450,37 @@ function UnplannedActionDialog({
     }
   }, [target]);
 
+  const selectedTemplate = templates.find((template) => template.id === selectedTemplateId);
+  const templateFilterQuery = templateQuery.toLocaleLowerCase("de");
+  const hasTemplateFilterInput = templateFilterQuery.length >= 3;
+  const filteredTemplates = hasTemplateFilterInput
+    ? templates.filter((template) => {
+        const wildcardQuery = templateFilterQuery
+          .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+          .replace(/\s/g, ".*");
+
+        return new RegExp(wildcardQuery).test(template.name.toLocaleLowerCase("de"));
+      })
+    : [];
+
+  useEffect(() => {
+    setActiveTemplateIndex(0);
+  }, [templateQuery, isTemplateDropdownOpen]);
+
+  useEffect(() => {
+    if (!open || creationMode !== "template") return;
+    window.requestAnimationFrame(() => {
+      templateInputRef.current?.focus();
+    });
+  }, [open, creationMode]);
+
+  const selectTemplateAndClose = (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    if (target) applyTemplate(templateId, target.dayPart);
+    setTemplateQuery("");
+    setTemplateDropdownOpen(false);
+  };
+
   const updateDraft = <K extends keyof UnplannedActionDraft>(field: K, value: UnplannedActionDraft[K]) => {
     setDraft((prev) => ({ ...prev, [field]: value }));
   };
@@ -2450,6 +2498,8 @@ function UnplannedActionDialog({
     }
     const nextTemplateId = selectedTemplateId || templates[0]?.id || "";
     setSelectedTemplateId(nextTemplateId);
+    setTemplateQuery("");
+    setTemplateDropdownOpen(true);
     if (target && nextTemplateId) applyTemplate(nextTemplateId, target.dayPart);
   };
 
@@ -2466,8 +2516,8 @@ function UnplannedActionDialog({
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => (!nextOpen ? onClose() : null)}>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[calc(100vh-2rem)] flex-col sm:max-w-2xl">
+        <DialogHeader className="shrink-0">
           <DialogTitle>Ungeplante Handlung erstellen</DialogTitle>
           <DialogDescription>
             Die Handlung wird direkt als bestätigt im ausgewählten Dossier und in der Tageszeit
@@ -2475,7 +2525,7 @@ function UnplannedActionDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
           <div className="grid gap-2 sm:grid-cols-2">
             <button
               type="button"
@@ -2504,22 +2554,102 @@ function UnplannedActionDialog({
           {creationMode === "template" && (
             <div className="space-y-1.5">
               <Label>Vorlage</Label>
-              <Select
-                value={selectedTemplateId || "none"}
-                onValueChange={(value) => {
-                  const next = value === "none" ? "" : value;
-                  setSelectedTemplateId(next);
-                  if (target && next) applyTemplate(next, target.dayPart);
-                }}
-              >
-                <SelectTrigger><SelectValue placeholder="Vorlage auswählen" /></SelectTrigger>
-                <SelectContent>
-                  {templates.length === 0 && <SelectItem value="none">Keine Vorlage vorhanden</SelectItem>}
-                  {templates.map((template) => (
-                    <SelectItem key={template.id} value={template.id}>{template.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="rounded-md border border-input/70 bg-background shadow-sm focus-within:border-primary/70">
+                <div className="flex items-start gap-2 p-2">
+                  <div className="flex-1 space-y-2">
+                    <div className="flex flex-wrap gap-1">
+                      {selectedTemplate && (
+                        <Badge
+                          variant="secondary"
+                          className="h-6 max-w-full gap-1 rounded-sm border border-border/60 bg-secondary/40 px-1.5 font-normal text-foreground/90"
+                        >
+                          <span className="truncate">{selectedTemplate.name}</span>
+                        </Badge>
+                      )}
+                      <Input
+                        value={templateQuery}
+                        onChange={(e) => {
+                          setTemplateQuery(e.target.value);
+                          setTemplateDropdownOpen(true);
+                        }}
+                        onFocus={() => setTemplateDropdownOpen(true)}
+                        onKeyDown={(e) => {
+                          if (!isTemplateDropdownOpen && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+                            e.preventDefault();
+                            setTemplateDropdownOpen(true);
+                            return;
+                          }
+                          if (!isTemplateDropdownOpen || !hasTemplateFilterInput || filteredTemplates.length === 0) return;
+                          if (e.key === "ArrowDown") {
+                            e.preventDefault();
+                            setActiveTemplateIndex((prev) => (prev + 1) % filteredTemplates.length);
+                            return;
+                          }
+                          if (e.key === "ArrowUp") {
+                            e.preventDefault();
+                            setActiveTemplateIndex((prev) => (prev - 1 + filteredTemplates.length) % filteredTemplates.length);
+                            return;
+                          }
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            const activeTemplate = filteredTemplates[activeTemplateIndex];
+                            if (!activeTemplate) return;
+                            selectTemplateAndClose(activeTemplate.id);
+                            return;
+                          }
+                          if (e.key === "Escape") {
+                            e.preventDefault();
+                            setTemplateDropdownOpen(false);
+                          }
+                        }}
+                        ref={templateInputRef}
+                        placeholder={templates.length === 0 ? "Keine Vorlage vorhanden" : "Vorlagen suchen..."}
+                        disabled={templates.length === 0}
+                        className="h-6 min-w-[12rem] flex-1 border-0 bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="mt-0.5 rounded p-1 text-muted-foreground hover:bg-secondary/70 disabled:opacity-50"
+                    disabled={templates.length === 0}
+                    onClick={() => setTemplateDropdownOpen((prev) => !prev)}
+                  >
+                    <ChevronUp className={cn("h-4 w-4 transition-transform", !isTemplateDropdownOpen && "rotate-180")} />
+                  </button>
+                </div>
+                {isTemplateDropdownOpen && hasTemplateFilterInput && (
+                  <div className="max-h-56 overflow-y-auto border-t border-border/70 p-1.5">
+                    {filteredTemplates.length === 0 ? (
+                      <div className="px-2 py-1.5 text-sm text-muted-foreground">Keine Vorlage gefunden.</div>
+                    ) : (
+                      filteredTemplates.map((template) => {
+                        const templateIndex = filteredTemplates.findIndex((entry) => entry.id === template.id);
+                        return (
+                          <button
+                            key={template.id}
+                            type="button"
+                            onClick={() => selectTemplateAndClose(template.id)}
+                            onMouseEnter={() => setActiveTemplateIndex(templateIndex)}
+                            className={cn(
+                              "flex w-full items-center rounded-sm px-2 py-1 text-left text-sm hover:bg-secondary/40",
+                              activeTemplateIndex === templateIndex && "bg-primary/10 text-primary",
+                              selectedTemplateId === template.id && "font-medium",
+                            )}
+                          >
+                            <span className="truncate">{template.name}</span>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+                {isTemplateDropdownOpen && !hasTemplateFilterInput && templateQuery.length > 0 && (
+                  <div className="border-t border-border/70 px-3 py-2 text-xs text-muted-foreground">
+                    Bitte mindestens 3 Zeichen eingeben.
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -2575,21 +2705,23 @@ function UnplannedActionDialog({
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label>Leistungsart</Label>
-              <Select value={draft.serviceType ?? "none"} onValueChange={(value) => updateDraft("serviceType", value === "none" ? undefined : value as ActionServiceType)}>
-                <SelectTrigger><SelectValue placeholder="Leistungsart" /></SelectTrigger>
-                <SelectContent>
-                  {ACTION_SERVICE_TYPE_SELECT_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {creationMode === "scratch" && (
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label>Leistungsart</Label>
+                <Select value={draft.serviceType ?? "none"} onValueChange={(value) => updateDraft("serviceType", value === "none" ? undefined : value as ActionServiceType)}>
+                  <SelectTrigger><SelectValue placeholder="Leistungsart" /></SelectTrigger>
+                  <SelectContent>
+                    {ACTION_SERVICE_TYPE_SELECT_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
         </div>
 
-        <DialogFooter className="gap-2 sm:justify-between">
+        <DialogFooter className="shrink-0 gap-2 sm:justify-between">
           <Button variant="outline" onClick={onClose}>Abbrechen</Button>
           <Button onClick={submit} disabled={!draft.title.trim()}>Bestätigen</Button>
         </DialogFooter>
