@@ -1,5 +1,6 @@
 import { APPLICATION_BROWSER_STORAGE_KEYS } from "@/lib/application-storage";
 import type { ActionPlanDiscipline } from "@/lib/action-plan-disciplines";
+import type { ActionNode } from "@/types/assessment";
 
 export type TemplateFieldKey =
   | "titel"
@@ -23,6 +24,37 @@ export interface ActionPlanTemplate {
   fields: Record<TemplateFieldKey, string>;
   editable: Record<TemplateFieldKey, boolean>;
 }
+
+const TEMPLATE_FIELD_TO_ACTION_FIELD: Record<TemplateFieldKey, keyof ActionNode> = {
+  titel: "title",
+  beschreibung: "notes",
+  hilfsmittel: "requiredResources",
+  dauer: "plannedMinutes",
+  personen: "requiredPersons",
+  kategorie: "category",
+  tageszeit: "dayPart",
+  uhrzeit: "scheduledTime",
+  resultat: "resultRequirement",
+  wiederholung: "recurrence",
+  wiederholungWochentage: "recurrenceWeekdays",
+  wiederholungMonatlich: "recurrenceMonthlyPattern",
+  leistungsart: "serviceType",
+};
+
+export const getTemplateLockedActionFields = (
+  template?: Pick<ActionPlanTemplate, "editable">,
+): string[] => {
+  if (!template) return [];
+
+  return (Object.entries(template.editable) as Array<[TemplateFieldKey, boolean]>)
+    .filter(([, editable]) => !editable)
+    .map(([field]) => TEMPLATE_FIELD_TO_ACTION_FIELD[field]);
+};
+
+export const isTemplateLockedActionField = (
+  action: Pick<ActionNode, "templateLockedFields">,
+  field: keyof ActionNode | string,
+): boolean => action.templateLockedFields?.includes(String(field)) ?? false;
 
 export interface TemplateSelectOption {
   value: string;

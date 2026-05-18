@@ -89,6 +89,8 @@ import { matchesConfirmationFilter } from "@/lib/confirmation-filter";
 import {
   ACTION_SERVICE_TYPE_SELECT_OPTIONS,
   buildDefaultTemplateFields,
+  getTemplateLockedActionFields,
+  isTemplateLockedActionField,
   loadActionPlanTemplates,
   templateMatchesDiscipline,
   type ActionPlanTemplate,
@@ -147,6 +149,7 @@ interface UnplannedActionDraft {
   serviceType?: ActionServiceType;
   templateId?: string;
   templateName?: string;
+  templateLockedFields?: string[];
 }
 
 interface Props {
@@ -1672,6 +1675,8 @@ function ActionRow({
   onOpenDialog: (initialMode: ConfirmationMode) => void;
 }) {
   const isLocked = Object.keys(action.confirmations ?? {}).length > 0;
+  const isFieldLocked = (field: keyof ActionNode | string) =>
+    isLocked || isTemplateLockedActionField(action, field);
   const isConfirmationRestricted =
     viewMode === "confirmation" && !canConfirmAction(action);
   const weeklyDaysMissing =
@@ -1741,7 +1746,7 @@ function ActionRow({
       <div className="flex-1 min-w-0">
         <input
           value={action.title}
-          readOnly={viewMode === "confirmation" || isLocked}
+          readOnly={viewMode === "confirmation" || isFieldLocked("title")}
           onChange={(e) =>
             onUpdateAction(topicId, targetId, action.id, "title", e.target.value)
           }
@@ -1769,7 +1774,7 @@ function ActionRow({
               onChange={(v) =>
                 onUpdateAction(topicId, targetId, action.id, "notes", v)
               }
-              disabled={isLocked}
+              disabled={isFieldLocked("notes")}
               placeholder="Beschreibung zur Handlung..."
               className="text-foreground/70"
               compact
@@ -1779,7 +1784,7 @@ function ActionRow({
               onChange={(v) =>
                 onUpdateAction(topicId, targetId, action.id, "requiredResources", v)
               }
-              disabled={isLocked}
+              disabled={isFieldLocked("requiredResources")}
               placeholder="Hilfsmittel zur Durchführung..."
               className="text-foreground/70"
               compact
@@ -1794,7 +1799,7 @@ function ActionRow({
               <span className="shrink-0 text-muted-foreground">Kategorie</span>
               <Select
                 value={action.category ?? "none"}
-                disabled={isLocked}
+                disabled={isFieldLocked("category")}
                 onValueChange={(v) =>
                   onUpdateActionField(
                     topicId,
@@ -1805,7 +1810,7 @@ function ActionRow({
                   )
                 }
               >
-                <SelectTrigger className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0 focus-visible:ring-0">
+                <SelectTrigger aria-label="Kategorie" className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0 focus-visible:ring-0">
                   <SelectValue placeholder="Keine Angabe" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1821,7 +1826,7 @@ function ActionRow({
               <span className="shrink-0 text-muted-foreground">Tageszeit</span>
               <Select
                 value={action.dayPart ?? "none"}
-                disabled={isLocked}
+                disabled={isFieldLocked("dayPart")}
                 onValueChange={(v) =>
                   onUpdateActionField(
                     topicId,
@@ -1832,7 +1837,7 @@ function ActionRow({
                   )
                 }
               >
-                <SelectTrigger className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0 focus-visible:ring-0">
+                <SelectTrigger aria-label="Tageszeit" className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0 focus-visible:ring-0">
                   <SelectValue placeholder="Keine Angabe" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1850,7 +1855,7 @@ function ActionRow({
               <span className="shrink-0">Uhrzeit</span>
               <input
                 type="time"
-                disabled={isLocked}
+                disabled={isFieldLocked("scheduledTime")}
                 value={action.scheduledTime ?? ""}
                 onChange={(e) =>
                   onUpdateActionField(
@@ -1872,7 +1877,7 @@ function ActionRow({
                 type="number"
                 min={0}
                 step={5}
-                disabled={isLocked}
+                disabled={isFieldLocked("plannedMinutes")}
                 value={action.plannedMinutes ?? ""}
                 onChange={(e) =>
                   onUpdateActionField(
@@ -1898,7 +1903,7 @@ function ActionRow({
                 type="number"
                 min={1}
                 step={1}
-                disabled={isLocked}
+                disabled={isFieldLocked("requiredPersons")}
                 value={action.requiredPersons ?? ""}
                 onChange={(e) => {
                   const value = Number(e.target.value);
@@ -1921,7 +1926,7 @@ function ActionRow({
               <span className="shrink-0 text-muted-foreground">Resultat</span>
               <Select
                 value={action.resultRequirement ?? "none"}
-                disabled={isLocked}
+                disabled={isFieldLocked("resultRequirement")}
                 onValueChange={(v) =>
                   onUpdateActionField(
                     topicId,
@@ -1932,7 +1937,7 @@ function ActionRow({
                   )
                 }
               >
-                <SelectTrigger className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0 focus-visible:ring-0">
+                <SelectTrigger aria-label="Resultat" className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0 focus-visible:ring-0">
                   <SelectValue placeholder="Kein Resultat" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1946,7 +1951,7 @@ function ActionRow({
             <DateField
               label="Gültig ab"
               required
-              disabled={isLocked}
+              disabled={isFieldLocked("validFrom")}
               value={action.validFrom}
               onChange={(v) =>
                 onUpdateActionField(topicId, targetId, action.id, "validFrom", v)
@@ -1971,7 +1976,7 @@ function ActionRow({
               <span className="shrink-0 text-muted-foreground">Wiederholung</span>
               <Select
                 value={action.recurrence ?? "none"}
-                disabled={isLocked}
+                disabled={isFieldLocked("recurrence")}
                 onValueChange={(v) =>
                   onUpdateActionField(
                     topicId,
@@ -1982,7 +1987,7 @@ function ActionRow({
                   )
                 }
               >
-                <SelectTrigger className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0 focus-visible:ring-0">
+                <SelectTrigger aria-label="Wiederholung" className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0 focus-visible:ring-0">
                   <SelectValue placeholder="Wählen…" />
                 </SelectTrigger>
                 <SelectContent>
@@ -2008,7 +2013,7 @@ function ActionRow({
                       <button
                         key={weekday.value}
                         type="button"
-                        disabled={isLocked}
+                        disabled={isFieldLocked("recurrenceWeekdays")}
                         onPointerDown={(event) => {
                           if (event.button !== 0) return;
                           event.preventDefault();
@@ -2058,7 +2063,7 @@ function ActionRow({
                 <div className="mb-1 text-muted-foreground">Monatliche Regel</div>
                 <Select
                   value={action.recurrenceMonthlyPattern ?? "none"}
-                  disabled={isLocked}
+                  disabled={isFieldLocked("recurrenceMonthlyPattern")}
                   onValueChange={(v) =>
                     onUpdateActionField(
                       topicId,
@@ -2069,7 +2074,7 @@ function ActionRow({
                     )
                   }
                 >
-                  <SelectTrigger className="h-7 w-full text-xs px-2 py-0">
+                  <SelectTrigger aria-label="Monatliche Regel" className="h-7 w-full text-xs px-2 py-0">
                     <SelectValue placeholder="Wählen…" />
                   </SelectTrigger>
                   <SelectContent>
@@ -2088,7 +2093,7 @@ function ActionRow({
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
             <Select
               value={action.dayPart ?? "none"}
-              disabled={isLocked}
+              disabled={isFieldLocked("dayPart")}
               onValueChange={(v) =>
                 onUpdateActionField(
                   topicId,
@@ -2123,7 +2128,7 @@ function ActionRow({
                 type="number"
                 min={0}
                 step={5}
-                disabled={isLocked}
+                disabled={isFieldLocked("plannedMinutes")}
                 value={action.plannedMinutes ?? ""}
                 onChange={(e) =>
                   onUpdateActionField(
@@ -2148,7 +2153,7 @@ function ActionRow({
                 type="number"
                 min={1}
                 step={1}
-                disabled={isLocked}
+                disabled={isFieldLocked("requiredPersons")}
                 value={action.requiredPersons ?? ""}
                 onChange={(e) => {
                   const value = Number(e.target.value);
@@ -2168,7 +2173,7 @@ function ActionRow({
             </label>
             <Select
               value={action.category ?? "none"}
-              disabled={isLocked}
+              disabled={isFieldLocked("category")}
               onValueChange={(v) =>
                 onUpdateActionField(
                   topicId,
@@ -2179,7 +2184,7 @@ function ActionRow({
                 )
               }
             >
-              <SelectTrigger className="h-7 w-[130px] text-xs px-2 py-0">
+              <SelectTrigger aria-label="Kategorie" className="h-7 w-[130px] text-xs px-2 py-0">
                 <SelectValue placeholder="Kategorie" />
               </SelectTrigger>
               <SelectContent>
@@ -2191,7 +2196,7 @@ function ActionRow({
             </Select>
             <Select
               value={action.resultRequirement ?? "none"}
-              disabled={isLocked}
+              disabled={isFieldLocked("resultRequirement")}
               onValueChange={(v) =>
                 onUpdateActionField(
                   topicId,
@@ -2214,7 +2219,7 @@ function ActionRow({
             <DateField
               label="Gültig ab"
               required
-              disabled={isLocked}
+              disabled={isFieldLocked("validFrom")}
               value={action.validFrom}
               onChange={(v) =>
                 onUpdateActionField(topicId, targetId, action.id, "validFrom", v)
@@ -2426,6 +2431,7 @@ export function UnplannedActionDialog({
       resultRequirement: fields.resultat !== "none" ? (fields.resultat as ActionNode["resultRequirement"]) : undefined,
       templateId: template.id,
       templateName: template.name,
+      templateLockedFields: getTemplateLockedActionFields(template),
     });
   };
 
@@ -2476,6 +2482,9 @@ export function UnplannedActionDialog({
     setTemplateQuery("");
     setTemplateDropdownOpen(false);
   };
+
+  const isDraftFieldLocked = (field: keyof ActionNode | string) =>
+    creationMode === "template" && (draft.templateLockedFields?.includes(String(field)) ?? false);
 
   const updateDraft = <K extends keyof UnplannedActionDraft>(field: K, value: UnplannedActionDraft[K]) => {
     setDraft((prev) => ({ ...prev, [field]: value }));
@@ -2663,15 +2672,15 @@ export function UnplannedActionDialog({
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="space-y-1.5 sm:col-span-2">
               <Label>Beschreibung</Label>
-              <Textarea rows={2} value={draft.notes} onChange={(e) => updateDraft("notes", e.target.value)} />
+              <Textarea rows={2} value={draft.notes} disabled={isDraftFieldLocked("notes")} onChange={(e) => updateDraft("notes", e.target.value)} />
             </label>
             <label className="space-y-1.5 sm:col-span-2">
               <Label>Hilfsmittel</Label>
-              <Textarea rows={2} value={draft.requiredResources ?? ""} onChange={(e) => updateDraft("requiredResources", e.target.value || undefined)} />
+              <Textarea rows={2} value={draft.requiredResources ?? ""} disabled={isDraftFieldLocked("requiredResources")} onChange={(e) => updateDraft("requiredResources", e.target.value || undefined)} />
             </label>
             <div className="space-y-1.5">
               <Label>Tageszeit</Label>
-              <Select value={draft.dayPart ?? "none"} onValueChange={(value) => updateDraft("dayPart", value as DayPart | "none")}>
+              <Select value={draft.dayPart ?? "none"} disabled={isDraftFieldLocked("dayPart")} onValueChange={(value) => updateDraft("dayPart", value as DayPart | "none")}>
                 <SelectTrigger aria-label="Tageszeit"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {DAY_PART_SELECT_OPTIONS.map((option) => (
@@ -2682,20 +2691,24 @@ export function UnplannedActionDialog({
             </div>
             <label className="space-y-1.5">
               <Label>Uhrzeit</Label>
-              <Input type="time" value={draft.scheduledTime ?? ""} onChange={(e) => updateDraft("scheduledTime", e.target.value || undefined)} />
+              <Input type="time" value={draft.scheduledTime ?? ""} disabled={isDraftFieldLocked("scheduledTime")} onChange={(e) => updateDraft("scheduledTime", e.target.value || undefined)} />
             </label>
             <label className="space-y-1.5">
               <Label>Geplante Minuten</Label>
-              <Input type="number" min={0} step={5} value={draft.plannedMinutes ?? ""} onChange={(e) => updateDraft("plannedMinutes", e.target.value === "" ? undefined : Math.max(0, Number(e.target.value)))} />
+              <Input type="number" min={0} step={5} value={draft.plannedMinutes ?? ""} disabled={isDraftFieldLocked("plannedMinutes")} onChange={(e) => updateDraft("plannedMinutes", e.target.value === "" ? undefined : Math.max(0, Number(e.target.value)))} />
             </label>
             <label className="space-y-1.5">
               <Label>Anz. Personen</Label>
-              <Input type="number" min={1} step={1} value={draft.requiredPersons ?? ""} onChange={(e) => updateDraft("requiredPersons", e.target.value === "" ? undefined : Math.max(1, Math.floor(Number(e.target.value))))} />
+              <Input type="number" min={1} step={1} value={draft.requiredPersons ?? ""} disabled={isDraftFieldLocked("requiredPersons")} onChange={(e) => updateDraft("requiredPersons", e.target.value === "" ? undefined : Math.max(1, Math.floor(Number(e.target.value))))} />
             </label>
             <div className="space-y-1.5">
               <Label>Kategorie</Label>
-              <Select value={draft.category ?? "none"} onValueChange={(value) => updateDraft("category", value === "none" ? undefined : value as ActionCategory)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={draft.category ?? "none"}
+                disabled={isDraftFieldLocked("category")}
+                onValueChange={(value) => updateDraft("category", value === "none" ? undefined : value as ActionCategory)}
+              >
+                <SelectTrigger aria-label="Kategorie"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Keine Angabe</SelectItem>
                   <SelectItem value="a">A</SelectItem>
@@ -2706,8 +2719,8 @@ export function UnplannedActionDialog({
             </div>
             <div className="space-y-1.5">
               <Label>Resultat</Label>
-              <Select value={draft.resultRequirement ?? "none"} onValueChange={(value) => updateDraft("resultRequirement", value === "none" ? undefined : value as ActionNode["resultRequirement"])}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select value={draft.resultRequirement ?? "none"} disabled={isDraftFieldLocked("resultRequirement")} onValueChange={(value) => updateDraft("resultRequirement", value === "none" ? undefined : value as ActionNode["resultRequirement"])}>
+                <SelectTrigger aria-label="Resultat"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Kein Resultat</SelectItem>
                   <SelectItem value="optional">Resultat optional</SelectItem>

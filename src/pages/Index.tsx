@@ -50,6 +50,8 @@ import { createSimpleXlsxBlob } from "@/lib/xlsx";
 import {
   buildDefaultTemplateFields,
   getActionServiceTypeLabel,
+  getTemplateLockedActionFields,
+  isTemplateLockedActionField,
   loadActionPlanTemplates,
 } from "@/lib/action-plan-templates";
 import {
@@ -819,6 +821,7 @@ const Index = () => {
         done: false,
         templateId: template?.id,
         templateName: template?.name,
+        templateLockedFields: getTemplateLockedActionFields(template),
       };
     };
 
@@ -865,6 +868,7 @@ const Index = () => {
       serviceType?: ActionServiceType;
       templateId?: string;
       templateName?: string;
+      templateLockedFields?: string[];
       dayPart?: DayPart | "none";
     },
   ) => {
@@ -897,6 +901,7 @@ const Index = () => {
       isUnplanned: true,
       templateId: draft.templateId,
       templateName: draft.templateName,
+      templateLockedFields: draft.templateLockedFields,
       confirmations: {
         [dueDate]: {
           status: "done_as_planned",
@@ -1044,7 +1049,8 @@ const Index = () => {
                       ...tg,
                       actions: tg.actions.map((a) =>
                         a.id === actionId
-                          ? Object.keys(a.confirmations ?? {}).length > 0
+                          ? Object.keys(a.confirmations ?? {}).length > 0 ||
+                            isTemplateLockedActionField(a, field)
                             ? a
                             : { ...a, [field]: value }
                           : a,
@@ -1108,7 +1114,9 @@ const Index = () => {
       if (!currentAction) return undefined;
       const hasConfirmations = Object.keys(currentAction.confirmations ?? {}).length > 0;
       const isValidToUpdate = field === "validTo";
-      if (hasConfirmations && !isValidToUpdate) return currentAction;
+      if ((hasConfirmations && !isValidToUpdate) || isTemplateLockedActionField(currentAction, field)) {
+        return currentAction;
+      }
 
       if (isValidToUpdate && typeof value === "string" && value) {
         const oldestConfirmationDate = getOldestConfirmationDate(currentAction.confirmations);
@@ -1143,7 +1151,9 @@ const Index = () => {
                               const hasConfirmations = Object.keys(a.confirmations ?? {}).length > 0;
                               const isValidToUpdate = field === "validTo";
 
-                              if (hasConfirmations && !isValidToUpdate) return a;
+                              if ((hasConfirmations && !isValidToUpdate) || isTemplateLockedActionField(a, field)) {
+                                return a;
+                              }
 
                               if (isValidToUpdate && typeof value === "string" && value) {
                                 const oldestConfirmationDate = getOldestConfirmationDate(a.confirmations);

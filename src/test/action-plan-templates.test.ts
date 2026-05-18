@@ -6,6 +6,7 @@ import {
   buildDefaultTemplateEditable,
   buildDefaultTemplateFields,
   getActionServiceTypeLabel,
+  getTemplateLockedActionFields,
   loadActionPlanTemplates,
   resolveTemplateDisciplineIds,
   templateMatchesDiscipline,
@@ -45,6 +46,18 @@ describe("action plan template fields", () => {
       { value: "spitex-klv-b", label: "Spitex, KLV b" },
       { value: "spitex-klv-c", label: "Spitex, KLV c" },
     ]);
+  });
+
+  it("ermittelt gesperrte Handlungsfelder aus nicht veränderbaren Vorlagenfeldern", () => {
+    expect(
+      getTemplateLockedActionFields({
+        editable: {
+          ...buildDefaultTemplateEditable(true),
+          kategorie: false,
+          beschreibung: false,
+        },
+      }),
+    ).toEqual(["notes", "category", "serviceType"]);
   });
 
   it("liefert Export-Labels für Leistungsarten", () => {
