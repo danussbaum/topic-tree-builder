@@ -1114,62 +1114,59 @@ export function AssessmentOutline({
     <div className="space-y-10">
       {topics.map((topic) => (
         <section key={topic.id} className="group/topic space-y-3">
-          <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          {/* Topic header (Disziplin + Schwerpunkt als Einheit) */}
+          <div className="border-b-2 border-primary/30 pb-3">
+            <div className="flex items-start gap-3">
               <div className="min-w-0 flex-1">
-                <div className="text-[10px] uppercase tracking-widest font-semibold text-primary mb-1">
-                  Disziplin
+                <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <span className="text-[10px] uppercase tracking-widest font-semibold text-primary">
+                    Disziplin
+                  </span>
+                  <Select
+                    value={getTopicDisciplineId(topic)}
+                    onValueChange={(value) =>
+                      onUpdateTopicDiscipline?.(topic.id, value)
+                    }
+                  >
+                    <SelectTrigger className="h-7 w-auto min-w-[12rem] max-w-sm border-0 border-b border-dashed border-primary/40 bg-transparent px-1 py-0 text-sm font-medium text-primary shadow-none hover:border-primary/70 focus:ring-0 focus:ring-offset-0">
+                      <SelectValue placeholder="Disziplin auswählen" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {disciplineOptions.map((discipline) => (
+                        <SelectItem key={discipline.id} value={discipline.id}>
+                          {discipline.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <button
+                    type="button"
+                    onClick={() => onDeleteDiscipline?.(getTopicDisciplineId(topic))}
+                    className="opacity-0 group-hover/topic:opacity-100 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground transition-opacity hover:bg-destructive/10 hover:text-destructive"
+                    aria-label="Disziplin löschen"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    Disziplin löschen
+                  </button>
                 </div>
-                <Select
-                  value={getTopicDisciplineId(topic)}
-                  onValueChange={(value) =>
-                    onUpdateTopicDiscipline?.(topic.id, value)
-                  }
-                >
-                  <SelectTrigger className="max-w-sm border-primary/20 bg-background/80 font-medium">
-                    <SelectValue placeholder="Disziplin auswählen" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {disciplineOptions.map((discipline) => (
-                      <SelectItem key={discipline.id} value={discipline.id}>
-                        {discipline.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="text-[10px] uppercase tracking-widest font-semibold text-accent mb-1">
+                  Schwerpunkt
+                </div>
+                <input
+                  value={topic.title}
+                  onChange={(e) => onUpdateTopic(topic.id, "title", e.target.value)}
+                  placeholder="Themenbezeichnung…"
+                  className="w-full text-2xl font-semibold bg-transparent border-0 outline-none focus:ring-0 px-0 placeholder:text-muted-foreground/40"
+                />
               </div>
               <button
-                type="button"
-                onClick={() => onDeleteDiscipline?.(getTopicDisciplineId(topic))}
-                className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                aria-label="Disziplin löschen"
+                onClick={() => onDeleteTopic(topic.id)}
+                className="opacity-0 group-hover/topic:opacity-100 p-1.5 hover:bg-destructive/10 hover:text-destructive rounded transition-opacity"
+                aria-label="Schwerpunkt löschen"
               >
-                <Trash2 className="h-3.5 w-3.5" />
-                Disziplin löschen
+                <Trash2 className="h-4 w-4" />
               </button>
             </div>
-          </div>
-
-          {/* Topic header */}
-          <div className="flex items-start gap-3 pb-2 border-b-2 border-primary/30">
-            <div className="flex-1 min-w-0">
-              <div className="text-[10px] uppercase tracking-widest font-semibold text-accent mb-1">
-                Schwerpunkt
-              </div>
-              <input
-                value={topic.title}
-                onChange={(e) => onUpdateTopic(topic.id, "title", e.target.value)}
-                placeholder="Themenbezeichnung…"
-                className="w-full text-2xl font-semibold bg-transparent border-0 outline-none focus:ring-0 px-0 placeholder:text-muted-foreground/40"
-              />
-            </div>
-            <button
-              onClick={() => onDeleteTopic(topic.id)}
-              className="opacity-0 group-hover/topic:opacity-100 p-1.5 hover:bg-destructive/10 hover:text-destructive rounded transition-opacity"
-              aria-label="Schwerpunkt löschen"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
           </div>
 
           <Notes
