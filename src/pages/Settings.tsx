@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { ArrowLeft, Download, Plus, Upload } from "lucide-react";
+import { ArrowLeft, Download, Plus, Search, Upload, X } from "lucide-react";
 import { SettingsTopBar } from "@/components/settings/SettingsTopBar";
 import { SettingsCategorySidebar } from "@/components/settings/SettingsCategorySidebar";
 import { SettingsGrid } from "@/components/settings/SettingsGrid";
@@ -16,6 +16,7 @@ import {
   SettingsRibbon,
   type SettingsRibbonAction,
 } from "@/components/settings/SettingsRibbon";
+import { Input } from "@/components/ui/input";
 
 const Settings = () => {
   const [activeGroup, setActiveGroup] = useState<string | undefined>();
@@ -25,6 +26,8 @@ const Settings = () => {
     useState(false);
   const templatesRef = useRef<ActionPlanTemplatesHandle | null>(null);
   const disciplinesRef = useRef<ActionPlanDisciplinesHandle | null>(null);
+  const [templateSearchQuery, setTemplateSearchQuery] = useState("");
+  const [disciplineSearchQuery, setDisciplineSearchQuery] = useState("");
 
   const handleBackToSettings = () => {
     setShowPermissionLevels(false);
@@ -79,6 +82,46 @@ const Settings = () => {
         ? "Disziplinen"
         : null;
 
+  const searchQuery = showActionPlanTemplates
+    ? templateSearchQuery
+    : showActionPlanDisciplines
+      ? disciplineSearchQuery
+      : "";
+
+  const setSearchQuery = showActionPlanTemplates
+    ? setTemplateSearchQuery
+    : showActionPlanDisciplines
+      ? setDisciplineSearchQuery
+      : null;
+
+  const searchPlaceholder = showActionPlanTemplates
+    ? "Handlungsvorlagen suchen"
+    : showActionPlanDisciplines
+      ? "Disziplinen suchen"
+      : "";
+
+  const ribbonSearch = setSearchQuery ? (
+    <div className="relative w-[min(24rem,calc(100vw-2rem))]">
+      <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+      <Input
+        value={searchQuery}
+        onChange={(event) => setSearchQuery(event.target.value)}
+        placeholder={searchPlaceholder}
+        className="h-9 bg-background pl-9 pr-9"
+      />
+      {searchQuery && (
+        <button
+          type="button"
+          onClick={() => setSearchQuery("")}
+          className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          aria-label="Suche zurücksetzen"
+        >
+          <X className="size-4" />
+        </button>
+      )}
+    </div>
+  ) : null;
+
   return (
     <div className="min-h-dvh flex w-full bg-background">
       <SettingsCategorySidebar
@@ -93,7 +136,12 @@ const Settings = () => {
 
       <main className="flex-1 min-w-0 flex flex-col min-h-0">
         <SettingsTopBar />
-        {subPageTitle && <SettingsRibbon actions={ribbonActions} />}
+        {subPageTitle && (
+          <SettingsRibbon
+            actions={ribbonActions}
+            trailingContent={ribbonSearch}
+          />
+        )}
         <div className="flex-1 overflow-y-auto">
           {subPageTitle ? (
             <>
@@ -105,9 +153,15 @@ const Settings = () => {
               {showPermissionLevels ? (
                 <PermissionLevelsView />
               ) : showActionPlanTemplates ? (
-                <ActionPlanTemplatesView ref={templatesRef} />
+                <ActionPlanTemplatesView
+                  ref={templatesRef}
+                  searchQuery={templateSearchQuery}
+                />
               ) : (
-                <ActionPlanDisciplinesView ref={disciplinesRef} />
+                <ActionPlanDisciplinesView
+                  ref={disciplinesRef}
+                  searchQuery={disciplineSearchQuery}
+                />
               )}
             </>
           ) : (
@@ -119,7 +173,9 @@ const Settings = () => {
                 onLinkClick={(catId, label) => {
                   setActiveGroup(catId);
                   if (
-                    (catId === "handlungsplanung" && (label === "Berechtigungsstufen" || label === "Kategorien")) ||
+                    (catId === "handlungsplanung" &&
+                      (label === "Berechtigungsstufen" ||
+                        label === "Kategorien")) ||
                     (catId === "kategorien" && label === "Kategorien")
                   ) {
                     setShowPermissionLevels(true);

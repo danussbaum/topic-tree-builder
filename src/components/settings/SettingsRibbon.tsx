@@ -1,5 +1,9 @@
-import { Fragment, type ElementType } from "react";
-import { Ribbon, RibbonButton, RibbonDivider } from "@/components/ribbon/Ribbon";
+import { Fragment, type ElementType, type ReactNode } from "react";
+import {
+  Ribbon,
+  RibbonButton,
+  RibbonDivider,
+} from "@/components/ribbon/Ribbon";
 
 export interface SettingsRibbonAction {
   key: string;
@@ -16,13 +20,18 @@ export interface SettingsRibbonAction {
 interface SettingsRibbonProps {
   actions: SettingsRibbonAction[];
   className?: string;
+  trailingContent?: ReactNode;
 }
 
 /**
  * Ribbon used on settings sub-pages. Visually identical to the planning /
  * confirmation ribbon by reusing the shared Ribbon primitives.
  */
-export function SettingsRibbon({ actions, className }: SettingsRibbonProps) {
+export function SettingsRibbon({
+  actions,
+  className,
+  trailingContent,
+}: SettingsRibbonProps) {
   return (
     <Ribbon className={className}>
       {actions.map((action, idx) => (
@@ -38,6 +47,7 @@ export function SettingsRibbon({ actions, className }: SettingsRibbonProps) {
           {action.dividerAfter && idx < actions.length - 1 && <RibbonDivider />}
         </Fragment>
       ))}
+      {trailingContent && <div className="ml-auto">{trailingContent}</div>}
     </Ribbon>
   );
 }
