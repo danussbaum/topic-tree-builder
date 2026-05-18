@@ -23,6 +23,7 @@ import {
   ChevronRight,
   ChevronUp,
   Info,
+  MoreHorizontal,
 } from "lucide-react";
 import {
   Dialog,
@@ -60,6 +61,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type {
   ActionNode,
   ActionStatus,
@@ -81,6 +88,7 @@ import { cn } from "@/lib/utils";
 import { matchesConfirmationFilter } from "@/lib/confirmation-filter";
 import {
   ACTION_SERVICE_TYPE_SELECT_OPTIONS,
+  buildDefaultTemplateFields,
   loadActionPlanTemplates,
   templateMatchesDiscipline,
   type ActionPlanTemplate,
@@ -124,6 +132,22 @@ type ActionField =
   | "recurrenceWeekdays"
   | "recurrenceMonthlyPattern"
   | "observations";
+
+
+interface UnplannedActionDraft {
+  title: string;
+  notes: string;
+  requiredResources?: string;
+  plannedMinutes?: number;
+  requiredPersons?: number;
+  resultRequirement?: ActionNode["resultRequirement"];
+  dayPart?: DayPart;
+  scheduledTime?: string;
+  category?: ActionCategory;
+  serviceType?: ActionServiceType;
+  templateId?: string;
+  templateName?: string;
+}
 
 interface Props {
   viewMode: "planning" | "confirmation";
@@ -175,6 +199,11 @@ interface Props {
     targetId: string,
     templateIds: string[],
     serviceType?: ActionServiceType,
+  ) => void;
+  onAddUnplannedAction?: (
+    dueDate: string,
+    dayPart: DayPart | "none",
+    draft: UnplannedActionDraft,
   ) => void;
   onAddTopic: (disciplineId?: string) => void;
   onUpdateTopicDiscipline?: (topicId: string, disciplineId: string) => void;
@@ -379,6 +408,7 @@ export function AssessmentOutline({
   onConfirmAction,
   onAddTarget,
   onAddAction,
+  onAddUnplannedAction,
   onAddTopic,
   onUpdateTopicDiscipline,
   onDeleteDiscipline,
@@ -403,6 +433,7 @@ export function AssessmentOutline({
   const [dialogTarget, setDialogTarget] = useState<DialogTarget | null>(null);
   const [selectedBulkNotDoneKeys, setSelectedBulkNotDoneKeys] = useState<Set<string>>(new Set());
   const [bulkNotDoneDialogOpen, setBulkNotDoneDialogOpen] = useState(false);
+  const [unplannedDialogTarget, setUnplannedDialogTarget] = useState<{ dueDate: string; dayPart: DayPart | "none" } | null>(null);
   const templateInputRef = useRef<HTMLInputElement | null>(null);
   const today = format(new Date(), "yyyy-MM-dd");
   const disciplineOptions = disciplines.length > 0 ? disciplines : initialActionPlanDisciplines;
@@ -780,7 +811,11 @@ export function AssessmentOutline({
               </div>
               {dateGroup.dayPartGroups.map((group) => (
                 <div key={`${dateGroup.dueDate}-${group.key}`}>
-                  <DayPartHeader part={group.key} />
+                  <DayPartHeader
+                    part={group.key}
+                    onCreateUnplanned={onAddUnplannedAction ? () =>
+                      setUnplannedDialogTarget({ dueDate: dateGroup.dueDate, dayPart: group.key }) : undefined}
+                  />
                   <div className="mt-2 overflow-hidden rounded-lg border border-border bg-card">
                     <Table
                       className={cn(
@@ -936,7 +971,12 @@ export function AssessmentOutline({
                               <TableCell className="px-3 py-3 align-top break-words">
                                 <div className="flex items-start gap-2">
                                   <div className={cn("min-w-0 flex-1 font-medium leading-snug break-words", status !== "open" && "text-foreground/70")}>
-                                    {action.title}
+                                    <span>{action.title}</span>
+                                    {action.isUnplanned && (
+                                      <Badge variant="outline" className="ml-2 border-amber-300 bg-amber-50 align-middle text-[10px] text-amber-800">
+                                        Ungeplant
+                                      </Badge>
+                                    )}
                                   </div>
                                   <TooltipProvider delayDuration={150}>
                                     <Tooltip>
@@ -1094,6 +1134,15 @@ export function AssessmentOutline({
               dialogTarget.dueDate
             );
             setDialogTarget(null);
+          }}
+        />
+        <UnplannedActionDialog
+          target={unplannedDialogTarget}
+          onClose={() => setUnplannedDialogTarget(null)}
+          onConfirm={(draft) => {
+            if (!unplannedDialogTarget || !onAddUnplannedAction) return;
+            onAddUnplannedAction(unplannedDialogTarget.dueDate, unplannedDialogTarget.dayPart, draft);
+            setUnplannedDialogTarget(null);
           }}
         />
         <BulkNotDoneDialog
@@ -1547,13 +1596,41 @@ export function AssessmentOutline({
   );
 }
 
-function DayPartHeader({ part }: { part: DayPart | "none" }) {
+function DayPartHeader({
+  part,
+  onCreateUnplanned,
+}: {
+  part: DayPart | "none";
+  onCreateUnplanned?: () => void;
+}) {
+  const menu = onCreateUnplanned ? (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 rounded-full text-muted-foreground hover:text-primary"
+          aria-label="Tageszeit-Menü öffnen"
+        >
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-56">
+        <DropdownMenuItem onClick={onCreateUnplanned}>
+          Ungeplante Handlung erstellen
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  ) : null;
+
   if (part === "none") {
     return (
       <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/70">
         <span className="h-px flex-1 bg-border" />
         <span>Ohne Tageszeit</span>
         <span className="h-px flex-1 bg-border" />
+        {menu}
       </div>
     );
   }
@@ -1563,6 +1640,7 @@ function DayPartHeader({ part }: { part: DayPart | "none" }) {
       <Icon className="h-3.5 w-3.5" />
       <span>{DAY_PART_LABEL[part]}</span>
       <span className="h-px flex-1 bg-border" />
+      {menu}
     </div>
   );
 }
@@ -1627,6 +1705,7 @@ function ActionRow({
   return (
     <li className={cn(
       "group/action flex items-start gap-3 rounded transition-colors",
+      action.isUnplanned && "border-amber-200 bg-amber-50/60",
       viewMode === "planning"
         ? "p-3 bg-secondary/30 border border-border hover:border-primary/40"
         : "py-2 px-2 -mx-2 hover:bg-secondary/40"
@@ -1670,6 +1749,11 @@ function ActionRow({
               "line-through text-muted-foreground/70",
           )}
         />
+        {action.isUnplanned && (
+          <Badge variant="outline" className="mt-1 w-fit border-amber-300 bg-amber-50 text-[10px] text-amber-800">
+            Ungeplante Handlung
+          </Badge>
+        )}
 
         {viewMode === "planning" && (
           <div className="mt-1 space-y-1">
@@ -2280,6 +2364,242 @@ function StatusBadge({ action }: { action: ActionNode }) {
   );
 }
 
+
+function UnplannedActionDialog({
+  target,
+  onClose,
+  onConfirm,
+}: {
+  target: { dueDate: string; dayPart: DayPart | "none" } | null;
+  onClose: () => void;
+  onConfirm: (draft: UnplannedActionDraft) => void;
+}) {
+  const [creationMode, setCreationMode] = useState<"template" | "scratch">("template");
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+  const [templates, setTemplates] = useState<ActionPlanTemplate[]>([]);
+  const [draft, setDraft] = useState<UnplannedActionDraft>({ title: "", notes: "" });
+  const open = target !== null;
+
+  const applyTemplate = (templateId: string, fallbackDayPart: DayPart | "none") => {
+    const template = templates.find((entry) => entry.id === templateId);
+    if (!template) return;
+    const fields = template.fields;
+    const plannedMinutes = Number(fields.dauer);
+    const requiredPersons = Number(fields.personen);
+    setDraft({
+      title: fields.titel,
+      notes: fields.beschreibung,
+      requiredResources: fields.hilfsmittel || undefined,
+      plannedMinutes: Number.isFinite(plannedMinutes) ? plannedMinutes : undefined,
+      requiredPersons: Number.isFinite(requiredPersons) ? requiredPersons : undefined,
+      category: fields.kategorie !== "none" ? (fields.kategorie as ActionCategory) : undefined,
+      serviceType: fields.leistungsart !== "none" ? (fields.leistungsart as ActionServiceType) : undefined,
+      dayPart: fallbackDayPart === "none" ? undefined : fallbackDayPart,
+      scheduledTime: fields.uhrzeit || undefined,
+      resultRequirement: fields.resultat !== "none" ? (fields.resultat as ActionNode["resultRequirement"]) : undefined,
+      templateId: template.id,
+      templateName: template.name,
+    });
+  };
+
+  useEffect(() => {
+    if (!target) return;
+    const loadedTemplates = loadActionPlanTemplates();
+    setTemplates(loadedTemplates);
+    setCreationMode("template");
+    const defaultFields = buildDefaultTemplateFields();
+    setSelectedTemplateId(loadedTemplates[0]?.id ?? "");
+    setDraft({
+      title: defaultFields.titel,
+      notes: defaultFields.beschreibung,
+      dayPart: target.dayPart === "none" ? undefined : target.dayPart,
+    });
+    if (loadedTemplates[0]) {
+      const fields = loadedTemplates[0].fields;
+      const plannedMinutes = Number(fields.dauer);
+      const requiredPersons = Number(fields.personen);
+      setDraft({
+        title: fields.titel,
+        notes: fields.beschreibung,
+        requiredResources: fields.hilfsmittel || undefined,
+        plannedMinutes: Number.isFinite(plannedMinutes) ? plannedMinutes : undefined,
+        requiredPersons: Number.isFinite(requiredPersons) ? requiredPersons : undefined,
+        category: fields.kategorie !== "none" ? (fields.kategorie as ActionCategory) : undefined,
+        serviceType: fields.leistungsart !== "none" ? (fields.leistungsart as ActionServiceType) : undefined,
+        dayPart: target.dayPart === "none" ? undefined : target.dayPart,
+        scheduledTime: fields.uhrzeit || undefined,
+        resultRequirement: fields.resultat !== "none" ? (fields.resultat as ActionNode["resultRequirement"]) : undefined,
+        templateId: loadedTemplates[0].id,
+        templateName: loadedTemplates[0].name,
+      });
+    }
+  }, [target]);
+
+  const updateDraft = <K extends keyof UnplannedActionDraft>(field: K, value: UnplannedActionDraft[K]) => {
+    setDraft((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleModeChange = (mode: "template" | "scratch") => {
+    setCreationMode(mode);
+    if (mode === "scratch") {
+      setSelectedTemplateId("");
+      setDraft({
+        title: "",
+        notes: "",
+        dayPart: target?.dayPart === "none" ? undefined : target?.dayPart,
+      });
+      return;
+    }
+    const nextTemplateId = selectedTemplateId || templates[0]?.id || "";
+    setSelectedTemplateId(nextTemplateId);
+    if (target && nextTemplateId) applyTemplate(nextTemplateId, target.dayPart);
+  };
+
+  const submit = () => {
+    if (!draft.title.trim()) return;
+    onConfirm({
+      ...draft,
+      title: draft.title.trim(),
+      notes: draft.notes.trim(),
+      requiredResources: draft.requiredResources?.trim() || undefined,
+      dayPart: target?.dayPart === "none" ? undefined : target?.dayPart,
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(nextOpen) => (!nextOpen ? onClose() : null)}>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Ungeplante Handlung erstellen</DialogTitle>
+          <DialogDescription>
+            Die Handlung wird direkt als bestätigt im ausgewählten Dossier und in der Tageszeit
+            {target ? ` „${target.dayPart === "none" ? "Ohne Tageszeit" : DAY_PART_LABEL[target.dayPart]}“` : ""} erfasst.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => handleModeChange("template")}
+              className={cn(
+                "rounded-md border p-3 text-left transition-colors",
+                creationMode === "template" ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-secondary/40",
+              )}
+            >
+              <div className="text-sm font-medium">Ab Vorlage verwenden</div>
+              <div className="mt-1 text-xs text-muted-foreground">Vorlagenwerte übernehmen und vor dem Bestätigen anpassen.</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleModeChange("scratch")}
+              className={cn(
+                "rounded-md border p-3 text-left transition-colors",
+                creationMode === "scratch" ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-secondary/40",
+              )}
+            >
+              <div className="text-sm font-medium">Ohne Vorlage erstellen</div>
+              <div className="mt-1 text-xs text-muted-foreground">Leere Handlung manuell erfassen.</div>
+            </button>
+          </div>
+
+          {creationMode === "template" && (
+            <div className="space-y-1.5">
+              <Label>Vorlage</Label>
+              <Select
+                value={selectedTemplateId || "none"}
+                onValueChange={(value) => {
+                  const next = value === "none" ? "" : value;
+                  setSelectedTemplateId(next);
+                  if (target && next) applyTemplate(next, target.dayPart);
+                }}
+              >
+                <SelectTrigger><SelectValue placeholder="Vorlage auswählen" /></SelectTrigger>
+                <SelectContent>
+                  {templates.length === 0 && <SelectItem value="none">Keine Vorlage vorhanden</SelectItem>}
+                  {templates.map((template) => (
+                    <SelectItem key={template.id} value={template.id}>{template.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="space-y-1.5 sm:col-span-2">
+              <Label>Titel</Label>
+              <Input value={draft.title} onChange={(e) => updateDraft("title", e.target.value)} placeholder="Handlung…" />
+            </label>
+            <label className="space-y-1.5 sm:col-span-2">
+              <Label>Beschreibung</Label>
+              <Textarea rows={2} value={draft.notes} onChange={(e) => updateDraft("notes", e.target.value)} />
+            </label>
+            <label className="space-y-1.5 sm:col-span-2">
+              <Label>Hilfsmittel</Label>
+              <Textarea rows={2} value={draft.requiredResources ?? ""} onChange={(e) => updateDraft("requiredResources", e.target.value || undefined)} />
+            </label>
+            <div className="space-y-1.5">
+              <Label>Tageszeit</Label>
+              <Input disabled value={target?.dayPart === "none" ? "Ohne Tageszeit" : target ? DAY_PART_LABEL[target.dayPart] : ""} />
+            </div>
+            <label className="space-y-1.5">
+              <Label>Uhrzeit</Label>
+              <Input type="time" value={draft.scheduledTime ?? ""} onChange={(e) => updateDraft("scheduledTime", e.target.value || undefined)} />
+            </label>
+            <label className="space-y-1.5">
+              <Label>Geplante Minuten</Label>
+              <Input type="number" min={0} step={5} value={draft.plannedMinutes ?? ""} onChange={(e) => updateDraft("plannedMinutes", e.target.value === "" ? undefined : Math.max(0, Number(e.target.value)))} />
+            </label>
+            <label className="space-y-1.5">
+              <Label>Anz. Personen</Label>
+              <Input type="number" min={1} step={1} value={draft.requiredPersons ?? ""} onChange={(e) => updateDraft("requiredPersons", e.target.value === "" ? undefined : Math.max(1, Math.floor(Number(e.target.value))))} />
+            </label>
+            <div className="space-y-1.5">
+              <Label>Kategorie</Label>
+              <Select value={draft.category ?? "none"} onValueChange={(value) => updateDraft("category", value === "none" ? undefined : value as ActionCategory)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Keine Angabe</SelectItem>
+                  <SelectItem value="a">A</SelectItem>
+                  <SelectItem value="b">B</SelectItem>
+                  <SelectItem value="c">C</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Resultat</Label>
+              <Select value={draft.resultRequirement ?? "none"} onValueChange={(value) => updateDraft("resultRequirement", value === "none" ? undefined : value as ActionNode["resultRequirement"])}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Kein Resultat</SelectItem>
+                  <SelectItem value="optional">Resultat optional</SelectItem>
+                  <SelectItem value="required">Resultat zwingend</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>Leistungsart</Label>
+              <Select value={draft.serviceType ?? "none"} onValueChange={(value) => updateDraft("serviceType", value === "none" ? undefined : value as ActionServiceType)}>
+                <SelectTrigger><SelectValue placeholder="Leistungsart" /></SelectTrigger>
+                <SelectContent>
+                  {ACTION_SERVICE_TYPE_SELECT_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter className="gap-2 sm:justify-between">
+          <Button variant="outline" onClick={onClose}>Abbrechen</Button>
+          <Button onClick={submit} disabled={!draft.title.trim()}>Bestätigen</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function BulkNotDoneDialog({
   open,
   targets,
@@ -2413,7 +2733,7 @@ function ConfirmActionDialog({
     ) {
       return;
     }
-    const obs = observations.trim() ? observations.trim() : undefined;
+    const obs = target.action.isUnplanned ? undefined : observations.trim() ? observations.trim() : undefined;
     if (mode === "done_as_planned") {
       onConfirm({ status: "done_as_planned", result: res, observations: obs });
     } else if (mode === "done_with_deviation") {
@@ -2472,7 +2792,7 @@ function ConfirmActionDialog({
     resultRequirement !== "none" &&
     (mode === "done_as_planned" || mode === "done_with_deviation");
   const resultRequired = resultRequirement === "required";
-  const showObservations = mode === "done_as_planned" || mode === "done_with_deviation";
+  const showObservations = !target?.action.isUnplanned && (mode === "done_as_planned" || mode === "done_with_deviation");
   const selectedModeOption = CONFIRMATION_MODE_OPTIONS.find((option) => option.mode === mode);
   const activeConfirmation = target?.action.confirmations?.[target.dueDate];
 
@@ -2654,7 +2974,7 @@ function ConfirmActionDialog({
         )}
 
         <DialogFooter className="gap-2 sm:justify-between">
-          {target?.action.status !== "open" ? (
+          {target?.action.status !== "open" && !target?.action.isUnplanned ? (
             <Button
               variant="ghost"
               onClick={() => {

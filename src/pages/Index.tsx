@@ -35,6 +35,7 @@ import type {
   ActionNode,
   ActionServiceType,
   Client,
+  DayPart,
   TopicNode,
   Weekday,
 } from "@/types/assessment";
@@ -550,6 +551,7 @@ const Index = () => {
       f.differencePercent != null ||
       f.dayPart != null ||
       f.category != null ||
+      f.unplanned != null ||
       (f.disciplineIds?.length ?? 0) > 0 ||
       f.persons != null ||
       f.result != null
@@ -834,6 +836,109 @@ const Index = () => {
             },
       ),
     );
+  };
+
+
+  const addUnplannedAction = (
+    clientId: string,
+    dueDate: string,
+    dayPart: DayPart | "none",
+    draft: {
+      title: string;
+      notes: string;
+      requiredResources?: string;
+      plannedMinutes?: number;
+      requiredPersons?: number;
+      resultRequirement?: ActionNode["resultRequirement"];
+      scheduledTime?: string;
+      category?: ActionNode["category"];
+      serviceType?: ActionServiceType;
+      templateId?: string;
+      templateName?: string;
+    },
+  ) => {
+    const auditTrail = {
+      confirmedBy: "danuss",
+      confirmedAt: new Date().toISOString().slice(0, 19) + "Z",
+    };
+    const actionId = uid();
+    const unplannedTopicTitle = "Ungeplante Handlungen";
+    const unplannedTargetTitle = "Direkt in der Umsetzung erfasst";
+    const newAction: ActionNode = {
+      id: actionId,
+      title: draft.title,
+      notes: draft.notes,
+      requiredResources: draft.requiredResources,
+      plannedMinutes: draft.plannedMinutes,
+      requiredPersons: draft.requiredPersons,
+      resultRequirement: draft.resultRequirement,
+      dayPart: dayPart === "none" ? undefined : dayPart,
+      scheduledTime: draft.scheduledTime,
+      category: draft.category,
+      serviceType: draft.serviceType,
+      validFrom: dueDate,
+      validTo: dueDate,
+      recurrence: "daily",
+      status: "done_as_planned",
+      done: true,
+      isUnplanned: true,
+      templateId: draft.templateId,
+      templateName: draft.templateName,
+      confirmations: {
+        [dueDate]: {
+          status: "done_as_planned",
+          serviceType: draft.serviceType,
+          actualMinutes: draft.plannedMinutes,
+          done: true,
+          ...auditTrail,
+        },
+      },
+    };
+
+    updateClientTopicsFor(clientId, (topics) => {
+      const existingTopic = topics.find((topic) => topic.title === unplannedTopicTitle);
+      if (!existingTopic) {
+        return [
+          ...topics,
+          {
+            id: uid(),
+            title: unplannedTopicTitle,
+            notes: "",
+            disciplineId: availableDisciplines[0]?.id ?? DEFAULT_SEED_DISCIPLINE_ID,
+            targets: [
+              {
+                id: uid(),
+                title: unplannedTargetTitle,
+                notes: "",
+                actions: [newAction],
+              },
+            ],
+          },
+        ];
+      }
+
+      return topics.map((topic) => {
+        if (topic.id !== existingTopic.id) return topic;
+        const existingTarget = topic.targets.find((target) => target.title === unplannedTargetTitle);
+        if (!existingTarget) {
+          return {
+            ...topic,
+            targets: [
+              ...topic.targets,
+              { id: uid(), title: unplannedTargetTitle, notes: "", actions: [newAction] },
+            ],
+          };
+        }
+        return {
+          ...topic,
+          targets: topic.targets.map((target) =>
+            target.id === existingTarget.id
+              ? { ...target, actions: [...target.actions, newAction] }
+              : target,
+          ),
+        };
+      });
+    });
   };
 
   const updateTopic = (
@@ -1278,6 +1383,7 @@ const Index = () => {
           Schwerpunkt: topic.title,
           Ziel: target.title,
           Handlung: action.title,
+          "Planungsart": action.isUnplanned ? "Ungeplant" : "Geplant",
           Beschreibung: action.notes,
           Hilfsmittel: action.requiredResources ?? "",
           Status:
@@ -1321,6 +1427,7 @@ const Index = () => {
       "Schwerpunkt",
       "Ziel",
       "Handlung",
+      "Planungsart",
       "Beschreibung",
       "Hilfsmittel",
       "Status",
@@ -1727,6 +1834,26 @@ const Index = () => {
                     </div>
 
                     <div className="space-y-1.5">
+                      <div className="font-medium">Planungsart</div>
+                      <Select
+                        value={draftFilter.unplanned ?? "all"}
+                        onValueChange={(value) =>
+                          setDraftFilter((prev) => ({
+                            ...prev,
+                            unplanned: value === "all" ? undefined : value as AssessmentFilterModel["unplanned"],
+                          }))
+                        }
+                      >
+                        <SelectTrigger><SelectValue placeholder="Planungsart" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Alle Handlungen</SelectItem>
+                          <SelectItem value="planned">Nur geplante Handlungen</SelectItem>
+                          <SelectItem value="unplanned">Nur ungeplante Handlungen</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
                       <div className="font-medium">Kategorie</div>
                       <Select
                         value={draftFilter.category ?? "all"}
@@ -2092,6 +2219,9 @@ const Index = () => {
                       onAddTarget={(topicId) => addTarget(client.id, topicId)}
                       onAddAction={(topicId, targetId, templateIds, serviceType) =>
                         addAction(client.id, topicId, targetId, templateIds, serviceType)
+                      }
+                      onAddUnplannedAction={(dueDate, dayPart, draft) =>
+                        addUnplannedAction(client.id, dueDate, dayPart, draft)
                       }
                       onDeleteTopic={(topicId) => deleteTopic(client.id, topicId)}
                       onDeleteTarget={(topicId, targetId) =>

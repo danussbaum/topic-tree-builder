@@ -34,3 +34,22 @@ describe("matchesAssessmentFilter / category", () => {
     ).toBe(true);
   });
 });
+
+
+describe("matchesAssessmentFilter / unplanned", () => {
+  it("filtert geplante und ungeplante Handlungen getrennt", () => {
+    const plannedFilter: AssessmentFilterModel = {
+      statuses: ["open"],
+      unplanned: "planned",
+    };
+    const unplannedFilter: AssessmentFilterModel = {
+      statuses: ["open"],
+      unplanned: "unplanned",
+    };
+
+    expect(matchesAssessmentFilter({ action, status: "open" }, plannedFilter)).toBe(true);
+    expect(matchesAssessmentFilter({ action: { ...action, isUnplanned: true }, status: "open" }, plannedFilter)).toBe(false);
+    expect(matchesAssessmentFilter({ action, status: "open" }, unplannedFilter)).toBe(false);
+    expect(matchesAssessmentFilter({ action: { ...action, isUnplanned: true }, status: "open" }, unplannedFilter)).toBe(true);
+  });
+});
