@@ -22,6 +22,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronUp,
+  Info,
 } from "lucide-react";
 import {
   Dialog,
@@ -823,6 +824,10 @@ export function AssessmentOutline({
                           const canConfirm = canConfirmAction(action);
                           const bulkNotDoneKey = buildBulkNotDoneKey(topic.id, target.id, action.id, confirmationDate);
                           const isBulkNotDoneSelectable = canConfirm && (status === "open" || status === "postponed");
+                          const disciplineTitle =
+                            disciplineOptions.find((discipline) => discipline.id === topic.disciplineId)?.title ??
+                            topic.disciplineId ??
+                            "Ohne Disziplin";
                           const openConfirmationDialog = (initialMode: ConfirmationMode) => {
                             if (!canConfirm) return;
                             setDialogTarget({
@@ -937,8 +942,37 @@ export function AssessmentOutline({
                                 </TableCell>
                               )}
                               <TableCell className="px-3 py-3 align-top break-words">
-                                <div className={cn("font-medium leading-snug break-words", status !== "open" && "text-foreground/70")}>
-                                  {action.title}
+                                <div className="flex items-start gap-2">
+                                  <div className={cn("min-w-0 flex-1 font-medium leading-snug break-words", status !== "open" && "text-foreground/70")}>
+                                    {action.title}
+                                  </div>
+                                  <TooltipProvider delayDuration={150}>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span
+                                          tabIndex={0}
+                                          aria-label="Details zu Disziplin, Schwerpunkt und Ziel anzeigen"
+                                          className="mt-0.5 inline-flex h-6 w-6 shrink-0 cursor-help items-center justify-center rounded-full border border-border bg-background text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                        >
+                                          <Info className="h-3.5 w-3.5" aria-hidden="true" />
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="right" align="start" className="max-w-[320px] space-y-2 p-3 text-xs">
+                                        <div>
+                                          <div className="font-semibold text-foreground">Disziplin</div>
+                                          <div className="mt-0.5 text-muted-foreground">{disciplineTitle}</div>
+                                        </div>
+                                        <div>
+                                          <div className="font-semibold text-foreground">Schwerpunkt</div>
+                                          <div className="mt-0.5 text-muted-foreground">{topic.title}</div>
+                                        </div>
+                                        <div>
+                                          <div className="font-semibold text-foreground">Ziel</div>
+                                          <div className="mt-0.5 text-muted-foreground">{target.title}</div>
+                                        </div>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
                                 </div>
                                 {conf?.postponedToDate && (
                                   <div className="mt-1 inline-flex items-center gap-1 rounded border border-border bg-muted/40 px-1.5 py-0.5 text-[11px] text-muted-foreground">
@@ -961,15 +995,6 @@ export function AssessmentOutline({
                                     Keine Umsetzung möglich (zu geringe Berechtigung)
                                   </div>
                                 )}
-                                <div className="mt-2 text-xs break-words">
-                                  <div className="text-muted-foreground/70 line-clamp-2 break-words">
-                                    {disciplineOptions.find((discipline) => discipline.id === topic.disciplineId)?.title ??
-                                      topic.disciplineId ??
-                                      "Ohne Disziplin"}
-                                  </div>
-                                  <div className="mt-1 font-medium text-primary/70 line-clamp-2 break-words">{topic.title}</div>
-                                  <div className="mt-1 text-muted-foreground line-clamp-2 break-words">{target.title}</div>
-                                </div>
                               </TableCell>
                               <TableCell className="px-3 py-3 align-top text-xs text-muted-foreground">
                                 {action.category ? (
