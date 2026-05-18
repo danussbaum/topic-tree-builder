@@ -311,6 +311,33 @@ describe("AssessmentOutline confirmation actions", () => {
     );
   });
 
+  it("submits the manually selected day part for unplanned template actions", async () => {
+    const onAddUnplannedAction = vi.fn();
+
+    render(
+      <UnplannedActionDialog
+        target={{ dueDate: "2026-05-12", dayPart: "none" }}
+        onClose={vi.fn()}
+        onConfirm={onAddUnplannedAction}
+      />,
+    );
+
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByPlaceholderText("Vorlagen suchen..."), { target: { value: "Morg" } });
+    fireEvent.click(await within(dialog).findByText("Morgenroutine"));
+
+    fireEvent.click(within(dialog).getByRole("combobox", { name: "Tageszeit" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Abend" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Bestätigen" }));
+
+    expect(onAddUnplannedAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Morgenroutine",
+        dayPart: "evening",
+      }),
+    );
+  });
+
   it("keeps a newly created confirmed unplanned action visible while the unconfirmed filter is active", () => {
     render(
       <AssessmentOutline

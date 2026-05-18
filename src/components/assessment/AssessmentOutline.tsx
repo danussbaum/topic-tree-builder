@@ -141,7 +141,7 @@ interface UnplannedActionDraft {
   plannedMinutes?: number;
   requiredPersons?: number;
   resultRequirement?: ActionNode["resultRequirement"];
-  dayPart?: DayPart;
+  dayPart?: DayPart | "none";
   scheduledTime?: string;
   category?: ActionCategory;
   serviceType?: ActionServiceType;
@@ -2377,7 +2377,7 @@ const buildEmptyUnplannedTemplateDraft = (dayPart?: DayPart | "none"): Unplanned
   return {
     title: "",
     notes: defaultFields.beschreibung,
-    dayPart: dayPart === "none" ? undefined : dayPart,
+    dayPart: dayPart ?? "none",
   };
 };
 
@@ -2421,7 +2421,7 @@ export function UnplannedActionDialog({
       requiredPersons: Number.isFinite(requiredPersons) ? requiredPersons : undefined,
       category: fields.kategorie !== "none" ? (fields.kategorie as ActionCategory) : undefined,
       serviceType: fields.leistungsart !== "none" ? (fields.leistungsart as ActionServiceType) : undefined,
-      dayPart: fallbackDayPart === "none" ? undefined : fallbackDayPart,
+      dayPart: fallbackDayPart,
       scheduledTime: fields.uhrzeit || undefined,
       resultRequirement: fields.resultat !== "none" ? (fields.resultat as ActionNode["resultRequirement"]) : undefined,
       templateId: template.id,
@@ -2488,7 +2488,7 @@ export function UnplannedActionDialog({
       setDraft({
         title: "",
         notes: "",
-        dayPart: target?.dayPart === "none" ? undefined : target?.dayPart,
+        dayPart: target?.dayPart ?? "none",
       });
       return;
     }
@@ -2498,6 +2498,9 @@ export function UnplannedActionDialog({
     setDraft(buildEmptyUnplannedTemplateDraft(target?.dayPart));
   };
 
+  const selectedDayPart = draft.dayPart ?? target?.dayPart ?? "none";
+  const selectedDayPartLabel = selectedDayPart === "none" ? "Ohne Tageszeit" : DAY_PART_LABEL[selectedDayPart];
+
   const submit = () => {
     const title = draft.title.trim() || (creationMode === "scratch" ? "Ungeplante Handlung" : "");
     if (!title) return;
@@ -2506,7 +2509,7 @@ export function UnplannedActionDialog({
       title,
       notes: draft.notes.trim(),
       requiredResources: draft.requiredResources?.trim() || undefined,
-      dayPart: target?.dayPart === "none" ? undefined : target?.dayPart,
+      dayPart: draft.dayPart ?? "none",
     });
   };
 
@@ -2517,7 +2520,7 @@ export function UnplannedActionDialog({
           <DialogTitle>Ungeplante Handlung erstellen</DialogTitle>
           <DialogDescription>
             Die Handlung wird direkt als bestätigt im ausgewählten Dossier und in der Tageszeit
-            {target ? ` „${target.dayPart === "none" ? "Ohne Tageszeit" : DAY_PART_LABEL[target.dayPart]}“` : ""} erfasst.
+            {target ? ` „${selectedDayPartLabel}“` : ""} erfasst.
           </DialogDescription>
         </DialogHeader>
 
@@ -2668,7 +2671,14 @@ export function UnplannedActionDialog({
             </label>
             <div className="space-y-1.5">
               <Label>Tageszeit</Label>
-              <Input disabled value={target?.dayPart === "none" ? "Ohne Tageszeit" : target ? DAY_PART_LABEL[target.dayPart] : ""} />
+              <Select value={draft.dayPart ?? "none"} onValueChange={(value) => updateDraft("dayPart", value as DayPart | "none")}>
+                <SelectTrigger aria-label="Tageszeit"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {DAY_PART_SELECT_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <label className="space-y-1.5">
               <Label>Uhrzeit</Label>

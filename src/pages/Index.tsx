@@ -864,6 +864,7 @@ const Index = () => {
       serviceType?: ActionServiceType;
       templateId?: string;
       templateName?: string;
+      dayPart?: DayPart | "none";
     },
   ) => {
     const auditTrail = {
@@ -873,6 +874,8 @@ const Index = () => {
     const actionId = uid();
     const unplannedTopicTitle = "Ungeplante Handlungen";
     const unplannedTargetTitle = "Direkt in der Umsetzung erfasst";
+    const selectedDayPart = draft.dayPart ?? dayPart;
+
     const newAction: ActionNode = {
       id: actionId,
       title: draft.title,
@@ -881,7 +884,7 @@ const Index = () => {
       plannedMinutes: draft.plannedMinutes,
       requiredPersons: draft.requiredPersons,
       resultRequirement: draft.resultRequirement,
-      dayPart: dayPart === "none" ? undefined : dayPart,
+      dayPart: selectedDayPart === "none" ? undefined : selectedDayPart,
       scheduledTime: draft.scheduledTime,
       category: draft.category,
       serviceType: draft.serviceType,
