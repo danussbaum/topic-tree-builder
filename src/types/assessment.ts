@@ -104,6 +104,8 @@ export interface ActionNode {
   reason?: string;
   result?: string;
   observations?: string;
+  /** Kennzeichnet eine direkt in der Umsetzungsmaske erfasste, ungeplante Handlung */
+  isUnplanned?: boolean;
   templateId?: string;
   templateName?: string;
   templateLockedFields?: string[];

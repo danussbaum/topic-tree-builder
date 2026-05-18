@@ -29,6 +29,7 @@ export interface AssessmentFilterModel {
   persons?: PersonsFilter;
   result?: "none" | "with_result";
   disciplineIds?: string[];
+  unplanned?: "planned" | "unplanned";
 }
 
 export const DEFAULT_ASSESSMENT_FILTER: AssessmentFilterModel = {
@@ -112,6 +113,9 @@ export const matchesAssessmentFilter = (
 
   if (filter.result === "none" && confirmation?.result) return false;
   if (filter.result === "with_result" && !confirmation?.result) return false;
+
+  if (filter.unplanned === "planned" && action.isUnplanned) return false;
+  if (filter.unplanned === "unplanned" && !action.isUnplanned) return false;
 
   return true;
 };
