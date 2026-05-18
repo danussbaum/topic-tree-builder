@@ -826,11 +826,11 @@ export function AssessmentOutline({
                         "w-full table-fixed",
                         bulkNotDoneMode
                           ? clientName
-                            ? "min-w-[1102px]"
-                            : "min-w-[992px]"
+                            ? "min-w-[1130px]"
+                            : "min-w-[1020px]"
                           : clientName
-                            ? "min-w-[1054px]"
-                            : "min-w-[944px]",
+                            ? "min-w-[1082px]"
+                            : "min-w-[972px]",
                       )}
                     >
                       <TableHeader className="bg-secondary/40">
@@ -838,7 +838,7 @@ export function AssessmentOutline({
                           {bulkNotDoneMode && (
                             <TableHead className="w-[48px] px-2"><span className="sr-only">Mehrfachauswahl</span></TableHead>
                           )}
-                          <TableHead className="w-[48px] px-1"><span className="sr-only">Umsetzung</span></TableHead>
+                          <TableHead className="w-[76px] px-1"><span className="sr-only">Umsetzung</span></TableHead>
                           {clientName && <TableHead className="w-[110px] px-2">Klient/in</TableHead>}
                           <TableHead className="w-[296px] px-2">Handlung</TableHead>
                           <TableHead className="w-[90px] px-2">Kategorie</TableHead>
@@ -908,7 +908,7 @@ export function AssessmentOutline({
                               <TableCell className="px-2 py-3 align-top text-xs text-muted-foreground">
                                 {status === "open" || status === "postponed" ? (
                                   <TooltipProvider delayDuration={150}>
-                                    <div className="flex flex-col items-center gap-1.5">
+                                    <div className="grid grid-cols-2 justify-items-center gap-1.5">
                                       {CONFIRMATION_MODE_OPTIONS.map((option) => {
                                         const Icon = option.icon;
                                         return (
