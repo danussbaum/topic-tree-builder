@@ -90,6 +90,10 @@ import {
   initialActionPlanDisciplines,
   type ActionPlanDiscipline,
 } from "@/lib/action-plan-disciplines";
+import {
+  canConfirmActionCategory,
+  loadActionPlanCategoryPermissions,
+} from "@/lib/action-plan-categories";
 
 type ConfirmPayload =
   | { status: "done_as_planned"; result?: string; observations?: string }
@@ -252,22 +256,10 @@ const CONFIRMATION_MODE_OPTIONS: Array<{
   },
 ];
 
-const CATEGORY_CONFIRMATION_LEVELS: Partial<Record<ActionCategory, number[]>> = {
-  a: [1],
-  b: [2],
-  c: [3],
-};
+const ACTION_PLAN_CATEGORY_PERMISSIONS = loadActionPlanCategoryPermissions();
 
-const CURRENT_USER_CONFIRMATION_LEVELS = [2, 3];
-
-const canConfirmAction = (action: ActionNode) => {
-  if (!action.category) return true;
-
-  const allowedLevels = CATEGORY_CONFIRMATION_LEVELS[action.category];
-  if (!allowedLevels || allowedLevels.length === 0) return true;
-
-  return allowedLevels.some((level) => CURRENT_USER_CONFIRMATION_LEVELS.includes(level));
-};
+const canConfirmAction = (action: ActionNode) =>
+  canConfirmActionCategory(action.category, ACTION_PLAN_CATEGORY_PERMISSIONS);
 
 const WEEKDAY_OPTIONS: Array<{ value: Weekday; label: string; dayIndex: number }> = [
   { value: "monday", label: "Mo", dayIndex: 1 },

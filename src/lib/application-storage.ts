@@ -4,6 +4,7 @@ export const APPLICATION_BROWSER_STORAGE_KEYS = [
   "assessment:cached-state:v1",
   "action-plan-templates-v1",
   "action-plan-disciplines-v1",
+  "action-plan-categories-v1",
 ] as const;
 
 export const isApplicationLogoutClearing = () => {
