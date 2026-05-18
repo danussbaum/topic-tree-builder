@@ -2373,7 +2373,7 @@ function StatusBadge({ action }: { action: ActionNode }) {
 }
 
 
-function UnplannedActionDialog({
+export function UnplannedActionDialog({
   target,
   onClose,
   onConfirm,
@@ -2399,7 +2399,7 @@ function UnplannedActionDialog({
     const plannedMinutes = Number(fields.dauer);
     const requiredPersons = Number(fields.personen);
     setDraft({
-      title: fields.titel,
+      title: template.name,
       notes: fields.beschreibung,
       requiredResources: fields.hilfsmittel || undefined,
       plannedMinutes: Number.isFinite(plannedMinutes) ? plannedMinutes : undefined,
@@ -2423,31 +2423,12 @@ function UnplannedActionDialog({
     setTemplateDropdownOpen(false);
     setActiveTemplateIndex(0);
     const defaultFields = buildDefaultTemplateFields();
-    setSelectedTemplateId(loadedTemplates[0]?.id ?? "");
+    setSelectedTemplateId("");
     setDraft({
-      title: defaultFields.titel,
+      title: "",
       notes: defaultFields.beschreibung,
       dayPart: target.dayPart === "none" ? undefined : target.dayPart,
     });
-    if (loadedTemplates[0]) {
-      const fields = loadedTemplates[0].fields;
-      const plannedMinutes = Number(fields.dauer);
-      const requiredPersons = Number(fields.personen);
-      setDraft({
-        title: fields.titel,
-        notes: fields.beschreibung,
-        requiredResources: fields.hilfsmittel || undefined,
-        plannedMinutes: Number.isFinite(plannedMinutes) ? plannedMinutes : undefined,
-        requiredPersons: Number.isFinite(requiredPersons) ? requiredPersons : undefined,
-        category: fields.kategorie !== "none" ? (fields.kategorie as ActionCategory) : undefined,
-        serviceType: fields.leistungsart !== "none" ? (fields.leistungsart as ActionServiceType) : undefined,
-        dayPart: target.dayPart === "none" ? undefined : target.dayPart,
-        scheduledTime: fields.uhrzeit || undefined,
-        resultRequirement: fields.resultat !== "none" ? (fields.resultat as ActionNode["resultRequirement"]) : undefined,
-        templateId: loadedTemplates[0].id,
-        templateName: loadedTemplates[0].name,
-      });
-    }
   }, [target]);
 
   const selectedTemplate = templates.find((template) => template.id === selectedTemplateId);
@@ -2496,18 +2477,23 @@ function UnplannedActionDialog({
       });
       return;
     }
-    const nextTemplateId = selectedTemplateId || templates[0]?.id || "";
-    setSelectedTemplateId(nextTemplateId);
+    const defaultFields = buildDefaultTemplateFields();
+    setSelectedTemplateId("");
     setTemplateQuery("");
     setTemplateDropdownOpen(true);
-    if (target && nextTemplateId) applyTemplate(nextTemplateId, target.dayPart);
+    setDraft({
+      title: "",
+      notes: defaultFields.beschreibung,
+      dayPart: target?.dayPart === "none" ? undefined : target?.dayPart,
+    });
   };
 
   const submit = () => {
-    if (!draft.title.trim()) return;
+    const title = draft.title.trim() || (creationMode === "scratch" ? "Ungeplante Handlung" : "");
+    if (!title) return;
     onConfirm({
       ...draft,
-      title: draft.title.trim(),
+      title,
       notes: draft.notes.trim(),
       requiredResources: draft.requiredResources?.trim() || undefined,
       dayPart: target?.dayPart === "none" ? undefined : target?.dayPart,
@@ -2655,10 +2641,6 @@ function UnplannedActionDialog({
 
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="space-y-1.5 sm:col-span-2">
-              <Label>Titel</Label>
-              <Input value={draft.title} onChange={(e) => updateDraft("title", e.target.value)} placeholder="Handlung…" />
-            </label>
-            <label className="space-y-1.5 sm:col-span-2">
               <Label>Beschreibung</Label>
               <Textarea rows={2} value={draft.notes} onChange={(e) => updateDraft("notes", e.target.value)} />
             </label>
@@ -2723,7 +2705,7 @@ function UnplannedActionDialog({
 
         <DialogFooter className="shrink-0 gap-2 sm:justify-between">
           <Button variant="outline" onClick={onClose}>Abbrechen</Button>
-          <Button onClick={submit} disabled={!draft.title.trim()}>Bestätigen</Button>
+          <Button onClick={submit} disabled={creationMode === "template" && !selectedTemplate}>Bestätigen</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
