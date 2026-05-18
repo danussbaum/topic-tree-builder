@@ -72,7 +72,7 @@ const Settings = () => {
   ];
 
   const subPageTitle = showPermissionLevels
-    ? "Berechtigungsstufen"
+    ? "Kategorien"
     : showActionPlanTemplates
       ? "Handlungsvorlagen"
       : showActionPlanDisciplines
@@ -119,8 +119,8 @@ const Settings = () => {
                 onLinkClick={(catId, label) => {
                   setActiveGroup(catId);
                   if (
-                    catId === "handlungsplanung" &&
-                    label === "Berechtigungsstufen"
+                    (catId === "handlungsplanung" && (label === "Berechtigungsstufen" || label === "Kategorien")) ||
+                    (catId === "kategorien" && label === "Kategorien")
                   ) {
                     setShowPermissionLevels(true);
                     setShowActionPlanTemplates(false);
