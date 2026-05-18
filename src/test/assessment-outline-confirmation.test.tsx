@@ -263,6 +263,30 @@ describe("AssessmentOutline confirmation actions", () => {
     expect(within(dialog).getByRole("button", { name: "Bestätigen" })).toBeDisabled();
   });
 
+  it("allows clearing a selected template from the unplanned action field", async () => {
+    const onAddUnplannedAction = vi.fn();
+
+    render(
+      <UnplannedActionDialog
+        target={{ dueDate: "2026-05-12", dayPart: "none" }}
+        onClose={vi.fn()}
+        onConfirm={onAddUnplannedAction}
+      />,
+    );
+
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByPlaceholderText("Vorlagen suchen..."), { target: { value: "Morg" } });
+    fireEvent.click(await within(dialog).findByText("Morgenroutine"));
+
+    expect(within(dialog).getByText("Morgenroutine")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Bestätigen" })).toBeEnabled();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Vorlage entfernen" }));
+
+    expect(within(dialog).queryByText("Morgenroutine")).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Bestätigen" })).toBeDisabled();
+  });
+
   it("uses the selected template name as title for unplanned template actions", async () => {
     const onAddUnplannedAction = vi.fn();
 
