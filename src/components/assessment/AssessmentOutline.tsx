@@ -415,6 +415,30 @@ export function AssessmentOutline({
   const disciplineOptions = disciplines.length > 0 ? disciplines : initialActionPlanDisciplines;
   const getTopicDisciplineId = (topic: TopicNode) =>
     topic.disciplineId ?? disciplineOptions[0]?.id ?? "";
+  const disciplineById = new Map(
+    disciplineOptions.map((discipline) => [discipline.id, discipline]),
+  );
+  const topicsByDiscipline = topics.reduce((groups, topic) => {
+    const disciplineId = getTopicDisciplineId(topic);
+    const groupTopics = groups.get(disciplineId) ?? [];
+    groupTopics.push(topic);
+    groups.set(disciplineId, groupTopics);
+    return groups;
+  }, new Map<string, TopicNode[]>());
+  const topicDisciplineGroups = [
+    ...disciplineOptions
+      .map((discipline) => ({
+        discipline,
+        topics: topicsByDiscipline.get(discipline.id) ?? [],
+      }))
+      .filter((group) => group.topics.length > 0),
+    ...Array.from(topicsByDiscipline.entries())
+      .filter(([disciplineId]) => !disciplineById.has(disciplineId))
+      .map(([disciplineId, groupTopics]) => ({
+        discipline: { id: disciplineId, title: "Unbekannte Disziplin", authorizedRoleIds: [] },
+        topics: groupTopics,
+      })),
+  ];
 
   useEffect(() => {
     if (!bulkNotDoneMode) {
@@ -1111,72 +1135,53 @@ export function AssessmentOutline({
   }
 
   return (
-    <div className="space-y-10">
-      {topics.map((topic) => (
-        <section key={topic.id} className="group/topic space-y-3">
-          {/* Topic header (Disziplin + Schwerpunkt als Einheit) */}
+    <div className="space-y-12">
+      {topicDisciplineGroups.map(({ discipline, topics: groupTopics }) => (
+        <section key={discipline.id} className="space-y-5">
           <div className="border-b-2 border-primary/30 pb-3">
-            <div className="flex items-start gap-3">
-              <div className="min-w-0 flex-1">
-                <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <span className="text-[10px] uppercase tracking-widest font-semibold text-primary">
-                    Disziplin
-                  </span>
-                  {topic.targets.some((t) => t.actions.length > 0) ? (
-                    <span className="h-7 inline-flex items-center min-w-[12rem] max-w-sm px-1 py-0 text-sm font-medium text-primary">
-                      {disciplineOptions.find((d) => d.id === getTopicDisciplineId(topic))?.title}
-                    </span>
-                  ) : (
-                    <Select
-                      value={getTopicDisciplineId(topic)}
-                      onValueChange={(value) =>
-                        onUpdateTopicDiscipline?.(topic.id, value)
-                      }
-                    >
-                      <SelectTrigger className="h-7 w-auto min-w-[12rem] max-w-sm border-0 border-b border-dashed border-primary/40 bg-transparent px-1 py-0 text-sm font-medium text-primary shadow-none hover:border-primary/70 focus:ring-0 focus:ring-offset-0">
-                        <SelectValue placeholder="Disziplin auswählen" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {disciplineOptions.map((discipline) => (
-                          <SelectItem key={discipline.id} value={discipline.id}>
-                            {discipline.title}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
-                <div className="text-[10px] uppercase tracking-widest font-semibold text-accent mb-1">
-                  Schwerpunkt
-                </div>
-                <input
-                  value={topic.title}
-                  onChange={(e) => onUpdateTopic(topic.id, "title", e.target.value)}
-                  readOnly={topic.targets.some((t) => t.actions.length > 0)}
-                  placeholder="Themenbezeichnung…"
-                  className={`w-full text-2xl font-semibold bg-transparent border-0 outline-none focus:ring-0 px-0 placeholder:text-muted-foreground/40 ${topic.targets.some((t) => t.actions.length > 0) ? "text-foreground cursor-default" : ""}`}
-                />
-              </div>
-              <button
-                onClick={() => onDeleteTopic(topic.id)}
-                className="opacity-0 group-hover/topic:opacity-100 p-1.5 hover:bg-destructive/10 hover:text-destructive rounded transition-opacity"
-                aria-label="Schwerpunkt löschen"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
+            <div className="text-[10px] uppercase tracking-widest font-semibold text-primary">
+              Disziplin
+            </div>
+            <div className="mt-1 flex items-center justify-between gap-3">
+              <h3 className="text-2xl font-semibold text-primary">{discipline.title}</h3>
             </div>
           </div>
 
-          <Notes
-            value={topic.notes}
-            onChange={(v) => onUpdateTopic(topic.id, "notes", v)}
-            placeholder="Freitext zum Schwerpunkt…"
-            className="mt-3"
-          />
+          <div className="space-y-8 border-l border-primary/20 pl-5">
+            {groupTopics.map((topic) => (
+              <article key={topic.id} className="group/topic space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[10px] uppercase tracking-widest font-semibold text-accent mb-1">
+                      Schwerpunkt
+                    </div>
+                    <input
+                      value={topic.title}
+                      onChange={(e) => onUpdateTopic(topic.id, "title", e.target.value)}
+                      readOnly={topic.targets.some((t) => t.actions.length > 0)}
+                      placeholder="Themenbezeichnung…"
+                      className={`w-full text-2xl font-semibold bg-transparent border-0 outline-none focus:ring-0 px-0 placeholder:text-muted-foreground/40 ${topic.targets.some((t) => t.actions.length > 0) ? "text-foreground cursor-default" : ""}`}
+                    />
+                  </div>
+                  <button
+                    onClick={() => onDeleteTopic(topic.id)}
+                    className="opacity-0 group-hover/topic:opacity-100 p-1.5 hover:bg-destructive/10 hover:text-destructive rounded transition-opacity"
+                    aria-label="Schwerpunkt löschen"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
 
-          {/* Targets */}
-          <div className="mt-6 space-y-6 pl-6 border-l border-border ml-4">
-            {topic.targets.filter((target) => {
+                <Notes
+                  value={topic.notes}
+                  onChange={(v) => onUpdateTopic(topic.id, "notes", v)}
+                  placeholder="Freitext zum Schwerpunkt…"
+                  className="mt-3"
+                />
+
+                {/* Targets */}
+                <div className="mt-6 space-y-6 pl-6 border-l border-border ml-4">
+                  {topic.targets.filter((target) => {
               if (showCompletedTargets) return true;
               if (target.actions.length === 0) return true;
               if (target.actions.some((action) => !action.validFrom)) return true;
@@ -1465,13 +1470,16 @@ export function AssessmentOutline({
               );
             })}
 
-            <button
-              onClick={() => onAddTarget(topic.id)}
-              className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors"
-            >
-              <Plus className="h-4 w-4" />
-              Ziel hinzufügen
-            </button>
+                  <button
+                    onClick={() => onAddTarget(topic.id)}
+                    className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Ziel hinzufügen
+                  </button>
+                </div>
+              </article>
+            ))}
           </div>
         </section>
       ))}
