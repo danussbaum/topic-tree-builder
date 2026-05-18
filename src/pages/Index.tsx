@@ -613,6 +613,7 @@ const Index = () => {
 
   const applyFilter = () => {
     setConfirmationFilter(draftFilter);
+    setTransientUnplannedActionIds(new Set());
     setIsFilterOpen(false);
   };
 

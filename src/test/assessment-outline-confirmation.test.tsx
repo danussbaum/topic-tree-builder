@@ -400,6 +400,81 @@ describe("AssessmentOutline confirmation actions", () => {
     expect(screen.getByText("Spontane Begleitung")).toBeInTheDocument();
   });
 
+  it("hides the transient confirmed unplanned action again after the filter is adjusted", () => {
+    const props = {
+      viewMode: "confirmation" as const,
+      selectedDate: "2026-05-12",
+      onSelectedDateChange: vi.fn(),
+      confirmationPeriod: "day" as const,
+      clientName: "Test Klient",
+      topics: [
+        {
+          id: "topic-unplanned",
+          title: "Ungeplante Handlungen",
+          notes: "",
+          targets: [
+            {
+              id: "target-unplanned",
+              title: "Direkt in der Umsetzung erfasst",
+              notes: "",
+              actions: [
+                {
+                  id: "unplanned-confirmed",
+                  title: "Spontane Begleitung",
+                  notes: "",
+                  status: "done_as_planned" as const,
+                  done: true,
+                  validFrom: "2026-05-12",
+                  validTo: "2026-05-12",
+                  recurrence: "daily" as const,
+                  isUnplanned: true,
+                  confirmations: {
+                    "2026-05-12": {
+                      status: "done_as_planned" as const,
+                      done: true,
+                      actualMinutes: 20,
+                    },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      hideConfirmationHeader: true,
+      filterModel: { statuses: ["open", "postponed"] as const },
+      onUpdateTopic: vi.fn(),
+      onUpdateTarget: vi.fn(),
+      onUpdateAction: vi.fn(),
+      onUpdateActionField: vi.fn(),
+      onConfirmAction: vi.fn(),
+      onAddTarget: vi.fn(),
+      onAddAction: vi.fn(),
+      onAddTopic: vi.fn(),
+      onDeleteTopic: vi.fn(),
+      onDeleteTarget: vi.fn(),
+      onDeleteAction: vi.fn(),
+    };
+
+    const { rerender } = render(
+      <AssessmentOutline
+        {...props}
+        transientUnplannedActionIds={new Set(["unplanned-confirmed"])}
+      />,
+    );
+
+    expect(screen.getByText("Spontane Begleitung")).toBeInTheDocument();
+
+    rerender(
+      <AssessmentOutline
+        {...props}
+        transientUnplannedActionIds={new Set()}
+      />,
+    );
+
+    expect(screen.queryByText("Spontane Begleitung")).not.toBeInTheDocument();
+  });
+
   it("allows deleting a confirmed unplanned action from the confirmation dialog", async () => {
     const onDeleteAction = vi.fn();
 
