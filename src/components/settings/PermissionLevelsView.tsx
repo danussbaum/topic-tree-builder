@@ -187,7 +187,7 @@ export const PermissionLevelsView = () => {
             </div>
 
             <div className="flex-1 overflow-y-auto px-6 py-6">
-              <div className="grid grid-cols-[200px_minmax(0,1fr)_auto] items-start gap-x-4 gap-y-3">
+              <div className="grid grid-cols-[200px_minmax(0,1fr)] items-start gap-x-4 gap-y-3">
                 <label className="pt-2 text-sm text-foreground">
                   Berechtigte Rollen
                 </label>
@@ -195,9 +195,6 @@ export const PermissionLevelsView = () => {
                   value={draftAuthorizedRoleIds}
                   onChange={setDraftAuthorizedRoleIds}
                 />
-                <span className="pt-2 text-xs text-muted-foreground">
-                  Mehrfachauswahl
-                </span>
               </div>
             </div>
 
