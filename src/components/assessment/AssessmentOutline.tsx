@@ -1122,23 +1122,29 @@ export function AssessmentOutline({
                   <span className="text-[10px] uppercase tracking-widest font-semibold text-primary">
                     Disziplin
                   </span>
-                  <Select
-                    value={getTopicDisciplineId(topic)}
-                    onValueChange={(value) =>
-                      onUpdateTopicDiscipline?.(topic.id, value)
-                    }
-                  >
-                    <SelectTrigger className="h-7 w-auto min-w-[12rem] max-w-sm border-0 border-b border-dashed border-primary/40 bg-transparent px-1 py-0 text-sm font-medium text-primary shadow-none hover:border-primary/70 focus:ring-0 focus:ring-offset-0">
-                      <SelectValue placeholder="Disziplin auswählen" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {disciplineOptions.map((discipline) => (
-                        <SelectItem key={discipline.id} value={discipline.id}>
-                          {discipline.title}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {topic.targets.some((t) => t.actions.length > 0) ? (
+                    <span className="h-7 inline-flex items-center min-w-[12rem] max-w-sm px-1 py-0 text-sm font-medium text-primary">
+                      {disciplineOptions.find((d) => d.id === getTopicDisciplineId(topic))?.title}
+                    </span>
+                  ) : (
+                    <Select
+                      value={getTopicDisciplineId(topic)}
+                      onValueChange={(value) =>
+                        onUpdateTopicDiscipline?.(topic.id, value)
+                      }
+                    >
+                      <SelectTrigger className="h-7 w-auto min-w-[12rem] max-w-sm border-0 border-b border-dashed border-primary/40 bg-transparent px-1 py-0 text-sm font-medium text-primary shadow-none hover:border-primary/70 focus:ring-0 focus:ring-offset-0">
+                        <SelectValue placeholder="Disziplin auswählen" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {disciplineOptions.map((discipline) => (
+                          <SelectItem key={discipline.id} value={discipline.id}>
+                            {discipline.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                   <button
                     type="button"
                     onClick={() => onDeleteDiscipline?.(getTopicDisciplineId(topic))}
@@ -1155,8 +1161,9 @@ export function AssessmentOutline({
                 <input
                   value={topic.title}
                   onChange={(e) => onUpdateTopic(topic.id, "title", e.target.value)}
+                  readOnly={topic.targets.some((t) => t.actions.length > 0)}
                   placeholder="Themenbezeichnung…"
-                  className="w-full text-2xl font-semibold bg-transparent border-0 outline-none focus:ring-0 px-0 placeholder:text-muted-foreground/40"
+                  className={`w-full text-2xl font-semibold bg-transparent border-0 outline-none focus:ring-0 px-0 placeholder:text-muted-foreground/40 ${topic.targets.some((t) => t.actions.length > 0) ? "text-foreground cursor-default" : ""}`}
                 />
               </div>
               <button
