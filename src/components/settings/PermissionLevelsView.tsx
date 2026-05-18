@@ -1,9 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  ACTION_PLAN_AUTHORIZED_ROLE_OPTIONS,
-} from "@/lib/action-plan-disciplines";
+import { AuthorizedRolesMultiSelect } from "@/components/settings/AuthorizedRolesMultiSelect";
 import {
   getAuthorizedRoleLabels,
   loadActionPlanCategoryPermissions,
@@ -20,15 +17,19 @@ const roleLabel = (authorizedRoleIds: string[]) => {
 };
 
 export const PermissionLevelsView = () => {
-  const [categories, setCategories] = useState<ActionPlanCategoryPermission[]>(() =>
-    loadActionPlanCategoryPermissions(),
+  const [categories, setCategories] = useState<ActionPlanCategoryPermission[]>(
+    () => loadActionPlanCategoryPermissions(),
   );
   const [sortColumn, setSortColumn] = useState<SortColumn>("name");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(
+    null,
+  );
   const [isPanelMounted, setIsPanelMounted] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
-  const [draftAuthorizedRoleIds, setDraftAuthorizedRoleIds] = useState<string[]>([]);
+  const [draftAuthorizedRoleIds, setDraftAuthorizedRoleIds] = useState<
+    string[]
+  >([]);
 
   const selectedCategory = useMemo(
     () => categories.find((entry) => entry.id === selectedCategoryId) ?? null,
@@ -37,8 +38,10 @@ export const PermissionLevelsView = () => {
 
   const sortedCategories = useMemo(() => {
     const sorted = [...categories].sort((a, b) => {
-      const leftValue = sortColumn === "name" ? a.name : roleLabel(a.authorizedRoleIds);
-      const rightValue = sortColumn === "name" ? b.name : roleLabel(b.authorizedRoleIds);
+      const leftValue =
+        sortColumn === "name" ? a.name : roleLabel(a.authorizedRoleIds);
+      const rightValue =
+        sortColumn === "name" ? b.name : roleLabel(b.authorizedRoleIds);
       return leftValue.localeCompare(rightValue, "de", { sensitivity: "base" });
     });
 
@@ -94,14 +97,6 @@ export const PermissionLevelsView = () => {
     setDraftAuthorizedRoleIds([]);
   };
 
-  const toggleAuthorizedRole = (roleId: string) => {
-    setDraftAuthorizedRoleIds((prev) =>
-      prev.includes(roleId)
-        ? prev.filter((id) => id !== roleId)
-        : [...prev, roleId],
-    );
-  };
-
   const saveChanges = () => {
     if (!selectedCategory) return;
 
@@ -126,13 +121,21 @@ export const PermissionLevelsView = () => {
           <thead className="bg-[#f1f1f3]">
             <tr className="border-b border-border/80">
               <th className="w-1/3 px-4 py-2 text-left text-xs font-semibold text-foreground">
-                <button type="button" className="inline-flex items-center gap-1" onClick={() => toggleSort("name")}>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1"
+                  onClick={() => toggleSort("name")}
+                >
                   Kategorie
                   <span aria-hidden="true">{getSortArrow("name")}</span>
                 </button>
               </th>
               <th className="w-2/3 px-4 py-2 text-left text-xs font-semibold text-foreground">
-                <button type="button" className="inline-flex items-center gap-1" onClick={() => toggleSort("roles")}>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1"
+                  onClick={() => toggleSort("roles")}
+                >
                   Berechtigte Rollen
                   <span aria-hidden="true">{getSortArrow("roles")}</span>
                 </button>
@@ -146,8 +149,12 @@ export const PermissionLevelsView = () => {
                 className="cursor-pointer border-b border-border/80 transition-colors duration-150 even:bg-[#f7f7f9] hover:bg-[#d6e2f4]"
                 onClick={() => openPanel(entry.id)}
               >
-                <td className="px-4 py-2 text-[13px] text-foreground">{entry.name}</td>
-                <td className="px-4 py-2 text-[13px] text-foreground">{roleLabel(entry.authorizedRoleIds)}</td>
+                <td className="px-4 py-2 text-[13px] text-foreground">
+                  {entry.name}
+                </td>
+                <td className="px-4 py-2 text-[13px] text-foreground">
+                  {roleLabel(entry.authorizedRoleIds)}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -167,32 +174,48 @@ export const PermissionLevelsView = () => {
             onTransitionEnd={handlePanelAnimationEnd}
           >
             <div className="flex items-center justify-between border-b border-border px-6 py-4">
-              <h2 className="text-3xl font-light text-foreground">{selectedCategory.name}</h2>
-              <button type="button" onClick={closePanel} className="text-muted-foreground hover:text-foreground">
+              <h2 className="text-3xl font-light text-foreground">
+                {selectedCategory.name}
+              </h2>
+              <button
+                type="button"
+                onClick={closePanel}
+                className="text-muted-foreground hover:text-foreground"
+              >
                 ✕
               </button>
             </div>
 
-            <div className="flex-1 space-y-4 overflow-y-auto px-6 py-6">
-              <h3 className="text-sm uppercase tracking-wide text-muted-foreground">Berechtigte Rollen</h3>
-              <div className="space-y-3 rounded-md border border-border bg-background p-4">
-                {ACTION_PLAN_AUTHORIZED_ROLE_OPTIONS.map((role) => (
-                  <label key={role.id} className="flex items-start gap-3 text-base">
-                    <Checkbox
-                      checked={draftAuthorizedRoleIds.includes(role.id)}
-                      onCheckedChange={() => toggleAuthorizedRole(role.id)}
-                    />
-                    <span className="leading-5">{role.label}</span>
-                  </label>
-                ))}
+            <div className="flex-1 overflow-y-auto px-6 py-6">
+              <div className="grid grid-cols-[200px_minmax(0,1fr)_auto] items-start gap-x-4 gap-y-3">
+                <label className="pt-2 text-sm text-foreground">
+                  Berechtigte Rollen
+                </label>
+                <AuthorizedRolesMultiSelect
+                  value={draftAuthorizedRoleIds}
+                  onChange={setDraftAuthorizedRoleIds}
+                />
+                <span className="pt-2 text-xs text-muted-foreground">
+                  Mehrfachauswahl
+                </span>
               </div>
             </div>
 
             <div className="flex items-center justify-between bg-primary px-6 py-3">
-              <Button type="button" variant="ghost" onClick={closePanel} className="text-white hover:bg-white/10 hover:text-white">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={closePanel}
+                className="text-white hover:bg-white/10 hover:text-white"
+              >
                 Abbrechen
               </Button>
-              <Button type="button" variant="ghost" onClick={saveChanges} className="text-white hover:bg-white/10 hover:text-white">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={saveChanges}
+                className="text-white hover:bg-white/10 hover:text-white"
+              >
                 Speichern
               </Button>
             </div>
