@@ -607,7 +607,19 @@ const Index = () => {
     setIsFilterOpen(false);
   };
 
+  const clearTransientUnplannedActions = () => {
+    setTransientUnplannedActionIds((prev) => (prev.size === 0 ? prev : new Set()));
+  };
+
+  const updateDraftFilter = (
+    updater: (previousFilter: AssessmentFilterModel) => AssessmentFilterModel,
+  ) => {
+    clearTransientUnplannedActions();
+    setDraftFilter(updater);
+  };
+
   const resetFilter = () => {
+    clearTransientUnplannedActions();
     setDraftFilter(INITIAL_CONFIRMATION_FILTER);
   };
 
@@ -654,7 +666,7 @@ const Index = () => {
   }, [isFilterOpen, confirmationFilter]);
 
   const toggleDraftStatus = (status: ActionNode["status"]) => {
-    setDraftFilter((prev) => {
+    updateDraftFilter((prev) => {
       const exists = prev.statuses.includes(status);
       const statuses = exists
         ? prev.statuses.filter((item) => item !== status)
@@ -664,7 +676,7 @@ const Index = () => {
   };
 
   const toggleDraftDiscipline = (disciplineId: string) => {
-    setDraftFilter((prev) => {
+    updateDraftFilter((prev) => {
       const selected = prev.disciplineIds ?? [];
       const disciplineIds = selected.includes(disciplineId)
         ? selected.filter((id) => id !== disciplineId)
@@ -1682,7 +1694,7 @@ const Index = () => {
                         <Select
                           value={draftFilter.plannedMinutes?.op ?? "eq"}
                           onValueChange={(value) =>
-                            setDraftFilter((prev) => ({
+                            updateDraftFilter((prev) => ({
                               ...prev,
                               plannedMinutes: prev.plannedMinutes
                                 ? {
@@ -1708,11 +1720,11 @@ const Index = () => {
                             setOptionalNumber(
                               e.target.value,
                               (num) =>
-                                setDraftFilter((prev) => ({
+                                updateDraftFilter((prev) => ({
                                   ...prev,
                                   plannedMinutes: { op: prev.plannedMinutes?.op ?? "eq", value: num },
                                 })),
-                              () => setDraftFilter((prev) => ({ ...prev, plannedMinutes: undefined })),
+                              () => updateDraftFilter((prev) => ({ ...prev, plannedMinutes: undefined })),
                             )
                           }
                         />
@@ -1725,7 +1737,7 @@ const Index = () => {
                         <Select
                           value={draftFilter.actualMinutes?.op ?? "eq"}
                           onValueChange={(value) =>
-                            setDraftFilter((prev) => ({
+                            updateDraftFilter((prev) => ({
                               ...prev,
                               actualMinutes: prev.actualMinutes
                                 ? {
@@ -1751,11 +1763,11 @@ const Index = () => {
                             setOptionalNumber(
                               e.target.value,
                               (num) =>
-                                setDraftFilter((prev) => ({
+                                updateDraftFilter((prev) => ({
                                   ...prev,
                                   actualMinutes: { op: prev.actualMinutes?.op ?? "eq", value: num },
                                 })),
-                              () => setDraftFilter((prev) => ({ ...prev, actualMinutes: undefined })),
+                              () => updateDraftFilter((prev) => ({ ...prev, actualMinutes: undefined })),
                             )
                           }
                         />
@@ -1771,7 +1783,7 @@ const Index = () => {
                       const label = key === "differenceMinutes" ? "Differenz Minuten" : "Differenz %";
                       const range = draftFilter[key];
                       const updateRange = (patch: { min?: number; max?: number }) => {
-                        setDraftFilter((prev) => {
+                        updateDraftFilter((prev) => {
                           const current = prev[key] ?? {};
                           const next = { ...current, ...patch };
                           const cleaned = {
@@ -1851,7 +1863,7 @@ const Index = () => {
                       <Select
                         value={draftFilter.dayPart ?? "all"}
                         onValueChange={(value) =>
-                          setDraftFilter((prev) => ({ ...prev, dayPart: value === "all" ? undefined : value as AssessmentFilterModel["dayPart"] }))
+                          updateDraftFilter((prev) => ({ ...prev, dayPart: value === "all" ? undefined : value as AssessmentFilterModel["dayPart"] }))
                         }
                       >
                         <SelectTrigger className={COMPACT_FILTER_SELECT_CLASS}><SelectValue placeholder="Tageszeit" /></SelectTrigger>
@@ -1871,7 +1883,7 @@ const Index = () => {
                       <Select
                         value={draftFilter.unplanned ?? "all"}
                         onValueChange={(value) =>
-                          setDraftFilter((prev) => ({
+                          updateDraftFilter((prev) => ({
                             ...prev,
                             unplanned: value === "all" ? undefined : value as AssessmentFilterModel["unplanned"],
                           }))
@@ -1891,7 +1903,7 @@ const Index = () => {
                       <Select
                         value={draftFilter.category ?? "all"}
                         onValueChange={(value) =>
-                          setDraftFilter((prev) => ({
+                          updateDraftFilter((prev) => ({
                             ...prev,
                             category:
                               value === "all"
@@ -1917,7 +1929,7 @@ const Index = () => {
                         <Select
                           value={draftFilter.persons?.kind ?? "all"}
                           onValueChange={(value) =>
-                            setDraftFilter((prev) => ({
+                            updateDraftFilter((prev) => ({
                               ...prev,
                               persons: value === "all" ? undefined : value === "none" ? { kind: "none" } : { kind: "exact", value: prev.persons?.kind === "exact" ? prev.persons.value : 0 },
                             }))
@@ -1939,11 +1951,11 @@ const Index = () => {
                             onChange={(e) =>
                               setOptionalNumber(
                                 e.target.value,
-                                (num) => setDraftFilter((prev) => ({
+                                (num) => updateDraftFilter((prev) => ({
                                   ...prev,
                                   persons: { kind: "exact", value: Math.max(0, Math.floor(num)) },
                                 })),
-                                () => setDraftFilter((prev) => ({ ...prev, persons: { kind: "exact", value: 0 } })),
+                                () => updateDraftFilter((prev) => ({ ...prev, persons: { kind: "exact", value: 0 } })),
                               )
                             }
                           />
@@ -1956,7 +1968,7 @@ const Index = () => {
                       <Select
                         value={draftFilter.result ?? "all"}
                         onValueChange={(value) =>
-                          setDraftFilter((prev) => ({ ...prev, result: value === "all" ? undefined : value as AssessmentFilterModel["result"] }))
+                          updateDraftFilter((prev) => ({ ...prev, result: value === "all" ? undefined : value as AssessmentFilterModel["result"] }))
                         }
                       >
                         <SelectTrigger className={COMPACT_FILTER_SELECT_CLASS}><SelectValue placeholder="Resultat" /></SelectTrigger>
