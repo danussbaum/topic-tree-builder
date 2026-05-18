@@ -32,6 +32,13 @@ import {
 } from "@/lib/action-plan-templates";
 import { loadActionPlanDisciplines } from "@/lib/action-plan-disciplines";
 
+type TemplateSortKey = "name" | "kategorie" | "leistungsart";
+
+interface TemplateSortState {
+  key: TemplateSortKey;
+  direction: "asc" | "desc";
+}
+
 type TemplateFieldKey =
   | "titel"
   | "beschreibung"
@@ -158,7 +165,10 @@ export const ActionPlanTemplatesView = forwardRef<
   const [draftEditable, setDraftEditable] =
     useState<Record<TemplateFieldKey, boolean>>(buildDefaultEditable);
   const [filePickerKey, setFilePickerKey] = useState(0);
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [sortState, setSortState] = useState<TemplateSortState>({
+    key: "name",
+    direction: "asc",
+  });
   const disciplineOptions = loadActionPlanDisciplines();
 
   const allowedByField = useMemo(() => {
@@ -192,6 +202,37 @@ export const ActionPlanTemplatesView = forwardRef<
     if (["nein", "no", "false", "0"].includes(normalized)) return false;
     return null;
   };
+
+  const getFieldOptionLabel = (fieldKey: TemplateFieldKey, value?: string) => {
+    if (!value || value === "none") return "";
+    const field = templateFieldMeta.find((entry) => entry.key === fieldKey);
+    return (
+      field?.options?.find((option) => option.value === value)?.label ?? value
+    );
+  };
+
+  const toggleSort = (key: TemplateSortKey) => {
+    setSortState((prev) =>
+      prev.key === key
+        ? { ...prev, direction: prev.direction === "asc" ? "desc" : "asc" }
+        : { key, direction: "asc" },
+    );
+  };
+
+  const renderSortableHeader = (key: TemplateSortKey, label: string) => (
+    <button
+      type="button"
+      className="inline-flex items-center gap-1"
+      onClick={() => toggleSort(key)}
+    >
+      {label}
+      {sortState.key === key && (
+        <span aria-hidden="true">
+          {sortState.direction === "asc" ? "↑" : "↓"}
+        </span>
+      )}
+    </button>
+  );
 
   const openImportPicker = () => {
     const input = document.getElementById(
@@ -336,11 +377,22 @@ export const ActionPlanTemplatesView = forwardRef<
     const filtered = templates.filter((entry) =>
       entry.name.toLocaleLowerCase("de").includes(query),
     );
-    const sorted = [...filtered].sort((a, b) =>
-      a.name.localeCompare(b.name, "de", { sensitivity: "base" }),
-    );
-    return sortDirection === "asc" ? sorted : sorted.reverse();
-  }, [searchQuery, sortDirection, templates]);
+    const sorted = [...filtered].sort((a, b) => {
+      const getSortValue = (template: ActionPlanTemplate) => {
+        if (sortState.key === "name") return template.name;
+        return getFieldOptionLabel(
+          sortState.key,
+          template.fields[sortState.key],
+        );
+      };
+      const result = getSortValue(a).localeCompare(getSortValue(b), "de", {
+        sensitivity: "base",
+      });
+      if (result !== 0) return result;
+      return a.name.localeCompare(b.name, "de", { sensitivity: "base" });
+    });
+    return sortState.direction === "asc" ? sorted : sorted.reverse();
+  }, [searchQuery, sortState, templates]);
 
   useEffect(() => {
     if (!isPanelMounted) return;
@@ -509,20 +561,13 @@ export const ActionPlanTemplatesView = forwardRef<
                 Disziplinen
               </th>
               <th className="px-4 py-2 text-left text-xs font-semibold text-foreground">
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1"
-                  onClick={() =>
-                    setSortDirection((prev) =>
-                      prev === "asc" ? "desc" : "asc",
-                    )
-                  }
-                >
-                  Name
-                  <span aria-hidden="true">
-                    {sortDirection === "asc" ? "↑" : "↓"}
-                  </span>
-                </button>
+                {renderSortableHeader("name", "Name")}
+              </th>
+              <th className="w-32 px-4 py-2 text-left text-xs font-semibold text-foreground">
+                {renderSortableHeader("kategorie", "Kategorie")}
+              </th>
+              <th className="w-44 px-4 py-2 text-left text-xs font-semibold text-foreground">
+                {renderSortableHeader("leistungsart", "Leistungsart")}
               </th>
             </tr>
           </thead>
@@ -541,6 +586,15 @@ export const ActionPlanTemplatesView = forwardRef<
                 </td>
                 <td className="px-4 py-2 text-[13px] text-foreground">
                   {entry.name}
+                </td>
+                <td className="px-4 py-2 text-[13px] text-muted-foreground">
+                  {getFieldOptionLabel("kategorie", entry.fields.kategorie)}
+                </td>
+                <td className="px-4 py-2 text-[13px] text-muted-foreground">
+                  {getFieldOptionLabel(
+                    "leistungsart",
+                    entry.fields.leistungsart,
+                  )}
                 </td>
               </tr>
             ))}
