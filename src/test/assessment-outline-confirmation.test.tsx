@@ -31,6 +31,52 @@ const topics: TopicNode[] = [
 ];
 
 describe("AssessmentOutline confirmation actions", () => {
+
+  it("allows confirming category A actions for the simulated Inhouse-Spitex A role", async () => {
+    render(
+      <AssessmentOutline
+        viewMode="confirmation"
+        selectedDate="2026-05-12"
+        onSelectedDateChange={vi.fn()}
+        confirmationPeriod="lastNDays"
+        lastNDays={3}
+        clientName="Test Klient"
+        topics={[
+          {
+            ...topics[0],
+            targets: [
+              {
+                ...topics[0].targets[0],
+                actions: [
+                  {
+                    ...topics[0].targets[0].actions[0],
+                    category: "a",
+                  },
+                ],
+              },
+            ],
+          },
+        ]}
+        hideConfirmationHeader
+        filterModel={{ statuses: ["open", "postponed"] }}
+        onUpdateTopic={vi.fn()}
+        onUpdateTarget={vi.fn()}
+        onUpdateAction={vi.fn()}
+        onUpdateActionField={vi.fn()}
+        onConfirmAction={vi.fn()}
+        onAddTarget={vi.fn()}
+        onAddAction={vi.fn()}
+        onAddTopic={vi.fn()}
+        onDeleteTopic={vi.fn()}
+        onDeleteTarget={vi.fn()}
+        onDeleteAction={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Erledigt wie geplant" })[0]);
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
   it("opens the confirmation dialog for planned unconfirmed actions in the past", async () => {
     render(
       <AssessmentOutline

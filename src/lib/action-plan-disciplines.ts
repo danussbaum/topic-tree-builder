@@ -34,6 +34,22 @@ export const ACTION_PLAN_AUTHORIZED_ROLE_OPTIONS: ActionPlanAuthorizedRoleOption
       label: "KL: Handlungen Planen und Bestätigen, Inhouse-Spitex, C",
     },
     {
+      id: "kl-handlungen-bestaetigen-inhouse-spitex-b",
+      label: "KL: Handlungen Bestätigen, Inhouse-Spitex, B",
+    },
+    {
+      id: "kl-handlungen-bestaetigen-inhouse-spitex-c",
+      label: "KL: Handlungen Bestätigen, Inhouse-Spitex, C",
+    },
+    {
+      id: "kl-alle-handlungen-sehen-inhouse-spitex-b",
+      label: "KL: Alle Handlungen sehen, Inhouse-Spitex, B",
+    },
+    {
+      id: "kl-alle-handlungen-sehen-inhouse-spitex-c",
+      label: "KL: Alle Handlungen sehen, Inhouse-Spitex, C",
+    },
+    {
       id: "kl-handlungen-planen-bestaetigen-kja-foerderplanung",
       label: "KL: Handlungen Planen und Bestätigen, KJA Förderplanung",
     },

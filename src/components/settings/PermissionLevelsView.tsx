@@ -1,37 +1,34 @@
 import { useEffect, useMemo, useState } from "react";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  ACTION_PLAN_AUTHORIZED_ROLE_OPTIONS,
+} from "@/lib/action-plan-disciplines";
+import {
+  getAuthorizedRoleLabels,
+  loadActionPlanCategoryPermissions,
+  saveActionPlanCategoryPermissions,
+  type ActionPlanCategoryPermission,
+} from "@/lib/action-plan-categories";
 
-interface PermissionCategory {
-  id: string;
-  name: string;
-  levels: [boolean, boolean, boolean];
-}
-type SortColumn = "name" | "levels";
+type SortColumn = "name" | "roles";
 type SortDirection = "asc" | "desc";
 
-const initialCategories: PermissionCategory[] = [
-  { id: "a", name: "A", levels: [true, false, false] },
-  { id: "b", name: "B", levels: [false, true, false] },
-  { id: "c", name: "C", levels: [false, false, true] },
-];
-
-const levelLabel = (levels: [boolean, boolean, boolean]) => {
-  const labels = levels
-    .map((enabled, index) => (enabled ? `Stufe ${index + 1}` : null))
-    .filter(Boolean);
-
+const roleLabel = (authorizedRoleIds: string[]) => {
+  const labels = getAuthorizedRoleLabels(authorizedRoleIds);
   return labels.length > 0 ? labels.join(", ") : "Keine";
 };
 
 export const PermissionLevelsView = () => {
-  const [categories, setCategories] = useState<PermissionCategory[]>(initialCategories);
+  const [categories, setCategories] = useState<ActionPlanCategoryPermission[]>(() =>
+    loadActionPlanCategoryPermissions(),
+  );
   const [sortColumn, setSortColumn] = useState<SortColumn>("name");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [isPanelMounted, setIsPanelMounted] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
-  const [draftLevels, setDraftLevels] = useState<[boolean, boolean, boolean]>([false, false, false]);
+  const [draftAuthorizedRoleIds, setDraftAuthorizedRoleIds] = useState<string[]>([]);
 
   const selectedCategory = useMemo(
     () => categories.find((entry) => entry.id === selectedCategoryId) ?? null,
@@ -40,8 +37,8 @@ export const PermissionLevelsView = () => {
 
   const sortedCategories = useMemo(() => {
     const sorted = [...categories].sort((a, b) => {
-      const leftValue = sortColumn === "name" ? a.name : levelLabel(a.levels);
-      const rightValue = sortColumn === "name" ? b.name : levelLabel(b.levels);
+      const leftValue = sortColumn === "name" ? a.name : roleLabel(a.authorizedRoleIds);
+      const rightValue = sortColumn === "name" ? b.name : roleLabel(b.authorizedRoleIds);
       return leftValue.localeCompare(rightValue, "de", { sensitivity: "base" });
     });
 
@@ -64,6 +61,10 @@ export const PermissionLevelsView = () => {
   };
 
   useEffect(() => {
+    saveActionPlanCategoryPermissions(categories);
+  }, [categories]);
+
+  useEffect(() => {
     if (!isPanelMounted) return;
 
     const animationFrame = requestAnimationFrame(() => {
@@ -78,7 +79,7 @@ export const PermissionLevelsView = () => {
     if (!category) return;
 
     setSelectedCategoryId(categoryId);
-    setDraftLevels([...category.levels] as [boolean, boolean, boolean]);
+    setDraftAuthorizedRoleIds(category.authorizedRoleIds);
     setIsPanelMounted(true);
   };
 
@@ -90,9 +91,16 @@ export const PermissionLevelsView = () => {
     if (isPanelOpen) return;
     setIsPanelMounted(false);
     setSelectedCategoryId(null);
-    setDraftLevels([false, false, false]);
+    setDraftAuthorizedRoleIds([]);
   };
 
+  const toggleAuthorizedRole = (roleId: string) => {
+    setDraftAuthorizedRoleIds((prev) =>
+      prev.includes(roleId)
+        ? prev.filter((id) => id !== roleId)
+        : [...prev, roleId],
+    );
+  };
 
   const saveChanges = () => {
     if (!selectedCategory) return;
@@ -102,7 +110,7 @@ export const PermissionLevelsView = () => {
         entry.id === selectedCategory.id
           ? {
               ...entry,
-              levels: draftLevels,
+              authorizedRoleIds: draftAuthorizedRoleIds,
             }
           : entry,
       ),
@@ -117,16 +125,16 @@ export const PermissionLevelsView = () => {
         <table className="w-full table-fixed text-sm">
           <thead className="bg-[#f1f1f3]">
             <tr className="border-b border-border/80">
-              <th className="w-1/2 px-4 py-2 text-left text-xs font-semibold text-foreground">
+              <th className="w-1/3 px-4 py-2 text-left text-xs font-semibold text-foreground">
                 <button type="button" className="inline-flex items-center gap-1" onClick={() => toggleSort("name")}>
                   Kategorie
                   <span aria-hidden="true">{getSortArrow("name")}</span>
                 </button>
               </th>
-              <th className="w-1/2 px-4 py-2 text-left text-xs font-semibold text-foreground">
-                <button type="button" className="inline-flex items-center gap-1" onClick={() => toggleSort("levels")}>
-                  Berechtigte Stufen
-                  <span aria-hidden="true">{getSortArrow("levels")}</span>
+              <th className="w-2/3 px-4 py-2 text-left text-xs font-semibold text-foreground">
+                <button type="button" className="inline-flex items-center gap-1" onClick={() => toggleSort("roles")}>
+                  Berechtigte Rollen
+                  <span aria-hidden="true">{getSortArrow("roles")}</span>
                 </button>
               </th>
             </tr>
@@ -139,7 +147,7 @@ export const PermissionLevelsView = () => {
                 onClick={() => openPanel(entry.id)}
               >
                 <td className="px-4 py-2 text-[13px] text-foreground">{entry.name}</td>
-                <td className="px-4 py-2 text-[13px] text-foreground">{levelLabel(entry.levels)}</td>
+                <td className="px-4 py-2 text-[13px] text-foreground">{roleLabel(entry.authorizedRoleIds)}</td>
               </tr>
             ))}
           </tbody>
@@ -165,21 +173,19 @@ export const PermissionLevelsView = () => {
               </button>
             </div>
 
-            <div className="flex-1 space-y-4 px-6 py-6">
-              <h3 className="text-sm uppercase tracking-wide text-muted-foreground">Stufen</h3>
-              {[1, 2, 3].map((level) => (
-                <label key={level} className="flex items-center gap-3 text-base">
-                  <Checkbox
-                    checked={draftLevels[level - 1]}
-                    onCheckedChange={(checked) => {
-                      const next = [...draftLevels] as [boolean, boolean, boolean];
-                      next[level - 1] = checked === true;
-                      setDraftLevels(next);
-                    }}
-                  />
-                  Stufe {level}
-                </label>
-              ))}
+            <div className="flex-1 space-y-4 overflow-y-auto px-6 py-6">
+              <h3 className="text-sm uppercase tracking-wide text-muted-foreground">Berechtigte Rollen</h3>
+              <div className="space-y-3 rounded-md border border-border bg-background p-4">
+                {ACTION_PLAN_AUTHORIZED_ROLE_OPTIONS.map((role) => (
+                  <label key={role.id} className="flex items-start gap-3 text-base">
+                    <Checkbox
+                      checked={draftAuthorizedRoleIds.includes(role.id)}
+                      onCheckedChange={() => toggleAuthorizedRole(role.id)}
+                    />
+                    <span className="leading-5">{role.label}</span>
+                  </label>
+                ))}
+              </div>
             </div>
 
             <div className="flex items-center justify-between bg-primary px-6 py-3">

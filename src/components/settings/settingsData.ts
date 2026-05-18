@@ -89,7 +89,7 @@ export const settingsCategories: SettingsCategory[] = [
     icon: Workflow,
     links: [
       { label: "Disziplinen" },
-      { label: "Berechtigungsstufen" },
+      { label: "Kategorien" },
       { label: "Handlungsvorlagen" },
     ],
   },
