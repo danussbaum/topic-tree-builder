@@ -195,8 +195,9 @@ const hasVisibleConfirmationItems = (
   period: ConfirmationPeriod,
   filterModel: AssessmentFilterModel,
   lastNDays: number = DEFAULT_LAST_N_DAYS,
+  transientUnplannedActionIds: Set<string> = new Set(),
 ) => {
-  return getVisibleConfirmationRows(client, selectedDate, period, filterModel, lastNDays).length > 0;
+  return getVisibleConfirmationRows(client, selectedDate, period, filterModel, lastNDays, transientUnplannedActionIds).length > 0;
 };
 
 const getDueDatesInPeriod = (
@@ -238,6 +239,7 @@ const getVisibleConfirmationRows = (
   period: ConfirmationPeriod,
   filterModel: AssessmentFilterModel,
   lastNDays: number = DEFAULT_LAST_N_DAYS,
+  transientUnplannedActionIds: Set<string> = new Set(),
 ) => {
   const rows: Array<{
     dueDate: string;
@@ -261,14 +263,16 @@ const getVisibleConfirmationRows = (
           const confirmation = action.confirmations?.[dueDate];
           if (confirmation?.postponedToDate) return;
           const status = confirmation?.status || "open";
-          if (!matchesAssessmentFilter({ action, status, confirmation, disciplineId: topic.disciplineId }, filterModel)) return;
+          const forceShowTransientUnplanned = action.isUnplanned && transientUnplannedActionIds.has(action.id);
+          if (!forceShowTransientUnplanned && !matchesAssessmentFilter({ action, status, confirmation, disciplineId: topic.disciplineId }, filterModel)) return;
           rows.push({ dueDate, topic, target, action, confirmationDate: dueDate, status });
         });
 
         Object.entries(action.confirmations ?? {}).forEach(([confirmationDate, confirmation]) => {
           if (!confirmation.postponedToDate) return;
           if (confirmation.postponedToDate < start || confirmation.postponedToDate > end) return;
-          if (!matchesAssessmentFilter({ action, status: confirmation.status, confirmation, disciplineId: topic.disciplineId }, filterModel)) return;
+          const forceShowTransientUnplanned = action.isUnplanned && transientUnplannedActionIds.has(action.id);
+          if (!forceShowTransientUnplanned && !matchesAssessmentFilter({ action, status: confirmation.status, confirmation, disciplineId: topic.disciplineId }, filterModel)) return;
           rows.push({
             dueDate: confirmation.postponedToDate,
             topic,
@@ -446,6 +450,7 @@ const Index = () => {
     cached?.lastNDays ?? DEFAULT_LAST_N_DAYS,
   );
   const [clients, setClients] = useState<Client[]>(cached?.clients ?? seedClients);
+  const [transientUnplannedActionIds, setTransientUnplannedActionIds] = useState<Set<string>>(new Set());
   const [availableDisciplines] = useState(() => loadActionPlanDisciplines());
   const [selectedClientIds, setSelectedClientIds] = useState<string[]>(
     cached?.selectedClientIds ?? [seedClients[0].id],
@@ -577,6 +582,7 @@ const Index = () => {
             confirmationPeriod,
             confirmationFilter,
             lastNDays,
+            transientUnplannedActionIds,
           ),
         )
       : selectedClients;
@@ -942,6 +948,8 @@ const Index = () => {
         };
       });
     });
+
+    setTransientUnplannedActionIds((prev) => new Set(prev).add(actionId));
 
     return actionId;
   };
@@ -1316,11 +1324,20 @@ const Index = () => {
     if (
       hasConfirmedActions &&
       !window.confirm(
-        "Diese geplante Handlung hat bereits bestätigte Einträge. Beim Löschen werden alle verknüpften Daten ebenfalls gelöscht. Möchten Sie fortfahren?",
+        action?.isUnplanned
+          ? "Diese ungeplante Handlung wurde bereits bestätigt. Beim Löschen werden alle verknüpften Daten ebenfalls gelöscht. Möchten Sie fortfahren?"
+          : "Diese geplante Handlung hat bereits bestätigte Einträge. Beim Löschen werden alle verknüpften Daten ebenfalls gelöscht. Möchten Sie fortfahren?",
       )
     ) {
       return;
     }
+
+    setTransientUnplannedActionIds((prev) => {
+      if (!prev.has(actionId)) return prev;
+      const next = new Set(prev);
+      next.delete(actionId);
+      return next;
+    });
 
     updateClientTopicsFor(clientId, (topics) =>
       topics.map((t) =>
@@ -1376,6 +1393,7 @@ const Index = () => {
         confirmationPeriod,
         confirmationFilter,
         lastNDays,
+        transientUnplannedActionIds,
       ).map(({ dueDate, topic, target, action, confirmationDate, status }) => {
         const confirmation = action.confirmations?.[confirmationDate];
         return {
@@ -2207,6 +2225,7 @@ const Index = () => {
                       bulkNotDoneMode={bulkNotDoneClientIds.has(client.id)}
                       onBulkNotDoneModeChange={(enabled) => setClientBulkNotDoneMode(client.id, enabled)}
                       filterModel={confirmationFilter}
+                      transientUnplannedActionIds={transientUnplannedActionIds}
                       onUpdateTopic={(topicId, field, value) =>
                         updateTopic(client.id, topicId, field, value)
                       }
