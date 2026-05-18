@@ -35,6 +35,31 @@ export const PermissionLevelsView = () => {
     [categories, selectedCategoryId],
   );
 
+  const selectedAuthorizedRoles = useMemo(
+    () =>
+      draftAuthorizedRoleIds
+        .map((roleId) =>
+          ACTION_PLAN_AUTHORIZED_ROLE_OPTIONS.find((role) => role.id === roleId),
+        )
+        .filter(
+          (role): role is (typeof ACTION_PLAN_AUTHORIZED_ROLE_OPTIONS)[number] =>
+            Boolean(role),
+        ),
+    [draftAuthorizedRoleIds],
+  );
+
+  const filteredAuthorizedRoles = useMemo(() => {
+    const query = roleQuery.trim().toLocaleLowerCase("de");
+    return ACTION_PLAN_AUTHORIZED_ROLE_OPTIONS.filter(
+      (role) =>
+        !draftAuthorizedRoleIds.includes(role.id) &&
+        (!query || role.label.toLocaleLowerCase("de").includes(query)),
+    );
+  }, [draftAuthorizedRoleIds, roleQuery]);
+
+  const hasRoleFilterInput =
+    roleQuery.trim().length > 0 || filteredAuthorizedRoles.length > 0;
+
   const sortedCategories = useMemo(() => {
     const sorted = [...categories].sort((a, b) => {
       const leftValue = sortColumn === "name" ? a.name : roleLabel(a.authorizedRoleIds);
