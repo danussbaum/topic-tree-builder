@@ -911,7 +911,7 @@ export function AssessmentOutline({
                               <TableCell className="px-2 py-3 align-top text-xs text-muted-foreground">
                                 {status === "open" || status === "postponed" ? (
                                   <TooltipProvider delayDuration={150}>
-                                    <div className="grid grid-cols-2 justify-items-center gap-1.5">
+                                    <div className="mx-auto grid w-max grid-cols-2 gap-1.5">
                                       {CONFIRMATION_MODE_OPTIONS.map((option) => {
                                         const Icon = option.icon;
                                         return (
