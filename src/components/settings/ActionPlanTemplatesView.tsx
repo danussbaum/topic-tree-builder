@@ -7,7 +7,6 @@ import {
   useState,
 } from "react";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -31,6 +30,7 @@ import {
   saveActionPlanTemplates,
 } from "@/lib/action-plan-templates";
 import { loadActionPlanDisciplines } from "@/lib/action-plan-disciplines";
+import { DisciplineMultiSelect } from "@/components/settings/DisciplineMultiSelect";
 
 type TemplateSortKey = "name" | "kategorie" | "leistungsart";
 
@@ -638,31 +638,11 @@ export const ActionPlanTemplatesView = forwardRef<
                 <label className="pt-2 text-sm text-foreground">
                   Disziplin
                 </label>
-                <div className="flex flex-wrap gap-2 rounded-md border border-input bg-background p-2">
-                  {disciplineOptions.map((discipline) => (
-                    <label
-                      key={discipline.id}
-                      className="inline-flex items-center gap-2 rounded border border-border px-2 py-1 text-xs"
-                    >
-                      <Checkbox
-                        checked={draftDisciplineIds.includes(discipline.id)}
-                        onCheckedChange={(checked) => {
-                          setDraftDisciplineIds((prev) =>
-                            checked === true
-                              ? prev.includes(discipline.id)
-                                ? prev
-                                : [...prev, discipline.id]
-                              : prev.filter(
-                                  (disciplineId) =>
-                                    disciplineId !== discipline.id,
-                                ),
-                          );
-                        }}
-                      />
-                      {discipline.title}
-                    </label>
-                  ))}
-                </div>
+                <DisciplineMultiSelect
+                  options={disciplineOptions}
+                  value={draftDisciplineIds}
+                  onChange={setDraftDisciplineIds}
+                />
                 <span className="pt-2 text-xs text-muted-foreground">
                   leer = alle Disziplinen
                 </span>
