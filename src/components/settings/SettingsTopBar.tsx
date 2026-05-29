@@ -23,7 +23,7 @@ import {
 import { ApplicationLogoutButton } from "@/components/ApplicationLogoutButton";
 
 const primaryTabs = [
-  { label: "Handlungsplanung", icon: Workflow, href: "/" },
+  { label: "Handlungen", icon: Workflow, href: "/" },
   { label: "Journal", icon: BookOpen },
   { label: "Aufgaben", icon: CheckSquare },
   { label: "Termine", icon: Calendar },

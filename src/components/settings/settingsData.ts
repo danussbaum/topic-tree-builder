@@ -85,7 +85,7 @@ export const settingsCategories: SettingsCategory[] = [
 
   {
     id: "handlungsplanung",
-    title: "Handlungsplanung",
+    title: "Handlungen",
     icon: Workflow,
     links: [
       { label: "Disziplinen" },
@@ -257,7 +257,7 @@ export const settingsSidebarGroups: { id: string; label: string }[] = [
   { id: "systeme", label: "Systeme" },
   { id: "kontakte", label: "Kontakte" },
   { id: "schluessel", label: "Schlüssel" },
-  { id: "handlungsplanung", label: "Handlungsplanung" },
+  { id: "handlungsplanung", label: "Handlungen" },
   { id: "planung-meta", label: "Planung, Zeiterfassung & Arbei…" },
   { id: "planung", label: "Planung" },
   { id: "zeiterfassung", label: "Zeiterfassung & Arbeitszeit" },
