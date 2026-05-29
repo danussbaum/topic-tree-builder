@@ -2,6 +2,7 @@ import {
   Calendar,
   FileText,
   Workflow,
+  Target,
   Files,
   HeartPulse,
   Star,
@@ -86,7 +87,7 @@ export const settingsCategories: SettingsCategory[] = [
   {
     id: "handlungsplanung",
     title: "Handlungen",
-    icon: Workflow,
+    icon: Target,
     links: [
       { label: "Disziplinen" },
       { label: "Kategorien" },

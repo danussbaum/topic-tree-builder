@@ -4,7 +4,7 @@ import {
   CheckSquare,
   Calendar,
   FileText,
-  Workflow,
+  Target,
   Files,
   HeartPulse,
   Network,
@@ -23,7 +23,7 @@ import {
 import { ApplicationLogoutButton } from "@/components/ApplicationLogoutButton";
 
 const primaryTabs = [
-  { label: "Handlungen", icon: Workflow, href: "/" },
+  { label: "Handlungen", icon: Target, href: "/" },
   { label: "Journal", icon: BookOpen },
   { label: "Aufgaben", icon: CheckSquare },
   { label: "Termine", icon: Calendar },
