@@ -1184,6 +1184,15 @@ const Index = () => {
       confirmedAt: new Date().toISOString().slice(0, 19) + "Z",
     };
 
+    if (payload.status !== "open") {
+      setTransientUnplannedActionIds((prev) => {
+        if (!prev.has(actionId)) return prev;
+        const next = new Set(prev);
+        next.delete(actionId);
+        return next;
+      });
+    }
+
     updateClientTopicsFor(clientId, (topics) =>
       topics.map((t) =>
         t.id !== topicId
@@ -1414,7 +1423,7 @@ const Index = () => {
           Hilfsmittel: action.requiredResources ?? "",
           Status:
             status === "done_as_planned"
-              ? "Wie geplant durchgeführt"
+              ? "Durchgeführt"
               : status === "done_with_deviation"
                 ? "Mit Abweichung durchgeführt"
                 : status === "not_done"

@@ -2966,7 +2966,7 @@ function ConfirmActionDialog({
     ) {
       return;
     }
-    const obs = target.action.isUnplanned ? undefined : observations.trim() ? observations.trim() : undefined;
+    const obs = observations.trim() ? observations.trim() : undefined;
     if (mode === "done_as_planned") {
       onConfirm({ status: "done_as_planned", result: res, observations: obs });
     } else if (mode === "done_with_deviation") {
@@ -3025,7 +3025,7 @@ function ConfirmActionDialog({
     resultRequirement !== "none" &&
     (mode === "done_as_planned" || mode === "done_with_deviation");
   const resultRequired = resultRequirement === "required";
-  const showObservations = !target?.action.isUnplanned && (mode === "done_as_planned" || mode === "done_with_deviation");
+  const showObservations = mode === "done_as_planned" || mode === "done_with_deviation";
   const selectedModeOption = CONFIRMATION_MODE_OPTIONS.find((option) => option.mode === mode);
   const activeConfirmation = target?.action.confirmations?.[target.dueDate];
 
@@ -3207,7 +3207,7 @@ function ConfirmActionDialog({
         )}
 
         <DialogFooter className="gap-2 sm:justify-between">
-          {target?.action.status !== "open" && !target?.action.isUnplanned ? (
+          {target?.action.status !== "open" ? (
             <Button
               variant="ghost"
               onClick={() => {
