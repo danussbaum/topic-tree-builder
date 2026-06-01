@@ -22,6 +22,7 @@ import {
   ACTION_SERVICE_TYPE_SELECT_OPTIONS,
   buildDefaultTemplateEditable as buildDefaultEditable,
   buildDefaultTemplateFields as buildDefaultFields,
+  buildDefaultTemplateRequired as buildDefaultRequired,
   getTemplateDisciplineLabels,
   type ActionPlanTemplate,
   loadActionPlanTemplates,
@@ -165,6 +166,8 @@ export const ActionPlanTemplatesView = forwardRef<
     useState<Record<TemplateFieldKey, string>>(buildDefaultFields);
   const [draftEditable, setDraftEditable] =
     useState<Record<TemplateFieldKey, boolean>>(buildDefaultEditable);
+  const [draftRequired, setDraftRequired] =
+    useState<Record<TemplateFieldKey, boolean>>(buildDefaultRequired);
   const [filePickerKey, setFilePickerKey] = useState(0);
   const [sortState, setSortState] = useState<TemplateSortState>({
     key: "name",
@@ -262,6 +265,7 @@ export const ActionPlanTemplatesView = forwardRef<
 
       const nextFields = buildDefaultFields();
       const nextEditable = buildDefaultEditable(true);
+      const nextRequired = buildDefaultRequired();
       let nextDisciplineIds: string[] = [];
 
       let columnIndex = 1;
@@ -285,6 +289,9 @@ export const ActionPlanTemplatesView = forwardRef<
           ? normalizeTemplateSelectValue(rawValue, field.options)
           : rawValue;
         const editableValue =
+          field.editable === false ? "Nein" : (row[columnIndex] ?? "");
+        if (field.editable !== false) columnIndex += 1;
+        const requiredValue =
           field.editable === false ? "Nein" : (row[columnIndex] ?? "");
         if (field.editable !== false) columnIndex += 1;
         nextFields[field.key] = value;
@@ -331,6 +338,7 @@ export const ActionPlanTemplatesView = forwardRef<
 
         if (field.editable === false) {
           nextEditable[field.key] = false;
+          nextRequired[field.key] = false;
         } else {
           const editable = normalizeEditable(editableValue);
           if (editable === null) {
@@ -339,6 +347,14 @@ export const ActionPlanTemplatesView = forwardRef<
             );
           } else {
             nextEditable[field.key] = editable;
+          }
+          const required = normalizeEditable(requiredValue);
+          if (required === null) {
+            errors.push(
+              `${field.label} zwingend: ungültiger Wert "${requiredValue}" (erlaubt: Ja/Nein)`,
+            );
+          } else {
+            nextRequired[field.key] = editable === false ? false : required;
           }
         }
       });
@@ -355,6 +371,7 @@ export const ActionPlanTemplatesView = forwardRef<
         disciplineIds: nextDisciplineIds,
         fields: nextFields,
         editable: nextEditable,
+        required: nextRequired,
       });
     });
 
@@ -408,6 +425,7 @@ export const ActionPlanTemplatesView = forwardRef<
     setDraftDisciplineIds([]);
     setDraftFields(buildDefaultFields());
     setDraftEditable(buildDefaultEditable(true));
+    setDraftRequired(buildDefaultRequired());
     setIsPanelMounted(true);
   };
 
@@ -422,6 +440,7 @@ export const ActionPlanTemplatesView = forwardRef<
     );
     setDraftFields({ ...template.fields });
     setDraftEditable({ ...template.editable });
+    setDraftRequired({ ...buildDefaultRequired(), ...template.required });
     setIsPanelMounted(true);
   };
 
@@ -443,6 +462,7 @@ export const ActionPlanTemplatesView = forwardRef<
           disciplineIds: draftDisciplineIds,
           fields: draftFields,
           editable: draftEditable,
+          required: draftRequired,
         },
       ]);
       closePanel();
@@ -458,6 +478,7 @@ export const ActionPlanTemplatesView = forwardRef<
               disciplineIds: draftDisciplineIds,
               fields: draftFields,
               editable: draftEditable,
+              required: draftRequired,
             }
           : entry,
       ),
@@ -480,7 +501,7 @@ export const ActionPlanTemplatesView = forwardRef<
       ...templateFieldMeta.flatMap((field) =>
         field.editable === false
           ? [field.label]
-          : [field.label, `${field.label} veränderbar`],
+          : [field.label, `${field.label} veränderbar`, `${field.label} zwingend`],
       ),
     ];
 
@@ -496,6 +517,7 @@ export const ActionPlanTemplatesView = forwardRef<
           : [
               template.fields[field.key] ?? "",
               template.editable[field.key] ? "Ja" : "Nein",
+              template.editable[field.key] && template.required[field.key] ? "Ja" : "Nein",
             ],
       ),
     ]);
@@ -783,18 +805,41 @@ export const ActionPlanTemplatesView = forwardRef<
                       {field.editable === false ? (
                         <span aria-hidden="true" />
                       ) : (
-                        <label className="inline-flex items-center gap-2 pt-2 text-xs text-muted-foreground">
-                          <Checkbox
-                            checked={draftEditable[field.key]}
-                            onCheckedChange={(checked) =>
-                              setDraftEditable((prev) => ({
-                                ...prev,
-                                [field.key]: checked === true,
-                              }))
-                            }
-                          />
-                          veränderbar
-                        </label>
+                        <div className="flex flex-col gap-1 pt-2">
+                          <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                            <Checkbox
+                              checked={draftEditable[field.key]}
+                              onCheckedChange={(checked) => {
+                                const isEditable = checked === true;
+                                setDraftEditable((prev) => ({
+                                  ...prev,
+                                  [field.key]: isEditable,
+                                }));
+                                if (!isEditable) {
+                                  setDraftRequired((prev) => ({
+                                    ...prev,
+                                    [field.key]: false,
+                                  }));
+                                }
+                              }}
+                            />
+                            veränderbar
+                          </label>
+                          {draftEditable[field.key] && (
+                            <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                              <Checkbox
+                                checked={draftRequired[field.key]}
+                                onCheckedChange={(checked) =>
+                                  setDraftRequired((prev) => ({
+                                    ...prev,
+                                    [field.key]: checked === true,
+                                  }))
+                                }
+                              />
+                              zwingend
+                            </label>
+                          )}
+                        </div>
                       )}
                     </Fragment>
                   );

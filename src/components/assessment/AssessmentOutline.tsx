@@ -90,6 +90,7 @@ import {
   ACTION_SERVICE_TYPE_SELECT_OPTIONS,
   buildDefaultTemplateFields,
   getTemplateLockedActionFields,
+  getTemplateRequiredActionFields,
   isTemplateLockedActionField,
   loadActionPlanTemplates,
   templateMatchesDiscipline,
@@ -150,6 +151,7 @@ interface UnplannedActionDraft {
   templateId?: string;
   templateName?: string;
   templateLockedFields?: string[];
+  templateRequiredFields?: string[];
   dateFrom?: string;
   dateTo?: string;
 }
@@ -2451,6 +2453,7 @@ export function UnplannedActionDialog({
       templateId: template.id,
       templateName: template.name,
       templateLockedFields: getTemplateLockedActionFields(template),
+      templateRequiredFields: getTemplateRequiredActionFields(template),
     });
   };
 
@@ -2542,10 +2545,34 @@ export function UnplannedActionDialog({
     return null;
   })();
 
+  const isDraftRequiredFieldMissing = (field: string): boolean => {
+    switch (field) {
+      case "title": return !draft.title.trim();
+      case "notes": return !draft.notes.trim();
+      case "requiredResources": return !draft.requiredResources?.trim();
+      case "plannedMinutes": return draft.plannedMinutes === undefined || draft.plannedMinutes === null;
+      case "requiredPersons": return draft.requiredPersons === undefined || draft.requiredPersons === null;
+      case "category": return !draft.category || draft.category === "none";
+      case "dayPart": return !draft.dayPart || draft.dayPart === "none";
+      case "scheduledTime": return !draft.scheduledTime;
+      case "resultRequirement": return !draft.resultRequirement || draft.resultRequirement === "none";
+      case "recurrence": return false;
+      case "recurrenceWeekdays": return !draft.recurrenceWeekdays;
+      case "recurrenceMonthlyPattern": return !draft.recurrenceMonthlyPattern || draft.recurrenceMonthlyPattern === "none";
+      case "serviceType": return !draft.serviceType || draft.serviceType === "none";
+      default: return false;
+    }
+  };
+
+  const missingRequiredFields = creationMode === "template"
+    ? (draft.templateRequiredFields ?? []).filter(isDraftRequiredFieldMissing)
+    : [];
+
   const submit = () => {
     const title = draft.title.trim() || (creationMode === "scratch" ? "Ungeplante Handlung" : "");
     if (!title) return;
     if (dateRangeError) return;
+    if (missingRequiredFields.length > 0) return;
     onConfirm({
       ...draft,
       title,
@@ -2804,7 +2831,12 @@ export function UnplannedActionDialog({
 
         <DialogFooter className="shrink-0 gap-2 sm:justify-between">
           <Button variant="outline" onClick={onClose}>Abbrechen</Button>
-          <Button onClick={submit} disabled={(creationMode === "template" && !selectedTemplate) || !!dateRangeError}>Bestätigen</Button>
+          <div className="flex flex-col items-end gap-1">
+            {missingRequiredFields.length > 0 && (
+              <p className="text-xs text-destructive">Zwingend erforderliche Felder sind nicht ausgefüllt.</p>
+            )}
+            <Button onClick={submit} disabled={(creationMode === "template" && !selectedTemplate) || !!dateRangeError || missingRequiredFields.length > 0}>Bestätigen</Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

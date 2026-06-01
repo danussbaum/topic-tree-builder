@@ -109,6 +109,7 @@ export interface ActionNode {
   templateId?: string;
   templateName?: string;
   templateLockedFields?: string[];
+  templateRequiredFields?: string[];
 }
 
 export interface TargetNode {
