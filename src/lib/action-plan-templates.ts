@@ -23,6 +23,7 @@ export interface ActionPlanTemplate {
   disciplineIds: string[];
   fields: Record<TemplateFieldKey, string>;
   editable: Record<TemplateFieldKey, boolean>;
+  required: Record<TemplateFieldKey, boolean>;
 }
 
 const TEMPLATE_FIELD_TO_ACTION_FIELD: Record<TemplateFieldKey, keyof ActionNode> = {
@@ -48,6 +49,16 @@ export const getTemplateLockedActionFields = (
 
   return (Object.entries(template.editable) as Array<[TemplateFieldKey, boolean]>)
     .filter(([, editable]) => !editable)
+    .map(([field]) => TEMPLATE_FIELD_TO_ACTION_FIELD[field]);
+};
+
+export const getTemplateRequiredActionFields = (
+  template?: Pick<ActionPlanTemplate, "editable" | "required">,
+): string[] => {
+  if (!template) return [];
+
+  return (Object.entries(template.required) as Array<[TemplateFieldKey, boolean]>)
+    .filter(([field, required]) => required && template.editable[field])
     .map(([field]) => TEMPLATE_FIELD_TO_ACTION_FIELD[field]);
 };
 
@@ -182,6 +193,22 @@ export const buildDefaultTemplateEditable = (value = true): Record<TemplateField
   leistungsart: false,
 });
 
+export const buildDefaultTemplateRequired = (): Record<TemplateFieldKey, boolean> => ({
+  titel: false,
+  beschreibung: false,
+  hilfsmittel: false,
+  dauer: false,
+  personen: false,
+  kategorie: false,
+  tageszeit: false,
+  uhrzeit: false,
+  resultat: false,
+  wiederholung: false,
+  wiederholungWochentage: false,
+  wiederholungMonatlich: false,
+  leistungsart: false,
+});
+
 export const initialTemplates: ActionPlanTemplate[] = [
   {
     id: "tpl-1",
@@ -203,6 +230,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       leistungsart: "none",
     },
     editable: buildDefaultTemplateEditable(true),
+    required: buildDefaultTemplateRequired(),
   },
 ];
 
@@ -220,6 +248,7 @@ export const loadActionPlanTemplates = (): ActionPlanTemplate[] => {
         : [],
       fields: { ...buildDefaultTemplateFields(), ...(template.fields ?? {}) },
       editable: { ...buildDefaultTemplateEditable(true), ...(template.editable ?? {}) },
+      required: { ...buildDefaultTemplateRequired(), ...(template.required ?? {}) },
     }));
   } catch {
     return initialTemplates;
