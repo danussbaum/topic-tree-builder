@@ -20,6 +20,7 @@ import {
   Moon,
   Tag,
   ChevronLeft,
+  ChevronDown,
   ChevronRight,
   ChevronUp,
   Info,
@@ -1692,6 +1693,7 @@ function ActionRow({
     action.recurrence === "weekly" && (action.recurrenceWeekdays?.length ?? 0) === 0;
   const monthlyPatternMissing =
     action.recurrence === "monthly" && !action.recurrenceMonthlyPattern;
+
   const [weekdayDragState, setWeekdayDragState] = useState<{
     anchorIndex: number;
     baseSelection: Weekday[];
@@ -1728,7 +1730,7 @@ function ActionRow({
       "group/action flex items-start gap-3 rounded transition-colors",
       action.isUnplanned && "border-amber-200 bg-amber-50/60",
       viewMode === "planning"
-        ? "p-3 bg-secondary/30 border border-border hover:border-primary/40"
+        ? "p-2 bg-secondary/30 border border-border hover:border-primary/40"
         : "py-2 px-2 -mx-2 hover:bg-secondary/40"
     )}>
       {viewMode === "confirmation" && (
@@ -1803,35 +1805,9 @@ function ActionRow({
 
         {/* Meta fields */}
         {viewMode === "planning" ? (
-          <div className="mt-2 grid grid-cols-1 gap-2 text-xs text-muted-foreground md:grid-cols-3">
-            <div className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1.5 transition-colors focus-within:border-primary">
-              <span className="shrink-0 text-muted-foreground">Kategorie</span>
-              <Select
-                value={action.category ?? "none"}
-                disabled={isFieldLocked("category")}
-                onValueChange={(v) =>
-                  onUpdateActionField(
-                    topicId,
-                    targetId,
-                    action.id,
-                    "category",
-                    v === "none" ? undefined : v,
-                  )
-                }
-              >
-                <SelectTrigger aria-label="Kategorie" className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0 focus-visible:ring-0">
-                  <SelectValue placeholder="Keine Angabe" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Keine Angabe</SelectItem>
-                  <SelectItem value="a">A</SelectItem>
-                  <SelectItem value="b">B</SelectItem>
-                  <SelectItem value="c">C</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1.5 transition-colors focus-within:border-primary">
+          <div className="mt-1.5 grid grid-cols-2 gap-1 text-xs text-muted-foreground md:grid-cols-5">
+            {/* Zeile 1: Tageszeit | Uhrzeit | geplante Minuten | Anz. Personen | Kategorie */}
+            <div className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1 transition-colors focus-within:border-primary">
               <span className="shrink-0 text-muted-foreground">Tageszeit</span>
               <Select
                 value={action.dayPart ?? "none"}
@@ -1931,32 +1907,34 @@ function ActionRow({
               />
             </label>
 
-            <div className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1.5 transition-colors focus-within:border-primary">
-              <span className="shrink-0 text-muted-foreground">Resultat</span>
+            <div className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1 transition-colors focus-within:border-primary">
+              <span className="shrink-0 text-muted-foreground">Kategorie</span>
               <Select
-                value={action.resultRequirement ?? "none"}
-                disabled={isFieldLocked("resultRequirement")}
+                value={action.category ?? "none"}
+                disabled={isFieldLocked("category")}
                 onValueChange={(v) =>
                   onUpdateActionField(
                     topicId,
                     targetId,
                     action.id,
-                    "resultRequirement",
+                    "category",
                     v === "none" ? undefined : v,
                   )
                 }
               >
-                <SelectTrigger aria-label="Resultat" className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0 focus-visible:ring-0">
-                  <SelectValue placeholder="Kein Resultat" />
+                <SelectTrigger aria-label="Kategorie" className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0 focus-visible:ring-0">
+                  <SelectValue placeholder="Keine Angabe" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Kein Resultat</SelectItem>
-                  <SelectItem value="optional">Resultat optional</SelectItem>
-                  <SelectItem value="required">Resultat zwingend</SelectItem>
+                  <SelectItem value="none">Keine Angabe</SelectItem>
+                  <SelectItem value="a">A</SelectItem>
+                  <SelectItem value="b">B</SelectItem>
+                  <SelectItem value="c">C</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
+            {/* Zeile 2: Gültig ab | Gültig bis | Wiederholung | (Wochentage/Monatl. Regel) | Resultat */}
             <DateField
               label="Gültig ab"
               required
@@ -1965,7 +1943,7 @@ function ActionRow({
               onChange={(v) =>
                 onUpdateActionField(topicId, targetId, action.id, "validFrom", v)
               }
-              className="w-full md:col-start-1"
+              className="w-full"
             />
             <DateField
               label="Gültig bis"
@@ -1978,7 +1956,7 @@ function ActionRow({
             />
             <div
               className={cn(
-                "flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1.5 transition-colors focus-within:border-primary",
+                "flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1 transition-colors focus-within:border-primary",
                 !action.recurrence && "border-destructive/60 text-destructive",
               )}
             >
@@ -2007,15 +1985,14 @@ function ActionRow({
                 </SelectContent>
               </Select>
             </div>
-            {action.recurrence === "weekly" && (
+            {action.recurrence === "weekly" ? (
               <div
                 className={cn(
-                  "col-span-1 md:col-span-3 rounded border border-border bg-background px-2 py-1.5",
+                  "rounded border border-border bg-background px-2 py-1",
                   weeklyDaysMissing && "border-destructive/60",
                 )}
               >
-                <div className="mb-1 text-muted-foreground">Wochentage</div>
-                <div className="flex flex-wrap gap-1 select-none">
+                <div className="flex flex-wrap items-center gap-1 select-none">
                   {WEEKDAY_OPTIONS.map((weekday, weekdayIndex) => {
                     const isSelected = (action.recurrenceWeekdays ?? []).includes(weekday.value);
                     return (
@@ -2061,15 +2038,13 @@ function ActionRow({
                   })}
                 </div>
               </div>
-            )}
-            {action.recurrence === "monthly" && (
+            ) : action.recurrence === "monthly" ? (
               <div
                 className={cn(
-                  "col-span-1 md:col-span-3 rounded border border-border bg-background px-2 py-1.5",
+                  "flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1 transition-colors focus-within:border-primary",
                   monthlyPatternMissing && "border-destructive/60",
                 )}
               >
-                <div className="mb-1 text-muted-foreground">Monatliche Regel</div>
                 <Select
                   value={action.recurrenceMonthlyPattern ?? "none"}
                   disabled={isFieldLocked("recurrenceMonthlyPattern")}
@@ -2083,7 +2058,7 @@ function ActionRow({
                     )
                   }
                 >
-                  <SelectTrigger aria-label="Monatliche Regel" className="h-7 w-full text-xs px-2 py-0">
+                  <SelectTrigger aria-label="Monatliche Regel" className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0 focus-visible:ring-0">
                     <SelectValue placeholder="Wählen…" />
                   </SelectTrigger>
                   <SelectContent>
@@ -2096,7 +2071,34 @@ function ActionRow({
                   </SelectContent>
                 </Select>
               </div>
+            ) : (
+              <div />
             )}
+            <div className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1 transition-colors focus-within:border-primary">
+              <span className="shrink-0 text-muted-foreground">Resultat</span>
+              <Select
+                value={action.resultRequirement ?? "none"}
+                disabled={isFieldLocked("resultRequirement")}
+                onValueChange={(v) =>
+                  onUpdateActionField(
+                    topicId,
+                    targetId,
+                    action.id,
+                    "resultRequirement",
+                    v === "none" ? undefined : v,
+                  )
+                }
+              >
+                <SelectTrigger aria-label="Resultat" className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0 focus-visible:ring-0">
+                  <SelectValue placeholder="Kein Resultat" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Kein Resultat</SelectItem>
+                  <SelectItem value="optional">Resultat optional</SelectItem>
+                  <SelectItem value="required">Resultat zwingend</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         ) : (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
