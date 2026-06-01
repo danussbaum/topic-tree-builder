@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { format } from "date-fns";
 import {
   BookOpen,
   CheckSquare,
@@ -29,7 +30,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { AssessmentOutline } from "@/components/assessment/AssessmentOutline";
+import { AssessmentOutline, UnplannedActionDialog } from "@/components/assessment/AssessmentOutline";
 import { ApplicationLogoutButton } from "@/components/ApplicationLogoutButton";
 import type {
   ActionNode,
@@ -353,7 +354,7 @@ const getWeekValue = (selectedDate: string) => {
 
 const formatLastNDaysRange = (lastNDays: number) => {
   const { start, end } = getPeriodRange(todayLocalISO(), "lastNDays", lastNDays);
-  return `${formatGermanDate(end)} - ${formatGermanDate(start)}`;
+  return `${formatGermanDate(start)} - ${formatGermanDate(end)}`;
 };
 
 const weekValueToDate = (weekValue: string) => {
@@ -468,6 +469,7 @@ const Index = () => {
   const [isTargetHiddenHintOpen, setIsTargetHiddenHintOpen] = useState(false);
   const [hideTargetHiddenHint, setHideTargetHiddenHint] = useState(false);
   const [bulkNotDoneClientIds, setBulkNotDoneClientIds] = useState<Set<string>>(new Set());
+  const [personUnplannedClientId, setPersonUnplannedClientId] = useState<string | null>(null);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
   const filterButtonRef = useRef<HTMLDivElement | null>(null);
   const [filterMenuLeft, setFilterMenuLeft] = useState(0);
@@ -575,19 +577,7 @@ const Index = () => {
   );
 
   const selectedClients = clients.filter((c) => selectedClientIds.includes(c.id));
-  const visibleSelectedClients =
-    viewMode === "confirmation"
-      ? selectedClients.filter((client) =>
-          hasVisibleConfirmationItems(
-            client,
-            selectedDate,
-            confirmationPeriod,
-            confirmationFilter,
-            lastNDays,
-            transientUnplannedActionIds,
-          ),
-        )
-      : selectedClients;
+  const visibleSelectedClients = selectedClients;
 
   const toggleClient = (id: string) => {
     setSelectedClientIds((prev) => {
@@ -2210,6 +2200,9 @@ const Index = () => {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="min-w-64">
+                            <DropdownMenuItem onClick={() => setPersonUnplannedClientId(client.id)}>
+                              Ungeplante Handlung erstellen
+                            </DropdownMenuItem>
                             {bulkNotDoneClientIds.has(client.id) ? (
                               <DropdownMenuItem onClick={() => setClientBulkNotDoneMode(client.id, false)}>
                                 Mehrfachauswahl beenden
@@ -2273,6 +2266,35 @@ const Index = () => {
                       onDeleteAction={(topicId, targetId, actionId) =>
                         deleteAction(client.id, topicId, targetId, actionId)
                       }
+                    />
+                    <UnplannedActionDialog
+                      target={personUnplannedClientId === client.id ? (() => {
+                        const current = new Date(`${selectedDate}T00:00:00`);
+                        let dateFrom: string;
+                        if (confirmationPeriod === "day") {
+                          dateFrom = selectedDate;
+                        } else if (confirmationPeriod === "week") {
+                          const weekDay = current.getDay();
+                          const diff = weekDay === 0 ? -6 : 1 - weekDay;
+                          const start = new Date(current);
+                          start.setDate(current.getDate() + diff);
+                          dateFrom = format(start, "yyyy-MM-dd");
+                        } else if (confirmationPeriod === "lastNDays") {
+                          const start = new Date();
+                          start.setHours(0, 0, 0, 0);
+                          start.setDate(start.getDate() - Math.max(1, Math.floor(lastNDays)));
+                          dateFrom = format(start, "yyyy-MM-dd");
+                        } else {
+                          // month
+                          dateFrom = format(new Date(current.getFullYear(), current.getMonth(), 1), "yyyy-MM-dd");
+                        }
+                        return { dateFrom, dayPart: "none" as const };
+                      })() : null}
+                      onClose={() => setPersonUnplannedClientId(null)}
+                      onConfirm={(draft) => {
+                        addUnplannedAction(client.id, draft.dateFrom ?? "", draft.dayPart ?? "none", draft);
+                        setPersonUnplannedClientId(null);
+                      }}
                     />
                   </section>
                 ))}

@@ -435,7 +435,7 @@ export function AssessmentOutline({
   const [dialogTarget, setDialogTarget] = useState<DialogTarget | null>(null);
   const [selectedBulkNotDoneKeys, setSelectedBulkNotDoneKeys] = useState<Set<string>>(new Set());
   const [bulkNotDoneDialogOpen, setBulkNotDoneDialogOpen] = useState(false);
-  const [unplannedDialogTarget, setUnplannedDialogTarget] = useState<{ dueDate: string; dayPart: DayPart | "none" } | null>(null);
+  const [unplannedDialogTarget, setUnplannedDialogTarget] = useState<{ dueDate?: string; dayPart: DayPart | "none" } | null>(null);
   const templateInputRef = useRef<HTMLInputElement | null>(null);
   const today = format(new Date(), "yyyy-MM-dd");
   const disciplineOptions = disciplines.length > 0 ? disciplines : initialActionPlanDisciplines;
@@ -1163,7 +1163,7 @@ export function AssessmentOutline({
           onClose={() => setUnplannedDialogTarget(null)}
           onConfirm={(draft) => {
             if (!unplannedDialogTarget || !onAddUnplannedAction) return;
-            onAddUnplannedAction(unplannedDialogTarget.dueDate, unplannedDialogTarget.dayPart, draft);
+            onAddUnplannedAction(unplannedDialogTarget.dueDate ?? draft.dateFrom ?? "", unplannedDialogTarget.dayPart, draft);
             setUnplannedDialogTarget(null);
           }}
         />
@@ -2395,7 +2395,7 @@ export function UnplannedActionDialog({
   onClose,
   onConfirm,
 }: {
-  target: { dueDate: string; dayPart: DayPart | "none" } | null;
+  target: { dueDate?: string; dateFrom?: string; dayPart: DayPart | "none" } | null;
   onClose: () => void;
   onConfirm: (draft: UnplannedActionDraft) => void;
 }) {
@@ -2455,8 +2455,8 @@ export function UnplannedActionDialog({
       return;
     }
 
-    setDateFrom(target.dueDate);
-    setDateTo(target.dueDate);
+    setDateFrom(target.dateFrom ?? target.dueDate ?? "");
+    setDateTo(target.dueDate ?? "");
     const loadedTemplates = loadActionPlanTemplates();
     setTemplates(loadedTemplates);
     setCreationMode("template");
@@ -2556,6 +2556,7 @@ export function UnplannedActionDialog({
   const submit = () => {
     const title = draft.title.trim() || (creationMode === "scratch" ? "Ungeplante Handlung" : "");
     if (!title) return;
+    if (!dateFrom || !dateTo) return;
     if (dateRangeError) return;
     if (missingRequiredFields.length > 0) return;
     onConfirm({
@@ -2564,8 +2565,8 @@ export function UnplannedActionDialog({
       notes: draft.notes.trim(),
       requiredResources: draft.requiredResources?.trim() || undefined,
       dayPart: draft.dayPart ?? "none",
-      dateFrom: dateFrom || target?.dueDate,
-      dateTo: dateTo || target?.dueDate,
+      dateFrom: dateFrom,
+      dateTo: dateTo,
     });
   };
 
@@ -2718,10 +2719,11 @@ export function UnplannedActionDialog({
 
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="space-y-1.5">
-              <Label>Von</Label>
+              <Label>Von <span className="text-destructive">*</span></Label>
               <Input
                 type="date"
                 value={dateFrom}
+                required
                 onChange={(e) => {
                   setDateFrom(e.target.value);
                   if (!dateTo || e.target.value > dateTo) setDateTo(e.target.value);
@@ -2729,11 +2731,12 @@ export function UnplannedActionDialog({
               />
             </label>
             <label className="space-y-1.5">
-              <Label>Bis</Label>
+              <Label>Bis <span className="text-destructive">*</span></Label>
               <Input
                 type="date"
                 value={dateTo}
                 min={dateFrom}
+                required
                 onChange={(e) => setDateTo(e.target.value)}
               />
             </label>
