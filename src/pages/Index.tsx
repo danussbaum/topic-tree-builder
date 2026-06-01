@@ -882,12 +882,10 @@ const Index = () => {
       templateName?: string;
       templateLockedFields?: string[];
       dayPart?: DayPart | "none";
+      dateFrom?: string;
+      dateTo?: string;
     },
   ) => {
-    const auditTrail = {
-      confirmedBy: "danuss",
-      confirmedAt: new Date().toISOString().slice(0, 19) + "Z",
-    };
     const actionId = uid();
     const unplannedTopicTitle = "Ungeplante Handlungen";
     const unplannedTargetTitle = "Direkt in der Umsetzung erfasst";
@@ -905,24 +903,13 @@ const Index = () => {
       scheduledTime: draft.scheduledTime,
       category: draft.category,
       serviceType: draft.serviceType,
-      validFrom: dueDate,
-      validTo: dueDate,
+      validFrom: draft.dateFrom ?? dueDate,
+      validTo: draft.dateTo ?? dueDate,
       recurrence: "daily",
-      status: "done_as_planned",
-      done: true,
       isUnplanned: true,
       templateId: draft.templateId,
       templateName: draft.templateName,
       templateLockedFields: draft.templateLockedFields,
-      confirmations: {
-        [dueDate]: {
-          status: "done_as_planned",
-          serviceType: draft.serviceType,
-          actualMinutes: draft.plannedMinutes,
-          done: true,
-          ...auditTrail,
-        },
-      },
     };
 
     updateClientTopicsFor(clientId, (topics) => {

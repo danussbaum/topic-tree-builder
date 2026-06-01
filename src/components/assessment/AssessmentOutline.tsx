@@ -150,6 +150,8 @@ interface UnplannedActionDraft {
   templateId?: string;
   templateName?: string;
   templateLockedFields?: string[];
+  dateFrom?: string;
+  dateTo?: string;
 }
 
 interface Props {
@@ -944,6 +946,21 @@ export function AssessmentOutline({
                                           </Tooltip>
                                         );
                                       })}
+                                      {action.isUnplanned && (
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <button
+                                              type="button"
+                                              onClick={() => onDeleteAction(topic.id, target.id, action.id)}
+                                              aria-label="Ungeplante Handlung löschen"
+                                              className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+                                            >
+                                              <Trash2 className="h-4 w-4" />
+                                            </button>
+                                          </TooltipTrigger>
+                                          <TooltipContent side="top" align="center">Löschen</TooltipContent>
+                                        </Tooltip>
+                                      )}
                                     </div>
                                   </TooltipProvider>
                                 ) : (
@@ -1140,7 +1157,7 @@ export function AssessmentOutline({
             );
             setDialogTarget(null);
           }}
-          onDelete={dialogTarget?.action.isUnplanned ? () => {
+          onDelete={dialogTarget?.action.isUnplanned && dialogTarget.action.status === "open" ? () => {
             if (!dialogTarget) return;
             onDeleteAction(dialogTarget.topicId, dialogTarget.targetId, dialogTarget.action.id);
             setDialogTarget(null);
@@ -2403,6 +2420,8 @@ export function UnplannedActionDialog({
   const [activeTemplateIndex, setActiveTemplateIndex] = useState(0);
   const templateInputRef = useRef<HTMLInputElement | null>(null);
   const [draft, setDraft] = useState<UnplannedActionDraft>({ title: "", notes: "" });
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
   const open = target !== null;
 
   const clearTemplateSelection = () => {
@@ -2443,9 +2462,13 @@ export function UnplannedActionDialog({
 
     if (!target) {
       setDraft({ title: "", notes: "" });
+      setDateFrom("");
+      setDateTo("");
       return;
     }
 
+    setDateFrom(target.dueDate);
+    setDateTo(target.dueDate);
     const loadedTemplates = loadActionPlanTemplates();
     setTemplates(loadedTemplates);
     setCreationMode("template");
@@ -2510,15 +2533,27 @@ export function UnplannedActionDialog({
   const selectedDayPart = draft.dayPart ?? target?.dayPart ?? "none";
   const selectedDayPartLabel = selectedDayPart === "none" ? "Ohne Tageszeit" : DAY_PART_LABEL[selectedDayPart];
 
+  const dateRangeError = (() => {
+    if (!dateFrom || !dateTo) return null;
+    if (dateTo < dateFrom) return "Bis-Datum muss nach dem Von-Datum liegen.";
+    const diffMs = new Date(dateTo).getTime() - new Date(dateFrom).getTime();
+    const diffDays = diffMs / (1000 * 60 * 60 * 24);
+    if (diffDays > 7) return "Der Zeitraum darf maximal 1 Woche betragen.";
+    return null;
+  })();
+
   const submit = () => {
     const title = draft.title.trim() || (creationMode === "scratch" ? "Ungeplante Handlung" : "");
     if (!title) return;
+    if (dateRangeError) return;
     onConfirm({
       ...draft,
       title,
       notes: draft.notes.trim(),
       requiredResources: draft.requiredResources?.trim() || undefined,
       dayPart: draft.dayPart ?? "none",
+      dateFrom: dateFrom || target?.dueDate,
+      dateTo: dateTo || target?.dueDate,
     });
   };
 
@@ -2670,6 +2705,29 @@ export function UnplannedActionDialog({
           )}
 
           <div className="grid gap-3 sm:grid-cols-2">
+            <label className="space-y-1.5">
+              <Label>Von</Label>
+              <Input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => {
+                  setDateFrom(e.target.value);
+                  if (!dateTo || e.target.value > dateTo) setDateTo(e.target.value);
+                }}
+              />
+            </label>
+            <label className="space-y-1.5">
+              <Label>Bis</Label>
+              <Input
+                type="date"
+                value={dateTo}
+                min={dateFrom}
+                onChange={(e) => setDateTo(e.target.value)}
+              />
+            </label>
+            {dateRangeError && (
+              <p className="sm:col-span-2 text-sm text-destructive">{dateRangeError}</p>
+            )}
             <label className="space-y-1.5 sm:col-span-2">
               <Label>Beschreibung</Label>
               <Textarea rows={2} value={draft.notes} disabled={isDraftFieldLocked("notes")} onChange={(e) => updateDraft("notes", e.target.value)} />
@@ -2746,7 +2804,7 @@ export function UnplannedActionDialog({
 
         <DialogFooter className="shrink-0 gap-2 sm:justify-between">
           <Button variant="outline" onClick={onClose}>Abbrechen</Button>
-          <Button onClick={submit} disabled={creationMode === "template" && !selectedTemplate}>Bestätigen</Button>
+          <Button onClick={submit} disabled={(creationMode === "template" && !selectedTemplate) || !!dateRangeError}>Bestätigen</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -3148,7 +3206,7 @@ function ConfirmActionDialog({
               <RotateCcw className="h-4 w-4" />
               Zurücksetzen
             </Button>
-          ) : target?.action.status !== "open" && target?.action.isUnplanned && onDelete ? (
+          ) : target?.action.isUnplanned && onDelete ? (
             <Button
               variant="ghost"
               onClick={onDelete}
