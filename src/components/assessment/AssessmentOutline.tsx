@@ -23,7 +23,6 @@ import {
   ChevronRight,
   ChevronUp,
   Info,
-  MoreHorizontal,
 } from "lucide-react";
 import {
   Dialog,
@@ -61,12 +60,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import type {
   ActionNode,
   ActionStatus,
@@ -1633,24 +1626,16 @@ function DayPartHeader({
   onCreateUnplanned?: () => void;
 }) {
   const menu = onCreateUnplanned ? (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 rounded-full text-muted-foreground hover:text-primary"
-          aria-label="Tageszeit-Menü öffnen"
-        >
-          <MoreHorizontal className="h-4 w-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-56">
-        <DropdownMenuItem onClick={onCreateUnplanned}>
-          Ungeplante Handlung erstellen
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      className="h-7 w-7 rounded-full text-muted-foreground hover:text-primary"
+      aria-label="Ungeplante Handlung erstellen"
+      onClick={onCreateUnplanned}
+    >
+      <Plus className="h-4 w-4" />
+    </Button>
   ) : null;
 
   if (part === "none") {
