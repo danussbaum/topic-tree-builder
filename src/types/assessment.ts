@@ -57,6 +57,8 @@ export interface ActionConfirmation {
   postponedToDate?: string;
   /** New scheduled time when this occurrence was postponed (HH:mm) */
   postponedToTime?: string;
+  /** Mandatory reason why this occurrence was postponed */
+  postponedReason?: string;
   /** User who postponed this occurrence */
   postponedBy?: string;
   /** ISO timestamp in UTC with second precision when this occurrence was postponed */

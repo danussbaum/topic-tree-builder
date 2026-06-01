@@ -1175,7 +1175,7 @@ const Index = () => {
       | { status: "done_as_planned"; result?: string; observations?: string }
       | { status: "done_with_deviation"; actualMinutes?: number; reason: string; result?: string; observations?: string }
       | { status: "not_done"; reason: string }
-      | { status: "postponed"; postponedToDate?: string; postponedToTime?: string }
+      | { status: "postponed"; postponedToDate?: string; postponedToTime?: string; postponedReason: string }
       | { status: "open" },
     date?: string,
   ) => {
@@ -1261,6 +1261,7 @@ const Index = () => {
                             done: false,
                             postponedToDate: payload.postponedToDate,
                             postponedToTime: payload.postponedToTime,
+                            postponedReason: payload.postponedReason,
                             postponedBy: auditTrail.confirmedBy,
                             postponedAt: auditTrail.confirmedAt,
                           };
@@ -1436,6 +1437,7 @@ const Index = () => {
           Beobachtungen: confirmation?.observations ?? "",
           "Verschoben auf Datum": confirmation?.postponedToDate ?? "",
           "Verschoben auf Uhrzeit": confirmation?.postponedToTime ?? "",
+          "Verschiebungsgrund": confirmation?.postponedReason ?? "",
           "Verschoben von": confirmation?.postponedBy ?? "",
           "Verschoben am": confirmation?.postponedAt ?? "",
           Benutzername: confirmation?.confirmedBy ?? "",
@@ -1471,6 +1473,7 @@ const Index = () => {
       "Beobachtungen",
       "Verschoben auf Datum",
       "Verschoben auf Uhrzeit",
+      "Verschiebungsgrund",
       "Verschoben von",
       "Verschoben am",
       "Benutzername",

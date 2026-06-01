@@ -109,7 +109,7 @@ type ConfirmPayload =
       observations?: string;
     }
   | { status: "not_done"; reason: string }
-  | { status: "postponed"; postponedToDate?: string; postponedToTime?: string }
+  | { status: "postponed"; postponedToDate?: string; postponedToTime?: string; postponedReason: string }
   | { status: "open" };
 
 type ActionField =
@@ -1024,9 +1024,14 @@ export function AssessmentOutline({
                                   </TooltipProvider>
                                 </div>
                                 {conf?.postponedToDate && (
-                                  <div className="mt-1 inline-flex items-center gap-1 rounded border border-border bg-muted/40 px-1.5 py-0.5 text-[11px] text-muted-foreground">
-                                    <CalendarClock className="h-3 w-3" />
-                                    Verschoben von {format(parseISO(confirmationDate), "dd.MM.yyyy", { locale: de })} auf {getPostponedLabel(conf.postponedToDate, conf.postponedToTime)}
+                                  <div className="mt-1 inline-flex flex-col gap-0.5 rounded border border-border bg-muted/40 px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                                    <span className="inline-flex items-center gap-1">
+                                      <CalendarClock className="h-3 w-3 shrink-0" />
+                                      Verschoben von {format(parseISO(confirmationDate), "dd.MM.yyyy", { locale: de })} auf {getPostponedLabel(conf.postponedToDate, conf.postponedToTime)}
+                                    </span>
+                                    {conf.postponedReason && (
+                                      <span className="pl-4">Grund: {conf.postponedReason}</span>
+                                    )}
                                   </div>
                                 )}
                                 {action.notes.trim() && (
@@ -2923,6 +2928,7 @@ function ConfirmActionDialog({
   const [observations, setObservations] = useState<string>("");
   const [postponedDate, setPostponedDate] = useState<string>("");
   const [postponedTime, setPostponedTime] = useState<string>("");
+  const [postponedReason, setPostponedReason] = useState<string>("");
   const [postponedError, setPostponedError] = useState<string>("");
 
   const open = target !== null;
@@ -2939,6 +2945,7 @@ function ConfirmActionDialog({
       const confirmation = target.action.confirmations?.[target.dueDate];
       setPostponedDate(confirmation?.postponedToDate ?? "");
       setPostponedTime(confirmation?.postponedToTime ?? "");
+      setPostponedReason(confirmation?.postponedReason ?? "");
       setPostponedError("");
     }
   }, [target]);
@@ -2951,6 +2958,7 @@ function ConfirmActionDialog({
     setObservations("");
     setPostponedDate("");
     setPostponedTime("");
+    setPostponedReason("");
     setPostponedError("");
     onClose();
   };
@@ -2990,6 +2998,10 @@ function ConfirmActionDialog({
         setPostponedError("Bitte ein neues Datum und/oder eine neue Uhrzeit erfassen.");
         return;
       }
+      if (!postponedReason.trim()) {
+        setPostponedError("Bitte einen Grund für die Verschiebung angeben.");
+        return;
+      }
 
       const plannedDateTime = buildPlannedDateTime(target.dueDate, target.action.scheduledTime);
       const shiftedDateTime = buildPlannedDateTime(
@@ -3003,7 +3015,7 @@ function ConfirmActionDialog({
       }
 
       setPostponedError("");
-      onConfirm({ status: "postponed", postponedToDate: nextDate, postponedToTime: nextTime });
+      onConfirm({ status: "postponed", postponedToDate: nextDate, postponedToTime: nextTime, postponedReason: postponedReason.trim() });
     }
     setMode(null);
     setActualMinutes("");
@@ -3012,6 +3024,7 @@ function ConfirmActionDialog({
     setObservations("");
     setPostponedDate("");
     setPostponedTime("");
+    setPostponedReason("");
     setPostponedError("");
   };
 
@@ -3162,6 +3175,19 @@ function ConfirmActionDialog({
                 }}
               />
             </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="postponed-reason">Grund <span className="text-destructive">*</span></Label>
+              <Textarea
+                id="postponed-reason"
+                rows={2}
+                value={postponedReason}
+                onChange={(e) => {
+                  setPostponedReason(e.target.value);
+                  setPostponedError("");
+                }}
+                placeholder="Warum wird die Handlung verschoben?"
+              />
+            </div>
             {postponedError && (
               <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">
                 {postponedError}
@@ -3249,7 +3275,7 @@ function ConfirmActionDialog({
                 (mode === "done_with_deviation" &&
                   ((hasPlannedMinutes && actualMinutes === "") || !reason.trim())) ||
                 (mode === "not_done" && !reason.trim()) ||
-                (mode === "postponed" && !postponedDate && !postponedTime) ||
+                (mode === "postponed" && (!postponedDate && !postponedTime || !postponedReason.trim())) ||
                 (showResult && resultRequired && !result.trim())
               }
             >
