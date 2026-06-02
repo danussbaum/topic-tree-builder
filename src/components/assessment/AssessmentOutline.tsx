@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 import {
@@ -1638,13 +1639,18 @@ function ActionRow({
   }, [weekdayDragState]);
 
   if (viewMode === "planning") {
-    const recurrenceLabel = action.recurrence === "daily"
+    const recurrenceTypeLabel = action.recurrence === "daily"
       ? "Täglich"
       : action.recurrence === "weekly"
-        ? ["Wöchentlich", ...(action.recurrenceWeekdays ?? []).map((d) => WEEKDAY_OPTIONS.find((o) => o.value === d)?.label ?? "")].filter(Boolean).join(" · ")
+        ? "Wöchentlich"
         : action.recurrence === "monthly"
-          ? MONTHLY_PATTERN_OPTIONS.find((o) => o.value === action.recurrenceMonthlyPattern)?.label ?? "Monatlich"
+          ? "Monatlich"
           : null;
+    const weekdaysLabel = action.recurrence === "weekly"
+      ? (action.recurrenceWeekdays ?? []).map((d) => WEEKDAY_OPTIONS.find((o) => o.value === d)?.label ?? "").filter(Boolean).join(" · ") || null
+      : action.recurrence === "monthly"
+        ? MONTHLY_PATTERN_OPTIONS.find((o) => o.value === action.recurrenceMonthlyPattern)?.label ?? null
+        : null;
 
     return (
       <li className={cn(
@@ -1662,54 +1668,79 @@ function ActionRow({
               </Badge>
             )}
           </div>
-          <div className="mt-1.5 flex items-center text-xs text-muted-foreground">
-            {/* Tageszeit – fix 110px */}
-            <span className="inline-flex w-[110px] shrink-0 items-center gap-1">
+          {(action.notes || action.requiredResources) && (
+            <div className="mt-1.5 flex flex-col gap-0.5 text-sm text-muted-foreground">
+              {action.notes && (
+                <span><span className="font-medium text-foreground">Beschreibung:</span> {action.notes}</span>
+              )}
+              {action.requiredResources && (
+                <span><span className="font-medium text-foreground">Hilfsmittel:</span> {action.requiredResources}</span>
+              )}
+            </div>
+          )}
+          <div
+            className="mt-1.5 text-sm text-muted-foreground"
+            style={{ display: "grid", gridTemplateColumns: "140px 1px 100px 1px 130px 1px 180px 1px 1fr", columnGap: "8px", rowGap: "4px" }}
+          >
+            {/* Zeile 1: Tageszeit | Uhrzeit | Minuten | Personen | Kategorie */}
+            <span className="inline-flex items-center gap-1 overflow-hidden self-center">
               {action.dayPart
                 ? <>{(() => { const Icon = DAY_PART_ICONS[action.dayPart]; return <Icon className="h-3.5 w-3.5 shrink-0" />; })()}<span className="truncate">{DAY_PART_LABEL[action.dayPart]}</span></>
-                : <span className="opacity-25">–</span>}
+                : <span className="opacity-40 italic">Keine Tageszeit</span>}
             </span>
-            <span className="mx-2 h-3 w-px shrink-0 bg-border" />
-            {/* Uhrzeit – fix 52px */}
-            <span className="w-[52px] shrink-0 tabular-nums">
-              {action.scheduledTime || <span className="opacity-25">–</span>}
+            <span className="self-center h-3 bg-border" />
+            <span className="tabular-nums self-center">
+              {action.scheduledTime || <span className="opacity-40 italic">Keine Uhrzeit</span>}
             </span>
-            <span className="mx-2 h-3 w-px shrink-0 bg-border" />
-            {/* Minuten – fix 64px */}
-            <span className="w-[64px] shrink-0 tabular-nums">
-              {action.plannedMinutes != null ? `${action.plannedMinutes} Min` : <span className="opacity-25">–</span>}
+            <span className="self-center h-3 bg-border" />
+            <span className="tabular-nums self-center">
+              {action.plannedMinutes != null ? `${action.plannedMinutes} Min` : <span className="opacity-40 italic">Keine Minuten</span>}
             </span>
-            <span className="mx-2 h-3 w-px shrink-0 bg-border" />
-            {/* Personen – fix 44px */}
-            <span className="inline-flex w-[44px] shrink-0 items-center gap-1">
+            <span className="self-center h-3 bg-border" />
+            <span className="inline-flex items-center gap-1 self-center">
               <Users className="h-3.5 w-3.5 shrink-0 opacity-50" />
-              {action.requiredPersons != null ? action.requiredPersons : <span className="opacity-25">–</span>}
+              {action.requiredPersons != null ? action.requiredPersons : <span className="opacity-40 italic">k. A.</span>}
             </span>
-            <span className="mx-2 h-3 w-px shrink-0 bg-border" />
-            {/* Kategorie – fix 52px */}
-            <span className="w-[52px] shrink-0">
+            <span className="self-center h-3 bg-border" />
+            <span className="self-center">
               {action.category
                 ? <span className="rounded bg-secondary px-1 font-medium">Kat. {CATEGORY_LABEL[action.category]}</span>
-                : <span className="opacity-25">–</span>}
+                : <span className="opacity-40 italic">Keine Kategorie</span>}
             </span>
-            <span className="mx-2 h-3 w-px shrink-0 bg-border" />
-            {/* Wiederholung – flex-1 */}
-            <span className="min-w-0 flex-1 truncate">
-              {recurrenceLabel || <span className="opacity-25">–</span>}
-            </span>
-            <span className="mx-2 h-3 w-px shrink-0 bg-border" />
-            {/* Gültig ab – fix 72px */}
-            <span className="w-[72px] shrink-0 tabular-nums">
+
+            {/* Zeile 2: Gültig ab | Gültig bis | Wiederholung | Wochentage | Resultat */}
+            <span className="tabular-nums self-center">
               {action.validFrom
                 ? format(parseISO(action.validFrom), "dd.MM.yy", { locale: de })
-                : <span className="opacity-25">–</span>}
+                : <span className="opacity-40 italic">Kein Gültig ab</span>}
             </span>
-            <span className="mx-2 h-3 w-px shrink-0 bg-border" />
-            {/* Gültig bis – fix 72px */}
-            <span className="w-[72px] shrink-0 tabular-nums">
+            <span className="self-center h-3 bg-border" />
+            <span className="tabular-nums self-center">
               {action.validTo
                 ? format(parseISO(action.validTo), "dd.MM.yy", { locale: de })
-                : <span className="opacity-25">–</span>}
+                : <span className="opacity-40 italic">Kein Gültig bis</span>}
+            </span>
+            <span className="self-center h-3 bg-border" />
+            <span className="self-center truncate">
+              {recurrenceTypeLabel || <span className="opacity-40 italic">Keine Wiederholung</span>}
+            </span>
+            <span className="self-center h-3 bg-border" />
+            <span className="self-center truncate">
+              {weekdaysLabel || (
+                action.recurrence === "weekly"
+                  ? <span className="opacity-40 italic">Keine Wochentage</span>
+                  : action.recurrence === "monthly"
+                    ? <span className="opacity-40 italic">Kein Muster</span>
+                    : <span className="opacity-40">–</span>
+              )}
+            </span>
+            <span className="self-center h-3 bg-border" />
+            <span className="self-center">
+              {action.resultRequirement === "required"
+                ? "Resultat zwingend"
+                : action.resultRequirement === "optional"
+                  ? "Resultat optional"
+                  : <span className="opacity-40 italic">Kein Resultat</span>}
             </span>
           </div>
         </div>
@@ -2390,6 +2421,40 @@ function StatusBadge({ action }: { action: ActionNode }) {
 }
 
 
+const ActionFieldCtx = createContext<{
+  isLocked: (f: string) => boolean;
+  isRequired: (f: string) => boolean;
+  hasError: (f: string) => boolean;
+}>({ isLocked: () => false, isRequired: () => false, hasError: () => false });
+
+function ActionField({
+  label,
+  fieldKey,
+  children,
+  className,
+}: {
+  label: string;
+  fieldKey?: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  const ctx = useContext(ActionFieldCtx);
+  const resolvedLocked = fieldKey ? ctx.isLocked(fieldKey) : false;
+  const resolvedRequired = fieldKey ? ctx.isRequired(fieldKey) : false;
+  const resolvedError = fieldKey ? ctx.hasError(fieldKey) : false;
+  return (
+    <div className={className}>
+      <label className="mb-1 flex items-center gap-1 text-xs font-medium text-muted-foreground">
+        {label}
+        {resolvedRequired && !resolvedLocked && <span className="text-destructive" title="Pflichtfeld">*</span>}
+        {resolvedLocked && <Lock className="h-3 w-3 opacity-50" title="Von Vorlage gesperrt" />}
+      </label>
+      <div className={cn(resolvedLocked && "opacity-60 pointer-events-none")}>{children}</div>
+      {resolvedError && <p className="mt-0.5 text-xs text-destructive">Pflichtfeld – bitte ausfüllen</p>}
+    </div>
+  );
+}
+
 function ActionSidePanel({
   mode,
   action,
@@ -2522,39 +2587,14 @@ function ActionSidePanel({
 
   const panelTitle = mode === "create" ? "Neue Handlung" : (action?.title || "Handlung bearbeiten");
 
-  const Field = ({
-    label,
-    fieldKey,
-    children,
-    className,
-  }: {
-    label: string;
-    fieldKey?: string;
-    children: ReactNode;
-    className?: string;
-  }) => {
-    const locked = fieldKey ? isLocked(fieldKey) : false;
-    const required = fieldKey ? isRequired(fieldKey) : false;
-    const error = fieldKey ? hasError(fieldKey) : false;
-    return (
-      <div className={className}>
-        <label className="mb-1 flex items-center gap-1 text-xs font-medium text-muted-foreground">
-          {label}
-          {required && !locked && <span className="text-destructive" title="Pflichtfeld">*</span>}
-          {locked && <Lock className="h-3 w-3 opacity-50" title="Von Vorlage gesperrt" />}
-        </label>
-        <div className={cn(locked && "opacity-60 pointer-events-none")}>{children}</div>
-        {error && <p className="mt-0.5 text-xs text-destructive">Pflichtfeld – bitte ausfüllen</p>}
-      </div>
-    );
-  };
-
-  return (
+  return createPortal(
     <div
-      className={`pointer-events-none fixed inset-0 z-50 flex justify-end transition-opacity duration-300 ${isPanelOpen ? "opacity-100" : "opacity-0"}`}
+      className={`fixed inset-0 z-50 flex justify-end transition-opacity duration-300 ${isPanelOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"}`}
+      onClick={onClose}
     >
       <aside
-        className={`pointer-events-auto flex h-full w-full max-w-2xl flex-col bg-[#f3f3f5] shadow-2xl transition-transform duration-300 ease-out ${isPanelOpen ? "translate-x-0" : "translate-x-full"}`}
+        onClick={(e) => e.stopPropagation()}
+        className={`pointer-events-auto flex h-dvh w-full max-w-2xl flex-col bg-[#f3f3f5] shadow-2xl transition-transform duration-300 ease-out ${isPanelOpen ? "translate-x-0" : "translate-x-full"}`}
         onTransitionEnd={onTransitionEnd}
       >
         {/* Header */}
@@ -2566,6 +2606,7 @@ function ActionSidePanel({
         </div>
 
         {/* Content */}
+        <ActionFieldCtx.Provider value={{ isLocked, isRequired, hasError }}>
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
           {/* Create mode: template selection */}
           {mode === "create" && (
@@ -2650,7 +2691,7 @@ function ActionSidePanel({
               )}
 
               {creationMode === "scratch" && (
-                <Field label="Leistungsart" fieldKey="serviceType">
+                <ActionField label="Leistungsart" fieldKey="serviceType">
                   <Select value={draft.serviceType} onValueChange={(v) => setDraft((p) => ({ ...p, serviceType: v }))}>
                     <SelectTrigger className="bg-background"><SelectValue placeholder="Leistungsart wählen" /></SelectTrigger>
                     <SelectContent>
@@ -2659,14 +2700,14 @@ function ActionSidePanel({
                       ))}
                     </SelectContent>
                   </Select>
-                </Field>
+                </ActionField>
               )}
             </div>
           )}
 
           {/* Fields */}
           <div className="space-y-3">
-            <Field label="Bezeichnung" fieldKey="title">
+            <ActionField label="Bezeichnung" fieldKey="title">
               <Input
                 value={draft.title}
                 disabled={isLocked("title")}
@@ -2674,9 +2715,9 @@ function ActionSidePanel({
                 placeholder="Handlung…"
                 className={cn("bg-background", hasError("title") && "border-destructive")}
               />
-            </Field>
+            </ActionField>
 
-            <Field label="Beschreibung" fieldKey="notes">
+            <ActionField label="Beschreibung" fieldKey="notes">
               <Textarea
                 value={draft.notes}
                 disabled={isLocked("notes")}
@@ -2685,9 +2726,9 @@ function ActionSidePanel({
                 rows={2}
                 className={cn("bg-background", hasError("notes") && "border-destructive")}
               />
-            </Field>
+            </ActionField>
 
-            <Field label="Hilfsmittel" fieldKey="requiredResources">
+            <ActionField label="Hilfsmittel" fieldKey="requiredResources">
               <Textarea
                 value={draft.requiredResources}
                 disabled={isLocked("requiredResources")}
@@ -2696,10 +2737,10 @@ function ActionSidePanel({
                 rows={2}
                 className={cn("bg-background", hasError("requiredResources") && "border-destructive")}
               />
-            </Field>
+            </ActionField>
 
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Tageszeit" fieldKey="dayPart">
+              <ActionField label="Tageszeit" fieldKey="dayPart">
                 <Select value={draft.dayPart} disabled={isLocked("dayPart")} onValueChange={(v) => { setDraft((p) => ({ ...p, dayPart: v })); setValidationErrors((prev) => prev.filter((f) => f !== "dayPart")); }}>
                   <SelectTrigger className={cn("bg-background", hasError("dayPart") && "border-destructive")}><SelectValue placeholder="Keine Angabe" /></SelectTrigger>
                   <SelectContent>
@@ -2708,8 +2749,8 @@ function ActionSidePanel({
                     ))}
                   </SelectContent>
                 </Select>
-              </Field>
-              <Field label="Uhrzeit" fieldKey="scheduledTime">
+              </ActionField>
+              <ActionField label="Uhrzeit" fieldKey="scheduledTime">
                 <Input
                   type="time"
                   value={draft.scheduledTime}
@@ -2717,11 +2758,11 @@ function ActionSidePanel({
                   onChange={(e) => { setDraft((p) => ({ ...p, scheduledTime: e.target.value })); setValidationErrors((prev) => prev.filter((f) => f !== "scheduledTime")); }}
                   className={cn("bg-background", hasError("scheduledTime") && "border-destructive")}
                 />
-              </Field>
+              </ActionField>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Geplante Minuten" fieldKey="plannedMinutes">
+              <ActionField label="Geplante Minuten" fieldKey="plannedMinutes">
                 <Input
                   type="number"
                   min={0}
@@ -2732,8 +2773,8 @@ function ActionSidePanel({
                   placeholder="–"
                   className={cn("bg-background", hasError("plannedMinutes") && "border-destructive")}
                 />
-              </Field>
-              <Field label="Anz. Personen" fieldKey="requiredPersons">
+              </ActionField>
+              <ActionField label="Anz. Personen" fieldKey="requiredPersons">
                 <Input
                   type="number"
                   min={1}
@@ -2744,11 +2785,11 @@ function ActionSidePanel({
                   placeholder="–"
                   className={cn("bg-background", hasError("requiredPersons") && "border-destructive")}
                 />
-              </Field>
+              </ActionField>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Kategorie" fieldKey="category">
+              <ActionField label="Kategorie" fieldKey="category">
                 <Select value={draft.category} disabled={isLocked("category")} onValueChange={(v) => { setDraft((p) => ({ ...p, category: v })); setValidationErrors((prev) => prev.filter((f) => f !== "category")); }}>
                   <SelectTrigger className={cn("bg-background", hasError("category") && "border-destructive")}><SelectValue placeholder="Keine Angabe" /></SelectTrigger>
                   <SelectContent>
@@ -2758,8 +2799,8 @@ function ActionSidePanel({
                     <SelectItem value="c">C</SelectItem>
                   </SelectContent>
                 </Select>
-              </Field>
-              <Field label="Resultat" fieldKey="resultRequirement">
+              </ActionField>
+              <ActionField label="Resultat" fieldKey="resultRequirement">
                 <Select value={draft.resultRequirement} disabled={isLocked("resultRequirement")} onValueChange={(v) => { setDraft((p) => ({ ...p, resultRequirement: v })); setValidationErrors((prev) => prev.filter((f) => f !== "resultRequirement")); }}>
                   <SelectTrigger className={cn("bg-background", hasError("resultRequirement") && "border-destructive")}><SelectValue placeholder="Kein Resultat" /></SelectTrigger>
                   <SelectContent>
@@ -2768,11 +2809,11 @@ function ActionSidePanel({
                     <SelectItem value="required">Resultat zwingend</SelectItem>
                   </SelectContent>
                 </Select>
-              </Field>
+              </ActionField>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Gültig ab">
+              <ActionField label="Gültig ab">
                 <div className={cn("flex items-center rounded-md border border-input bg-background px-3 py-2 text-sm focus-within:border-primary", hasError("validFrom") && "border-destructive")}>
                   <DatePickerInput
                     value={draft.validFrom || undefined}
@@ -2781,8 +2822,8 @@ function ActionSidePanel({
                     className="h-6 min-h-0 flex-1 border-0 bg-transparent p-0 text-sm shadow-none"
                   />
                 </div>
-              </Field>
-              <Field label="Gültig bis">
+              </ActionField>
+              <ActionField label="Gültig bis">
                 <div className="flex items-center rounded-md border border-input bg-background px-3 py-2 text-sm focus-within:border-primary">
                   <DatePickerInput
                     value={draft.validTo || undefined}
@@ -2791,11 +2832,11 @@ function ActionSidePanel({
                     className="h-6 min-h-0 flex-1 border-0 bg-transparent p-0 text-sm shadow-none"
                   />
                 </div>
-              </Field>
+              </ActionField>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Wiederholung" fieldKey="recurrence">
+              <ActionField label="Wiederholung" fieldKey="recurrence">
                 <Select
                   value={draft.recurrence}
                   disabled={isLocked("recurrence")}
@@ -2809,9 +2850,9 @@ function ActionSidePanel({
                     <SelectItem value="monthly">Monatlich</SelectItem>
                   </SelectContent>
                 </Select>
-              </Field>
+              </ActionField>
               {draft.recurrence === "weekly" && (
-                <Field label="Wochentage" fieldKey="recurrenceWeekdays">
+                <ActionField label="Wochentage" fieldKey="recurrenceWeekdays">
                   <div className="flex flex-wrap gap-1">
                     {WEEKDAY_OPTIONS.map((wd) => {
                       const isSelected = draft.recurrenceWeekdays.includes(wd.value);
@@ -2838,10 +2879,10 @@ function ActionSidePanel({
                       );
                     })}
                   </div>
-                </Field>
+                </ActionField>
               )}
               {draft.recurrence === "monthly" && (
-                <Field label="Muster" fieldKey="recurrenceMonthlyPattern">
+                <ActionField label="Muster" fieldKey="recurrenceMonthlyPattern">
                   <Select
                     value={draft.recurrenceMonthlyPattern}
                     disabled={isLocked("recurrenceMonthlyPattern")}
@@ -2855,11 +2896,12 @@ function ActionSidePanel({
                       ))}
                     </SelectContent>
                   </Select>
-                </Field>
+                </ActionField>
               )}
             </div>
           </div>
         </div>
+        </ActionFieldCtx.Provider>
 
         {/* Footer */}
         <div className="flex items-center justify-between bg-primary px-6 py-3">
@@ -2883,7 +2925,8 @@ function ActionSidePanel({
           </Button>
         </div>
       </aside>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
