@@ -114,10 +114,20 @@ export interface ActionNode {
   templateRequiredFields?: string[];
 }
 
+export interface TargetAssessment {
+  goalAchievement: string;
+  derivedMeasures: string;
+  assessedBy?: string;
+  assessedAt?: string;
+}
+
 export interface TargetNode {
   id: string;
   title: string;
   notes: string;
+  validFrom?: string;
+  validTo?: string;
+  assessment?: TargetAssessment;
   actions: ActionNode[];
 }
 

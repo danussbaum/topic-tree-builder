@@ -58,7 +58,6 @@ const cachedState: CachedAssessmentState = {
   ],
   selectedClientIds: ["client-1"],
   confirmationFilter: fallbackFilter,
-  showCompletedTargets: true,
 };
 
 afterEach(() => {
@@ -97,7 +96,6 @@ describe("assessment browser cache", () => {
       clients: cachedState.clients,
       selectedClientIds: ["client-1"],
       confirmationFilter: fallbackFilter,
-      showCompletedTargets: false,
     });
   });
 

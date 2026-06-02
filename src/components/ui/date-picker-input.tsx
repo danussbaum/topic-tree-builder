@@ -15,6 +15,8 @@ interface DatePickerInputProps {
   className?: string;
   disabled?: boolean;
   id?: string;
+  minDate?: string;
+  maxDate?: string;
 }
 
 const parseISODate = (value?: string) => {
@@ -38,8 +40,12 @@ export function DatePickerInput({
   className,
   disabled,
   id,
+  minDate,
+  maxDate,
 }: DatePickerInputProps) {
   const selectedDate = parseISODate(value);
+  const fromDate = parseISODate(minDate);
+  const toDate = parseISODate(maxDate);
   const [open, setOpen] = useState(false);
 
   return (
@@ -99,6 +105,8 @@ export function DatePickerInput({
             onChange(toISODate(date));
             setOpen(false);
           }}
+          fromDate={fromDate}
+          toDate={toDate}
           initialFocus
           locale={de}
         />

@@ -29,14 +29,13 @@ const migrateCachedTopicsToDisciplines = (clients: Client[]): Client[] =>
   }));
 
 export interface CachedAssessmentState {
-  viewMode: "planning" | "confirmation";
+  viewMode: "planning" | "confirmation" | "review";
   selectedDate: string;
   confirmationPeriod: ConfirmationPeriod;
   lastNDays: number;
   clients: Client[];
   selectedClientIds: string[];
   confirmationFilter: AssessmentFilterModel;
-  showCompletedTargets: boolean;
 }
 
 export const saveCachedAssessmentState = (state: CachedAssessmentState) => {
@@ -61,7 +60,7 @@ export const loadCachedAssessmentState = (
     const parsed = JSON.parse(raw) as Partial<CachedAssessmentState>;
     if (!Array.isArray(parsed.clients) || !Array.isArray(parsed.selectedClientIds)) return null;
     return {
-      viewMode: parsed.viewMode === "confirmation" ? "confirmation" : "planning",
+      viewMode: parsed.viewMode === "confirmation" ? "confirmation" : parsed.viewMode === "review" ? "review" : "planning",
       selectedDate:
         typeof parsed.selectedDate === "string" ? parsed.selectedDate : fallbackSelectedDate,
       confirmationPeriod:
@@ -77,7 +76,6 @@ export const loadCachedAssessmentState = (
       clients: migrateCachedTopicsToDisciplines(parsed.clients as Client[]),
       selectedClientIds: parsed.selectedClientIds,
       confirmationFilter: parsed.confirmationFilter ?? fallbackConfirmationFilter,
-      showCompletedTargets: Boolean(parsed.showCompletedTargets),
     };
   } catch {
     return null;

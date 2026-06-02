@@ -259,7 +259,6 @@ function draftToOverrides(draft: ActionDraft): ActionDraftOverrides {
 interface Props {
   viewMode: "planning" | "confirmation";
   selectedDate: string;
-  showCompletedTargets?: boolean;
   onSelectedDateChange: (date: string) => void;
   confirmationPeriod?: ConfirmationPeriod;
   lastNDays?: number;
@@ -274,10 +273,11 @@ interface Props {
   filterModel?: AssessmentFilterModel;
   transientUnplannedActionIds?: Set<string>;
   onUpdateTopic: (topicId: string, field: "title" | "notes", value: string) => void;
+  showClosedTargets?: boolean;
   onUpdateTarget: (
     topicId: string,
     targetId: string,
-    field: "title" | "notes",
+    field: "title" | "notes" | "validFrom" | "validTo",
     value: string,
   ) => void;
   onUpdateAction: (
@@ -319,6 +319,7 @@ interface Props {
   onDeleteDiscipline?: (disciplineId: string) => void;
   onDeleteTopic: (topicId: string) => void;
   onDeleteTarget: (topicId: string, targetId: string) => void;
+  onReactivateTarget: (topicId: string, targetId: string) => void;
   onDeleteAction: (topicId: string, targetId: string, actionId: string) => void;
 }
 
@@ -499,7 +500,6 @@ export function AssessmentOutline({
   viewMode,
   selectedDate,
   onSelectedDateChange,
-  showCompletedTargets = false,
   confirmationPeriod = "day",
   lastNDays = DEFAULT_LAST_N_DAYS,
   clientName,
@@ -510,6 +510,7 @@ export function AssessmentOutline({
   onBulkNotDoneModeChange,
   confirmationFilter,
   filterModel = DEFAULT_ASSESSMENT_FILTER,
+  showClosedTargets = false,
   transientUnplannedActionIds = new Set(),
   onUpdateTopic,
   onUpdateTarget,
@@ -524,6 +525,7 @@ export function AssessmentOutline({
   onDeleteDiscipline,
   onDeleteTopic,
   onDeleteTarget,
+  onReactivateTarget,
   onDeleteAction,
 }: Props) {
   const [panelContext, setPanelContext] = useState<{
@@ -531,6 +533,8 @@ export function AssessmentOutline({
     topicId: string;
     targetId: string;
     topicDisciplineId?: string;
+    targetValidFrom?: string;
+    targetValidTo?: string;
     action?: ActionNode;
   } | null>(null);
   const [isPanelMounted, setIsPanelMounted] = useState(false);
@@ -581,12 +585,15 @@ export function AssessmentOutline({
   const openCreatePanel = (topicId: string, targetId: string) => {
     const topic = topics.find((t) => t.id === topicId);
     const topicDisciplineId = topic ? getTopicDisciplineId(topic) : undefined;
-    setPanelContext({ mode: "create", topicId, targetId, topicDisciplineId });
+    const target = topic?.targets.find((tg) => tg.id === targetId);
+    setPanelContext({ mode: "create", topicId, targetId, topicDisciplineId, targetValidFrom: target?.validFrom, targetValidTo: target?.validTo });
     setIsPanelMounted(true);
   };
 
   const openEditPanel = (topicId: string, targetId: string, action: ActionNode) => {
-    setPanelContext({ mode: "edit", topicId, targetId, action });
+    const topic = topics.find((t) => t.id === topicId);
+    const target = topic?.targets.find((tg) => tg.id === targetId);
+    setPanelContext({ mode: "edit", topicId, targetId, action, targetValidFrom: target?.validFrom, targetValidTo: target?.validTo });
     setIsPanelMounted(true);
   };
 
@@ -1379,43 +1386,69 @@ export function AssessmentOutline({
 
                 {/* Targets */}
                 <div className="mt-6 space-y-6 pl-6 border-l border-border ml-4">
-                  {topic.targets.filter((target) => {
-              if (showCompletedTargets) return true;
-              if (target.actions.length === 0) return true;
-              if (target.actions.some((action) => !action.validFrom)) return true;
-              return target.actions.some(
-                (action) =>
-                  action.validFrom != null &&
-                  action.validFrom <= today &&
-                  (!action.validTo || today <= action.validTo),
-              );
-            }).map((target) => {
+                  {topic.targets.filter((target) => showClosedTargets || !target.validTo).map((target) => {
+              const isTargetClosed = !!target.validTo;
               return (
                 <div key={target.id} className="group/target">
                   <div className="flex items-start gap-3">
                     <div className="flex-1 min-w-0">
-                      <div className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground mb-1">
-                        Ziel
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">
+                          Ziel
+                        </span>
+                        {isTargetClosed && (
+                          <span className="text-[10px] uppercase tracking-widest font-semibold px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                            Abgeschlossen
+                          </span>
+                        )}
                       </div>
                       <input
                         value={target.title}
+                        readOnly={isTargetClosed}
                         onChange={(e) =>
-                          onUpdateTarget(topic.id, target.id, "title", e.target.value)
+                          isTargetClosed ? undefined : onUpdateTarget(topic.id, target.id, "title", e.target.value)
                         }
                         placeholder="Zielbezeichnung…"
-                        className="w-full text-lg font-medium bg-transparent border-0 outline-none focus:ring-0 px-0 placeholder:text-muted-foreground/40"
+                        className="w-full text-lg font-medium bg-transparent border-0 outline-none focus:ring-0 px-0 placeholder:text-muted-foreground/40 read-only:cursor-default"
                       />
+                      <div className="flex items-center gap-3 mt-1.5">
+                        <DateField
+                          label="Gültig ab"
+                          value={target.validFrom}
+                          disabled={isTargetClosed}
+                          onChange={(v) => onUpdateTarget(topic.id, target.id, "validFrom", v ?? "")}
+                          className="text-xs"
+                        />
+                        <DateField
+                          label="Gültig bis"
+                          value={target.validTo}
+                          disabled={isTargetClosed}
+                          onChange={(v) => onUpdateTarget(topic.id, target.id, "validTo", v ?? "")}
+                          className="text-xs"
+                        />
+                      </div>
                     </div>
-                    <button
-                      onClick={() => onDeleteTarget(topic.id, target.id)}
-                      className="opacity-0 group-hover/target:opacity-100 p-1.5 hover:bg-destructive/10 hover:text-destructive rounded transition-opacity"
-                      aria-label="Ziel löschen"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                    {isTargetClosed ? (
+                      <button
+                        onClick={() => onReactivateTarget(topic.id, target.id)}
+                        className="p-1.5 hover:bg-primary/10 hover:text-primary rounded transition-colors"
+                        aria-label="Ziel wieder aktivieren"
+                        title="Ziel wieder aktivieren"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => onDeleteTarget(topic.id, target.id)}
+                        className="opacity-0 group-hover/target:opacity-100 p-1.5 hover:bg-destructive/10 hover:text-destructive rounded transition-opacity"
+                        aria-label="Ziel löschen"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </div>
 
-                  <div className="pl-6">
+                  <div className={cn("pl-6", isTargetClosed && "pointer-events-none opacity-60")}>
                     <Notes
                       value={target.notes}
                       onChange={(v) => onUpdateTarget(topic.id, target.id, "notes", v)}
@@ -1432,6 +1465,8 @@ export function AssessmentOutline({
                             topicId={topic.id}
                             targetId={target.id}
                             action={action}
+                            targetValidFrom={target.validFrom}
+                            targetValidTo={target.validTo}
                             onUpdateAction={onUpdateAction}
                             onUpdateActionField={onUpdateActionField}
                             onDeleteAction={onDeleteAction}
@@ -1450,13 +1485,15 @@ export function AssessmentOutline({
                       </ul>
                     </div>
 
-                    <button
-                      onClick={() => openCreatePanel(topic.id, target.id)}
-                      className="mt-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      Neue Handlung erfassen
-                    </button>
+                    {!isTargetClosed && (
+                      <button
+                        onClick={() => openCreatePanel(topic.id, target.id)}
+                        className="mt-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Neue Handlung erfassen
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -1525,6 +1562,8 @@ export function AssessmentOutline({
           mode={panelContext.mode}
           action={panelContext.action}
           topicDisciplineId={panelContext.topicDisciplineId}
+          targetValidFrom={panelContext.targetValidFrom}
+          targetValidTo={panelContext.targetValidTo}
           isPanelOpen={isPanelOpen}
           onClose={closePanel}
           onSave={handlePanelSave}
@@ -1577,11 +1616,13 @@ function DayPartHeader({
   );
 }
 
-function ActionRow({
+export function ActionRow({
   viewMode,
   topicId,
   targetId,
   action,
+  targetValidFrom,
+  targetValidTo,
   onUpdateAction,
   onUpdateActionField,
   onDeleteAction,
@@ -1592,6 +1633,8 @@ function ActionRow({
   topicId: string;
   targetId: string;
   action: ActionNode;
+  targetValidFrom?: string;
+  targetValidTo?: string;
   onUpdateAction: Props["onUpdateAction"];
   onUpdateActionField: Props["onUpdateActionField"];
   onDeleteAction: Props["onDeleteAction"];
@@ -1973,6 +2016,8 @@ function ActionRow({
               required
               disabled={isFieldLocked("validFrom")}
               value={action.validFrom}
+              minDate={targetValidFrom}
+              maxDate={targetValidTo}
               onChange={(v) =>
                 onUpdateActionField(topicId, targetId, action.id, "validFrom", v)
               }
@@ -1982,6 +2027,8 @@ function ActionRow({
               label="Gültig bis"
               disabled={false}
               value={action.validTo}
+              minDate={targetValidFrom}
+              maxDate={targetValidTo}
               onChange={(v) =>
                 onUpdateActionField(topicId, targetId, action.id, "validTo", v)
               }
@@ -2266,6 +2313,8 @@ function ActionRow({
               required
               disabled={isFieldLocked("validFrom")}
               value={action.validFrom}
+              minDate={targetValidFrom}
+              maxDate={targetValidTo}
               onChange={(v) =>
                 onUpdateActionField(topicId, targetId, action.id, "validFrom", v)
               }
@@ -2274,6 +2323,8 @@ function ActionRow({
               label="Gültig bis"
               disabled={false}
               value={action.validTo}
+              minDate={targetValidFrom}
+              maxDate={targetValidTo}
               onChange={(v) =>
                 onUpdateActionField(topicId, targetId, action.id, "validTo", v)
               }
@@ -2350,6 +2401,8 @@ function DateField({
   required,
   disabled,
   className,
+  minDate,
+  maxDate,
 }: {
   label: string;
   value?: string;
@@ -2357,6 +2410,8 @@ function DateField({
   required?: boolean;
   disabled?: boolean;
   className?: string;
+  minDate?: string;
+  maxDate?: string;
 }) {
   const missing = required && !value;
   return (
@@ -2374,6 +2429,8 @@ function DateField({
         value={value}
         onChange={(nextValue) => onChange(nextValue || undefined)}
         placeholder="TT.MM.JJJJ"
+        minDate={minDate}
+        maxDate={maxDate}
         className="h-6 min-h-0 w-full min-w-0 flex-1 border-0 bg-transparent p-0 pr-0 text-xs leading-none shadow-none"
       />
     </div>
@@ -2460,6 +2517,8 @@ function ActionSidePanel({
   mode,
   action,
   topicDisciplineId,
+  targetValidFrom,
+  targetValidTo,
   isPanelOpen,
   onClose,
   onSave,
@@ -2469,6 +2528,8 @@ function ActionSidePanel({
   mode: "create" | "edit";
   action?: ActionNode;
   topicDisciplineId?: string;
+  targetValidFrom?: string;
+  targetValidTo?: string;
   isPanelOpen: boolean;
   onClose: () => void;
   onSave: (draft: ActionDraft, selectedTemplateIds: string[]) => void;
@@ -2820,6 +2881,8 @@ function ActionSidePanel({
                     value={draft.validFrom || undefined}
                     onChange={(v) => setDraft((p) => ({ ...p, validFrom: v ?? "" }))}
                     placeholder="TT.MM.JJJJ"
+                    minDate={targetValidFrom}
+                    maxDate={targetValidTo}
                     className="h-6 min-h-0 flex-1 border-0 bg-transparent p-0 text-sm shadow-none"
                   />
                 </div>
@@ -2830,6 +2893,8 @@ function ActionSidePanel({
                     value={draft.validTo || undefined}
                     onChange={(v) => setDraft((p) => ({ ...p, validTo: v ?? "" }))}
                     placeholder="TT.MM.JJJJ"
+                    minDate={targetValidFrom}
+                    maxDate={targetValidTo}
                     className="h-6 min-h-0 flex-1 border-0 bg-transparent p-0 text-sm shadow-none"
                   />
                 </div>

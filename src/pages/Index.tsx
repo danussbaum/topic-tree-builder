@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { format } from "date-fns";
 import {
   BookOpen,
@@ -19,6 +20,11 @@ import {
   Upload,
   ListTodo,
   ClipboardCheck,
+  SearchCheck,
+  Pencil,
+  Info,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { ClientSidebar, ClientSidebarTrigger } from "@/components/assessment/ClientSidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
@@ -30,7 +36,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { AssessmentOutline, UnplannedActionDialog } from "@/components/assessment/AssessmentOutline";
+import { AssessmentOutline, UnplannedActionDialog, ActionRow } from "@/components/assessment/AssessmentOutline";
 import { ApplicationLogoutButton } from "@/components/ApplicationLogoutButton";
 import type {
   ActionNode,
@@ -69,6 +75,7 @@ import {
 } from "@/lib/action-plan-disciplines";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { DatePickerInput } from "@/components/ui/date-picker-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -443,7 +450,7 @@ const seedClients: Client[] = [
 const Index = () => {
   const navigate = useNavigate();
   const cached = loadCachedAssessmentState(todayLocalISO(), INITIAL_CONFIRMATION_FILTER);
-  const [viewMode, setViewMode] = useState<"planning" | "confirmation">(
+  const [viewMode, setViewMode] = useState<"planning" | "confirmation" | "review">(
     cached?.viewMode ?? "planning",
   );
   const [selectedDate, setSelectedDate] = useState<string>(cached?.selectedDate ?? todayLocalISO());
@@ -462,13 +469,29 @@ const Index = () => {
   const [confirmationFilter, setConfirmationFilter] = useState<AssessmentFilterModel>(
     cached?.confirmationFilter ?? INITIAL_CONFIRMATION_FILTER,
   );
-  const [showCompletedTargets, setShowCompletedTargets] = useState(
-    cached?.showCompletedTargets ?? false,
-  );
   const [draftFilter, setDraftFilter] = useState<AssessmentFilterModel>(confirmationFilter);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [isTargetHiddenHintOpen, setIsTargetHiddenHintOpen] = useState(false);
-  const [hideTargetHiddenHint, setHideTargetHiddenHint] = useState(false);
+  const [showClosedTargets, setShowClosedTargets] = useState(false);
+  const [reviewAssessmentPanel, setReviewAssessmentPanel] = useState<{
+    clientId: string;
+    topicId: string;
+    target: import("@/types/assessment").TargetNode;
+  } | null>(null);
+  const [hideReviewAssessed, setHideReviewAssessed] = useState(false);
+  const [expandedReviewTargets, setExpandedReviewTargets] = useState<Set<string>>(new Set());
+  const toggleReviewTarget = (targetId: string) =>
+    setExpandedReviewTargets((prev) => {
+      const next = new Set(prev);
+      next.has(targetId) ? next.delete(targetId) : next.add(targetId);
+      return next;
+    });
+  const [pendingTargetValidTo, setPendingTargetValidTo] = useState<{
+    clientId: string;
+    topicId: string;
+    targetId: string;
+    value: string;
+    affectedActionCount: number;
+  } | null>(null);
   const [bulkNotDoneClientIds, setBulkNotDoneClientIds] = useState<Set<string>>(new Set());
   const [personUnplannedClientId, setPersonUnplannedClientId] = useState<string | null>(null);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
@@ -482,7 +505,6 @@ const Index = () => {
     clients,
     selectedClientIds,
     confirmationFilter,
-    showCompletedTargets,
   });
 
   const setClientBulkNotDoneMode = (clientId: string, enabled: boolean) => {
@@ -512,7 +534,6 @@ const Index = () => {
       clients,
       selectedClientIds,
       confirmationFilter,
-      showCompletedTargets,
     };
     latestAssessmentStateRef.current = cachePayload;
     saveCachedAssessmentState(cachePayload);
@@ -524,7 +545,6 @@ const Index = () => {
     clients,
     selectedClientIds,
     confirmationFilter,
-    showCompletedTargets,
   ]);
 
   useEffect(() => {
@@ -1000,12 +1020,73 @@ const Index = () => {
     );
   };
 
+  const applyTargetUpdate = (
+    clientId: string,
+    topicId: string,
+    targetId: string,
+    field: "title" | "notes" | "validFrom" | "validTo",
+    value: string,
+    alsoSetActionsValidTo?: string,
+  ) => {
+    updateClientTopicsFor(clientId, (topics) =>
+      topics.map((t) =>
+        t.id !== topicId
+          ? t
+          : {
+              ...t,
+              targets: t.targets.map((tg) => {
+                if (tg.id !== targetId) return tg;
+                const updatedTarget = { ...tg, [field]: value };
+                if (alsoSetActionsValidTo !== undefined) {
+                  updatedTarget.actions = tg.actions.map((a) =>
+                    !a.validTo || a.validTo > alsoSetActionsValidTo
+                      ? { ...a, validTo: alsoSetActionsValidTo }
+                      : a,
+                  );
+                }
+                if (field === "validFrom" && value) {
+                  updatedTarget.actions = (updatedTarget.actions ?? tg.actions).map((a) =>
+                    a.validFrom && a.validFrom < value ? { ...a, validFrom: value } : a,
+                  );
+                }
+                return updatedTarget;
+              }),
+            },
+      ),
+    );
+  };
+
   const updateTarget = (
     clientId: string,
     topicId: string,
     targetId: string,
-    field: "title" | "notes",
+    field: "title" | "notes" | "validFrom" | "validTo",
     value: string,
+  ) => {
+    if (field === "validTo" && value) {
+      const client = clients.find((c) => c.id === clientId);
+      const topic = client?.topics.find((t) => t.id === topicId);
+      const target = topic?.targets.find((tg) => tg.id === targetId);
+      const affectedActions = (target?.actions ?? []).filter(
+        (a) => !a.validTo || a.validTo > value,
+      );
+      if (affectedActions.length > 0) {
+        setPendingTargetValidTo({ clientId, topicId, targetId, value, affectedActionCount: affectedActions.length });
+        return;
+      }
+    }
+    applyTargetUpdate(clientId, topicId, targetId, field, value);
+  };
+
+  const reactivateTarget = (clientId: string, topicId: string, targetId: string) => {
+    applyTargetUpdate(clientId, topicId, targetId, "validTo", "");
+  };
+
+  const updateTargetAssessment = (
+    clientId: string,
+    topicId: string,
+    targetId: string,
+    assessment: import("@/types/assessment").TargetAssessment,
   ) => {
     updateClientTopicsFor(clientId, (topics) =>
       topics.map((t) =>
@@ -1014,7 +1095,7 @@ const Index = () => {
           : {
               ...t,
               targets: t.targets.map((tg) =>
-                tg.id === targetId ? { ...tg, [field]: value } : tg,
+                tg.id === targetId ? { ...tg, assessment } : tg,
               ),
             },
       ),
@@ -1084,24 +1165,10 @@ const Index = () => {
       return [...dates].sort()[0];
     };
 
-    const isTargetVisibleInPlanning = (actions: ActionNode[]) => {
-      if (showCompletedTargets) return true;
-      if (actions.length === 0) return true;
-      if (actions.some((action) => !action.validFrom)) return true;
-      return actions.some(
-        (action) =>
-          action.validFrom != null &&
-          action.validFrom <= selectedDate &&
-          (!action.validTo || selectedDate <= action.validTo),
-      );
-    };
-
     const client = clients.find((c) => c.id === clientId);
     const topic = client?.topics.find((t) => t.id === topicId);
     const target = topic?.targets.find((tg) => tg.id === targetId);
     const currentAction = target?.actions.find((a) => a.id === actionId);
-
-    const wasVisible = target ? isTargetVisibleInPlanning(target.actions) : false;
 
     const nextAction = (() => {
       if (!currentAction) return undefined;
@@ -1116,16 +1183,18 @@ const Index = () => {
         if (oldestConfirmationDate && value < oldestConfirmationDate) {
           return currentAction;
         }
+        if (target?.validTo && value > target.validTo) {
+          return currentAction;
+        }
+      }
+
+      if (field === "validFrom" && typeof value === "string" && value) {
+        if (target?.validFrom && value < target.validFrom) return currentAction;
+        if (target?.validTo && value > target.validTo) return currentAction;
       }
 
       return { ...currentAction, [field]: value };
     })();
-
-    const isVisibleAfterUpdate = target
-      ? isTargetVisibleInPlanning(
-          target.actions.map((action) => (action.id === actionId && nextAction ? nextAction : action)),
-        )
-      : false;
 
     updateClientTopicsFor(clientId, (topics) =>
       topics.map((t) =>
@@ -1165,9 +1234,6 @@ const Index = () => {
       ),
     );
 
-    if (viewMode === "planning" && !showCompletedTargets && wasVisible && !isVisibleAfterUpdate) {
-      setIsTargetHiddenHintOpen(true);
-    }
   };
 
   const confirmAction = (
@@ -1400,6 +1466,42 @@ const Index = () => {
     setSelectedDate(dateToISO(d));
   };
 
+  const exportReviewCsv = () => {
+    if (viewMode !== "review") return;
+    const disciplineList = availableDisciplines.length > 0 ? availableDisciplines : initialActionPlanDisciplines;
+    const headers = ["Dossier", "Disziplin", "Schwerpunkt", "Ziel", "Beschreibung", "Gültig ab", "Gültig bis", "Zielerreichung", "Abgeleitete Massnahmen", "Beurteilt von", "Beurteilt am"];
+    const rows = visibleSelectedClients.flatMap((client) => {
+      const clientName = `${client.firstName} ${client.lastName}`.trim();
+      return client.topics.flatMap((topic) => {
+        const disciplineTitle = disciplineList.find((d) => d.id === topic.disciplineId)?.title ?? topic.disciplineId ?? "Ohne Disziplin";
+        return topic.targets
+          .filter((tg) => !!tg.validTo)
+          .map((tg) => [
+            clientName,
+            disciplineTitle,
+            topic.title,
+            tg.title,
+            tg.notes,
+            tg.validFrom ? format(new Date(tg.validFrom), "dd.MM.yyyy") : "",
+            tg.validTo ? format(new Date(tg.validTo), "dd.MM.yyyy") : "",
+            tg.assessment?.goalAchievement ?? "",
+            tg.assessment?.derivedMeasures ?? "",
+            tg.assessment?.assessedBy ?? "",
+            tg.assessment?.assessedAt ? format(new Date(tg.assessment.assessedAt), "dd.MM.yyyy, HH:mm") : "",
+          ]);
+      });
+    });
+    const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    const csv = [headers, ...rows].map((row) => row.map(escape).join(";")).join("\r\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "ueberpruefung.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const exportConfirmationExcel = () => {
     if (viewMode !== "confirmation") return;
 
@@ -1611,7 +1713,7 @@ const Index = () => {
             <RibbonButton
               icon={Plus}
               label="Neuer Schwerpunkt"
-              disabled={selectedClients.length !== 1 || viewMode === "confirmation"}
+              disabled={selectedClients.length !== 1 || viewMode === "confirmation" || viewMode === "review"}
               onClick={() => {
                 if (selectedClients[0]) addTopic(selectedClients[0].id);
               }}
@@ -1631,12 +1733,19 @@ const Index = () => {
               disabled={viewMode === "confirmation"}
               active={viewMode === "confirmation"}
             />
+            <RibbonButton
+              icon={SearchCheck}
+              label="Überprüfen"
+              onClick={() => setViewMode("review")}
+              disabled={viewMode === "review"}
+              active={viewMode === "review"}
+            />
             <RibbonDivider />
             <div ref={filterButtonRef} className="inline-flex">
               <RibbonButton
                 icon={Filter}
                 label="Filter"
-                disabled={viewMode === "planning"}
+                disabled={viewMode === "planning" || viewMode === "review"}
                 onClick={() => (isFilterOpen ? cancelFilter() : openFilter())}
                 active={isFilterOpen}
                 highlighted={isFilterActive}
@@ -1646,13 +1755,13 @@ const Index = () => {
             <RibbonButton
               icon={Download}
               label="Import"
-              disabled={viewMode === "confirmation"}
+              disabled={viewMode === "confirmation" || viewMode === "review"}
             />
             <RibbonButton
               icon={Upload}
               label="Export"
-              onClick={exportConfirmationExcel}
-              disabled={viewMode !== "confirmation"}
+              onClick={viewMode === "review" ? exportReviewCsv : exportConfirmationExcel}
+              disabled={viewMode !== "confirmation" && viewMode !== "review"}
             />
             </div>
 
@@ -2169,15 +2278,212 @@ const Index = () => {
                     <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
                       <input
                         type="checkbox"
-                        checked={showCompletedTargets}
-                        onChange={(event) => setShowCompletedTargets(event.target.checked)}
+                        checked={showClosedTargets}
+                        onChange={(e) => setShowClosedTargets(e.target.checked)}
                         className="h-4 w-4 rounded border-border accent-primary"
                       />
                       Abgeschlossene Ziele einblenden
                     </label>
                   </div>
                 )}
-                {visibleSelectedClients.map((client) => (
+                {viewMode === "review" && (
+                  <>
+                    <div className="flex items-center justify-end -mb-7">
+                      <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={hideReviewAssessed}
+                          onChange={(e) => setHideReviewAssessed(e.target.checked)}
+                          className="h-4 w-4 rounded border-border accent-primary"
+                        />
+                        Beurteilte Ziele ausblenden
+                      </label>
+                    </div>
+                    {visibleSelectedClients.every((client) =>
+                      client.topics.every((topic) => topic.targets.every((tg) => !tg.validTo))
+                    ) && (
+                      <div className="py-16 text-center text-muted-foreground">
+                        <p className="text-lg">Keine abgeschlossenen Ziele vorhanden.</p>
+                      </div>
+                    )}
+                    {visibleSelectedClients.map((client) => {
+                      const allClosedTargets = client.topics.flatMap((topic) =>
+                        topic.targets.filter((tg) => !!tg.validTo).map((tg) => ({ topic, target: tg }))
+                      );
+                      const closedTargets = allClosedTargets.filter(
+                        ({ target: tg }) => !hideReviewAssessed || !tg.assessment,
+                      );
+                      if (allClosedTargets.length === 0) return null;
+                      const clientName = `${client.firstName} ${client.lastName}`.trim();
+                      return (
+                        <section key={client.id} className="space-y-6">
+                          <h1 className="text-2xl font-semibold pb-5 border-b border-border">
+                            {clientName}
+                          </h1>
+                          {closedTargets.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">
+                              Alle abgeschlossenen Ziele wurden bereits beurteilt.
+                            </p>
+                          ) : (
+                          <div className="space-y-4">
+                            {closedTargets.map(({ topic, target }) => {
+                              const fromLabel = target.validFrom
+                                ? format(new Date(target.validFrom), "dd.MM.yyyy")
+                                : null;
+                              const toLabel = target.validTo
+                                ? format(new Date(target.validTo), "dd.MM.yyyy")
+                                : null;
+                              const disciplineTitle =
+                                (availableDisciplines.length > 0 ? availableDisciplines : initialActionPlanDisciplines)
+                                  .find((d) => d.id === topic.disciplineId)?.title ??
+                                topic.disciplineId ??
+                                "Ohne Disziplin";
+                              return (
+                                <div
+                                  key={target.id}
+                                  className="rounded-lg border border-border bg-card p-5 space-y-3"
+                                >
+                                  <div className="flex items-start justify-between gap-4">
+                                    <div className="space-y-1 min-w-0">
+                                      <h2 className="flex items-center gap-1.5 text-base font-semibold leading-snug">
+                                        {target.title || <span className="text-muted-foreground italic font-normal">Ohne Bezeichnung</span>}
+                                        <TooltipProvider delayDuration={150}>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <span
+                                                tabIndex={0}
+                                                aria-label="Details zu Disziplin und Schwerpunkt anzeigen"
+                                                className="inline-flex h-5 w-5 shrink-0 cursor-help items-center justify-center rounded-full border border-border bg-background text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                              >
+                                                <Info className="h-3 w-3" aria-hidden="true" />
+                                              </span>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="right" align="start" className="max-w-[280px] space-y-2 p-3 text-xs">
+                                              <div>
+                                                <div className="font-semibold text-foreground">Disziplin</div>
+                                                <div className="mt-0.5 text-muted-foreground">{disciplineTitle}</div>
+                                              </div>
+                                              <div>
+                                                <div className="font-semibold text-foreground">Schwerpunkt</div>
+                                                <div className="mt-0.5 text-muted-foreground">{topic.title}</div>
+                                              </div>
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      </h2>
+                                      {(target.validFrom || target.validTo) && (
+                                        <div className="flex items-center gap-2 mt-1">
+                                          <div className="inline-flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1.5 text-xs pointer-events-none">
+                                            <span className="shrink-0 text-muted-foreground">Gültig ab:</span>
+                                            <DatePickerInput
+                                              value={target.validFrom}
+                                              onChange={() => {}}
+                                              placeholder="TT.MM.JJJJ"
+                                              className="h-6 min-h-0 w-[100px] min-w-0 flex-1 border-0 bg-transparent p-0 pr-0 text-xs leading-none shadow-none"
+                                            />
+                                          </div>
+                                          <div className="inline-flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1.5 text-xs pointer-events-none">
+                                            <span className="shrink-0 text-muted-foreground">Gültig bis:</span>
+                                            <DatePickerInput
+                                              value={target.validTo}
+                                              onChange={() => {}}
+                                              placeholder="TT.MM.JJJJ"
+                                              className="h-6 min-h-0 w-[100px] min-w-0 flex-1 border-0 bg-transparent p-0 pr-0 text-xs leading-none shadow-none"
+                                            />
+                                          </div>
+                                        </div>
+                                      )}
+                                      {target.notes && (
+                                        <p className="text-sm whitespace-pre-wrap">
+                                          {target.notes}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <div className="shrink-0 flex flex-col items-end gap-2">
+                                      <button
+                                        onClick={() => setReviewAssessmentPanel({ clientId: client.id, topicId: topic.id, target })}
+                                        className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
+                                        title="Zielbeurteilung erfassen"
+                                      >
+                                        <Pencil className="h-3.5 w-3.5" />
+                                        {target.assessment ? "Beurteilung bearbeiten" : "Beurteilung erfassen"}
+                                      </button>
+                                    </div>
+                                  </div>
+                                  {target.assessment && (
+                                    <div className="border-t border-border pt-3 space-y-2">
+                                      {target.assessment.goalAchievement && (
+                                        <div>
+                                          <div className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground mb-0.5">
+                                            Zielerreichung
+                                          </div>
+                                          <p className="text-sm whitespace-pre-wrap">{target.assessment.goalAchievement}</p>
+                                        </div>
+                                      )}
+                                      {target.assessment.derivedMeasures && (
+                                        <div>
+                                          <div className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground mb-0.5">
+                                            Abgeleitete Massnahmen
+                                          </div>
+                                          <p className="text-sm whitespace-pre-wrap">{target.assessment.derivedMeasures}</p>
+                                        </div>
+                                      )}
+                                      {(target.assessment.assessedBy || target.assessment.assessedAt) && (
+                                        <p className="text-xs text-muted-foreground/70 pt-1">
+                                          Beurteilt
+                                          {target.assessment.assessedBy && <> von <span className="font-medium">{target.assessment.assessedBy}</span></>}
+                                          {target.assessment.assessedAt && <> am {format(new Date(target.assessment.assessedAt), "dd.MM.yyyy, HH:mm")} Uhr</>}
+                                        </p>
+                                      )}
+                                    </div>
+                                  )}
+                                  {target.actions.length > 0 && (
+                                    <div className="border-t border-border pt-3">
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleReviewTarget(target.id)}
+                                        className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                                      >
+                                        {expandedReviewTargets.has(target.id)
+                                          ? <ChevronDown className="h-3.5 w-3.5" />
+                                          : <ChevronRight className="h-3.5 w-3.5" />}
+                                        {target.actions.length} {target.actions.length === 1 ? "Handlung" : "Handlungen"}
+                                      </button>
+                                      {expandedReviewTargets.has(target.id) && (
+                                        <div className="mt-2 pointer-events-none">
+                                          <ul className="space-y-1">
+                                            {target.actions.map((action) => (
+                                              <ActionRow
+                                                key={action.id}
+                                                viewMode="planning"
+                                                topicId={topic.id}
+                                                targetId={target.id}
+                                                action={action}
+                                                targetValidFrom={target.validFrom}
+                                                targetValidTo={target.validTo}
+                                                onUpdateAction={() => {}}
+                                                onUpdateActionField={() => {}}
+                                                onDeleteAction={() => {}}
+                                                onOpenEditPanel={() => {}}
+                                                onOpenDialog={() => {}}
+                                              />
+                                            ))}
+                                          </ul>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          )}
+                        </section>
+                      );
+                    })}
+                  </>
+                )}
+                {viewMode !== "review" && visibleSelectedClients.map((client) => (
                   <section key={client.id} className="space-y-6">
                     {/* Client header */}
                     <div className="flex items-center gap-4 pb-5 border-b border-border">
@@ -2235,7 +2541,6 @@ const Index = () => {
                     <AssessmentOutline
                       viewMode={viewMode}
                       selectedDate={selectedDate}
-                      showCompletedTargets={showCompletedTargets}
                       onSelectedDateChange={setSelectedDate}
                       confirmationPeriod={confirmationPeriod}
                       lastNDays={lastNDays}
@@ -2246,6 +2551,7 @@ const Index = () => {
                       bulkNotDoneMode={bulkNotDoneClientIds.has(client.id)}
                       onBulkNotDoneModeChange={(enabled) => setClientBulkNotDoneMode(client.id, enabled)}
                       filterModel={confirmationFilter}
+                      showClosedTargets={showClosedTargets}
                       transientUnplannedActionIds={transientUnplannedActionIds}
                       onUpdateTopic={(topicId, field, value) =>
                         updateTopic(client.id, topicId, field, value)
@@ -2277,6 +2583,9 @@ const Index = () => {
                       onDeleteTopic={(topicId) => deleteTopic(client.id, topicId)}
                       onDeleteTarget={(topicId, targetId) =>
                         deleteTarget(client.id, topicId, targetId)
+                      }
+                      onReactivateTarget={(topicId, targetId) =>
+                        reactivateTarget(client.id, topicId, targetId)
                       }
                       onDeleteAction={(topicId, targetId, actionId) =>
                         deleteAction(client.id, topicId, targetId, actionId)
@@ -2319,30 +2628,68 @@ const Index = () => {
         </main>
 
       </div>
-      <Dialog open={isTargetHiddenHintOpen} onOpenChange={setIsTargetHiddenHintOpen}>
+
+      <Dialog open={pendingTargetValidTo !== null} onOpenChange={(open) => { if (!open) setPendingTargetValidTo(null); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Ziel ausgeblendet</DialogTitle>
+            <DialogTitle>Handlungen anpassen?</DialogTitle>
             <DialogDescription>
-              Das Ziel wurde ausgeblendet, weil die letzte Handlung abgeschlossen wurde.
-              Du kannst das Ziel über den Filter oben rechts mit „Abgeschlossene Ziele einblenden“
-              wieder sichtbar machen.
+              {pendingTargetValidTo && (
+                <>
+                  {pendingTargetValidTo.affectedActionCount === 1
+                    ? "Eine Handlung hat"
+                    : `${pendingTargetValidTo.affectedActionCount} Handlungen haben`}{" "}
+                  kein oder ein späteres «Gültig bis»-Datum als das Ziel. Soll das «Gültig bis»-Datum
+                  dieser Handlungen automatisch auf dasselbe Datum gesetzt werden?
+                </>
+              )}
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={hideTargetHiddenHint}
-                onChange={(event) => setHideTargetHiddenHint(event.target.checked)}
-                className="h-4 w-4 rounded border-border accent-primary"
-              />
-              Diese Meldung künftig nicht mehr anzeigen
-            </label>
-            <Button onClick={() => setIsTargetHiddenHintOpen(false)}>Verstanden</Button>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingTargetValidTo(null)}>
+              Nein
+            </Button>
+            <Button
+              onClick={() => {
+                if (pendingTargetValidTo) {
+                  applyTargetUpdate(
+                    pendingTargetValidTo.clientId,
+                    pendingTargetValidTo.topicId,
+                    pendingTargetValidTo.targetId,
+                    "validTo",
+                    pendingTargetValidTo.value,
+                    pendingTargetValidTo.value,
+                  );
+                  setPendingTargetValidTo(null);
+                }
+              }}
+            >
+              Ja
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {reviewAssessmentPanel && createPortal(
+        <TargetAssessmentPanel
+          target={reviewAssessmentPanel.target}
+          onClose={() => setReviewAssessmentPanel(null)}
+          onSave={(assessment) => {
+            updateTargetAssessment(
+              reviewAssessmentPanel.clientId,
+              reviewAssessmentPanel.topicId,
+              reviewAssessmentPanel.target.id,
+              {
+                ...assessment,
+                assessedBy: "danuss",
+                assessedAt: new Date().toISOString().slice(0, 19) + "Z",
+              },
+            );
+            setReviewAssessmentPanel(null);
+          }}
+        />,
+        document.body,
+      )}
     </SidebarProvider>
   );
 };
@@ -2386,6 +2733,89 @@ function RibbonButton({
 
 function RibbonDivider() {
   return <div className="w-px h-10 bg-border mx-1" />;
+}
+
+function TargetAssessmentPanel({
+  target,
+  onClose,
+  onSave,
+}: {
+  target: import("@/types/assessment").TargetNode;
+  onClose: () => void;
+  onSave: (assessment: import("@/types/assessment").TargetAssessment) => void;
+}) {
+  const [goalAchievement, setGoalAchievement] = useState(target.assessment?.goalAchievement ?? "");
+  const [derivedMeasures, setDerivedMeasures] = useState(target.assessment?.derivedMeasures ?? "");
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setIsOpen(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
+  const handleClose = () => {
+    setIsOpen(false);
+    setTimeout(onClose, 300);
+  };
+
+  return (
+    <div
+      className={`fixed inset-0 z-50 flex justify-end transition-opacity duration-300 ${isOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"}`}
+      onClick={handleClose}
+    >
+      <aside
+        onClick={(e) => e.stopPropagation()}
+        className={`pointer-events-auto flex h-dvh w-full max-w-lg flex-col bg-[#f3f3f5] shadow-2xl transition-transform duration-300 ease-out ${isOpen ? "translate-x-0" : "translate-x-full"}`}
+      >
+        <div className="flex items-center justify-between border-b border-border px-6 py-4">
+          <h2 className="text-2xl font-light text-foreground">Zielbeurteilung</h2>
+          <button type="button" onClick={handleClose} className="text-muted-foreground hover:text-foreground">
+            ✕
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+          {target.title && (
+            <div className="rounded-md bg-background border border-border px-4 py-3">
+              <div className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground mb-0.5">Ziel</div>
+              <p className="text-sm font-medium">{target.title}</p>
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-muted-foreground uppercase tracking-widest">
+              Zielerreichung
+            </label>
+            <textarea
+              value={goalAchievement}
+              onChange={(e) => setGoalAchievement(e.target.value)}
+              placeholder="Wie wurde das Ziel erreicht?"
+              rows={5}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:border-primary"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-muted-foreground uppercase tracking-widest">
+              Abgeleitete Massnahmen
+            </label>
+            <textarea
+              value={derivedMeasures}
+              onChange={(e) => setDerivedMeasures(e.target.value)}
+              placeholder="Welche Massnahmen wurden abgeleitet?"
+              rows={5}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:border-primary"
+            />
+          </div>
+        </div>
+
+        <div className="border-t border-border px-6 py-4 flex justify-between gap-3">
+          <Button variant="outline" onClick={handleClose}>Abbrechen</Button>
+          <Button onClick={() => onSave({ goalAchievement, derivedMeasures })}>Speichern</Button>
+        </div>
+      </aside>
+    </div>
+  );
 }
 
 export default Index;
