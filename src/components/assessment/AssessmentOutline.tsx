@@ -27,6 +27,7 @@ import {
   ChevronRight,
   ChevronUp,
   Info,
+  X,
 } from "lucide-react";
 import {
   Dialog,
@@ -2958,7 +2959,8 @@ export function UnplannedActionDialog({
   const [draft, setDraft] = useState<UnplannedActionDraft>({ title: "", notes: "" });
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
-  const open = target !== null;
+  const [isPanelVisible, setIsPanelVisible] = useState(false);
+  const [localTarget, setLocalTarget] = useState<{ dueDate?: string; dateFrom?: string; dayPart: DayPart | "none" } | null>(null);
 
   const clearTemplateSelection = () => {
     setSelectedTemplateId("");
@@ -2998,18 +3000,19 @@ export function UnplannedActionDialog({
     setActiveTemplateIndex(0);
 
     if (!target) {
-      setDraft({ title: "", notes: "" });
-      setDateFrom("");
-      setDateTo("");
+      setIsPanelVisible(false);
       return;
     }
 
+    setLocalTarget(target);
     setDateFrom(target.dateFrom ?? target.dueDate ?? "");
     setDateTo(target.dueDate ?? "");
     const loadedTemplates = loadActionPlanTemplates();
     setTemplates(loadedTemplates);
     setCreationMode("template");
     setDraft(buildEmptyUnplannedTemplateDraft(target.dayPart));
+    const id = requestAnimationFrame(() => setIsPanelVisible(true));
+    return () => cancelAnimationFrame(id);
   }, [target]);
 
   const selectedTemplate = templates.find((template) => template.id === selectedTemplateId);
@@ -3030,11 +3033,11 @@ export function UnplannedActionDialog({
   }, [templateQuery, isTemplateDropdownOpen]);
 
   useEffect(() => {
-    if (!open || creationMode !== "template") return;
+    if (!localTarget || creationMode !== "template") return;
     window.requestAnimationFrame(() => {
       templateInputRef.current?.focus();
     });
-  }, [open, creationMode]);
+  }, [localTarget, creationMode]);
 
   const selectTemplateAndClose = (templateId: string) => {
     setSelectedTemplateId(templateId);
@@ -3067,7 +3070,7 @@ export function UnplannedActionDialog({
     setDraft(buildEmptyUnplannedTemplateDraft(target?.dayPart));
   };
 
-  const selectedDayPart = draft.dayPart ?? target?.dayPart ?? "none";
+  const selectedDayPart = draft.dayPart ?? localTarget?.dayPart ?? "none";
   const selectedDayPartLabel = selectedDayPart === "none" ? "Ohne Tageszeit" : DAY_PART_LABEL[selectedDayPart];
 
   const dateRangeError = (() => {
@@ -3103,7 +3106,7 @@ export function UnplannedActionDialog({
     : [];
 
   const submit = () => {
-    const title = draft.title.trim() || (creationMode === "scratch" ? "Ungeplante Handlung" : "");
+    const title = draft.title.trim() || (creationMode === “scratch” ? “Ungeplante Handlung” : “”);
     if (!title) return;
     if (!dateFrom || !dateTo) return;
     if (dateRangeError) return;
@@ -3113,69 +3116,97 @@ export function UnplannedActionDialog({
       title,
       notes: draft.notes.trim(),
       requiredResources: draft.requiredResources?.trim() || undefined,
-      dayPart: draft.dayPart ?? "none",
+      dayPart: draft.dayPart ?? “none”,
       dateFrom: dateFrom,
       dateTo: dateTo,
     });
   };
 
-  return (
-    <Dialog open={open} onOpenChange={(nextOpen) => (!nextOpen ? onClose() : null)}>
-      <DialogContent className="flex max-h-[calc(100vh-2rem)] flex-col sm:max-w-2xl">
-        <DialogHeader className="shrink-0">
-          <DialogTitle>Ungeplante Handlung erstellen</DialogTitle>
-          <DialogDescription>
-            Die Handlung wird direkt als bestätigt im ausgewählten Dossier und in der Tageszeit
-            {target ? ` „${selectedDayPartLabel}“` : ""} erfasst.
-          </DialogDescription>
-        </DialogHeader>
+  if (!localTarget) return null;
 
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
-          <div className="grid gap-2 sm:grid-cols-2">
+  return createPortal(
+    <div
+      className={`fixed inset-0 z-50 flex justify-end transition-opacity duration-300 ${isPanelVisible ? “pointer-events-auto opacity-100” : “pointer-events-none opacity-0”}`}
+      onClick={() => setIsPanelVisible(false)}
+    >
+      <aside
+        onClick={(e) => e.stopPropagation()}
+        className={`pointer-events-auto flex h-dvh w-full max-w-2xl flex-col bg-[#f3f3f5] shadow-2xl transition-transform duration-300 ease-out ${isPanelVisible ? “translate-x-0” : “translate-x-full”}`}
+        onTransitionEnd={(e) => {
+          if (e.propertyName === “transform” && !isPanelVisible) {
+            setLocalTarget(null);
+            setDraft({ title: “”, notes: “” });
+            setDateFrom(“”);
+            setDateTo(“”);
+            onClose();
+          }
+        }}
+      >
+        {/* Header */}
+        <div className=”flex shrink-0 items-center justify-between bg-primary px-4 py-3 text-primary-foreground”>
+          <div>
+            <div className=”text-sm font-semibold”>Ungeplante Handlung erstellen</div>
+            <div className=”text-xs opacity-80”>
+              Wird direkt als bestätigt in der Tageszeit „{selectedDayPartLabel}” erfasst.
+            </div>
+          </div>
+          <Button
+            variant=”ghost”
+            size=”icon”
+            onClick={() => setIsPanelVisible(false)}
+            className=”h-7 w-7 text-primary-foreground opacity-80 hover:bg-primary-foreground/10 hover:opacity-100”
+          >
+            <X className=”h-4 w-4” />
+          </Button>
+        </div>
+
+        {/* Content */}
+        <div className=”flex-1 overflow-y-auto px-6 py-5 space-y-4”>
+          <div className=”grid gap-2 sm:grid-cols-2”>
             <button
-              type="button"
-              onClick={() => handleModeChange("template")}
+              type=”button”
+              onClick={() => handleModeChange(“template”)}
               className={cn(
-                "rounded-md border p-3 text-left transition-colors",
-                creationMode === "template" ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-secondary/40",
+                “rounded-md border p-3 text-left transition-colors”,
+                creationMode === “template” ? “border-primary bg-primary/10 text-primary” : “border-border hover:bg-secondary/40”,
               )}
             >
-              <div className="text-sm font-medium">Ab Vorlage verwenden</div>
-              <div className="mt-1 text-xs text-muted-foreground">Vorlagenwerte übernehmen und vor dem Bestätigen anpassen.</div>
+              <div className=”text-sm font-medium”>Ab Vorlage verwenden</div>
+              <div className=”mt-1 text-xs text-muted-foreground”>Vorlagenwerte übernehmen und vor dem Bestätigen anpassen.</div>
             </button>
             <button
-              type="button"
-              onClick={() => handleModeChange("scratch")}
+              type=”button”
+              onClick={() => handleModeChange(“scratch”)}
               className={cn(
-                "rounded-md border p-3 text-left transition-colors",
-                creationMode === "scratch" ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-secondary/40",
+                “rounded-md border p-3 text-left transition-colors”,
+                creationMode === “scratch” ? “border-primary bg-primary/10 text-primary” : “border-border hover:bg-secondary/40”,
               )}
             >
-              <div className="text-sm font-medium">Ohne Vorlage erstellen</div>
-              <div className="mt-1 text-xs text-muted-foreground">Leere Handlung manuell erfassen.</div>
+              <div className=”text-sm font-medium”>Ohne Vorlage erstellen</div>
+              <div className=”mt-1 text-xs text-muted-foreground”>Leere Handlung manuell erfassen.</div>
             </button>
           </div>
 
-          {creationMode === "template" && (
-            <div className="space-y-1.5">
+          {creationMode === “template” && (
+            <div className=”space-y-1.5”>
               <Label>Vorlage</Label>
-              <div className="rounded-md border border-input/70 bg-background shadow-sm focus-within:border-primary/70">
-                <div className="flex items-start gap-2 p-2">
-                  <div className="flex-1 space-y-2">
-                    <div className="flex flex-wrap gap-1">
+              <div className=”rounded-md border border-input/70 bg-background shadow-sm focus-within:border-primary/70”>
+                <div className=”flex items-start gap-2 p-2”>
+                  <div className=”flex-1 space-y-2”>
+                    <div className=”flex flex-wrap gap-1”>
                       {selectedTemplate && (
                         <Badge
-                          variant="secondary"
-                          className="h-6 max-w-full gap-1 rounded-sm border border-border/60 bg-secondary/40 px-1.5 font-normal text-foreground/90"
+                          variant=”secondary”
+                          className=”h-6 max-w-full gap-1 rounded-sm border border-border/60 bg-secondary/40 px-1.5 font-normal text-foreground/90”
                         >
-                          <span className="truncate">{selectedTemplate.name}</span>
+                          <span className=”truncate”>{selectedTemplate.name}</span>
                           <button
-                            type="button"
-                            aria-label="Vorlage entfernen"
-                            className="text-xs leading-none text-muted-foreground hover:text-foreground"
+                            type=”button”
+                            aria-label=”Vorlage entfernen”
+                            className=”text-xs leading-none text-muted-foreground hover:text-foreground”
                             onClick={clearTemplateSelection}
                           >
-                            <span aria-hidden="true">×</span>
+                            <span aria-hidden=”true”>×</span>
                           </button>
                         </Badge>
                       )}
@@ -3187,70 +3218,70 @@ export function UnplannedActionDialog({
                         }}
                         onFocus={() => setTemplateDropdownOpen(true)}
                         onKeyDown={(e) => {
-                          if (!isTemplateDropdownOpen && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+                          if (!isTemplateDropdownOpen && (e.key === “ArrowDown” || e.key === “ArrowUp”)) {
                             e.preventDefault();
                             setTemplateDropdownOpen(true);
                             return;
                           }
                           if (!isTemplateDropdownOpen || !hasTemplateFilterInput || filteredTemplates.length === 0) return;
-                          if (e.key === "ArrowDown") {
+                          if (e.key === “ArrowDown”) {
                             e.preventDefault();
                             setActiveTemplateIndex((prev) => (prev + 1) % filteredTemplates.length);
                             return;
                           }
-                          if (e.key === "ArrowUp") {
+                          if (e.key === “ArrowUp”) {
                             e.preventDefault();
                             setActiveTemplateIndex((prev) => (prev - 1 + filteredTemplates.length) % filteredTemplates.length);
                             return;
                           }
-                          if (e.key === "Enter") {
+                          if (e.key === “Enter”) {
                             e.preventDefault();
                             const activeTemplate = filteredTemplates[activeTemplateIndex];
                             if (!activeTemplate) return;
                             selectTemplateAndClose(activeTemplate.id);
                             return;
                           }
-                          if (e.key === "Escape") {
+                          if (e.key === “Escape”) {
                             e.preventDefault();
                             setTemplateDropdownOpen(false);
                           }
                         }}
                         ref={templateInputRef}
-                        placeholder={templates.length === 0 ? "Keine Vorlage vorhanden" : "Vorlagen suchen..."}
+                        placeholder={templates.length === 0 ? “Keine Vorlage vorhanden” : “Vorlagen suchen...”}
                         disabled={templates.length === 0}
-                        className="h-6 min-w-[12rem] flex-1 border-0 bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0"
+                        className=”h-6 min-w-[12rem] flex-1 border-0 bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0”
                       />
                     </div>
                   </div>
                   <button
-                    type="button"
-                    className="mt-0.5 rounded p-1 text-muted-foreground hover:bg-secondary/70 disabled:opacity-50"
+                    type=”button”
+                    className=”mt-0.5 rounded p-1 text-muted-foreground hover:bg-secondary/70 disabled:opacity-50”
                     disabled={templates.length === 0}
                     onClick={() => setTemplateDropdownOpen((prev) => !prev)}
                   >
-                    <ChevronUp className={cn("h-4 w-4 transition-transform", !isTemplateDropdownOpen && "rotate-180")} />
+                    <ChevronUp className={cn(“h-4 w-4 transition-transform”, !isTemplateDropdownOpen && “rotate-180”)} />
                   </button>
                 </div>
                 {isTemplateDropdownOpen && hasTemplateFilterInput && (
-                  <div className="max-h-56 overflow-y-auto border-t border-border/70 p-1.5">
+                  <div className=”max-h-56 overflow-y-auto border-t border-border/70 p-1.5”>
                     {filteredTemplates.length === 0 ? (
-                      <div className="px-2 py-1.5 text-sm text-muted-foreground">Keine Vorlage gefunden.</div>
+                      <div className=”px-2 py-1.5 text-sm text-muted-foreground”>Keine Vorlage gefunden.</div>
                     ) : (
                       filteredTemplates.map((template) => {
                         const templateIndex = filteredTemplates.findIndex((entry) => entry.id === template.id);
                         return (
                           <button
                             key={template.id}
-                            type="button"
+                            type=”button”
                             onClick={() => selectTemplateAndClose(template.id)}
                             onMouseEnter={() => setActiveTemplateIndex(templateIndex)}
                             className={cn(
-                              "flex w-full items-center rounded-sm px-2 py-1 text-left text-sm hover:bg-secondary/40",
-                              activeTemplateIndex === templateIndex && "bg-primary/10 text-primary",
-                              selectedTemplateId === template.id && "font-medium",
+                              “flex w-full items-center rounded-sm px-2 py-1 text-left text-sm hover:bg-secondary/40”,
+                              activeTemplateIndex === templateIndex && “bg-primary/10 text-primary”,
+                              selectedTemplateId === template.id && “font-medium”,
                             )}
                           >
-                            <span className="truncate">{template.name}</span>
+                            <span className=”truncate”>{template.name}</span>
                           </button>
                         );
                       })
@@ -3258,7 +3289,7 @@ export function UnplannedActionDialog({
                   </div>
                 )}
                 {isTemplateDropdownOpen && !hasTemplateFilterInput && templateQuery.length > 0 && (
-                  <div className="border-t border-border/70 px-3 py-2 text-xs text-muted-foreground">
+                  <div className=”border-t border-border/70 px-3 py-2 text-xs text-muted-foreground”>
                     Bitte mindestens 3 Zeichen eingeben.
                   </div>
                 )}
@@ -3266,44 +3297,46 @@ export function UnplannedActionDialog({
             </div>
           )}
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="space-y-1.5">
-              <Label>Von <span className="text-destructive">*</span></Label>
+          <div className=”grid gap-3 sm:grid-cols-2”>
+            <label className=”space-y-1.5”>
+              <Label>Von <span className=”text-destructive”>*</span></Label>
               <Input
-                type="date"
+                type=”date”
                 value={dateFrom}
                 required
+                className=”bg-background”
                 onChange={(e) => {
                   setDateFrom(e.target.value);
                   if (!dateTo || e.target.value > dateTo) setDateTo(e.target.value);
                 }}
               />
             </label>
-            <label className="space-y-1.5">
-              <Label>Bis <span className="text-destructive">*</span></Label>
+            <label className=”space-y-1.5”>
+              <Label>Bis <span className=”text-destructive”>*</span></Label>
               <Input
-                type="date"
+                type=”date”
                 value={dateTo}
                 min={dateFrom}
                 required
+                className=”bg-background”
                 onChange={(e) => setDateTo(e.target.value)}
               />
             </label>
             {dateRangeError && (
-              <p className="sm:col-span-2 text-sm text-destructive">{dateRangeError}</p>
+              <p className=”sm:col-span-2 text-sm text-destructive”>{dateRangeError}</p>
             )}
-            <label className="space-y-1.5 sm:col-span-2">
+            <label className=”space-y-1.5 sm:col-span-2”>
               <Label>Beschreibung</Label>
-              <Textarea rows={2} value={draft.notes} disabled={isDraftFieldLocked("notes")} onChange={(e) => updateDraft("notes", e.target.value)} />
+              <Textarea rows={2} value={draft.notes} disabled={isDraftFieldLocked(“notes”)} onChange={(e) => updateDraft(“notes”, e.target.value)} className=”bg-background” />
             </label>
-            <label className="space-y-1.5 sm:col-span-2">
+            <label className=”space-y-1.5 sm:col-span-2”>
               <Label>Hilfsmittel</Label>
-              <Textarea rows={2} value={draft.requiredResources ?? ""} disabled={isDraftFieldLocked("requiredResources")} onChange={(e) => updateDraft("requiredResources", e.target.value || undefined)} />
+              <Textarea rows={2} value={draft.requiredResources ?? “”} disabled={isDraftFieldLocked(“requiredResources”)} onChange={(e) => updateDraft(“requiredResources”, e.target.value || undefined)} className=”bg-background” />
             </label>
-            <div className="space-y-1.5">
+            <div className=”space-y-1.5”>
               <Label>Tageszeit</Label>
-              <Select value={draft.dayPart ?? "none"} disabled={isDraftFieldLocked("dayPart")} onValueChange={(value) => updateDraft("dayPart", value as DayPart | "none")}>
-                <SelectTrigger aria-label="Tageszeit"><SelectValue /></SelectTrigger>
+              <Select value={draft.dayPart ?? “none”} disabled={isDraftFieldLocked(“dayPart”)} onValueChange={(value) => updateDraft(“dayPart”, value as DayPart | “none”)}>
+                <SelectTrigger aria-label=”Tageszeit” className=”bg-background”><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {DAY_PART_SELECT_OPTIONS.map((option) => (
                     <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
@@ -3311,50 +3344,50 @@ export function UnplannedActionDialog({
                 </SelectContent>
               </Select>
             </div>
-            <label className="space-y-1.5">
+            <label className=”space-y-1.5”>
               <Label>Uhrzeit</Label>
-              <Input type="time" value={draft.scheduledTime ?? ""} disabled={isDraftFieldLocked("scheduledTime")} onChange={(e) => updateDraft("scheduledTime", e.target.value || undefined)} />
+              <Input type=”time” value={draft.scheduledTime ?? “”} disabled={isDraftFieldLocked(“scheduledTime”)} onChange={(e) => updateDraft(“scheduledTime”, e.target.value || undefined)} className=”bg-background” />
             </label>
-            <label className="space-y-1.5">
+            <label className=”space-y-1.5”>
               <Label>Geplante Minuten</Label>
-              <Input type="number" min={0} step={5} value={draft.plannedMinutes ?? ""} disabled={isDraftFieldLocked("plannedMinutes")} onChange={(e) => updateDraft("plannedMinutes", e.target.value === "" ? undefined : Math.max(0, Number(e.target.value)))} />
+              <Input type=”number” min={0} step={5} value={draft.plannedMinutes ?? “”} disabled={isDraftFieldLocked(“plannedMinutes”)} onChange={(e) => updateDraft(“plannedMinutes”, e.target.value === “” ? undefined : Math.max(0, Number(e.target.value)))} className=”bg-background” />
             </label>
-            <label className="space-y-1.5">
+            <label className=”space-y-1.5”>
               <Label>Anz. Personen</Label>
-              <Input type="number" min={1} step={1} value={draft.requiredPersons ?? ""} disabled={isDraftFieldLocked("requiredPersons")} onChange={(e) => updateDraft("requiredPersons", e.target.value === "" ? undefined : Math.max(1, Math.floor(Number(e.target.value))))} />
+              <Input type=”number” min={1} step={1} value={draft.requiredPersons ?? “”} disabled={isDraftFieldLocked(“requiredPersons”)} onChange={(e) => updateDraft(“requiredPersons”, e.target.value === “” ? undefined : Math.max(1, Math.floor(Number(e.target.value))))} className=”bg-background” />
             </label>
-            <div className="space-y-1.5">
+            <div className=”space-y-1.5”>
               <Label>Kategorie</Label>
               <Select
-                value={draft.category ?? "none"}
-                disabled={isDraftFieldLocked("category")}
-                onValueChange={(value) => updateDraft("category", value === "none" ? undefined : value as ActionCategory)}
+                value={draft.category ?? “none”}
+                disabled={isDraftFieldLocked(“category”)}
+                onValueChange={(value) => updateDraft(“category”, value === “none” ? undefined : value as ActionCategory)}
               >
-                <SelectTrigger aria-label="Kategorie"><SelectValue /></SelectTrigger>
+                <SelectTrigger aria-label=”Kategorie” className=”bg-background”><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Keine Angabe</SelectItem>
-                  <SelectItem value="a">A</SelectItem>
-                  <SelectItem value="b">B</SelectItem>
-                  <SelectItem value="c">C</SelectItem>
+                  <SelectItem value=”none”>Keine Angabe</SelectItem>
+                  <SelectItem value=”a”>A</SelectItem>
+                  <SelectItem value=”b”>B</SelectItem>
+                  <SelectItem value=”c”>C</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
+            <div className=”space-y-1.5”>
               <Label>Resultat</Label>
-              <Select value={draft.resultRequirement ?? "none"} disabled={isDraftFieldLocked("resultRequirement")} onValueChange={(value) => updateDraft("resultRequirement", value === "none" ? undefined : value as ActionNode["resultRequirement"])}>
-                <SelectTrigger aria-label="Resultat"><SelectValue /></SelectTrigger>
+              <Select value={draft.resultRequirement ?? “none”} disabled={isDraftFieldLocked(“resultRequirement”)} onValueChange={(value) => updateDraft(“resultRequirement”, value === “none” ? undefined : value as ActionNode[“resultRequirement”])}>
+                <SelectTrigger aria-label=”Resultat” className=”bg-background”><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Kein Resultat</SelectItem>
-                  <SelectItem value="optional">Resultat optional</SelectItem>
-                  <SelectItem value="required">Resultat zwingend</SelectItem>
+                  <SelectItem value=”none”>Kein Resultat</SelectItem>
+                  <SelectItem value=”optional”>Resultat optional</SelectItem>
+                  <SelectItem value=”required”>Resultat zwingend</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            {creationMode === "scratch" && (
-              <div className="space-y-1.5 sm:col-span-2">
+            {creationMode === “scratch” && (
+              <div className=”space-y-1.5 sm:col-span-2”>
                 <Label>Leistungsart</Label>
-                <Select value={draft.serviceType ?? "none"} onValueChange={(value) => updateDraft("serviceType", value === "none" ? undefined : value as ActionServiceType)}>
-                  <SelectTrigger><SelectValue placeholder="Leistungsart" /></SelectTrigger>
+                <Select value={draft.serviceType ?? “none”} onValueChange={(value) => updateDraft(“serviceType”, value === “none” ? undefined : value as ActionServiceType)}>
+                  <SelectTrigger className=”bg-background”><SelectValue placeholder=”Leistungsart” /></SelectTrigger>
                   <SelectContent>
                     {ACTION_SERVICE_TYPE_SELECT_OPTIONS.map((option) => (
                       <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
@@ -3366,17 +3399,33 @@ export function UnplannedActionDialog({
           </div>
         </div>
 
-        <DialogFooter className="shrink-0 gap-2 sm:justify-between">
-          <Button variant="outline" onClick={onClose}>Abbrechen</Button>
-          <div className="flex flex-col items-end gap-1">
+        {/* Footer */}
+        <div className=”flex shrink-0 items-center justify-between bg-primary px-6 py-3”>
+          <Button
+            variant=”outline”
+            size=”sm”
+            onClick={() => setIsPanelVisible(false)}
+            className=”border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground”
+          >
+            Abbrechen
+          </Button>
+          <div className=”flex flex-col items-end gap-1”>
             {missingRequiredFields.length > 0 && (
-              <p className="text-xs text-destructive">Zwingend erforderliche Felder sind nicht ausgefüllt.</p>
+              <p className=”text-xs text-primary-foreground/80”>Zwingend erforderliche Felder sind nicht ausgefüllt.</p>
             )}
-            <Button onClick={submit} disabled={(creationMode === "template" && !selectedTemplate) || !!dateRangeError || missingRequiredFields.length > 0}>Bestätigen</Button>
+            <Button
+              size=”sm”
+              onClick={submit}
+              disabled={(creationMode === “template” && !selectedTemplate) || !!dateRangeError || missingRequiredFields.length > 0}
+              className=”bg-primary-foreground text-primary hover:bg-primary-foreground/90”
+            >
+              Bestätigen
+            </Button>
           </div>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </aside>
+    </div>,
+    document.body,
   );
 }
 
@@ -3474,11 +3523,12 @@ function ConfirmActionDialog({
   const [postponedTime, setPostponedTime] = useState<string>("");
   const [postponedReason, setPostponedReason] = useState<string>("");
   const [postponedError, setPostponedError] = useState<string>("");
-
-  const open = target !== null;
+  const [isPanelVisible, setIsPanelVisible] = useState(false);
+  const [localTarget, setLocalTarget] = useState<DialogTarget | null>(null);
 
   useEffect(() => {
     if (target) {
+      setLocalTarget(target);
       setMode(target.initialMode ?? (target.action.status === "open" ? null : target.action.status));
       setActualMinutes(
         target.action.actualMinutes != null ? String(target.action.actualMinutes) : "",
@@ -3491,20 +3541,15 @@ function ConfirmActionDialog({
       setPostponedTime(confirmation?.postponedToTime ?? "");
       setPostponedReason(confirmation?.postponedReason ?? "");
       setPostponedError("");
+      const id = requestAnimationFrame(() => setIsPanelVisible(true));
+      return () => cancelAnimationFrame(id);
+    } else {
+      setIsPanelVisible(false);
     }
   }, [target]);
 
   const handleClose = () => {
-    setMode(null);
-    setActualMinutes("");
-    setReason("");
-    setResult("");
-    setObservations("");
-    setPostponedDate("");
-    setPostponedTime("");
-    setPostponedReason("");
-    setPostponedError("");
-    onClose();
+    setIsPanelVisible(false);
   };
 
   const submit = () => {
@@ -3572,214 +3617,245 @@ function ConfirmActionDialog({
     setPostponedError("");
   };
 
-  const planned = target?.action.plannedMinutes;
+  const planned = localTarget?.action.plannedMinutes;
   const hasPlannedMinutes = planned != null;
-  const requiredPersons = target?.action.requiredPersons;
-  const description = target?.action.notes.trim();
-  const requiredResources = target?.action.requiredResources?.trim();
-  const resultRequirement = target?.action.resultRequirement ?? "none";
+  const requiredPersons = localTarget?.action.requiredPersons;
+  const description = localTarget?.action.notes.trim();
+  const requiredResources = localTarget?.action.requiredResources?.trim();
+  const resultRequirement = localTarget?.action.resultRequirement ?? "none";
   const showResult =
     resultRequirement !== "none" &&
     (mode === "done_as_planned" || mode === "done_with_deviation");
   const resultRequired = resultRequirement === "required";
   const showObservations = mode === "done_as_planned" || mode === "done_with_deviation";
   const selectedModeOption = CONFIRMATION_MODE_OPTIONS.find((option) => option.mode === mode);
-  const activeConfirmation = target?.action.confirmations?.[target.dueDate];
+  const activeConfirmation = localTarget?.action.confirmations?.[localTarget.dueDate];
 
-  return (
-    <Dialog open={open} onOpenChange={(v) => (!v ? handleClose() : null)}>
-      <DialogContent className="sm:max-w-lg">
-        {selectedModeOption && (
-          <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-sm">
-            <span className="text-muted-foreground">Gewählte Variante:</span>{" "}
-            <span className="font-semibold text-foreground">{selectedModeOption.label}</span>
-            {target?.confirmedAt && (
-              <div className="mt-1 text-xs text-muted-foreground">
-                Bestätigt von{" "}
-                <span className="font-medium text-foreground/80">
-                  {target.confirmedBy ?? "Unbekannt"}
-                </span>{" "}
-                am{" "}
-                <span className="font-medium text-foreground/80">
-                  {format(parseISO(target.confirmedAt), "dd.MM.yyyy HH:mm:ss", { locale: de })}
-                </span>
+  if (!localTarget) return null;
+
+  return createPortal(
+    <div
+      className={`fixed inset-0 z-50 flex justify-end transition-opacity duration-300 ${isPanelVisible ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"}`}
+      onClick={handleClose}
+    >
+      <aside
+        onClick={(e) => e.stopPropagation()}
+        className={`pointer-events-auto flex h-dvh w-full max-w-lg flex-col bg-[#f3f3f5] shadow-2xl transition-transform duration-300 ease-out ${isPanelVisible ? "translate-x-0" : "translate-x-full"}`}
+        onTransitionEnd={(e) => {
+          if (e.propertyName === "transform" && !isPanelVisible) {
+            setLocalTarget(null);
+            onClose();
+          }
+        }}
+      >
+        {/* Header */}
+        <div className="flex shrink-0 items-center justify-between bg-primary px-4 py-3 text-primary-foreground">
+          <span className="text-sm font-semibold">Handlung bestätigen</span>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleClose}
+            className="h-7 w-7 text-primary-foreground opacity-80 hover:bg-primary-foreground/10 hover:opacity-100"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+          {/* Action info */}
+          <div className="rounded-md border border-border bg-background p-3 text-sm space-y-1.5">
+            <div className="font-medium">{localTarget.action.title}</div>
+            {(localTarget.action.scheduledTime || planned != null || requiredPersons != null) && (
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                {localTarget.action.scheduledTime && (
+                  <span className="rounded bg-amber-100 px-1.5 py-0.5 font-semibold text-amber-900">
+                    Uhrzeit {localTarget.action.scheduledTime}
+                  </span>
+                )}
+                {planned != null && <span>geplant {planned} Min</span>}
+                {requiredPersons != null && (
+                  <span>{requiredPersons} {requiredPersons === 1 ? "Person" : "Personen"}</span>
+                )}
               </div>
             )}
-            {activeConfirmation?.postponedAt && (
-              <div className="mt-1 text-xs text-muted-foreground">
-                Verschoben von{" "}
-                <span className="font-medium text-foreground/80">
-                  {activeConfirmation.postponedBy ?? "Unbekannt"}
-                </span>{" "}
-                am{" "}
-                <span className="font-medium text-foreground/80">
-                  {format(parseISO(activeConfirmation.postponedAt), "dd.MM.yyyy HH:mm:ss", { locale: de })}
-                </span>
+            {description && (
+              <div className="text-muted-foreground whitespace-pre-wrap">{description}</div>
+            )}
+            {requiredResources && (
+              <div className="text-muted-foreground whitespace-pre-wrap">
+                <span className="font-medium text-foreground/80">Hilfsmittel:</span> {requiredResources}
               </div>
             )}
           </div>
-        )}
-        <DialogHeader>
-          <DialogTitle>Handlung bestätigen</DialogTitle>
-          <DialogDescription className="line-clamp-2">
-            {target?.action.title || "Handlung"}
-            {target?.action.scheduledTime && (
-              <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-900">
-                · Uhrzeit {target.action.scheduledTime}
-              </span>
-            )}
-            {planned != null && (
-              <span className="ml-2 text-xs">· geplant {planned} Min</span>
-            )}
-            {requiredPersons != null && (
-              <span className="ml-2 text-xs">
-                · {requiredPersons}{" "}
-                {requiredPersons === 1 ? "Person" : "Personen"}
-              </span>
-            )}
-          </DialogDescription>
-          {description && (
-            <div className="text-sm text-muted-foreground whitespace-pre-wrap">
-              {description}
-            </div>
-          )}
-          {requiredResources && (
-            <div className="text-sm text-muted-foreground whitespace-pre-wrap">
-              <span className="font-medium text-foreground/80">Hilfsmittel:</span>{" "}
-              {requiredResources}
-            </div>
-          )}
-        </DialogHeader>
 
-        {mode === "done_with_deviation" && (
-          <div className="space-y-3 pt-2 border-t border-border">
-            {planned != null && (
+          {/* Selected mode + confirmation metadata */}
+          {selectedModeOption && (
+            <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-sm">
+              <span className="text-muted-foreground">Gewählte Variante:</span>{" "}
+              <span className="font-semibold text-foreground">{selectedModeOption.label}</span>
+              {localTarget.confirmedAt && (
+                <div className="mt-1 text-xs text-muted-foreground">
+                  Bestätigt von{" "}
+                  <span className="font-medium text-foreground/80">{localTarget.confirmedBy ?? "Unbekannt"}</span>{" "}
+                  am{" "}
+                  <span className="font-medium text-foreground/80">
+                    {format(parseISO(localTarget.confirmedAt), "dd.MM.yyyy HH:mm:ss", { locale: de })}
+                  </span>
+                </div>
+              )}
+              {activeConfirmation?.postponedAt && (
+                <div className="mt-1 text-xs text-muted-foreground">
+                  Verschoben von{" "}
+                  <span className="font-medium text-foreground/80">{activeConfirmation.postponedBy ?? "Unbekannt"}</span>{" "}
+                  am{" "}
+                  <span className="font-medium text-foreground/80">
+                    {format(parseISO(activeConfirmation.postponedAt), "dd.MM.yyyy HH:mm:ss", { locale: de })}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {mode === "done_with_deviation" && (
+            <div className="space-y-3 pt-2 border-t border-border">
+              {planned != null && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="actual-min">Tatsächliche Minuten</Label>
+                  <Input
+                    id="actual-min"
+                    type="number"
+                    min={0}
+                    step={5}
+                    value={actualMinutes}
+                    onChange={(e) => setActualMinutes(e.target.value)}
+                    placeholder="z. B. 60"
+                    className="bg-background"
+                  />
+                </div>
+              )}
               <div className="space-y-1.5">
-                <Label htmlFor="actual-min">Tatsächliche Minuten</Label>
-                <Input
-                  id="actual-min"
-                  type="number"
-                  min={0}
-                  step={5}
-                  value={actualMinutes}
-                  onChange={(e) => setActualMinutes(e.target.value)}
-                  placeholder="z. B. 60"
+                <Label htmlFor="dev-reason">Begründung</Label>
+                <Textarea
+                  id="dev-reason"
+                  rows={3}
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Was ist der Grund für die Abweichung?"
+                  className="bg-background"
                 />
               </div>
-            )}
-            <div className="space-y-1.5">
-              <Label htmlFor="dev-reason">Begründung</Label>
+            </div>
+          )}
+
+          {mode === "not_done" && (
+            <div className="space-y-1.5 pt-2 border-t border-border">
+              <Label htmlFor="not-reason">Begründung</Label>
               <Textarea
-                id="dev-reason"
+                id="not-reason"
                 rows={3}
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder="Was ist der Grund für die Abweichung?"
+                placeholder="Warum wurde die Handlung nicht durchgeführt?"
+                className="bg-background"
               />
             </div>
-          </div>
-        )}
+          )}
 
-        {mode === "not_done" && (
-          <div className="space-y-1.5 pt-2 border-t border-border">
-            <Label htmlFor="not-reason">Begründung</Label>
-            <Textarea
-              id="not-reason"
-              rows={3}
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="Warum wurde die Handlung nicht durchgeführt?"
-            />
-          </div>
-        )}
-
-        {mode === "postponed" && (
-          <div className="space-y-3 pt-2 border-t border-border">
-            <div className="text-sm text-muted-foreground">
-              Bisher geplant: {target?.dueDate ? format(parseISO(target.dueDate), "dd.MM.yyyy", { locale: de }) : "—"}
-              {target?.action.scheduledTime ? `, ${target.action.scheduledTime}` : ""}. Die neue Planung muss später liegen.
-            </div>
-            <DateField
-              label="Neues Datum"
-              value={postponedDate}
-              onChange={(value) => {
-                setPostponedDate(value ?? "");
-                setPostponedError("");
-              }}
-            />
-            <div className="space-y-1.5">
-              <Label htmlFor="postponed-time">Neue Uhrzeit</Label>
-              <Input
-                id="postponed-time"
-                type="time"
-                value={postponedTime}
-                onChange={(event) => {
-                  setPostponedTime(event.target.value);
-                  setPostponedError("");
-                }}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="postponed-reason">Grund <span className="text-destructive">*</span></Label>
-              <Textarea
-                id="postponed-reason"
-                rows={2}
-                value={postponedReason}
-                onChange={(e) => {
-                  setPostponedReason(e.target.value);
-                  setPostponedError("");
-                }}
-                placeholder="Warum wird die Handlung verschoben?"
-              />
-            </div>
-            {postponedError && (
-              <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-                {postponedError}
+          {mode === "postponed" && (
+            <div className="space-y-3 pt-2 border-t border-border">
+              <div className="text-sm text-muted-foreground">
+                Bisher geplant: {localTarget.dueDate ? format(parseISO(localTarget.dueDate), "dd.MM.yyyy", { locale: de }) : "—"}
+                {localTarget.action.scheduledTime ? `, ${localTarget.action.scheduledTime}` : ""}. Die neue Planung muss später liegen.
               </div>
-            )}
-          </div>
-        )}
+              <DateField
+                label="Neues Datum"
+                value={postponedDate}
+                onChange={(value) => {
+                  setPostponedDate(value ?? "");
+                  setPostponedError("");
+                }}
+              />
+              <div className="space-y-1.5">
+                <Label htmlFor="postponed-time">Neue Uhrzeit</Label>
+                <Input
+                  id="postponed-time"
+                  type="time"
+                  value={postponedTime}
+                  onChange={(event) => {
+                    setPostponedTime(event.target.value);
+                    setPostponedError("");
+                  }}
+                  className="bg-background"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="postponed-reason">Grund <span className="text-destructive">*</span></Label>
+                <Textarea
+                  id="postponed-reason"
+                  rows={2}
+                  value={postponedReason}
+                  onChange={(e) => {
+                    setPostponedReason(e.target.value);
+                    setPostponedError("");
+                  }}
+                  placeholder="Warum wird die Handlung verschoben?"
+                  className="bg-background"
+                />
+              </div>
+              {postponedError && (
+                <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                  {postponedError}
+                </div>
+              )}
+            </div>
+          )}
 
-        {showResult && (
-          <div className="space-y-1.5 pt-2 border-t border-border">
-            <Label htmlFor="result">
-              Resultat{" "}
-              <span className="text-xs font-normal text-muted-foreground">
-                ({resultRequired ? "zwingend" : "optional"})
-              </span>
-            </Label>
-            <Textarea
-              id="result"
-              rows={3}
-              value={result}
-              onChange={(e) => setResult(e.target.value)}
-              placeholder="Resultat der Handlung..."
-            />
-          </div>
-        )}
+          {showResult && (
+            <div className="space-y-1.5 pt-2 border-t border-border">
+              <Label htmlFor="result">
+                Resultat{" "}
+                <span className="text-xs font-normal text-muted-foreground">
+                  ({resultRequired ? "zwingend" : "optional"})
+                </span>
+              </Label>
+              <Textarea
+                id="result"
+                rows={3}
+                value={result}
+                onChange={(e) => setResult(e.target.value)}
+                placeholder="Resultat der Handlung..."
+                className="bg-background"
+              />
+            </div>
+          )}
 
-        {showObservations && (
-          <div className="space-y-1.5 pt-2 border-t border-border">
-            <Label htmlFor="observations">
-              Beobachtungen{" "}
-              <span className="text-xs font-normal text-muted-foreground">
-                (optional)
-              </span>
-            </Label>
-            <Textarea
-              id="observations"
-              rows={3}
-              value={observations}
-              onChange={(e) => setObservations(e.target.value)}
-              placeholder="Beobachtungen während der Durchführung…"
-            />
-          </div>
-        )}
+          {showObservations && (
+            <div className="space-y-1.5 pt-2 border-t border-border">
+              <Label htmlFor="observations">
+                Beobachtungen{" "}
+                <span className="text-xs font-normal text-muted-foreground">
+                  (optional)
+                </span>
+              </Label>
+              <Textarea
+                id="observations"
+                rows={3}
+                value={observations}
+                onChange={(e) => setObservations(e.target.value)}
+                placeholder="Beobachtungen während der Durchführung…"
+                className="bg-background"
+              />
+            </div>
+          )}
+        </div>
 
-        <DialogFooter className="gap-2 sm:justify-between">
-          {target?.action.status !== "open" ? (
+        {/* Footer */}
+        <div className="flex shrink-0 items-center justify-between bg-primary px-6 py-3">
+          {localTarget.action.status !== "open" ? (
             <Button
               variant="ghost"
+              size="sm"
               onClick={() => {
                 onConfirm({ status: "open" });
                 setMode(null);
@@ -3791,16 +3867,17 @@ function ConfirmActionDialog({
                 setPostponedTime("");
                 setPostponedError("");
               }}
-              className="gap-1.5"
+              className="gap-1.5 border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
             >
               <RotateCcw className="h-4 w-4" />
               Zurücksetzen
             </Button>
-          ) : target?.action.isUnplanned && onDelete ? (
+          ) : localTarget.action.isUnplanned && onDelete ? (
             <Button
               variant="ghost"
+              size="sm"
               onClick={onDelete}
-              className="gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              className="gap-1.5 border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
             >
               <Trash2 className="h-4 w-4" />
               Löschen
@@ -3809,26 +3886,34 @@ function ConfirmActionDialog({
             <span />
           )}
           <div className="flex gap-2">
-            <Button variant="outline" onClick={handleClose}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleClose}
+              className="border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
+            >
               Abbrechen
             </Button>
             <Button
+              size="sm"
               onClick={submit}
               disabled={
                 !mode ||
                 (mode === "done_with_deviation" &&
                   ((hasPlannedMinutes && actualMinutes === "") || !reason.trim())) ||
                 (mode === "not_done" && !reason.trim()) ||
-                (mode === "postponed" && (!postponedDate && !postponedTime || !postponedReason.trim())) ||
+                (mode === "postponed" && ((!postponedDate && !postponedTime) || !postponedReason.trim())) ||
                 (showResult && resultRequired && !result.trim())
               }
+              className="bg-primary-foreground text-primary hover:bg-primary-foreground/90"
             >
               Bestätigen
             </Button>
           </div>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </aside>
+    </div>,
+    document.body,
   );
 }
 
