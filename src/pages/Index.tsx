@@ -52,6 +52,7 @@ import {
   buildDefaultTemplateFields,
   getActionServiceTypeLabel,
   getTemplateLockedActionFields,
+  getTemplateRequiredActionFields,
   isTemplateLockedActionField,
   loadActionPlanTemplates,
 } from "@/lib/action-plan-templates";
@@ -772,6 +773,7 @@ const Index = () => {
     targetId: string,
     templateIds: string[],
     serviceType?: ActionServiceType,
+    overrides?: Partial<ActionNode>,
   ) => {
     const templates = loadActionPlanTemplates().filter((template) => templateIds.includes(template.id));
     const weekdayMap: Record<string, Weekday> = {
@@ -824,12 +826,14 @@ const Index = () => {
         templateId: template?.id,
         templateName: template?.name,
         templateLockedFields: getTemplateLockedActionFields(template),
+        templateRequiredFields: getTemplateRequiredActionFields(template),
       };
     };
 
-    const newActions = templates.length > 0
+    const newActions = (templates.length > 0
       ? templates.map((template) => createActionFromTemplate(template))
-      : [createActionFromTemplate(undefined, serviceType)];
+      : [createActionFromTemplate(undefined, serviceType)]
+    ).map((a) => overrides ? { ...a, ...overrides } : a);
 
     updateClientTopicsFor(clientId, (topics) =>
       topics.map((t) =>
@@ -2265,8 +2269,8 @@ const Index = () => {
                       }
                       onDeleteDiscipline={(disciplineId) => deleteDiscipline(client.id, disciplineId)}
                       onAddTarget={(topicId) => addTarget(client.id, topicId)}
-                      onAddAction={(topicId, targetId, templateIds, serviceType) =>
-                        addAction(client.id, topicId, targetId, templateIds, serviceType)
+                      onAddAction={(topicId, targetId, templateIds, serviceType, overrides) =>
+                        addAction(client.id, topicId, targetId, templateIds, serviceType, overrides)
                       }
                       onAddUnplannedAction={(dueDate, dayPart, draft) =>
                         addUnplannedAction(client.id, dueDate, dayPart, draft)

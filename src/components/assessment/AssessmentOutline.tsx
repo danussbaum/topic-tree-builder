@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 import {
   Plus,
+  Pencil,
   Trash2,
+  Lock,
   Clock,
   CalendarClock,
   Users,
@@ -150,6 +152,108 @@ interface UnplannedActionDraft {
   dateTo?: string;
 }
 
+type ActionDraftOverrides = Partial<Pick<ActionNode,
+  | "title"
+  | "notes"
+  | "requiredResources"
+  | "plannedMinutes"
+  | "requiredPersons"
+  | "resultRequirement"
+  | "dayPart"
+  | "scheduledTime"
+  | "category"
+  | "validFrom"
+  | "validTo"
+  | "recurrence"
+  | "recurrenceWeekdays"
+  | "recurrenceMonthlyPattern"
+>>;
+
+interface ActionDraft {
+  title: string;
+  notes: string;
+  requiredResources: string;
+  plannedMinutes: string;
+  requiredPersons: string;
+  resultRequirement: string;
+  dayPart: string;
+  scheduledTime: string;
+  category: string;
+  serviceType: string;
+  validFrom: string;
+  validTo: string;
+  recurrence: string;
+  recurrenceWeekdays: Weekday[];
+  recurrenceMonthlyPattern: string;
+}
+
+function emptyActionDraft(): ActionDraft {
+  return {
+    title: "",
+    notes: "",
+    requiredResources: "",
+    plannedMinutes: "",
+    requiredPersons: "",
+    resultRequirement: "none",
+    dayPart: "none",
+    scheduledTime: "",
+    category: "none",
+    serviceType: "none",
+    validFrom: "",
+    validTo: "",
+    recurrence: "none",
+    recurrenceWeekdays: [],
+    recurrenceMonthlyPattern: "none",
+  };
+}
+
+function actionToDraft(action: ActionNode): ActionDraft {
+  return {
+    title: action.title,
+    notes: action.notes,
+    requiredResources: action.requiredResources ?? "",
+    plannedMinutes: action.plannedMinutes != null ? String(action.plannedMinutes) : "",
+    requiredPersons: action.requiredPersons != null ? String(action.requiredPersons) : "",
+    resultRequirement: action.resultRequirement ?? "none",
+    dayPart: action.dayPart ?? "none",
+    scheduledTime: action.scheduledTime ?? "",
+    category: action.category ?? "none",
+    serviceType: action.serviceType ?? "none",
+    validFrom: action.validFrom ?? "",
+    validTo: action.validTo ?? "",
+    recurrence: action.recurrence ?? "none",
+    recurrenceWeekdays: action.recurrenceWeekdays ?? [],
+    recurrenceMonthlyPattern: action.recurrenceMonthlyPattern ?? "none",
+  };
+}
+
+function draftToOverrides(draft: ActionDraft): ActionDraftOverrides {
+  const weekdayMap: Record<string, Weekday> = {
+    mon: "monday", tue: "tuesday", wed: "wednesday",
+    thu: "thursday", fri: "friday", sat: "saturday", sun: "sunday",
+  };
+  return {
+    title: draft.title,
+    notes: draft.notes,
+    requiredResources: draft.requiredResources || undefined,
+    plannedMinutes: draft.plannedMinutes !== "" ? Math.max(0, Number(draft.plannedMinutes)) : undefined,
+    requiredPersons: draft.requiredPersons !== "" ? Math.max(1, Math.floor(Number(draft.requiredPersons))) : undefined,
+    resultRequirement: draft.resultRequirement !== "none" ? (draft.resultRequirement as ActionNode["resultRequirement"]) : undefined,
+    dayPart: draft.dayPart !== "none" ? (draft.dayPart as DayPart) : undefined,
+    scheduledTime: draft.scheduledTime || undefined,
+    category: draft.category !== "none" ? (draft.category as ActionCategory) : undefined,
+    validFrom: draft.validFrom || undefined,
+    validTo: draft.validTo || undefined,
+    recurrence: draft.recurrence !== "none" ? (draft.recurrence as ActionNode["recurrence"]) : undefined,
+    recurrenceWeekdays: draft.recurrenceWeekdays.length > 0
+      ? draft.recurrenceWeekdays.filter((v): v is Weekday => Boolean(weekdayMap[v] || v))
+      : undefined,
+    recurrenceMonthlyPattern: draft.recurrenceMonthlyPattern !== "none"
+      ? (draft.recurrenceMonthlyPattern as MonthlyRecurrencePattern)
+      : undefined,
+  };
+}
+
 interface Props {
   viewMode: "planning" | "confirmation";
   selectedDate: string;
@@ -201,6 +305,7 @@ interface Props {
     targetId: string,
     templateIds: string[],
     serviceType?: ActionServiceType,
+    overrides?: ActionDraftOverrides,
   ) => void;
   onAddUnplannedAction?: (
     dueDate: string,
@@ -419,17 +524,15 @@ export function AssessmentOutline({
   onDeleteTarget,
   onDeleteAction,
 }: Props) {
-  const [templateInline, setTemplateInline] = useState<{
+  const [panelContext, setPanelContext] = useState<{
+    mode: "create" | "edit";
     topicId: string;
     targetId: string;
-    creationMode: "scratch" | "template";
-    selectedIds: string[];
-    serviceType: ActionServiceType | "none";
+    topicDisciplineId?: string;
+    action?: ActionNode;
   } | null>(null);
-  const [availableTemplates, setAvailableTemplates] = useState<ActionPlanTemplate[]>([]);
-  const [templateQuery, setTemplateQuery] = useState("");
-  const [isTemplateDropdownOpen, setTemplateDropdownOpen] = useState(false);
-  const [activeTemplateIndex, setActiveTemplateIndex] = useState(0);
+  const [isPanelMounted, setIsPanelMounted] = useState(false);
+  const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [newTopicDisciplineId, setNewTopicDisciplineId] = useState(
     disciplines[0]?.id ?? initialActionPlanDisciplines[0]?.id ?? "",
   );
@@ -437,7 +540,6 @@ export function AssessmentOutline({
   const [selectedBulkNotDoneKeys, setSelectedBulkNotDoneKeys] = useState<Set<string>>(new Set());
   const [bulkNotDoneDialogOpen, setBulkNotDoneDialogOpen] = useState(false);
   const [unplannedDialogTarget, setUnplannedDialogTarget] = useState<{ dueDate?: string; dayPart: DayPart | "none" } | null>(null);
-  const templateInputRef = useRef<HTMLInputElement | null>(null);
   const today = format(new Date(), "yyyy-MM-dd");
   const disciplineOptions = disciplines.length > 0 ? disciplines : initialActionPlanDisciplines;
   const getTopicDisciplineId = (topic: TopicNode) =>
@@ -474,64 +576,64 @@ export function AssessmentOutline({
     }
   }, [bulkNotDoneMode]);
 
-  const openAddActionDialog = (topicId: string, targetId: string) => {
-    const topic = topics.find((entry) => entry.id === topicId);
+  const openCreatePanel = (topicId: string, targetId: string) => {
+    const topic = topics.find((t) => t.id === topicId);
     const topicDisciplineId = topic ? getTopicDisciplineId(topic) : undefined;
-    setAvailableTemplates(
-      loadActionPlanTemplates().filter((template) => templateMatchesDiscipline(template, topicDisciplineId)),
-    );
-    setTemplateInline({
-      topicId,
-      targetId,
-      creationMode: "template",
-      selectedIds: [],
-      serviceType: "none",
-    });
-    setTemplateQuery("");
-    setTemplateDropdownOpen(true);
-    setActiveTemplateIndex(0);
+    setPanelContext({ mode: "create", topicId, targetId, topicDisciplineId });
+    setIsPanelMounted(true);
   };
 
-  const toggleTemplateSelection = (templateId: string, checked: boolean) => {
-    setTemplateInline((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        selectedIds: checked
-          ? prev.selectedIds.includes(templateId)
-            ? prev.selectedIds
-            : [...prev.selectedIds, templateId]
-          : prev.selectedIds.filter((id) => id !== templateId),
-      };
-    });
+  const openEditPanel = (topicId: string, targetId: string, action: ActionNode) => {
+    setPanelContext({ mode: "edit", topicId, targetId, action });
+    setIsPanelMounted(true);
   };
-  const templateFilterQuery = templateQuery.toLocaleLowerCase("de");
-  const hasTemplateFilterInput = templateFilterQuery.length >= 3;
-  const filteredTemplates = hasTemplateFilterInput
-    ? availableTemplates.filter((template) => {
-        const wildcardQuery = templateFilterQuery
-          .replace(/[.*+?^${}()|[\]\\]/g, "$&")
-          .replace(/\s/g, ".*");
 
-        return new RegExp(wildcardQuery).test(template.name.toLocaleLowerCase("de"));
-      })
-    : [];
+  const closePanel = () => setIsPanelOpen(false);
+
+  const handlePanelAnimationEnd = () => {
+    if (isPanelOpen) return;
+    setIsPanelMounted(false);
+    setPanelContext(null);
+  };
 
   useEffect(() => {
-    setActiveTemplateIndex(0);
-  }, [templateQuery, isTemplateDropdownOpen]);
+    if (!isPanelMounted) return;
+    const frame = requestAnimationFrame(() => setIsPanelOpen(true));
+    return () => cancelAnimationFrame(frame);
+  }, [isPanelMounted]);
 
-  useEffect(() => {
-    if (!templateInline) return;
-    window.requestAnimationFrame(() => {
-      templateInputRef.current?.focus();
-    });
-  }, [templateInline]);
+  const handlePanelSave = (draft: ActionDraft, selectedTemplateIds: string[]) => {
+    if (!panelContext) return;
+    const { topicId, targetId, mode, action } = panelContext;
 
-  const selectTemplateAndClose = (templateId: string) => {
-    toggleTemplateSelection(templateId, true);
-    setTemplateQuery("");
-    setTemplateDropdownOpen(false);
+    if (mode === "create") {
+      const overrides = draftToOverrides(draft);
+      const serviceType = draft.serviceType !== "none" ? (draft.serviceType as ActionServiceType) : undefined;
+      onAddAction(topicId, targetId, selectedTemplateIds, serviceType, overrides);
+    } else if (mode === "edit" && action) {
+      onUpdateAction(topicId, targetId, action.id, "title", draft.title);
+      onUpdateAction(topicId, targetId, action.id, "notes", draft.notes);
+      onUpdateAction(topicId, targetId, action.id, "requiredResources", draft.requiredResources);
+      onUpdateActionField(topicId, targetId, action.id, "dayPart", draft.dayPart !== "none" ? draft.dayPart : undefined);
+      onUpdateActionField(topicId, targetId, action.id, "scheduledTime", draft.scheduledTime || undefined);
+      onUpdateActionField(topicId, targetId, action.id, "plannedMinutes", draft.plannedMinutes !== "" ? Math.max(0, Number(draft.plannedMinutes)) : undefined);
+      onUpdateActionField(topicId, targetId, action.id, "requiredPersons", draft.requiredPersons !== "" ? Math.max(1, Math.floor(Number(draft.requiredPersons))) : undefined);
+      onUpdateActionField(topicId, targetId, action.id, "category", draft.category !== "none" ? draft.category : undefined);
+      onUpdateActionField(topicId, targetId, action.id, "resultRequirement", draft.resultRequirement !== "none" ? draft.resultRequirement : undefined);
+      onUpdateActionField(topicId, targetId, action.id, "validFrom", draft.validFrom || undefined);
+      onUpdateActionField(topicId, targetId, action.id, "validTo", draft.validTo || undefined);
+      onUpdateActionField(topicId, targetId, action.id, "recurrence", draft.recurrence !== "none" ? draft.recurrence : undefined);
+      onUpdateActionField(topicId, targetId, action.id, "recurrenceWeekdays", draft.recurrenceWeekdays.length > 0 ? draft.recurrenceWeekdays : undefined);
+      onUpdateActionField(topicId, targetId, action.id, "recurrenceMonthlyPattern", draft.recurrenceMonthlyPattern !== "none" ? draft.recurrenceMonthlyPattern : undefined);
+    }
+
+    closePanel();
+  };
+
+  const handlePanelDelete = () => {
+    if (!panelContext?.action) return;
+    onDeleteAction(panelContext.topicId, panelContext.targetId, panelContext.action.id);
+    closePanel();
   };
 
   if (viewMode === "confirmation") {
@@ -1331,6 +1433,7 @@ export function AssessmentOutline({
                             onUpdateAction={onUpdateAction}
                             onUpdateActionField={onUpdateActionField}
                             onDeleteAction={onDeleteAction}
+                            onOpenEditPanel={() => openEditPanel(topic.id, target.id, action)}
                             onOpenDialog={(initialMode) =>
                               setDialogTarget({
                                 topicId: topic.id,
@@ -1346,219 +1449,12 @@ export function AssessmentOutline({
                     </div>
 
                     <button
-                      onClick={() => openAddActionDialog(topic.id, target.id)}
+                      onClick={() => openCreatePanel(topic.id, target.id)}
                       className="mt-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
                     >
                       <Plus className="h-3.5 w-3.5" />
-                      Handlung hinzufügen
+                      Neue Handlung erfassen
                     </button>
-                    {templateInline?.topicId === topic.id && templateInline?.targetId === target.id && (
-                      <div className="mt-2 rounded-md border border-border/60 bg-card p-3 space-y-3">
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setTemplateInline((prev) =>
-                                prev ? { ...prev, creationMode: "template" } : prev,
-                              );
-                              setTemplateDropdownOpen(true);
-                            }}
-                            className={cn(
-                              "rounded-md border p-3 text-left transition-colors",
-                              templateInline.creationMode === "template"
-                                ? "border-primary bg-primary/10 text-primary"
-                                : "border-border hover:bg-secondary/40",
-                            )}
-                          >
-                            <div className="text-sm font-medium">Ab Vorlage verwenden</div>
-                            <div className="mt-1 text-xs text-muted-foreground">
-                              Übernimmt Vorlagenwerte als Startpunkt; alle Felder bleiben danach editierbar.
-                            </div>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setTemplateInline((prev) =>
-                                prev
-                                  ? {
-                                      ...prev,
-                                      creationMode: "scratch",
-                                      selectedIds: [],
-                                      serviceType: prev.serviceType ?? "none",
-                                    }
-                                  : prev,
-                              );
-                              setTemplateDropdownOpen(false);
-                              setTemplateQuery("");
-                            }}
-                            className={cn(
-                              "rounded-md border p-3 text-left transition-colors",
-                              templateInline.creationMode === "scratch"
-                                ? "border-primary bg-primary/10 text-primary"
-                                : "border-border hover:bg-secondary/40",
-                            )}
-                          >
-                            <div className="text-sm font-medium">Ohne Vorlage erfassen</div>
-                            <div className="mt-1 text-xs text-muted-foreground">
-                              Erstellt eine leere Handlung, deren Felder direkt ausgefüllt werden können.
-                            </div>
-                          </button>
-                        </div>
-
-                        {templateInline.creationMode === "scratch" && (
-                          <div className="grid gap-1.5">
-                            <Label className="text-xs text-muted-foreground">Leistungsart</Label>
-                            <Select
-                              value={templateInline.serviceType}
-                              onValueChange={(value) =>
-                                setTemplateInline((prev) =>
-                                  prev
-                                    ? {
-                                        ...prev,
-                                        serviceType: value as ActionServiceType | "none",
-                                      }
-                                    : prev,
-                                )
-                              }
-                            >
-                              <SelectTrigger className="h-9 bg-background">
-                                <SelectValue placeholder="Leistungsart auswählen" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {ACTION_SERVICE_TYPE_SELECT_OPTIONS.map((option) => (
-                                  <SelectItem key={option.value} value={option.value}>
-                                    {option.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        )}
-
-                        {templateInline.creationMode === "template" && (
-                          <div className="rounded-md border border-input/70 bg-background shadow-sm focus-within:border-primary/70">
-                            <div className="flex items-start gap-2 p-2">
-                              <div className="flex-1 space-y-2">
-                                <div className="flex flex-wrap gap-1">
-                                  {templateInline.selectedIds.map((id) => {
-                                    const template = availableTemplates.find((entry) => entry.id === id);
-                                    if (!template) return null;
-                                    return (
-                                      <Badge
-                                        key={id}
-                                        variant="secondary"
-                                        className="h-6 gap-1 rounded-sm border border-border/60 bg-secondary/40 px-1.5 font-normal text-foreground/90"
-                                      >
-                                        {template.name}
-                                        <button
-                                          type="button"
-                                          className="text-xs leading-none text-muted-foreground hover:text-foreground"
-                                          onClick={() => toggleTemplateSelection(id, false)}
-                                        >
-                                          ×
-                                        </button>
-                                      </Badge>
-                                    );
-                                  })}
-                                  <Input
-                                    value={templateQuery}
-                                    onChange={(e) => {
-                                      setTemplateQuery(e.target.value);
-                                      setTemplateDropdownOpen(true);
-                                    }}
-                                    onFocus={() => setTemplateDropdownOpen(true)}
-                                    onKeyDown={(e) => {
-                                      if (!isTemplateDropdownOpen && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
-                                        e.preventDefault();
-                                        setTemplateDropdownOpen(true);
-                                        return;
-                                      }
-                                      if (!isTemplateDropdownOpen || !hasTemplateFilterInput || filteredTemplates.length === 0) return;
-                                      if (e.key === "ArrowDown") {
-                                        e.preventDefault();
-                                        setActiveTemplateIndex((prev) => (prev + 1) % filteredTemplates.length);
-                                        return;
-                                      }
-                                      if (e.key === "ArrowUp") {
-                                        e.preventDefault();
-                                        setActiveTemplateIndex((prev) => (prev - 1 + filteredTemplates.length) % filteredTemplates.length);
-                                        return;
-                                      }
-                                      if (e.key === "Enter") {
-                                        e.preventDefault();
-                                        const activeTemplate = filteredTemplates[activeTemplateIndex];
-                                        if (!activeTemplate) return;
-                                        selectTemplateAndClose(activeTemplate.id);
-                                        return;
-                                      }
-                                      if (e.key === "Escape") {
-                                        e.preventDefault();
-                                        setTemplateDropdownOpen(false);
-                                      }
-                                    }}
-                                    ref={templateInputRef}
-                                    placeholder="Vorlagen suchen..."
-                                    className="h-6 min-w-[12rem] border-0 bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0"
-                                  />
-                                </div>
-                              </div>
-                              <button
-                                type="button"
-                                className="mt-0.5 rounded p-1 text-muted-foreground hover:bg-secondary/70"
-                                onClick={() => setTemplateDropdownOpen((prev) => !prev)}
-                              >
-                                <ChevronUp className={cn("h-4 w-4 transition-transform", !isTemplateDropdownOpen && "rotate-180")} />
-                              </button>
-                            </div>
-                            {isTemplateDropdownOpen && hasTemplateFilterInput && (
-                              <div className="max-h-56 overflow-y-auto border-t border-border/70 p-1.5">
-                                {filteredTemplates.map((template) => {
-                                  const templateIndex = filteredTemplates.findIndex((entry) => entry.id === template.id);
-                                  return (
-                                    <button
-                                      key={template.id}
-                                      type="button"
-                                      onClick={() => selectTemplateAndClose(template.id)}
-                                      onMouseEnter={() => setActiveTemplateIndex(templateIndex)}
-                                      className={cn(
-                                        "flex w-full items-center rounded-sm px-2 py-1 text-left text-sm hover:bg-secondary/40",
-                                        activeTemplateIndex === templateIndex && "bg-primary/10 text-primary",
-                                      )}
-                                    >
-                                      <span className="truncate">{template.name}</span>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        <div className="flex justify-end gap-2">
-                          <Button variant="outline" onClick={() => setTemplateInline(null)}>Abbrechen</Button>
-                          <Button
-                            disabled={
-                              templateInline.creationMode === "template" &&
-                              templateInline.selectedIds.length === 0
-                            }
-                            onClick={() => {
-                              if (!templateInline) return;
-                              onAddAction(
-                                templateInline.topicId,
-                                templateInline.targetId,
-                                templateInline.creationMode === "template" ? templateInline.selectedIds : [],
-                                templateInline.creationMode === "scratch" &&
-                                  templateInline.serviceType !== "none"
-                                  ? templateInline.serviceType
-                                  : undefined,
-                              );
-                              setTemplateInline(null);
-                            }}
-                          >
-                            Handlung erstellen
-                          </Button>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </div>
               );
@@ -1620,6 +1516,20 @@ export function AssessmentOutline({
           setDialogTarget(null);
         }}
       />
+
+      {isPanelMounted && panelContext && (
+        <ActionSidePanel
+          key={panelContext.mode === "edit" ? panelContext.action?.id : "create"}
+          mode={panelContext.mode}
+          action={panelContext.action}
+          topicDisciplineId={panelContext.topicDisciplineId}
+          isPanelOpen={isPanelOpen}
+          onClose={closePanel}
+          onSave={handlePanelSave}
+          onDelete={handlePanelDelete}
+          onTransitionEnd={handlePanelAnimationEnd}
+        />
+      )}
     </div>
   );
 }
@@ -1673,6 +1583,7 @@ function ActionRow({
   onUpdateAction,
   onUpdateActionField,
   onDeleteAction,
+  onOpenEditPanel,
   onOpenDialog,
 }: {
   viewMode: "planning" | "confirmation";
@@ -1682,6 +1593,7 @@ function ActionRow({
   onUpdateAction: Props["onUpdateAction"];
   onUpdateActionField: Props["onUpdateActionField"];
   onDeleteAction: Props["onDeleteAction"];
+  onOpenEditPanel: () => void;
   onOpenDialog: (initialMode: ConfirmationMode) => void;
 }) {
   const isLocked = Object.keys(action.confirmations ?? {}).length > 0;
@@ -1725,51 +1637,137 @@ function ActionRow({
     return () => window.removeEventListener("pointerup", stopDrag);
   }, [weekdayDragState]);
 
+  if (viewMode === "planning") {
+    const recurrenceLabel = action.recurrence === "daily"
+      ? "Täglich"
+      : action.recurrence === "weekly"
+        ? ["Wöchentlich", ...(action.recurrenceWeekdays ?? []).map((d) => WEEKDAY_OPTIONS.find((o) => o.value === d)?.label ?? "")].filter(Boolean).join(" · ")
+        : action.recurrence === "monthly"
+          ? MONTHLY_PATTERN_OPTIONS.find((o) => o.value === action.recurrenceMonthlyPattern)?.label ?? "Monatlich"
+          : null;
+
+    return (
+      <li className={cn(
+        "group/action flex items-start gap-3 rounded px-3 py-2.5 border transition-colors",
+        action.isUnplanned ? "border-amber-200 bg-amber-50/60" : "border-border bg-secondary/30 hover:border-primary/40",
+      )}>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className={cn("text-base font-medium truncate", !action.title && "text-muted-foreground/40")}>
+              {action.title || "Handlung…"}
+            </span>
+            {action.isUnplanned && (
+              <Badge variant="outline" className="shrink-0 border-amber-300 bg-amber-50 text-[10px] text-amber-800">
+                Ungeplant
+              </Badge>
+            )}
+          </div>
+          <div className="mt-1.5 flex items-center text-xs text-muted-foreground">
+            {/* Tageszeit – fix 110px */}
+            <span className="inline-flex w-[110px] shrink-0 items-center gap-1">
+              {action.dayPart
+                ? <>{(() => { const Icon = DAY_PART_ICONS[action.dayPart]; return <Icon className="h-3.5 w-3.5 shrink-0" />; })()}<span className="truncate">{DAY_PART_LABEL[action.dayPart]}</span></>
+                : <span className="opacity-25">–</span>}
+            </span>
+            <span className="mx-2 h-3 w-px shrink-0 bg-border" />
+            {/* Uhrzeit – fix 52px */}
+            <span className="w-[52px] shrink-0 tabular-nums">
+              {action.scheduledTime || <span className="opacity-25">–</span>}
+            </span>
+            <span className="mx-2 h-3 w-px shrink-0 bg-border" />
+            {/* Minuten – fix 64px */}
+            <span className="w-[64px] shrink-0 tabular-nums">
+              {action.plannedMinutes != null ? `${action.plannedMinutes} Min` : <span className="opacity-25">–</span>}
+            </span>
+            <span className="mx-2 h-3 w-px shrink-0 bg-border" />
+            {/* Personen – fix 44px */}
+            <span className="inline-flex w-[44px] shrink-0 items-center gap-1">
+              <Users className="h-3.5 w-3.5 shrink-0 opacity-50" />
+              {action.requiredPersons != null ? action.requiredPersons : <span className="opacity-25">–</span>}
+            </span>
+            <span className="mx-2 h-3 w-px shrink-0 bg-border" />
+            {/* Kategorie – fix 52px */}
+            <span className="w-[52px] shrink-0">
+              {action.category
+                ? <span className="rounded bg-secondary px-1 font-medium">Kat. {CATEGORY_LABEL[action.category]}</span>
+                : <span className="opacity-25">–</span>}
+            </span>
+            <span className="mx-2 h-3 w-px shrink-0 bg-border" />
+            {/* Wiederholung – flex-1 */}
+            <span className="min-w-0 flex-1 truncate">
+              {recurrenceLabel || <span className="opacity-25">–</span>}
+            </span>
+            <span className="mx-2 h-3 w-px shrink-0 bg-border" />
+            {/* Gültig ab – fix 72px */}
+            <span className="w-[72px] shrink-0 tabular-nums">
+              {action.validFrom
+                ? format(parseISO(action.validFrom), "dd.MM.yy", { locale: de })
+                : <span className="opacity-25">–</span>}
+            </span>
+            <span className="mx-2 h-3 w-px shrink-0 bg-border" />
+            {/* Gültig bis – fix 72px */}
+            <span className="w-[72px] shrink-0 tabular-nums">
+              {action.validTo
+                ? format(parseISO(action.validTo), "dd.MM.yy", { locale: de })
+                : <span className="opacity-25">–</span>}
+            </span>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onOpenEditPanel}
+          className="shrink-0 mt-0.5 opacity-0 group-hover/action:opacity-100 p-1 hover:bg-secondary rounded transition-opacity"
+          aria-label="Handlung bearbeiten"
+        >
+          <Pencil className="h-4 w-4 text-muted-foreground" />
+        </button>
+        <button
+          type="button"
+          onClick={() => onDeleteAction(topicId, targetId, action.id)}
+          className="shrink-0 mt-0.5 opacity-0 group-hover/action:opacity-100 p-1 hover:bg-destructive/10 hover:text-destructive rounded transition-opacity"
+          aria-label="Handlung löschen"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </li>
+    );
+  }
+
   return (
     <li className={cn(
       "group/action flex items-start gap-3 rounded transition-colors",
       action.isUnplanned && "border-amber-200 bg-amber-50/60",
-      viewMode === "planning"
-        ? "p-2 bg-secondary/30 border border-border hover:border-primary/40"
-        : "py-2 px-2 -mx-2 hover:bg-secondary/40"
+      "py-2 px-2 -mx-2 hover:bg-secondary/40"
     )}>
-      {viewMode === "confirmation" && (
-        <button
-          onClick={() => {
-            if (isConfirmationRestricted) return;
-            onOpenDialog(action.status === "open" ? "done_as_planned" : action.status);
-          }}
-          className={cn(
-            "pointer-events-auto mt-0.5 cursor-pointer",
-            isConfirmationRestricted && "cursor-not-allowed opacity-70",
-          )}
-          aria-label="Status ändern"
-          title={
-            isConfirmationRestricted
-              ? "Keine Rechte zur Umsetzung von Kategorie A"
-              : "Status ändern"
-          }
-          aria-disabled={isConfirmationRestricted}
-        >
-          <StatusIcon status={action.status} />
-        </button>
-      )}
+      <button
+        onClick={() => {
+          if (isConfirmationRestricted) return;
+          onOpenDialog(action.status === "open" ? "done_as_planned" : action.status);
+        }}
+        className={cn(
+          "pointer-events-auto mt-0.5 cursor-pointer",
+          isConfirmationRestricted && "cursor-not-allowed opacity-70",
+        )}
+        aria-label="Status ändern"
+        title={
+          isConfirmationRestricted
+            ? "Keine Rechte zur Umsetzung von Kategorie A"
+            : "Status ändern"
+        }
+        aria-disabled={isConfirmationRestricted}
+      >
+        <StatusIcon status={action.status} />
+      </button>
       <div className="flex-1 min-w-0">
         <input
           value={action.title}
-          readOnly={viewMode === "confirmation" || isFieldLocked("title")}
-          onChange={(e) =>
-            onUpdateAction(topicId, targetId, action.id, "title", e.target.value)
-          }
+          readOnly
           placeholder="Handlung…"
           className={cn(
             "w-full text-sm font-medium bg-transparent border-0 outline-none focus:ring-0 px-0 placeholder:text-muted-foreground/40",
-            viewMode === "confirmation" && action.status === "done_as_planned" &&
-              "line-through text-muted-foreground",
-            viewMode === "confirmation" && action.status === "done_with_deviation" &&
-              "line-through text-muted-foreground",
-            viewMode === "confirmation" && action.status === "not_done" &&
-              "line-through text-muted-foreground/70",
+            action.status === "done_as_planned" && "line-through text-muted-foreground",
+            action.status === "done_with_deviation" && "line-through text-muted-foreground",
+            action.status === "not_done" && "line-through text-muted-foreground/70",
           )}
         />
         {action.isUnplanned && (
@@ -1778,7 +1776,7 @@ function ActionRow({
           </Badge>
         )}
 
-        {viewMode === "planning" && (
+        {false && (
           <div className="mt-1 space-y-1">
             <Notes
               value={action.notes}
@@ -2387,6 +2385,503 @@ function StatusBadge({ action }: { action: ActionNode }) {
   );
 }
 
+
+function ActionSidePanel({
+  mode,
+  action,
+  topicDisciplineId,
+  isPanelOpen,
+  onClose,
+  onSave,
+  onDelete,
+  onTransitionEnd,
+}: {
+  mode: "create" | "edit";
+  action?: ActionNode;
+  topicDisciplineId?: string;
+  isPanelOpen: boolean;
+  onClose: () => void;
+  onSave: (draft: ActionDraft, selectedTemplateIds: string[]) => void;
+  onDelete: () => void;
+  onTransitionEnd: () => void;
+}) {
+  const [draft, setDraft] = useState<ActionDraft>(() =>
+    action ? actionToDraft(action) : emptyActionDraft(),
+  );
+  const [lockedFields, setLockedFields] = useState<string[]>(() => action?.templateLockedFields ?? []);
+  const [requiredFields, setRequiredFields] = useState<string[]>(() => action?.templateRequiredFields ?? []);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [creationMode, setCreationMode] = useState<"template" | "scratch">("template");
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+  const [availableTemplates, setAvailableTemplates] = useState<ActionPlanTemplate[]>([]);
+  const [templateQuery, setTemplateQuery] = useState("");
+  const [isDropdownOpen, setDropdownOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const templateInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (mode !== "create") return;
+    setAvailableTemplates(
+      loadActionPlanTemplates().filter((t) => templateMatchesDiscipline(t, topicDisciplineId)),
+    );
+  }, [mode, topicDisciplineId]);
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [templateQuery, isDropdownOpen]);
+
+  const templateFilterQuery = templateQuery.toLocaleLowerCase("de");
+  const hasTemplateInput = templateFilterQuery.length >= 2;
+  const filteredTemplates = hasTemplateInput
+    ? availableTemplates.filter((t) => {
+        const pattern = templateFilterQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s/g, ".*");
+        return new RegExp(pattern).test(t.name.toLocaleLowerCase("de"));
+      })
+    : availableTemplates.slice(0, 20);
+
+  const applyTemplate = (templateId: string) => {
+    const template = availableTemplates.find((t) => t.id === templateId);
+    if (!template) return;
+    const fields = template.fields;
+    const weekdayMap: Record<string, Weekday> = {
+      mon: "monday", tue: "tuesday", wed: "wednesday",
+      thu: "thursday", fri: "friday", sat: "saturday", sun: "sunday",
+    };
+    const recurrenceWeekdays = fields.wiederholungWochentage
+      .split(",")
+      .map((v) => weekdayMap[v.trim().toLowerCase()])
+      .filter((v): v is Weekday => Boolean(v));
+    setDraft({
+      title: template.name,
+      notes: fields.beschreibung,
+      requiredResources: fields.hilfsmittel || "",
+      plannedMinutes: fields.dauer !== "0" && fields.dauer ? fields.dauer : "",
+      requiredPersons: fields.personen !== "0" && fields.personen ? fields.personen : "",
+      resultRequirement: fields.resultat !== "none" ? fields.resultat : "none",
+      dayPart: fields.tageszeit !== "none" ? fields.tageszeit : "none",
+      scheduledTime: fields.uhrzeit || "",
+      category: fields.kategorie !== "none" ? fields.kategorie : "none",
+      serviceType: fields.leistungsart !== "none" ? fields.leistungsart : "none",
+      validFrom: "",
+      validTo: "",
+      recurrence: fields.wiederholung !== "none" ? fields.wiederholung : "none",
+      recurrenceWeekdays,
+      recurrenceMonthlyPattern: fields.wiederholungMonatlich !== "none" ? fields.wiederholungMonatlich : "none",
+    });
+    setLockedFields(getTemplateLockedActionFields(template));
+    setRequiredFields(getTemplateRequiredActionFields(template));
+    setValidationErrors([]);
+    setSelectedTemplateId(templateId);
+    setTemplateQuery("");
+    setDropdownOpen(false);
+  };
+
+  const clearTemplate = () => {
+    setSelectedTemplateId("");
+    setLockedFields([]);
+    setRequiredFields([]);
+    setValidationErrors([]);
+    setDraft(emptyActionDraft());
+  };
+
+  const isLocked = (field: string) => lockedFields.includes(field);
+  const isRequired = (field: string) => requiredFields.includes(field);
+  const hasError = (field: string) => validationErrors.includes(field);
+
+  const isDraftFieldFilled = (field: string): boolean => {
+    switch (field) {
+      case "title": return draft.title.trim() !== "";
+      case "notes": return draft.notes.trim() !== "";
+      case "requiredResources": return draft.requiredResources.trim() !== "";
+      case "plannedMinutes": return draft.plannedMinutes !== "" && Number(draft.plannedMinutes) > 0;
+      case "requiredPersons": return draft.requiredPersons !== "" && Number(draft.requiredPersons) > 0;
+      case "category": return draft.category !== "none";
+      case "dayPart": return draft.dayPart !== "none";
+      case "scheduledTime": return draft.scheduledTime !== "";
+      case "resultRequirement": return draft.resultRequirement !== "none";
+      case "recurrence": return draft.recurrence !== "none";
+      case "recurrenceWeekdays": return draft.recurrenceWeekdays.length > 0;
+      case "recurrenceMonthlyPattern": return draft.recurrenceMonthlyPattern !== "none";
+      case "serviceType": return draft.serviceType !== "none";
+      default: return true;
+    }
+  };
+
+  const handleSave = () => {
+    const errors = requiredFields.filter((f) => !isDraftFieldFilled(f));
+    if (errors.length > 0) {
+      setValidationErrors(errors);
+      return;
+    }
+    onSave(draft, selectedTemplateId ? [selectedTemplateId] : []);
+  };
+
+  const panelTitle = mode === "create" ? "Neue Handlung" : (action?.title || "Handlung bearbeiten");
+
+  const Field = ({
+    label,
+    fieldKey,
+    children,
+    className,
+  }: {
+    label: string;
+    fieldKey?: string;
+    children: ReactNode;
+    className?: string;
+  }) => {
+    const locked = fieldKey ? isLocked(fieldKey) : false;
+    const required = fieldKey ? isRequired(fieldKey) : false;
+    const error = fieldKey ? hasError(fieldKey) : false;
+    return (
+      <div className={className}>
+        <label className="mb-1 flex items-center gap-1 text-xs font-medium text-muted-foreground">
+          {label}
+          {required && !locked && <span className="text-destructive" title="Pflichtfeld">*</span>}
+          {locked && <Lock className="h-3 w-3 opacity-50" title="Von Vorlage gesperrt" />}
+        </label>
+        <div className={cn(locked && "opacity-60 pointer-events-none")}>{children}</div>
+        {error && <p className="mt-0.5 text-xs text-destructive">Pflichtfeld – bitte ausfüllen</p>}
+      </div>
+    );
+  };
+
+  return (
+    <div
+      className={`pointer-events-none fixed inset-0 z-50 flex justify-end transition-opacity duration-300 ${isPanelOpen ? "opacity-100" : "opacity-0"}`}
+    >
+      <aside
+        className={`pointer-events-auto flex h-full w-full max-w-2xl flex-col bg-[#f3f3f5] shadow-2xl transition-transform duration-300 ease-out ${isPanelOpen ? "translate-x-0" : "translate-x-full"}`}
+        onTransitionEnd={onTransitionEnd}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-border px-6 py-4">
+          <h2 className="text-2xl font-light text-foreground">{panelTitle}</h2>
+          <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            ✕
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+          {/* Create mode: template selection */}
+          {mode === "create" && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setCreationMode("template"); setDropdownOpen(true); }}
+                  className={cn(
+                    "rounded-md border p-3 text-left transition-colors",
+                    creationMode === "template" ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-secondary/40",
+                  )}
+                >
+                  <div className="text-sm font-medium">Ab Vorlage</div>
+                  <div className="mt-0.5 text-xs text-muted-foreground">Felder aus Vorlage übernehmen</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCreationMode("scratch");
+                    clearTemplate();
+                    setDropdownOpen(false);
+                    setTemplateQuery("");
+                  }}
+                  className={cn(
+                    "rounded-md border p-3 text-left transition-colors",
+                    creationMode === "scratch" ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-secondary/40",
+                  )}
+                >
+                  <div className="text-sm font-medium">Ohne Vorlage</div>
+                  <div className="mt-0.5 text-xs text-muted-foreground">Leere Handlung anlegen</div>
+                </button>
+              </div>
+
+              {creationMode === "template" && (
+                <div className="rounded-md border border-input/70 bg-background shadow-sm focus-within:border-primary/70">
+                  <div className="flex items-center gap-2 px-3 py-2">
+                    <input
+                      ref={templateInputRef}
+                      value={templateQuery}
+                      onChange={(e) => { setTemplateQuery(e.target.value); setDropdownOpen(true); }}
+                      onFocus={() => setDropdownOpen(true)}
+                      onKeyDown={(e) => {
+                        if (e.key === "ArrowDown") { e.preventDefault(); setActiveIndex((p) => (p + 1) % filteredTemplates.length); }
+                        if (e.key === "ArrowUp") { e.preventDefault(); setActiveIndex((p) => (p - 1 + filteredTemplates.length) % filteredTemplates.length); }
+                        if (e.key === "Enter") { e.preventDefault(); if (filteredTemplates[activeIndex]) applyTemplate(filteredTemplates[activeIndex].id); }
+                        if (e.key === "Escape") setDropdownOpen(false);
+                      }}
+                      placeholder={selectedTemplateId ? availableTemplates.find((t) => t.id === selectedTemplateId)?.name ?? "Vorlage suchen…" : "Vorlage suchen…"}
+                      className="flex-1 border-0 bg-transparent text-sm outline-none placeholder:text-muted-foreground/60 focus:ring-0"
+                    />
+                    {selectedTemplateId && (
+                      <button type="button" onClick={clearTemplate} className="text-xs text-muted-foreground hover:text-foreground">
+                        ×
+                      </button>
+                    )}
+                    <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", isDropdownOpen && "rotate-180")} />
+                  </div>
+                  {isDropdownOpen && (
+                    <div className="max-h-52 overflow-y-auto border-t border-border/70 p-1">
+                      {filteredTemplates.length === 0 ? (
+                        <div className="px-2 py-1 text-xs text-muted-foreground">Keine Vorlagen gefunden</div>
+                      ) : (
+                        filteredTemplates.map((t, idx) => (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => applyTemplate(t.id)}
+                            onMouseEnter={() => setActiveIndex(idx)}
+                            className={cn(
+                              "flex w-full items-center rounded-sm px-2 py-1 text-left text-sm hover:bg-secondary/40",
+                              activeIndex === idx && "bg-primary/10 text-primary",
+                            )}
+                          >
+                            <span className="truncate">{t.name}</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {creationMode === "scratch" && (
+                <Field label="Leistungsart" fieldKey="serviceType">
+                  <Select value={draft.serviceType} onValueChange={(v) => setDraft((p) => ({ ...p, serviceType: v }))}>
+                    <SelectTrigger className="bg-background"><SelectValue placeholder="Leistungsart wählen" /></SelectTrigger>
+                    <SelectContent>
+                      {ACTION_SERVICE_TYPE_SELECT_OPTIONS.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              )}
+            </div>
+          )}
+
+          {/* Fields */}
+          <div className="space-y-3">
+            <Field label="Bezeichnung" fieldKey="title">
+              <Input
+                value={draft.title}
+                disabled={isLocked("title")}
+                onChange={(e) => { setDraft((p) => ({ ...p, title: e.target.value })); setValidationErrors((prev) => prev.filter((f) => f !== "title")); }}
+                placeholder="Handlung…"
+                className={cn("bg-background", hasError("title") && "border-destructive")}
+              />
+            </Field>
+
+            <Field label="Beschreibung" fieldKey="notes">
+              <Textarea
+                value={draft.notes}
+                disabled={isLocked("notes")}
+                onChange={(e) => { setDraft((p) => ({ ...p, notes: e.target.value })); setValidationErrors((prev) => prev.filter((f) => f !== "notes")); }}
+                placeholder="Beschreibung zur Handlung…"
+                rows={2}
+                className={cn("bg-background", hasError("notes") && "border-destructive")}
+              />
+            </Field>
+
+            <Field label="Hilfsmittel" fieldKey="requiredResources">
+              <Textarea
+                value={draft.requiredResources}
+                disabled={isLocked("requiredResources")}
+                onChange={(e) => { setDraft((p) => ({ ...p, requiredResources: e.target.value })); setValidationErrors((prev) => prev.filter((f) => f !== "requiredResources")); }}
+                placeholder="Hilfsmittel zur Durchführung…"
+                rows={2}
+                className={cn("bg-background", hasError("requiredResources") && "border-destructive")}
+              />
+            </Field>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Tageszeit" fieldKey="dayPart">
+                <Select value={draft.dayPart} disabled={isLocked("dayPart")} onValueChange={(v) => { setDraft((p) => ({ ...p, dayPart: v })); setValidationErrors((prev) => prev.filter((f) => f !== "dayPart")); }}>
+                  <SelectTrigger className={cn("bg-background", hasError("dayPart") && "border-destructive")}><SelectValue placeholder="Keine Angabe" /></SelectTrigger>
+                  <SelectContent>
+                    {DAY_PART_SELECT_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field label="Uhrzeit" fieldKey="scheduledTime">
+                <Input
+                  type="time"
+                  value={draft.scheduledTime}
+                  disabled={isLocked("scheduledTime")}
+                  onChange={(e) => { setDraft((p) => ({ ...p, scheduledTime: e.target.value })); setValidationErrors((prev) => prev.filter((f) => f !== "scheduledTime")); }}
+                  className={cn("bg-background", hasError("scheduledTime") && "border-destructive")}
+                />
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Geplante Minuten" fieldKey="plannedMinutes">
+                <Input
+                  type="number"
+                  min={0}
+                  step={5}
+                  value={draft.plannedMinutes}
+                  disabled={isLocked("plannedMinutes")}
+                  onChange={(e) => { setDraft((p) => ({ ...p, plannedMinutes: e.target.value })); setValidationErrors((prev) => prev.filter((f) => f !== "plannedMinutes")); }}
+                  placeholder="–"
+                  className={cn("bg-background", hasError("plannedMinutes") && "border-destructive")}
+                />
+              </Field>
+              <Field label="Anz. Personen" fieldKey="requiredPersons">
+                <Input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={draft.requiredPersons}
+                  disabled={isLocked("requiredPersons")}
+                  onChange={(e) => { setDraft((p) => ({ ...p, requiredPersons: e.target.value })); setValidationErrors((prev) => prev.filter((f) => f !== "requiredPersons")); }}
+                  placeholder="–"
+                  className={cn("bg-background", hasError("requiredPersons") && "border-destructive")}
+                />
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Kategorie" fieldKey="category">
+                <Select value={draft.category} disabled={isLocked("category")} onValueChange={(v) => { setDraft((p) => ({ ...p, category: v })); setValidationErrors((prev) => prev.filter((f) => f !== "category")); }}>
+                  <SelectTrigger className={cn("bg-background", hasError("category") && "border-destructive")}><SelectValue placeholder="Keine Angabe" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Keine Angabe</SelectItem>
+                    <SelectItem value="a">A</SelectItem>
+                    <SelectItem value="b">B</SelectItem>
+                    <SelectItem value="c">C</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field label="Resultat" fieldKey="resultRequirement">
+                <Select value={draft.resultRequirement} disabled={isLocked("resultRequirement")} onValueChange={(v) => { setDraft((p) => ({ ...p, resultRequirement: v })); setValidationErrors((prev) => prev.filter((f) => f !== "resultRequirement")); }}>
+                  <SelectTrigger className={cn("bg-background", hasError("resultRequirement") && "border-destructive")}><SelectValue placeholder="Kein Resultat" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Kein Resultat</SelectItem>
+                    <SelectItem value="optional">Resultat optional</SelectItem>
+                    <SelectItem value="required">Resultat zwingend</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Gültig ab">
+                <div className={cn("flex items-center rounded-md border border-input bg-background px-3 py-2 text-sm focus-within:border-primary", hasError("validFrom") && "border-destructive")}>
+                  <DatePickerInput
+                    value={draft.validFrom || undefined}
+                    onChange={(v) => setDraft((p) => ({ ...p, validFrom: v ?? "" }))}
+                    placeholder="TT.MM.JJJJ"
+                    className="h-6 min-h-0 flex-1 border-0 bg-transparent p-0 text-sm shadow-none"
+                  />
+                </div>
+              </Field>
+              <Field label="Gültig bis">
+                <div className="flex items-center rounded-md border border-input bg-background px-3 py-2 text-sm focus-within:border-primary">
+                  <DatePickerInput
+                    value={draft.validTo || undefined}
+                    onChange={(v) => setDraft((p) => ({ ...p, validTo: v ?? "" }))}
+                    placeholder="TT.MM.JJJJ"
+                    className="h-6 min-h-0 flex-1 border-0 bg-transparent p-0 text-sm shadow-none"
+                  />
+                </div>
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Wiederholung" fieldKey="recurrence">
+                <Select
+                  value={draft.recurrence}
+                  disabled={isLocked("recurrence")}
+                  onValueChange={(v) => { setDraft((p) => ({ ...p, recurrence: v, recurrenceWeekdays: [], recurrenceMonthlyPattern: "none" })); setValidationErrors((prev) => prev.filter((f) => f !== "recurrence")); }}
+                >
+                  <SelectTrigger className={cn("bg-background", hasError("recurrence") && "border-destructive")}><SelectValue placeholder="Keine Angabe" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Keine Angabe</SelectItem>
+                    <SelectItem value="daily">Täglich</SelectItem>
+                    <SelectItem value="weekly">Wöchentlich</SelectItem>
+                    <SelectItem value="monthly">Monatlich</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              {draft.recurrence === "weekly" && (
+                <Field label="Wochentage" fieldKey="recurrenceWeekdays">
+                  <div className="flex flex-wrap gap-1">
+                    {WEEKDAY_OPTIONS.map((wd) => {
+                      const isSelected = draft.recurrenceWeekdays.includes(wd.value);
+                      return (
+                        <button
+                          key={wd.value}
+                          type="button"
+                          disabled={isLocked("recurrenceWeekdays")}
+                          onClick={() => {
+                            const next = isSelected
+                              ? draft.recurrenceWeekdays.filter((v) => v !== wd.value)
+                              : [...draft.recurrenceWeekdays, wd.value];
+                            setDraft((p) => ({ ...p, recurrenceWeekdays: next }));
+                            setValidationErrors((prev) => prev.filter((f) => f !== "recurrenceWeekdays"));
+                          }}
+                          className={cn(
+                            "rounded border px-2 py-0.5 text-xs transition-colors",
+                            isSelected ? "border-primary bg-primary/10 text-primary" : "border-border bg-background hover:bg-secondary/60",
+                            hasError("recurrenceWeekdays") && !isSelected && "border-destructive/60",
+                          )}
+                        >
+                          {wd.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </Field>
+              )}
+              {draft.recurrence === "monthly" && (
+                <Field label="Muster" fieldKey="recurrenceMonthlyPattern">
+                  <Select
+                    value={draft.recurrenceMonthlyPattern}
+                    disabled={isLocked("recurrenceMonthlyPattern")}
+                    onValueChange={(v) => { setDraft((p) => ({ ...p, recurrenceMonthlyPattern: v })); setValidationErrors((prev) => prev.filter((f) => f !== "recurrenceMonthlyPattern")); }}
+                  >
+                    <SelectTrigger className={cn("bg-background", hasError("recurrenceMonthlyPattern") && "border-destructive")}><SelectValue placeholder="Wählen…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Keine Angabe</SelectItem>
+                      {MONTHLY_PATTERN_OPTIONS.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between bg-primary px-6 py-3">
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="ghost" onClick={onClose} className="text-white hover:bg-white/10 hover:text-white">
+              Abbrechen
+            </Button>
+            {mode === "edit" && (
+              <Button type="button" variant="ghost" onClick={onDelete} className="text-white hover:bg-white/10 hover:text-white">
+                Löschen
+              </Button>
+            )}
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={handleSave}
+            className="text-white hover:bg-white/10 hover:text-white"
+          >
+            Speichern
+          </Button>
+        </div>
+      </aside>
+    </div>
+  );
+}
 
 const buildEmptyUnplannedTemplateDraft = (dayPart?: DayPart | "none"): UnplannedActionDraft => {
   const defaultFields = buildDefaultTemplateFields();
