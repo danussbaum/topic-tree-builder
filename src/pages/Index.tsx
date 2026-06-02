@@ -2165,7 +2165,7 @@ const Index = () => {
                   </div>
                 )}
                 {viewMode === "planning" && (
-                  <div className="flex items-center justify-end">
+                  <div className="flex items-center justify-end -mb-7">
                     <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
                       <input
                         type="checkbox"
@@ -2177,7 +2177,6 @@ const Index = () => {
                     </label>
                   </div>
                 )}
-
                 {visibleSelectedClients.map((client) => (
                   <section key={client.id} className="space-y-6">
                     {/* Client header */}
