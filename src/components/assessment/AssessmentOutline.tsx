@@ -1803,8 +1803,9 @@ function ActionRow({
 
         {/* Meta fields */}
         {viewMode === "planning" ? (
-          <div className="mt-1.5 grid grid-cols-2 gap-1 text-xs text-muted-foreground md:grid-cols-5">
+          <div className="mt-1.5 flex flex-col gap-1 text-xs text-muted-foreground">
             {/* Zeile 1: Tageszeit | Uhrzeit | geplante Minuten | Anz. Personen | Kategorie */}
+            <div className="grid grid-cols-5 gap-1">
             <div className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1 transition-colors focus-within:border-primary">
               <span className="shrink-0 text-muted-foreground">Tageszeit</span>
               <Select
@@ -1931,8 +1932,10 @@ function ActionRow({
                 </SelectContent>
               </Select>
             </div>
+            </div>
 
             {/* Zeile 2: Gültig ab | Gültig bis | Wiederholung | (Wochentage/Monatl. Regel) | Resultat */}
+            <div className="grid grid-cols-5 gap-1">
             <DateField
               label="Gültig ab"
               required
@@ -2096,6 +2099,7 @@ function ActionRow({
                   <SelectItem value="required">Resultat zwingend</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
             </div>
           </div>
         ) : (
