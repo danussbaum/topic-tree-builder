@@ -30,6 +30,7 @@ export interface AssessmentFilterModel {
   result?: "none" | "with_result";
   disciplineIds?: string[];
   unplanned?: "planned" | "unplanned";
+  actionTitleSearch?: string;
 }
 
 export const DEFAULT_ASSESSMENT_FILTER: AssessmentFilterModel = {
@@ -116,6 +117,11 @@ export const matchesAssessmentFilter = (
 
   if (filter.unplanned === "planned" && action.isUnplanned) return false;
   if (filter.unplanned === "unplanned" && !action.isUnplanned) return false;
+
+  if (filter.actionTitleSearch?.trim()) {
+    const search = filter.actionTitleSearch.trim().toLowerCase();
+    if (!action.title?.toLowerCase().includes(search)) return false;
+  }
 
   return true;
 };

@@ -587,7 +587,8 @@ const Index = () => {
       f.unplanned != null ||
       (f.disciplineIds?.length ?? 0) > 0 ||
       f.persons != null ||
-      f.result != null
+      f.result != null ||
+      !!f.actionTitleSearch?.trim()
     );
   })();
   const isOpenVisible = OPEN_CONFIRMATION_STATUSES.some((status) =>
@@ -633,7 +634,9 @@ const Index = () => {
 
   const resetFilter = () => {
     clearTransientUnplannedActions();
-    setDraftFilter(INITIAL_CONFIRMATION_FILTER);
+    setConfirmationFilter(INITIAL_CONFIRMATION_FILTER);
+    setTransientUnplannedActionIds(new Set());
+    setIsFilterOpen(false);
   };
 
   const applyFilter = () => {
@@ -650,32 +653,12 @@ const Index = () => {
       setIsFilterOpen(false);
     };
 
-    const handlePointerDown = (event: MouseEvent) => {
-      if (!filterMenuRef.current) return;
-      const target = event.target as HTMLElement | null;
-      if (!target) return;
-      // Ignore clicks inside the menu itself
-      if (filterMenuRef.current.contains(target)) return;
-      // Ignore clicks inside Radix portals (Select dropdowns, etc.)
-      if (target.closest("[data-radix-popper-content-wrapper]")) return;
-      if (target.closest("[role='listbox']")) return;
-      // Ignore clicks on the filter ribbon button itself (it has its own toggle)
-      if (filterButtonRef.current?.contains(target)) return;
-      closeMenu();
-    };
-
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        closeMenu();
-      }
+      if (event.key === "Escape") closeMenu();
     };
 
-    document.addEventListener("mousedown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
+    return () => document.removeEventListener("keydown", handleKeyDown);
   }, [isFilterOpen, confirmationFilter]);
 
   const toggleDraftStatus = (status: ActionNode["status"]) => {
@@ -1767,6 +1750,12 @@ const Index = () => {
 
             {viewMode === "confirmation" && isFilterOpen && (
               <div
+                className="fixed inset-0 z-30"
+                onMouseDown={cancelFilter}
+              />
+            )}
+            {viewMode === "confirmation" && isFilterOpen && (
+              <div
                 ref={filterMenuRef}
                 style={{ left: `${filterMenuLeft}px` }}
                 className="absolute top-full z-40 mt-1 w-[28rem] max-w-[calc(100vw-2rem)] rounded-sm border border-border bg-background text-sm shadow-xl"
@@ -2091,6 +2080,23 @@ const Index = () => {
                         </SelectContent>
                       </Select>
                     </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="text-xs font-medium">Handlung (Titel enthält)</div>
+                    <Input
+                      type="text"
+                      placeholder="Suche..."
+                      value={draftFilter.actionTitleSearch ?? ""}
+                      onChange={(e) =>
+                        updateDraftFilter((prev) => ({
+                          ...prev,
+                          actionTitleSearch: e.target.value || undefined,
+                        }))
+                      }
+                      className="h-7 text-xs"
+                      onKeyDown={(e) => { if (e.key === "Enter") applyFilter(); }}
+                    />
                   </div>
                 </div>
 
