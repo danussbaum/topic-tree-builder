@@ -2497,7 +2497,7 @@ const Index = () => {
                 {viewMode !== "review" && visibleSelectedClients.map((client) => (
                   <section key={client.id} className="space-y-6">
                     {/* Client header */}
-                    <div className={cn("flex items-center gap-4 pb-5 border-b border-border sticky bg-background z-10", viewMode === "confirmation" ? "top-16" : "top-9")}>
+                    <div className={cn("flex items-center gap-4 pb-5 border-b border-border sticky bg-background z-10", viewMode === "confirmation" ? "top-[76px] pt-[5px]" : "top-9")}>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline gap-0">
                           <ClientNameInput
@@ -2551,6 +2551,7 @@ const Index = () => {
 
                     <AssessmentOutline
                       viewMode={viewMode}
+                      stickyOffset={viewMode === "confirmation" ? 134 : undefined}
                       selectedDate={selectedDate}
                       onSelectedDateChange={setSelectedDate}
                       confirmationPeriod={confirmationPeriod}
@@ -2785,11 +2786,11 @@ function TargetAssessmentPanel({
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex justify-end pointer-events-none`}
+      className={`fixed inset-0 z-50 flex justify-end pointer-events-none overflow-hidden`}
     >
       <aside
         ref={asideRef}
-        className={`pointer-events-auto flex h-dvh w-full max-w-lg flex-col bg-[#f3f3f5] shadow-2xl transition-transform duration-300 ease-out ${isOpen ? "translate-x-0" : "translate-x-full"}`}
+        className={`pointer-events-auto flex h-dvh w-full max-w-lg flex-col bg-[#f3f3f5] transition-transform duration-300 ease-out ${isOpen ? "translate-x-0 shadow-2xl" : "translate-x-full"}`}
       >
         <div className="flex shrink-0 items-center justify-between bg-primary px-6 py-4 text-primary-foreground">
           <div>

@@ -258,6 +258,7 @@ function draftToOverrides(draft: ActionDraft): ActionDraftOverrides {
 
 interface Props {
   viewMode: "planning" | "confirmation";
+  stickyOffset?: number;
   selectedDate: string;
   onSelectedDateChange: (date: string) => void;
   confirmationPeriod?: ConfirmationPeriod;
@@ -498,6 +499,7 @@ const getPostponedLabel = (date?: string, time?: string) => {
 
 export function AssessmentOutline({
   viewMode,
+  stickyOffset,
   selectedDate,
   onSelectedDateChange,
   confirmationPeriod = "day",
@@ -536,6 +538,7 @@ export function AssessmentOutline({
     targetValidFrom?: string;
     targetValidTo?: string;
     action?: ActionNode;
+    initialDayPart?: DayPart | "none";
   } | null>(null);
   const [isPanelMounted, setIsPanelMounted] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
@@ -582,11 +585,11 @@ export function AssessmentOutline({
     }
   }, [bulkNotDoneMode]);
 
-  const openCreatePanel = (topicId: string, targetId: string) => {
+  const openCreatePanel = (topicId: string, targetId: string, initialDayPart?: DayPart | "none") => {
     const topic = topics.find((t) => t.id === topicId);
     const topicDisciplineId = topic ? getTopicDisciplineId(topic) : undefined;
     const target = topic?.targets.find((tg) => tg.id === targetId);
-    setPanelContext({ mode: "create", topicId, targetId, topicDisciplineId, targetValidFrom: target?.validFrom, targetValidTo: target?.validTo });
+    setPanelContext({ mode: "create", topicId, targetId, topicDisciplineId, targetValidFrom: target?.validFrom, targetValidTo: target?.validTo, initialDayPart });
     setIsPanelMounted(true);
   };
 
@@ -920,15 +923,21 @@ export function AssessmentOutline({
         <div className="space-y-4">
           {groupedFlatActions.map((dateGroup) => (
             <div key={dateGroup.dueDate} className="space-y-3">
-              <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
-                <h3 className="text-sm font-semibold text-primary">
-                  {format(parseISO(dateGroup.dueDate), "EEEE, dd.MM.yyyy", { locale: de })}
-                </h3>
+              <div
+                className={cn(stickyOffset !== undefined && "sticky z-[5] bg-background rounded-lg")}
+                style={stickyOffset !== undefined ? { top: stickyOffset } : undefined}
+              >
+                <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+                  <h3 className="text-sm font-semibold text-primary">
+                    {format(parseISO(dateGroup.dueDate), "EEEE, dd.MM.yyyy", { locale: de })}
+                  </h3>
+                </div>
               </div>
               {dateGroup.dayPartGroups.map((group) => (
                 <div key={`${dateGroup.dueDate}-${group.key}`}>
                   <DayPartHeader
                     part={group.key}
+                    stickyTop={stickyOffset !== undefined ? stickyOffset + 46 : undefined}
                     onCreateUnplanned={onAddUnplannedAction ? () =>
                       setUnplannedDialogTarget({ dueDate: dateGroup.dueDate, dayPart: group.key }) : undefined}
                   />
@@ -1507,33 +1516,51 @@ export function AssessmentOutline({
                       className="mt-2"
                     />
 
-                    <div className="mt-3">
-                      <ul className="space-y-1">
-                        {target.actions.map((action) => (
-                          <ActionRow
-                            key={action.id}
-                            viewMode={viewMode}
-                            topicId={topic.id}
-                            targetId={target.id}
-                            action={action}
-                            targetValidFrom={target.validFrom}
-                            targetValidTo={target.validTo}
-                            onUpdateAction={onUpdateAction}
-                            onUpdateActionField={onUpdateActionField}
-                            onDeleteAction={onDeleteAction}
-                            onOpenEditPanel={() => openEditPanel(topic.id, target.id, action)}
-                            onOpenDialog={(initialMode) =>
-                              setDialogTarget({
-                                topicId: topic.id,
-                                targetId: target.id,
-                                dueDate: selectedDate,
-                                initialMode,
-                                action,
-                              })
-                            }
-                          />
-                        ))}
-                      </ul>
+                    <div className="mt-3 space-y-3">
+                      {(() => {
+                        const plannedActions = target.actions.filter((a) => !a.isUnplanned);
+                        const grouped = DAY_PART_ORDER.map((part) => ({
+                          part,
+                          actions: plannedActions.filter((a) => (a.dayPart ?? "none") === part),
+                        })).filter((g) => g.actions.length > 0);
+                        const hasNone = grouped.length === 0 || grouped.every((g) => g.part === "none");
+                        return grouped.length === 0 ? null : grouped.map(({ part, actions }) => (
+                          <div key={part}>
+                            {(!hasNone || part !== "none") && (
+                              <DayPartHeader
+                                part={part}
+                                onAdd={!isTargetClosed ? () => openCreatePanel(topic.id, target.id, part === "none" ? undefined : part) : undefined}
+                              />
+                            )}
+                            <ul className="mt-1.5 space-y-1">
+                              {actions.map((action) => (
+                                <ActionRow
+                                  key={action.id}
+                                  viewMode={viewMode}
+                                  topicId={topic.id}
+                                  targetId={target.id}
+                                  action={action}
+                                  targetValidFrom={target.validFrom}
+                                  targetValidTo={target.validTo}
+                                  onUpdateAction={onUpdateAction}
+                                  onUpdateActionField={onUpdateActionField}
+                                  onDeleteAction={onDeleteAction}
+                                  onOpenEditPanel={() => openEditPanel(topic.id, target.id, action)}
+                                  onOpenDialog={(initialMode) =>
+                                    setDialogTarget({
+                                      topicId: topic.id,
+                                      targetId: target.id,
+                                      dueDate: selectedDate,
+                                      initialMode,
+                                      action,
+                                    })
+                                  }
+                                />
+                              ))}
+                            </ul>
+                          </div>
+                        ));
+                      })()}
                     </div>
 
                     {!isTargetClosed && (
@@ -1616,6 +1643,7 @@ export function AssessmentOutline({
           topicDisciplineId={panelContext.topicDisciplineId}
           targetValidFrom={panelContext.targetValidFrom}
           targetValidTo={panelContext.targetValidTo}
+          initialDayPart={panelContext.initialDayPart}
           isPanelOpen={isPanelOpen}
           onClose={closePanel}
           onSave={handlePanelSave}
@@ -1630,12 +1658,16 @@ export function AssessmentOutline({
 
 function DayPartHeader({
   part,
+  stickyTop,
   onCreateUnplanned,
+  onAdd,
 }: {
   part: DayPart | "none";
+  stickyTop?: number;
   onCreateUnplanned?: () => void;
+  onAdd?: () => void;
 }) {
-  const menu = onCreateUnplanned ? (
+  const addButton = (onClick: () => void, ariaLabel: string, tooltipTitle: string, tooltipDesc: string) => (
     <TooltipProvider delayDuration={150}>
       <Tooltip>
         <TooltipTrigger asChild>
@@ -1644,25 +1676,36 @@ function DayPartHeader({
             variant="ghost"
             size="icon"
             className="h-7 w-7 rounded-full text-muted-foreground hover:text-primary"
-            aria-label="Ungeplante Handlung erstellen"
-            onClick={onCreateUnplanned}
+            aria-label={ariaLabel}
+            onClick={onClick}
           >
             <Plus className="h-4 w-4" />
           </Button>
         </TooltipTrigger>
         <TooltipContent side="top" className="normal-case tracking-normal font-normal text-sm">
           <div className="max-w-[220px] space-y-0.5">
-            <div className="font-medium">Ungeplante Handlung erstellen</div>
-            <div className="text-xs text-muted-foreground">Neue Handlung ausserhalb des Plans erfassen</div>
+            <div className="font-medium">{tooltipTitle}</div>
+            <div className="text-xs text-muted-foreground">{tooltipDesc}</div>
           </div>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
-  ) : null;
+  );
+
+  const menu = (
+    <>
+      {onAdd && addButton(onAdd, "Handlung hinzufügen", "Handlung hinzufügen", "Neue geplante Handlung für diese Tageszeit erfassen")}
+      {onCreateUnplanned && addButton(onCreateUnplanned, "Ungeplante Handlung erstellen", "Ungeplante Handlung erstellen", "Neue Handlung ausserhalb des Plans erfassen")}
+    </>
+  );
+
+  const stickyProps = stickyTop !== undefined
+    ? { className: "sticky z-[4] bg-background py-1", style: { top: stickyTop } }
+    : { className: "" };
 
   if (part === "none") {
     return (
-      <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/70">
+      <div className={cn("flex items-center gap-2 text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/70", stickyProps.className)} style={stickyProps.style}>
         <span className="h-px flex-1 bg-border" />
         <span>Ohne Tageszeit</span>
         <span className="h-px flex-1 bg-border" />
@@ -1672,7 +1715,7 @@ function DayPartHeader({
   }
   const Icon = DAY_PART_ICONS[part];
   return (
-    <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest font-semibold text-accent">
+    <div className={cn("flex items-center gap-2 text-[10px] uppercase tracking-widest font-semibold text-accent", stickyProps.className)} style={stickyProps.style}>
       <Icon className="h-3.5 w-3.5" />
       <span>{DAY_PART_LABEL[part]}</span>
       <span className="h-px flex-1 bg-border" />
@@ -2617,6 +2660,7 @@ function ActionSidePanel({
   topicDisciplineId,
   targetValidFrom,
   targetValidTo,
+  initialDayPart,
   isPanelOpen,
   onClose,
   onSave,
@@ -2629,6 +2673,7 @@ function ActionSidePanel({
   topicDisciplineId?: string;
   targetValidFrom?: string;
   targetValidTo?: string;
+  initialDayPart?: DayPart | "none";
   isPanelOpen: boolean;
   onClose: () => void;
   onSave: (draft: ActionDraft, selectedTemplateIds: string[]) => void;
@@ -2636,9 +2681,12 @@ function ActionSidePanel({
   onDelete: () => void;
   onTransitionEnd: () => void;
 }) {
-  const [draft, setDraft] = useState<ActionDraft>(() =>
-    action ? actionToDraft(action) : emptyActionDraft(),
-  );
+  const [draft, setDraft] = useState<ActionDraft>(() => {
+    if (action) return actionToDraft(action);
+    const base = emptyActionDraft();
+    if (initialDayPart && initialDayPart !== "none") base.dayPart = initialDayPart;
+    return base;
+  });
   const [lockedFields, setLockedFields] = useState<string[]>(() => action?.templateLockedFields ?? []);
   const [requiredFields, setRequiredFields] = useState<string[]>(() => action?.templateRequiredFields ?? []);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
@@ -2653,7 +2701,11 @@ function ActionSidePanel({
   useEffect(() => {
     if (!isPanelOpen) return;
     const handler = (e: MouseEvent) => {
-      if (asideRef.current && !asideRef.current.contains(e.target as Node)) onClose();
+      const target = e.target as Element;
+      if (asideRef.current && !asideRef.current.contains(target)) {
+        if (target.closest?.("[data-radix-popper-content-wrapper],[data-radix-select-content],[data-radix-dropdown-menu-content],[data-radix-popover-content]")) return;
+        onClose();
+      }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -2698,7 +2750,7 @@ function ActionSidePanel({
       plannedMinutes: fields.dauer !== "0" && fields.dauer ? fields.dauer : "",
       requiredPersons: fields.personen !== "0" && fields.personen ? fields.personen : "",
       resultRequirement: fields.resultat !== "none" ? fields.resultat : "none",
-      dayPart: fields.tageszeit !== "none" ? fields.tageszeit : "none",
+      dayPart: fields.tageszeit !== "none" ? fields.tageszeit : (initialDayPart && initialDayPart !== "none" ? initialDayPart : "none"),
       scheduledTime: fields.uhrzeit || "",
       category: fields.kategorie !== "none" ? fields.kategorie : "none",
       serviceType: fields.leistungsart !== "none" ? fields.leistungsart : "none",
@@ -2760,11 +2812,11 @@ function ActionSidePanel({
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-50 flex justify-end pointer-events-none`}
+      className={`fixed inset-0 z-50 flex justify-end pointer-events-none overflow-hidden`}
     >
       <aside
         ref={asideRef}
-        className={`pointer-events-auto flex h-dvh w-full max-w-2xl flex-col bg-[#f3f3f5] shadow-2xl transition-transform duration-300 ease-out ${isPanelOpen ? "translate-x-0" : "translate-x-full"}`}
+        className={`pointer-events-auto flex h-dvh w-full max-w-2xl flex-col bg-[#f3f3f5] transition-transform duration-300 ease-out ${isPanelOpen ? "translate-x-0 shadow-2xl" : "translate-x-full"}`}
         onTransitionEnd={onTransitionEnd}
       >
         {/* Header */}
@@ -2819,8 +2871,8 @@ function ActionSidePanel({
                   <div className="flex items-center gap-2 px-3 py-2">
                     <input
                       ref={templateInputRef}
-                      value={templateQuery}
-                      onChange={(e) => { setTemplateQuery(e.target.value); setDropdownOpen(true); }}
+                      value={selectedTemplateId && !templateQuery ? (availableTemplates.find((t) => t.id === selectedTemplateId)?.name ?? templateQuery) : templateQuery}
+                      onChange={(e) => { setTemplateQuery(e.target.value); setDropdownOpen(true); if (selectedTemplateId) clearTemplate(); }}
                       onFocus={() => setDropdownOpen(true)}
                       onKeyDown={(e) => {
                         if (e.key === "ArrowDown") { e.preventDefault(); setActiveIndex((p) => (p + 1) % filteredTemplates.length); }
@@ -2828,7 +2880,7 @@ function ActionSidePanel({
                         if (e.key === "Enter") { e.preventDefault(); if (filteredTemplates[activeIndex]) applyTemplate(filteredTemplates[activeIndex].id); }
                         if (e.key === "Escape") setDropdownOpen(false);
                       }}
-                      placeholder={selectedTemplateId ? availableTemplates.find((t) => t.id === selectedTemplateId)?.name ?? "Vorlage suchen…" : "Vorlage suchen…"}
+                      placeholder="Vorlage suchen…"
                       className="flex-1 border-0 bg-transparent text-sm outline-none placeholder:text-muted-foreground/60 focus:ring-0"
                     />
                     {selectedTemplateId && (
@@ -3143,7 +3195,11 @@ export function UnplannedActionDialog({
   useEffect(() => {
     if (!isPanelVisible) return;
     const handler = (e: MouseEvent) => {
-      if (unplannedAsideRef.current && !unplannedAsideRef.current.contains(e.target as Node)) setIsPanelVisible(false);
+      const target = e.target as Element;
+      if (unplannedAsideRef.current && !unplannedAsideRef.current.contains(target)) {
+        if (target.closest?.("[data-radix-popper-content-wrapper],[data-radix-select-content],[data-radix-dropdown-menu-content],[data-radix-popover-content]")) return;
+        setIsPanelVisible(false);
+      }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -3311,11 +3367,11 @@ export function UnplannedActionDialog({
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-50 flex justify-end pointer-events-none`}
+      className={`fixed inset-0 z-50 flex justify-end pointer-events-none overflow-hidden`}
     >
       <aside
         ref={unplannedAsideRef}
-        className={`pointer-events-auto flex h-dvh w-full max-w-2xl flex-col bg-[#f3f3f5] shadow-2xl transition-transform duration-300 ease-out ${isPanelVisible ? "translate-x-0" : "translate-x-full"}`}
+        className={`pointer-events-auto flex h-dvh w-full max-w-2xl flex-col bg-[#f3f3f5] transition-transform duration-300 ease-out ${isPanelVisible ? "translate-x-0 shadow-2xl" : "translate-x-full"}`}
         onTransitionEnd={(e) => {
           if (e.propertyName === "transform" && !isPanelVisible) {
             setLocalTarget(null);
@@ -3711,7 +3767,11 @@ function ConfirmActionDialog({
   useEffect(() => {
     if (!isPanelVisible) return;
     const handler = (e: MouseEvent) => {
-      if (confirmAsideRef.current && !confirmAsideRef.current.contains(e.target as Node)) setIsPanelVisible(false);
+      const target = e.target as Element;
+      if (confirmAsideRef.current && !confirmAsideRef.current.contains(target)) {
+        if (target.closest?.("[data-radix-popper-content-wrapper],[data-radix-select-content],[data-radix-dropdown-menu-content],[data-radix-popover-content]")) return;
+        setIsPanelVisible(false);
+      }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -3824,11 +3884,11 @@ function ConfirmActionDialog({
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-50 flex justify-end pointer-events-none`}
+      className={`fixed inset-0 z-50 flex justify-end pointer-events-none overflow-hidden`}
     >
       <aside
         ref={confirmAsideRef}
-        className={`pointer-events-auto flex h-dvh w-full max-w-2xl flex-col bg-[#f3f3f5] shadow-2xl transition-transform duration-300 ease-out ${isPanelVisible ? "translate-x-0" : "translate-x-full"}`}
+        className={`pointer-events-auto flex h-dvh w-full max-w-2xl flex-col bg-[#f3f3f5] transition-transform duration-300 ease-out ${isPanelVisible ? "translate-x-0 shadow-2xl" : "translate-x-full"}`}
         onTransitionEnd={(e) => {
           if (e.propertyName === "transform" && !isPanelVisible) {
             setLocalTarget(null);
