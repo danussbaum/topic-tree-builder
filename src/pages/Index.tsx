@@ -1635,7 +1635,7 @@ const Index = () => {
 
   return (
     <SidebarProvider>
-      <div className="min-h-dvh bg-background flex w-full">
+      <div className="h-dvh bg-background flex w-full">
         <ClientSidebar
           clients={clients}
           selectedClientIds={selectedClientIds}
@@ -2114,7 +2114,7 @@ const Index = () => {
             ) : (
               <div className="px-6 lg:px-10 py-6 w-full space-y-10">
                 {viewMode === "confirmation" && (
-                  <div className="flex items-center justify-between bg-secondary/30 p-4 rounded-lg border border-border sticky top-0 z-10">
+                  <div className="flex items-center justify-between bg-background p-4 rounded-lg border border-border sticky top-0 z-20">
                     <div className="flex items-center gap-4">
                       <div className="flex items-center gap-1 bg-background border border-border rounded-md p-1">
                         <button
@@ -2274,7 +2274,7 @@ const Index = () => {
                   </div>
                 )}
                 {viewMode === "planning" && (
-                  <div className="flex items-center justify-end -mb-7">
+                  <div className="flex items-center justify-end sticky top-0 z-20 bg-background py-2">
                     <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
                       <input
                         type="checkbox"
@@ -2288,7 +2288,7 @@ const Index = () => {
                 )}
                 {viewMode === "review" && (
                   <>
-                    <div className="flex items-center justify-end -mb-7">
+                    <div className="flex items-center justify-end sticky top-0 z-20 bg-background py-2">
                       <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
                         <input
                           type="checkbox"
@@ -2317,7 +2317,7 @@ const Index = () => {
                       const clientName = `${client.firstName} ${client.lastName}`.trim();
                       return (
                         <section key={client.id} className="space-y-6">
-                          <h1 className="text-2xl font-semibold pb-5 border-b border-border">
+                          <h1 className="text-2xl font-semibold pb-5 border-b border-border sticky top-9 bg-background z-10">
                             {clientName}
                           </h1>
                           {closedTargets.length === 0 ? (
@@ -2486,7 +2486,7 @@ const Index = () => {
                 {viewMode !== "review" && visibleSelectedClients.map((client) => (
                   <section key={client.id} className="space-y-6">
                     {/* Client header */}
-                    <div className="flex items-center gap-4 pb-5 border-b border-border">
+                    <div className={cn("flex items-center gap-4 pb-5 border-b border-border sticky bg-background z-10", viewMode === "confirmation" ? "top-16" : "top-9")}>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline gap-0">
                           <ClientNameInput
@@ -2619,6 +2619,7 @@ const Index = () => {
                         addUnplannedAction(client.id, draft.dateFrom ?? "", draft.dayPart ?? "none", draft);
                         setPersonUnplannedClientId(null);
                       }}
+                      clientName={`${client.firstName} ${client.lastName}`.trim()}
                     />
                   </section>
                 ))}
@@ -2674,6 +2675,7 @@ const Index = () => {
         <TargetAssessmentPanel
           target={reviewAssessmentPanel.target}
           onClose={() => setReviewAssessmentPanel(null)}
+          clientName={(() => { const c = clients.find(x => x.id === reviewAssessmentPanel.clientId); return c ? `${c.firstName} ${c.lastName}`.trim() : undefined; })()}
           onSave={(assessment) => {
             updateTargetAssessment(
               reviewAssessmentPanel.clientId,
@@ -2739,14 +2741,17 @@ function TargetAssessmentPanel({
   target,
   onClose,
   onSave,
+  clientName,
 }: {
   target: import("@/types/assessment").TargetNode;
   onClose: () => void;
   onSave: (assessment: import("@/types/assessment").TargetAssessment) => void;
+  clientName?: string;
 }) {
   const [goalAchievement, setGoalAchievement] = useState(target.assessment?.goalAchievement ?? "");
   const [derivedMeasures, setDerivedMeasures] = useState(target.assessment?.derivedMeasures ?? "");
   const [isOpen, setIsOpen] = useState(false);
+  const asideRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => setIsOpen(true));
@@ -2758,27 +2763,41 @@ function TargetAssessmentPanel({
     setTimeout(onClose, 300);
   };
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (asideRef.current && !asideRef.current.contains(e.target as Node)) handleClose();
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [isOpen]);
+
   return (
     <div
-      className={`fixed inset-0 z-50 flex justify-end transition-opacity duration-300 ${isOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"}`}
-      onClick={handleClose}
+      className={`fixed inset-0 z-50 flex justify-end pointer-events-none`}
     >
       <aside
-        onClick={(e) => e.stopPropagation()}
+        ref={asideRef}
         className={`pointer-events-auto flex h-dvh w-full max-w-lg flex-col bg-[#f3f3f5] shadow-2xl transition-transform duration-300 ease-out ${isOpen ? "translate-x-0" : "translate-x-full"}`}
       >
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <h2 className="text-2xl font-light text-foreground">Zielbeurteilung</h2>
-          <button type="button" onClick={handleClose} className="text-muted-foreground hover:text-foreground">
+        <div className="flex shrink-0 items-center justify-between bg-primary px-6 py-4 text-primary-foreground">
+          <div>
+            <h2 className="text-2xl font-light">Zielbeurteilung</h2>
+            {clientName && <p className="text-sm opacity-80 mt-0.5">{clientName}</p>}
+          </div>
+          <button type="button" onClick={handleClose} className="opacity-70 hover:opacity-100">
             ✕
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-          {target.title && (
-            <div className="rounded-md bg-background border border-border px-4 py-3">
-              <div className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground mb-0.5">Ziel</div>
-              <p className="text-sm font-medium">{target.title}</p>
+          {(target.title || target.notes) && (
+            <div className="space-y-1.5">
+              <div className="text-xs font-medium text-muted-foreground uppercase tracking-widest">Ziel</div>
+              <div className="rounded-md bg-background border border-border px-4 py-3 space-y-1">
+                {target.title && <p className="text-sm font-medium">{target.title}</p>}
+                {target.notes && <p className="text-sm text-muted-foreground">{target.notes}</p>}
+              </div>
             </div>
           )}
 
@@ -2809,9 +2828,13 @@ function TargetAssessmentPanel({
           </div>
         </div>
 
-        <div className="border-t border-border px-6 py-4 flex justify-between gap-3">
-          <Button variant="outline" onClick={handleClose}>Abbrechen</Button>
-          <Button onClick={() => onSave({ goalAchievement, derivedMeasures })}>Speichern</Button>
+        <div className="flex items-center justify-between bg-primary px-6 py-3">
+          <Button type="button" variant="ghost" onClick={handleClose} className="text-white hover:bg-white/10 hover:text-white">
+            Abbrechen
+          </Button>
+          <Button type="button" variant="ghost" onClick={() => onSave({ goalAchievement, derivedMeasures })} className="text-white hover:bg-white/10 hover:text-white">
+            Speichern
+          </Button>
         </div>
       </aside>
     </div>

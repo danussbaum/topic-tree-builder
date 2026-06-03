@@ -1274,6 +1274,7 @@ export function AssessmentOutline({
             onDeleteAction(dialogTarget.topicId, dialogTarget.targetId, dialogTarget.action.id);
             setDialogTarget(null);
           } : undefined}
+          clientName={clientName}
         />
         <UnplannedActionDialog
           target={unplannedDialogTarget}
@@ -1283,6 +1284,7 @@ export function AssessmentOutline({
             onAddUnplannedAction(unplannedDialogTarget.dueDate ?? draft.dateFrom ?? "", unplannedDialogTarget.dayPart, draft);
             setUnplannedDialogTarget(null);
           }}
+          clientName={clientName}
         />
         <BulkNotDoneDialog
           open={bulkNotDoneDialogOpen}
@@ -1554,6 +1556,7 @@ export function AssessmentOutline({
           );
           setDialogTarget(null);
         }}
+        clientName={clientName}
       />
 
       {isPanelMounted && panelContext && (
@@ -1569,6 +1572,7 @@ export function AssessmentOutline({
           onSave={handlePanelSave}
           onDelete={handlePanelDelete}
           onTransitionEnd={handlePanelAnimationEnd}
+          clientName={clientName}
         />
       )}
     </div>
@@ -2524,6 +2528,7 @@ function ActionSidePanel({
   onSave,
   onDelete,
   onTransitionEnd,
+  clientName,
 }: {
   mode: "create" | "edit";
   action?: ActionNode;
@@ -2533,6 +2538,7 @@ function ActionSidePanel({
   isPanelOpen: boolean;
   onClose: () => void;
   onSave: (draft: ActionDraft, selectedTemplateIds: string[]) => void;
+  clientName?: string;
   onDelete: () => void;
   onTransitionEnd: () => void;
 }) {
@@ -2549,6 +2555,15 @@ function ActionSidePanel({
   const [isDropdownOpen, setDropdownOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const templateInputRef = useRef<HTMLInputElement | null>(null);
+  const asideRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!isPanelOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (asideRef.current && !asideRef.current.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [isPanelOpen, onClose]);
 
   useEffect(() => {
     if (mode !== "create") return;
@@ -2651,18 +2666,20 @@ function ActionSidePanel({
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-50 flex justify-end transition-opacity duration-300 ${isPanelOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"}`}
-      onClick={onClose}
+      className={`fixed inset-0 z-50 flex justify-end pointer-events-none`}
     >
       <aside
-        onClick={(e) => e.stopPropagation()}
+        ref={asideRef}
         className={`pointer-events-auto flex h-dvh w-full max-w-2xl flex-col bg-[#f3f3f5] shadow-2xl transition-transform duration-300 ease-out ${isPanelOpen ? "translate-x-0" : "translate-x-full"}`}
         onTransitionEnd={onTransitionEnd}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <h2 className="text-2xl font-light text-foreground">{panelTitle}</h2>
-          <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+        <div className="flex shrink-0 items-center justify-between bg-primary px-6 py-4 text-primary-foreground">
+          <div>
+            <h2 className="text-2xl font-light">{panelTitle}</h2>
+            {clientName && <p className="text-sm opacity-80 mt-0.5">{clientName}</p>}
+          </div>
+          <button type="button" onClick={onClose} className="opacity-70 hover:opacity-100">
             ✕
           </button>
         </div>
@@ -3009,10 +3026,12 @@ export function UnplannedActionDialog({
   target,
   onClose,
   onConfirm,
+  clientName,
 }: {
   target: { dueDate?: string; dateFrom?: string; dayPart: DayPart | "none" } | null;
   onClose: () => void;
   onConfirm: (draft: UnplannedActionDraft) => void;
+  clientName?: string;
 }) {
   const [creationMode, setCreationMode] = useState<"template" | "scratch">("template");
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
@@ -3026,6 +3045,15 @@ export function UnplannedActionDialog({
   const [dateTo, setDateTo] = useState<string>("");
   const [isPanelVisible, setIsPanelVisible] = useState(false);
   const [localTarget, setLocalTarget] = useState<{ dueDate?: string; dateFrom?: string; dayPart: DayPart | "none" } | null>(null);
+  const unplannedAsideRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!isPanelVisible) return;
+    const handler = (e: MouseEvent) => {
+      if (unplannedAsideRef.current && !unplannedAsideRef.current.contains(e.target as Node)) setIsPanelVisible(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [isPanelVisible]);
 
   const clearTemplateSelection = () => {
     setSelectedTemplateId("");
@@ -3189,11 +3217,10 @@ export function UnplannedActionDialog({
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-50 flex justify-end transition-opacity duration-300 ${isPanelVisible ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"}`}
-      onClick={() => setIsPanelVisible(false)}
+      className={`fixed inset-0 z-50 flex justify-end pointer-events-none`}
     >
       <aside
-        onClick={(e) => e.stopPropagation()}
+        ref={unplannedAsideRef}
         className={`pointer-events-auto flex h-dvh w-full max-w-2xl flex-col bg-[#f3f3f5] shadow-2xl transition-transform duration-300 ease-out ${isPanelVisible ? "translate-x-0" : "translate-x-full"}`}
         onTransitionEnd={(e) => {
           if (e.propertyName === "transform" && !isPanelVisible) {
@@ -3207,21 +3234,14 @@ export function UnplannedActionDialog({
       >
         {localTarget && (<>
         {/* Header */}
-        <div className="flex shrink-0 items-center justify-between bg-primary px-4 py-3 text-primary-foreground">
+        <div className="flex shrink-0 items-center justify-between bg-primary px-6 py-4 text-primary-foreground">
           <div>
-            <div className="text-sm font-semibold">Ungeplante Handlung erstellen</div>
-            <div className="text-xs opacity-80">
-              Wird direkt als bestätigt in der Tageszeit „{selectedDayPartLabel}" erfasst.
-            </div>
+            <h2 className="text-2xl font-light">Ungeplante Handlung erstellen</h2>
+            {clientName && <p className="text-sm opacity-80 mt-0.5">{clientName}</p>}
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsPanelVisible(false)}
-            className="h-7 w-7 text-primary-foreground opacity-80 hover:bg-primary-foreground/10 hover:opacity-100"
-          >
-            <X className="h-4 w-4" />
-          </Button>
+          <button type="button" onClick={() => setIsPanelVisible(false)} className="opacity-70 hover:opacity-100">
+            ✕
+          </button>
         </div>
 
         {/* Content */}
@@ -3466,10 +3486,10 @@ export function UnplannedActionDialog({
         {/* Footer */}
         <div className="flex shrink-0 items-center justify-between bg-primary px-6 py-3">
           <Button
-            variant="outline"
-            size="sm"
+            type="button"
+            variant="ghost"
             onClick={() => setIsPanelVisible(false)}
-            className="bg-transparent border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
+            className="text-white hover:bg-white/10 hover:text-white"
           >
             Abbrechen
           </Button>
@@ -3478,10 +3498,11 @@ export function UnplannedActionDialog({
               <p className="text-xs text-primary-foreground/80">Zwingend erforderliche Felder sind nicht ausgefüllt.</p>
             )}
             <Button
-              size="sm"
+              type="button"
+              variant="ghost"
               onClick={submit}
               disabled={(creationMode === "template" && !selectedTemplate) || !!dateRangeError || missingRequiredFields.length > 0}
-              className="bg-primary-foreground text-primary hover:bg-primary-foreground/90"
+              className="text-white hover:bg-white/10 hover:text-white"
             >
               Bestätigen
             </Button>
@@ -3573,11 +3594,13 @@ function ConfirmActionDialog({
   onClose,
   onConfirm,
   onDelete,
+  clientName,
 }: {
   target: DialogTarget | null;
   onClose: () => void;
   onConfirm: (p: ConfirmPayload) => void;
   onDelete?: () => void;
+  clientName?: string;
 }) {
   const [mode, setMode] = useState<ActionStatus | null>(null);
   const [actualMinutes, setActualMinutes] = useState<string>("");
@@ -3590,6 +3613,15 @@ function ConfirmActionDialog({
   const [postponedError, setPostponedError] = useState<string>("");
   const [isPanelVisible, setIsPanelVisible] = useState(false);
   const [localTarget, setLocalTarget] = useState<DialogTarget | null>(null);
+  const confirmAsideRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!isPanelVisible) return;
+    const handler = (e: MouseEvent) => {
+      if (confirmAsideRef.current && !confirmAsideRef.current.contains(e.target as Node)) setIsPanelVisible(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [isPanelVisible]);
 
   useEffect(() => {
     if (target) {
@@ -3698,11 +3730,10 @@ function ConfirmActionDialog({
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-50 flex justify-end transition-opacity duration-300 ${isPanelVisible ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"}`}
-      onClick={handleClose}
+      className={`fixed inset-0 z-50 flex justify-end pointer-events-none`}
     >
       <aside
-        onClick={(e) => e.stopPropagation()}
+        ref={confirmAsideRef}
         className={`pointer-events-auto flex h-dvh w-full max-w-2xl flex-col bg-[#f3f3f5] shadow-2xl transition-transform duration-300 ease-out ${isPanelVisible ? "translate-x-0" : "translate-x-full"}`}
         onTransitionEnd={(e) => {
           if (e.propertyName === "transform" && !isPanelVisible) {
@@ -3713,16 +3744,14 @@ function ConfirmActionDialog({
       >
         {localTarget && (<>
         {/* Header */}
-        <div className="flex shrink-0 items-center justify-between bg-primary px-4 py-3 text-primary-foreground">
-          <span className="text-sm font-semibold">Handlung bestätigen</span>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleClose}
-            className="h-7 w-7 text-primary-foreground opacity-80 hover:bg-primary-foreground/10 hover:opacity-100"
-          >
-            <X className="h-4 w-4" />
-          </Button>
+        <div className="flex shrink-0 items-center justify-between bg-primary px-6 py-4 text-primary-foreground">
+          <div>
+            <h2 className="text-2xl font-light">Handlung bestätigen</h2>
+            {clientName && <p className="text-sm opacity-80 mt-0.5">{clientName}</p>}
+          </div>
+          <button type="button" onClick={handleClose} className="opacity-70 hover:opacity-100">
+            ✕
+          </button>
         </div>
 
         {/* Content */}
@@ -3920,18 +3949,18 @@ function ConfirmActionDialog({
         {/* Footer */}
         <div className="flex shrink-0 items-center justify-between bg-primary px-6 py-3">
           <Button
-            variant="outline"
-            size="sm"
+            type="button"
+            variant="ghost"
             onClick={handleClose}
-            className="bg-transparent border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
+            className="text-white hover:bg-white/10 hover:text-white"
           >
             Abbrechen
           </Button>
           <div className="flex items-center gap-2">
             {localTarget.action.status !== "open" ? (
               <Button
+                type="button"
                 variant="ghost"
-                size="sm"
                 onClick={() => {
                   onConfirm({ status: "open" });
                   setMode(null);
@@ -3943,24 +3972,25 @@ function ConfirmActionDialog({
                   setPostponedTime("");
                   setPostponedError("");
                 }}
-                className="gap-1.5 bg-transparent border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
+                className="gap-1.5 text-white hover:bg-white/10 hover:text-white"
               >
                 <RotateCcw className="h-4 w-4" />
                 Zurücksetzen
               </Button>
             ) : localTarget.action.isUnplanned && onDelete ? (
               <Button
+                type="button"
                 variant="ghost"
-                size="sm"
                 onClick={onDelete}
-                className="gap-1.5 bg-transparent border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
+                className="gap-1.5 text-white hover:bg-white/10 hover:text-white"
               >
                 <Trash2 className="h-4 w-4" />
                 Löschen
               </Button>
             ) : null}
             <Button
-              size="sm"
+              type="button"
+              variant="ghost"
               onClick={submit}
               disabled={
                 !mode ||
@@ -3970,7 +4000,7 @@ function ConfirmActionDialog({
                 (mode === "postponed" && ((!postponedDate && !postponedTime) || !postponedReason.trim())) ||
                 (showResult && resultRequired && !result.trim())
               }
-              className="bg-primary-foreground text-primary hover:bg-primary-foreground/90"
+              className="text-white hover:bg-white/10 hover:text-white"
             >
               Bestätigen
             </Button>
