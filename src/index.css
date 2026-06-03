@@ -104,7 +104,7 @@
   }
 
   html {
-    scrollbar-gutter: stable;
+    overflow: hidden;
   }
 
   body {

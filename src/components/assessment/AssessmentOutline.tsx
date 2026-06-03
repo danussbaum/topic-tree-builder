@@ -546,6 +546,16 @@ export function AssessmentOutline({
     disciplines[0]?.id ?? initialActionPlanDisciplines[0]?.id ?? "",
   );
   const [dialogTarget, setDialogTarget] = useState<DialogTarget | null>(null);
+  const [isConfirmDialogMounted, setIsConfirmDialogMounted] = useState(false);
+
+  const openConfirmDialog = (target: DialogTarget) => {
+    setDialogTarget(target);
+    setIsConfirmDialogMounted(true);
+  };
+  const closeConfirmDialog = () => {
+    setIsConfirmDialogMounted(false);
+    setDialogTarget(null);
+  };
   const [selectedBulkNotDoneKeys, setSelectedBulkNotDoneKeys] = useState<Set<string>>(new Set());
   const [bulkNotDoneDialogOpen, setBulkNotDoneDialogOpen] = useState(false);
   const [unplannedDialogTarget, setUnplannedDialogTarget] = useState<{ dueDate?: string; dayPart: DayPart | "none" } | null>(null);
@@ -924,7 +934,7 @@ export function AssessmentOutline({
           {groupedFlatActions.map((dateGroup) => (
             <div key={dateGroup.dueDate} className="space-y-3">
               <div
-                className={cn(stickyOffset !== undefined && "sticky z-[5] bg-background rounded-lg")}
+                className={cn(stickyOffset !== undefined && "sticky z-[6] bg-[#f3f3f5] rounded-lg")}
                 style={stickyOffset !== undefined ? { top: stickyOffset } : undefined}
               >
                 <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
@@ -960,7 +970,6 @@ export function AssessmentOutline({
                             <TableHead className="w-[48px] px-2"><span className="sr-only">Mehrfachauswahl</span></TableHead>
                           )}
                           <TableHead className="w-[76px] px-1"><span className="sr-only">Umsetzung</span></TableHead>
-                          {clientName && <TableHead className="w-[110px] px-2">Klient/in</TableHead>}
                           <TableHead className="w-[296px] px-2">Handlung</TableHead>
                           <TableHead className="w-[90px] px-2">Kategorie</TableHead>
                           <TableHead className="w-[80px] px-2">Uhrzeit</TableHead>
@@ -982,7 +991,7 @@ export function AssessmentOutline({
                             "Ohne Disziplin";
                           const openConfirmationDialog = (initialMode: ConfirmationMode) => {
                             if (!canConfirm) return;
-                            setDialogTarget({
+                            openConfirmDialog({
                               topicId: topic.id,
                               targetId: target.id,
                               dueDate: confirmationDate,
@@ -1117,11 +1126,6 @@ export function AssessmentOutline({
                                   </div>
                                 )}
                               </TableCell>
-                              {clientName && (
-                                <TableCell className="px-3 py-3 align-top text-xs">
-                                  <div className="font-medium text-foreground/80 line-clamp-2">{clientName}</div>
-                                </TableCell>
-                              )}
                               <TableCell className="px-3 py-3 align-top break-words">
                                 <div className={cn("min-w-0 font-medium leading-snug break-words", status !== "open" && "text-foreground/70")}>
                                   <span>{action.title}</span>
@@ -1278,37 +1282,40 @@ export function AssessmentOutline({
           ))}
         </div>
 
-        <ConfirmActionDialog
-          target={dialogTarget}
-          onClose={() => setDialogTarget(null)}
-          onConfirm={(payload) => {
-            if (!dialogTarget) return;
-            onConfirmAction(
-              dialogTarget.topicId,
-              dialogTarget.targetId,
-              dialogTarget.action.id,
-              payload,
-              dialogTarget.dueDate
-            );
-            setDialogTarget(null);
-          }}
-          onDelete={dialogTarget?.action.isUnplanned && dialogTarget.action.status === "open" ? () => {
-            if (!dialogTarget) return;
-            onDeleteAction(dialogTarget.topicId, dialogTarget.targetId, dialogTarget.action.id);
-            setDialogTarget(null);
-          } : undefined}
-          clientName={clientName}
-        />
-        <UnplannedActionDialog
-          target={unplannedDialogTarget}
-          onClose={() => setUnplannedDialogTarget(null)}
-          onConfirm={(draft) => {
-            if (!unplannedDialogTarget || !onAddUnplannedAction) return;
-            onAddUnplannedAction(unplannedDialogTarget.dueDate ?? draft.dateFrom ?? "", unplannedDialogTarget.dayPart, draft);
-            setUnplannedDialogTarget(null);
-          }}
-          clientName={clientName}
-        />
+        {isConfirmDialogMounted && dialogTarget && (
+          <ConfirmActionDialog
+            key={dialogTarget.action.id + "_" + dialogTarget.dueDate}
+            target={dialogTarget}
+            onClose={closeConfirmDialog}
+            onConfirm={(payload) => {
+              onConfirmAction(
+                dialogTarget.topicId,
+                dialogTarget.targetId,
+                dialogTarget.action.id,
+                payload,
+                dialogTarget.dueDate
+              );
+              closeConfirmDialog();
+            }}
+            onDelete={dialogTarget.action.isUnplanned && dialogTarget.action.status === "open" ? () => {
+              onDeleteAction(dialogTarget.topicId, dialogTarget.targetId, dialogTarget.action.id);
+              closeConfirmDialog();
+            } : undefined}
+            clientName={clientName}
+          />
+        )}
+        {unplannedDialogTarget && (
+          <UnplannedActionDialog
+            target={unplannedDialogTarget}
+            onClose={() => setUnplannedDialogTarget(null)}
+            onConfirm={(draft) => {
+              if (!onAddUnplannedAction) return;
+              onAddUnplannedAction(unplannedDialogTarget.dueDate ?? draft.dateFrom ?? "", unplannedDialogTarget.dayPart, draft);
+              setUnplannedDialogTarget(null);
+            }}
+            clientName={clientName}
+          />
+        )}
         <BulkNotDoneDialog
           open={bulkNotDoneDialogOpen}
           targets={selectedBulkNotDoneTargets}
@@ -1368,12 +1375,9 @@ export function AssessmentOutline({
     <div className="space-y-12">
       {topicDisciplineGroups.map(({ discipline, topics: groupTopics }) => (
         <section key={discipline.id} className="space-y-5">
-          <div className="border-b-2 border-primary/30 pb-3">
-            <div className="text-[10px] uppercase tracking-widest font-semibold text-primary">
-              Disziplin
-            </div>
+          <div className="border-b-2 border-border pb-3">
             <div className="mt-1 flex items-center justify-between gap-3">
-              <h3 className="text-2xl font-semibold text-primary">{discipline.title}</h3>
+              <h3 className="text-2xl font-semibold">{discipline.title}</h3>
             </div>
           </div>
 
@@ -1382,14 +1386,11 @@ export function AssessmentOutline({
               <article key={topic.id} className="group/topic space-y-3">
                 <div className="flex items-start gap-3">
                   <div className="min-w-0 flex-1">
-                    <div className="text-[10px] uppercase tracking-widest font-semibold text-accent mb-1">
-                      Schwerpunkt
-                    </div>
                     <input
                       value={topic.title}
                       onChange={(e) => onUpdateTopic(topic.id, "title", e.target.value)}
                       readOnly={topic.targets.some((t) => t.actions.length > 0)}
-                      placeholder="Themenbezeichnung…"
+                      placeholder="Schwerpunkt…"
                       className={`w-full text-2xl font-semibold bg-transparent border-0 outline-none focus:ring-0 px-0 placeholder:text-muted-foreground/40 ${topic.targets.some((t) => t.actions.length > 0) ? "text-foreground cursor-default" : ""}`}
                     />
                   </div>
@@ -1418,7 +1419,7 @@ export function AssessmentOutline({
                   value={topic.notes}
                   onChange={(v) => onUpdateTopic(topic.id, "notes", v)}
                   placeholder="Freitext zum Schwerpunkt…"
-                  className="mt-3"
+                  className="mt-1.5 w-1/2"
                 />
 
                 {/* Targets */}
@@ -1429,23 +1430,20 @@ export function AssessmentOutline({
                 <div key={target.id} className="group/target">
                   <div className="flex items-start gap-3">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">
-                          Ziel
-                        </span>
-                        {isTargetClosed && (
+                      {isTargetClosed && (
+                        <div className="mb-1">
                           <span className="text-[10px] uppercase tracking-widest font-semibold px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
                             Abgeschlossen
                           </span>
-                        )}
-                      </div>
+                        </div>
+                      )}
                       <input
                         value={target.title}
                         readOnly={isTargetClosed}
                         onChange={(e) =>
                           isTargetClosed ? undefined : onUpdateTarget(topic.id, target.id, "title", e.target.value)
                         }
-                        placeholder="Zielbezeichnung…"
+                        placeholder="Ziel…"
                         className="w-full text-lg font-medium bg-transparent border-0 outline-none focus:ring-0 px-0 placeholder:text-muted-foreground/40 read-only:cursor-default"
                       />
                       <div className="flex items-center gap-3 mt-1.5">
@@ -1513,7 +1511,7 @@ export function AssessmentOutline({
                       value={target.notes}
                       onChange={(v) => onUpdateTarget(topic.id, target.id, "notes", v)}
                       placeholder="Freitext zum Ziel…"
-                      className="mt-2"
+                      className="mt-2 -ml-6 w-1/2"
                     />
 
                     <div className="mt-3 space-y-3">
@@ -1547,7 +1545,7 @@ export function AssessmentOutline({
                                   onDeleteAction={onDeleteAction}
                                   onOpenEditPanel={() => openEditPanel(topic.id, target.id, action)}
                                   onOpenDialog={(initialMode) =>
-                                    setDialogTarget({
+                                    openConfirmDialog({
                                       topicId: topic.id,
                                       targetId: target.id,
                                       dueDate: selectedDate,
@@ -1618,22 +1616,24 @@ export function AssessmentOutline({
         </button>
       </div>
 
-      <ConfirmActionDialog
-        target={dialogTarget}
-        onClose={() => setDialogTarget(null)}
-        onConfirm={(payload) => {
-          if (!dialogTarget) return;
-          onConfirmAction(
-            dialogTarget.topicId,
-            dialogTarget.targetId,
-            dialogTarget.action.id,
-            payload,
-            dialogTarget.dueDate,
-          );
-          setDialogTarget(null);
-        }}
-        clientName={clientName}
-      />
+      {isConfirmDialogMounted && dialogTarget && (
+        <ConfirmActionDialog
+          key={dialogTarget.action.id + "_" + dialogTarget.dueDate}
+          target={dialogTarget}
+          onClose={closeConfirmDialog}
+          onConfirm={(payload) => {
+            onConfirmAction(
+              dialogTarget.topicId,
+              dialogTarget.targetId,
+              dialogTarget.action.id,
+              payload,
+              dialogTarget.dueDate,
+            );
+            closeConfirmDialog();
+          }}
+          clientName={clientName}
+        />
+      )}
 
       {isPanelMounted && panelContext && (
         <ActionSidePanel
@@ -1682,7 +1682,7 @@ function DayPartHeader({
             <Plus className="h-4 w-4" />
           </Button>
         </TooltipTrigger>
-        <TooltipContent side="top" className="normal-case tracking-normal font-normal text-sm">
+        <TooltipContent side="top" className="z-[200] normal-case tracking-normal font-normal text-sm">
           <div className="max-w-[220px] space-y-0.5">
             <div className="font-medium">{tooltipTitle}</div>
             <div className="text-xs text-muted-foreground">{tooltipDesc}</div>
@@ -1700,7 +1700,7 @@ function DayPartHeader({
   );
 
   const stickyProps = stickyTop !== undefined
-    ? { className: "sticky z-[4] bg-background py-1", style: { top: stickyTop } }
+    ? { className: "sticky z-[5] py-1 bg-[#f3f3f5]", style: { top: stickyTop } }
     : { className: "" };
 
   if (part === "none") {
@@ -1807,7 +1807,7 @@ export function ActionRow({
     return (
       <li className={cn(
         "group/action flex items-start gap-3 rounded px-3 py-2.5 border transition-colors",
-        action.isUnplanned ? "border-amber-200 bg-amber-50/60" : "border-border bg-secondary/30 hover:border-primary/40",
+        action.isUnplanned ? "border-amber-200 bg-amber-50/60" : "border-border bg-white hover:border-primary/40",
       )}>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 min-w-0">
@@ -3174,31 +3174,42 @@ export function UnplannedActionDialog({
   onConfirm,
   clientName,
 }: {
-  target: { dueDate?: string; dateFrom?: string; dayPart: DayPart | "none" } | null;
+  target: { dueDate?: string; dateFrom?: string; dayPart: DayPart | "none" };
   onClose: () => void;
   onConfirm: (draft: UnplannedActionDraft) => void;
   clientName?: string;
 }) {
   const [creationMode, setCreationMode] = useState<"template" | "scratch">("template");
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
-  const [templates, setTemplates] = useState<ActionPlanTemplate[]>([]);
+  const [templates, setTemplates] = useState<ActionPlanTemplate[]>(() => loadActionPlanTemplates());
   const [templateQuery, setTemplateQuery] = useState("");
   const [isTemplateDropdownOpen, setTemplateDropdownOpen] = useState(false);
   const [activeTemplateIndex, setActiveTemplateIndex] = useState(0);
   const templateInputRef = useRef<HTMLInputElement | null>(null);
-  const [draft, setDraft] = useState<UnplannedActionDraft>({ title: "", notes: "" });
-  const [dateFrom, setDateFrom] = useState<string>("");
-  const [dateTo, setDateTo] = useState<string>("");
+  const [draft, setDraft] = useState<UnplannedActionDraft>(() => buildEmptyUnplannedTemplateDraft(target.dayPart));
+  const [dateFrom, setDateFrom] = useState<string>(target.dateFrom ?? target.dueDate ?? "");
+  const [dateTo, setDateTo] = useState<string>(target.dueDate ?? "");
   const [isPanelVisible, setIsPanelVisible] = useState(false);
-  const [localTarget, setLocalTarget] = useState<{ dueDate?: string; dateFrom?: string; dayPart: DayPart | "none" } | null>(null);
   const unplannedAsideRef = useRef<HTMLElement | null>(null);
+
+  // Mount-based animation (same pattern as TargetAssessmentPanel)
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setIsPanelVisible(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  const handleClose = () => {
+    setIsPanelVisible(false);
+    setTimeout(onClose, 300);
+  };
+
   useEffect(() => {
     if (!isPanelVisible) return;
     const handler = (e: MouseEvent) => {
-      const target = e.target as Element;
-      if (unplannedAsideRef.current && !unplannedAsideRef.current.contains(target)) {
-        if (target.closest?.("[data-radix-popper-content-wrapper],[data-radix-select-content],[data-radix-dropdown-menu-content],[data-radix-popover-content]")) return;
-        setIsPanelVisible(false);
+      const t = e.target as Element;
+      if (unplannedAsideRef.current && !unplannedAsideRef.current.contains(t)) {
+        if (t.closest?.("[data-radix-popper-content-wrapper],[data-radix-select-content],[data-radix-dropdown-menu-content],[data-radix-popover-content]")) return;
+        handleClose();
       }
     };
     document.addEventListener("mousedown", handler);
@@ -3236,27 +3247,6 @@ export function UnplannedActionDialog({
     });
   };
 
-  useEffect(() => {
-    setSelectedTemplateId("");
-    setTemplateQuery("");
-    setTemplateDropdownOpen(false);
-    setActiveTemplateIndex(0);
-
-    if (!target) {
-      setIsPanelVisible(false);
-      return;
-    }
-
-    setLocalTarget(target);
-    setDateFrom(target.dateFrom ?? target.dueDate ?? "");
-    setDateTo(target.dueDate ?? "");
-    const loadedTemplates = loadActionPlanTemplates();
-    setTemplates(loadedTemplates);
-    setCreationMode("template");
-    setDraft(buildEmptyUnplannedTemplateDraft(target.dayPart));
-    const id = requestAnimationFrame(() => setIsPanelVisible(true));
-    return () => cancelAnimationFrame(id);
-  }, [target]);
 
   const selectedTemplate = templates.find((template) => template.id === selectedTemplateId);
   const templateFilterQuery = templateQuery.toLocaleLowerCase("de");
@@ -3276,11 +3266,11 @@ export function UnplannedActionDialog({
   }, [templateQuery, isTemplateDropdownOpen]);
 
   useEffect(() => {
-    if (!localTarget || creationMode !== "template") return;
+    if (creationMode !== "template") return;
     window.requestAnimationFrame(() => {
       templateInputRef.current?.focus();
     });
-  }, [localTarget, creationMode]);
+  }, [creationMode]);
 
   const selectTemplateAndClose = (templateId: string) => {
     setSelectedTemplateId(templateId);
@@ -3310,10 +3300,10 @@ export function UnplannedActionDialog({
     setSelectedTemplateId("");
     setTemplateQuery("");
     setTemplateDropdownOpen(true);
-    setDraft(buildEmptyUnplannedTemplateDraft(target?.dayPart));
+    setDraft(buildEmptyUnplannedTemplateDraft(target.dayPart));
   };
 
-  const selectedDayPart = draft.dayPart ?? localTarget?.dayPart ?? "none";
+  const selectedDayPart = draft.dayPart ?? target.dayPart ?? "none";
   const selectedDayPartLabel = selectedDayPart === "none" ? "Ohne Tageszeit" : DAY_PART_LABEL[selectedDayPart];
 
   const dateRangeError = (() => {
@@ -3372,24 +3362,14 @@ export function UnplannedActionDialog({
       <aside
         ref={unplannedAsideRef}
         className={`pointer-events-auto flex h-dvh w-full max-w-2xl flex-col bg-[#f3f3f5] transition-transform duration-300 ease-out ${isPanelVisible ? "translate-x-0 shadow-2xl" : "translate-x-full"}`}
-        onTransitionEnd={(e) => {
-          if (e.propertyName === "transform" && !isPanelVisible) {
-            setLocalTarget(null);
-            setDraft({ title: "", notes: "" });
-            setDateFrom("");
-            setDateTo("");
-            onClose();
-          }
-        }}
       >
-        {localTarget && (<>
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between bg-primary px-6 py-4 text-primary-foreground">
           <div>
             <h2 className="text-2xl font-light">Ungeplante Handlung erstellen</h2>
             {clientName && <p className="text-sm opacity-80 mt-0.5">{clientName}</p>}
           </div>
-          <button type="button" onClick={() => setIsPanelVisible(false)} className="opacity-70 hover:opacity-100">
+          <button type="button" onClick={handleClose} className="opacity-70 hover:opacity-100">
             ✕
           </button>
         </div>
@@ -3638,7 +3618,7 @@ export function UnplannedActionDialog({
           <Button
             type="button"
             variant="ghost"
-            onClick={() => setIsPanelVisible(false)}
+            onClick={handleClose}
             className="text-white hover:bg-white/10 hover:text-white"
           >
             Abbrechen
@@ -3658,7 +3638,6 @@ export function UnplannedActionDialog({
             </Button>
           </div>
         </div>
-        </>)}
       </aside>
     </div>,
     document.body,
@@ -3746,61 +3725,50 @@ function ConfirmActionDialog({
   onDelete,
   clientName,
 }: {
-  target: DialogTarget | null;
+  target: DialogTarget;
   onClose: () => void;
   onConfirm: (p: ConfirmPayload) => void;
   onDelete?: () => void;
   clientName?: string;
 }) {
-  const [mode, setMode] = useState<ActionStatus | null>(null);
-  const [actualMinutes, setActualMinutes] = useState<string>("");
-  const [reason, setReason] = useState<string>("");
-  const [result, setResult] = useState<string>("");
-  const [observations, setObservations] = useState<string>("");
-  const [postponedDate, setPostponedDate] = useState<string>("");
-  const [postponedTime, setPostponedTime] = useState<string>("");
-  const [postponedReason, setPostponedReason] = useState<string>("");
+  const confirmation = target.action.confirmations?.[target.dueDate];
+  const [mode, setMode] = useState<ActionStatus | null>(
+    target.initialMode ?? (target.action.status === "open" ? null : target.action.status)
+  );
+  const [actualMinutes, setActualMinutes] = useState<string>(
+    target.action.actualMinutes != null ? String(target.action.actualMinutes) : ""
+  );
+  const [reason, setReason] = useState<string>(target.action.reason ?? "");
+  const [result, setResult] = useState<string>(target.action.result ?? "");
+  const [observations, setObservations] = useState<string>(target.action.observations ?? "");
+  const [postponedDate, setPostponedDate] = useState<string>(confirmation?.postponedToDate ?? "");
+  const [postponedTime, setPostponedTime] = useState<string>(confirmation?.postponedToTime ?? "");
+  const [postponedReason, setPostponedReason] = useState<string>(confirmation?.postponedReason ?? "");
   const [postponedError, setPostponedError] = useState<string>("");
   const [isPanelVisible, setIsPanelVisible] = useState(false);
-  const [localTarget, setLocalTarget] = useState<DialogTarget | null>(null);
   const confirmAsideRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setIsPanelVisible(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
   useEffect(() => {
     if (!isPanelVisible) return;
     const handler = (e: MouseEvent) => {
-      const target = e.target as Element;
-      if (confirmAsideRef.current && !confirmAsideRef.current.contains(target)) {
-        if (target.closest?.("[data-radix-popper-content-wrapper],[data-radix-select-content],[data-radix-dropdown-menu-content],[data-radix-popover-content]")) return;
-        setIsPanelVisible(false);
+      const el = e.target as Element;
+      if (confirmAsideRef.current && !confirmAsideRef.current.contains(el)) {
+        if (el.closest?.("[data-radix-popper-content-wrapper],[data-radix-select-content],[data-radix-dropdown-menu-content],[data-radix-popover-content]")) return;
+        handleClose();
       }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [isPanelVisible]);
 
-  useEffect(() => {
-    if (target) {
-      setLocalTarget(target);
-      setMode(target.initialMode ?? (target.action.status === "open" ? null : target.action.status));
-      setActualMinutes(
-        target.action.actualMinutes != null ? String(target.action.actualMinutes) : "",
-      );
-      setReason(target.action.reason ?? "");
-      setResult(target.action.result ?? "");
-      setObservations(target.action.observations ?? "");
-      const confirmation = target.action.confirmations?.[target.dueDate];
-      setPostponedDate(confirmation?.postponedToDate ?? "");
-      setPostponedTime(confirmation?.postponedToTime ?? "");
-      setPostponedReason(confirmation?.postponedReason ?? "");
-      setPostponedError("");
-      const id = requestAnimationFrame(() => setIsPanelVisible(true));
-      return () => cancelAnimationFrame(id);
-    } else {
-      setIsPanelVisible(false);
-    }
-  }, [target]);
-
   const handleClose = () => {
     setIsPanelVisible(false);
+    setTimeout(onClose, 300);
   };
 
   const submit = () => {
@@ -3868,19 +3836,19 @@ function ConfirmActionDialog({
     setPostponedError("");
   };
 
-  const planned = localTarget?.action.plannedMinutes;
+  const planned = target.action.plannedMinutes;
   const hasPlannedMinutes = planned != null;
-  const requiredPersons = localTarget?.action.requiredPersons;
-  const description = localTarget?.action.notes.trim();
-  const requiredResources = localTarget?.action.requiredResources?.trim();
-  const resultRequirement = localTarget?.action.resultRequirement ?? "none";
+  const requiredPersons = target.action.requiredPersons;
+  const description = target.action.notes.trim();
+  const requiredResources = target.action.requiredResources?.trim();
+  const resultRequirement = target.action.resultRequirement ?? "none";
   const showResult =
     resultRequirement !== "none" &&
     (mode === "done_as_planned" || mode === "done_with_deviation");
   const resultRequired = resultRequirement === "required";
   const showObservations = mode === "done_as_planned" || mode === "done_with_deviation";
   const selectedModeOption = CONFIRMATION_MODE_OPTIONS.find((option) => option.mode === mode);
-  const activeConfirmation = localTarget?.action.confirmations?.[localTarget.dueDate];
+  const activeConfirmation = target.action.confirmations?.[target.dueDate];
 
   return createPortal(
     <div
@@ -3889,14 +3857,7 @@ function ConfirmActionDialog({
       <aside
         ref={confirmAsideRef}
         className={`pointer-events-auto flex h-dvh w-full max-w-2xl flex-col bg-[#f3f3f5] transition-transform duration-300 ease-out ${isPanelVisible ? "translate-x-0 shadow-2xl" : "translate-x-full"}`}
-        onTransitionEnd={(e) => {
-          if (e.propertyName === "transform" && !isPanelVisible) {
-            setLocalTarget(null);
-            onClose();
-          }
-        }}
       >
-        {localTarget && (<>
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between bg-primary px-6 py-4 text-primary-foreground">
           <div>
@@ -3912,15 +3873,15 @@ function ConfirmActionDialog({
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
           {/* Action info */}
           <div className="rounded-md border border-border bg-background p-3 text-sm space-y-1.5">
-            <div className="font-medium">{localTarget.action.title}</div>
+            <div className="font-medium">{target.action.title}</div>
             <div className="text-muted-foreground">
-              Datum: <span className="font-medium text-foreground">{format(parseISO(localTarget.dueDate), "dd.MM.yyyy", { locale: de })}</span>
+              Datum: <span className="font-medium text-foreground">{format(parseISO(target.dueDate), "dd.MM.yyyy", { locale: de })}</span>
             </div>
-            {(localTarget.action.scheduledTime || planned != null || requiredPersons != null) && (
+            {(target.action.scheduledTime || planned != null || requiredPersons != null) && (
               <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
-                {localTarget.action.scheduledTime && (
+                {target.action.scheduledTime && (
                   <span className="rounded bg-amber-100 px-1.5 py-0.5 font-semibold text-amber-900">
-                    Uhrzeit {localTarget.action.scheduledTime}
+                    Uhrzeit {target.action.scheduledTime}
                   </span>
                 )}
                 {planned != null && <span>geplant {planned} Min</span>}
@@ -3944,13 +3905,13 @@ function ConfirmActionDialog({
             <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-sm">
               <span className="text-muted-foreground">Gewählte Variante:</span>{" "}
               <span className="font-semibold text-foreground">{selectedModeOption.label}</span>
-              {localTarget.confirmedAt && (
+              {target.confirmedAt && (
                 <div className="mt-1 text-xs text-muted-foreground">
                   Bestätigt von{" "}
-                  <span className="font-medium text-foreground/80">{localTarget.confirmedBy ?? "Unbekannt"}</span>{" "}
+                  <span className="font-medium text-foreground/80">{target.confirmedBy ?? "Unbekannt"}</span>{" "}
                   am{" "}
                   <span className="font-medium text-foreground/80">
-                    {format(parseISO(localTarget.confirmedAt), "dd.MM.yyyy HH:mm:ss", { locale: de })}
+                    {format(parseISO(target.confirmedAt), "dd.MM.yyyy HH:mm:ss", { locale: de })}
                   </span>
                 </div>
               )}
@@ -4015,8 +3976,8 @@ function ConfirmActionDialog({
           {mode === "postponed" && (
             <div className="space-y-3 pt-2 border-t border-border">
               <div className="text-sm text-muted-foreground">
-                Bisher geplant: {localTarget.dueDate ? format(parseISO(localTarget.dueDate), "dd.MM.yyyy", { locale: de }) : "—"}
-                {localTarget.action.scheduledTime ? `, ${localTarget.action.scheduledTime}` : ""}. Die neue Planung muss später liegen.
+                Bisher geplant: {target.dueDate ? format(parseISO(target.dueDate), "dd.MM.yyyy", { locale: de }) : "—"}
+                {target.action.scheduledTime ? `, ${target.action.scheduledTime}` : ""}. Die neue Planung muss später liegen.
               </div>
               <DateField
                 label="Neues Datum"
@@ -4111,7 +4072,7 @@ function ConfirmActionDialog({
             Abbrechen
           </Button>
           <div className="flex items-center gap-2">
-            {localTarget.action.status !== "open" ? (
+            {target.action.status !== "open" ? (
               <Button
                 type="button"
                 variant="ghost"
@@ -4131,7 +4092,7 @@ function ConfirmActionDialog({
                 <RotateCcw className="h-4 w-4" />
                 Zurücksetzen
               </Button>
-            ) : localTarget.action.isUnplanned && onDelete ? (
+            ) : target.action.isUnplanned && onDelete ? (
               <Button
                 type="button"
                 variant="ghost"
@@ -4160,7 +4121,6 @@ function ConfirmActionDialog({
             </Button>
           </div>
         </div>
-        </>)}
       </aside>
     </div>,
     document.body,
@@ -4188,10 +4148,10 @@ function Notes({
       disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      rows={compact ? 1 : 2}
+      rows={1}
       className={cn(
-        "w-full resize-none bg-transparent border-0 shadow-none px-0 focus-visible:ring-0 placeholder:text-muted-foreground/40 leading-relaxed",
-        compact ? "text-xs min-h-0 py-0.5" : "text-sm min-h-0 py-1",
+        "w-full resize-none bg-white shadow-none leading-relaxed border border-border/50 rounded-md px-2 focus-visible:ring-0 focus-visible:border-primary/50 placeholder:text-muted-foreground/40 transition-colors hover:border-border",
+        compact ? "text-xs min-h-0 py-0.5" : "text-sm min-h-0 py-1 max-h-[4.75rem] overflow-y-auto",
         className,
       )}
       onInput={(e) => {

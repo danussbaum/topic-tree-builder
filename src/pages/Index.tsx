@@ -1635,7 +1635,7 @@ const Index = () => {
 
   return (
     <SidebarProvider>
-      <div className="h-dvh bg-background flex w-full">
+      <div className="h-dvh bg-[#f3f3f5] flex w-full">
         <ClientSidebar
           clients={clients}
           selectedClientIds={selectedClientIds}
@@ -2106,7 +2106,7 @@ const Index = () => {
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto bg-background">
+          <div className="flex-1 overflow-y-auto bg-[#f3f3f5]">
             {selectedClients.length === 0 ? (
               <div className="p-12 text-center text-muted-foreground">
                 <p className="text-lg">Wählen Sie eine oder mehrere Klient/innen in der Navigation.</p>
@@ -2114,7 +2114,7 @@ const Index = () => {
             ) : (
               <div className="px-6 lg:px-10 py-6 w-full space-y-10">
                 {viewMode === "confirmation" && (
-                  <div className="flex items-center justify-between bg-background p-4 rounded-lg border border-border sticky top-0 z-20">
+                  <div className="flex items-center justify-between p-4 rounded-lg border border-border bg-[#f3f3f5]">
                     <div className="flex items-center gap-4">
                       <div className="flex items-center gap-1 bg-background border border-border rounded-md p-1">
                         <button
@@ -2274,7 +2274,7 @@ const Index = () => {
                   </div>
                 )}
                 {viewMode === "planning" && (
-                  <div className="flex items-center justify-end sticky top-0 z-20 bg-background py-2">
+                  <div className="flex items-center justify-end -mb-[38px]">
                     <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
                       <input
                         type="checkbox"
@@ -2288,7 +2288,7 @@ const Index = () => {
                 )}
                 {viewMode === "review" && (
                   <>
-                    <div className="flex items-center justify-end sticky top-0 z-20 bg-background py-2">
+                    <div className="flex items-center justify-end sticky top-0 z-20 py-2 bg-[#f3f3f5]">
                       <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
                         <input
                           type="checkbox"
@@ -2317,7 +2317,7 @@ const Index = () => {
                       const clientName = `${client.firstName} ${client.lastName}`.trim();
                       return (
                         <section key={client.id} className="space-y-6">
-                          <h1 className="text-2xl font-semibold pb-5 border-b border-border sticky top-9 bg-background z-10">
+                          <h1 className="text-2xl font-semibold pb-5 border-b border-border sticky top-9 z-10 bg-[#f3f3f5]">
                             {clientName}
                           </h1>
                           {closedTargets.length === 0 ? (
@@ -2497,7 +2497,7 @@ const Index = () => {
                 {viewMode !== "review" && visibleSelectedClients.map((client) => (
                   <section key={client.id} className="space-y-6">
                     {/* Client header */}
-                    <div className={cn("flex items-center gap-4 pb-5 border-b border-border sticky bg-background z-10", viewMode === "confirmation" ? "top-[76px] pt-[5px]" : "top-9")}>
+                    <div className={cn("flex items-center gap-4 pb-5 border-b border-border sticky z-10 bg-[#f3f3f5]", viewMode === "confirmation" ? "top-0 pt-[5px]" : viewMode === "planning" ? "top-0 pb-2" : "top-9 pb-2")}>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline gap-0">
                           <ClientNameInput
@@ -2551,7 +2551,7 @@ const Index = () => {
 
                     <AssessmentOutline
                       viewMode={viewMode}
-                      stickyOffset={viewMode === "confirmation" ? 134 : undefined}
+                      stickyOffset={viewMode === "confirmation" ? 58 : undefined}
                       selectedDate={selectedDate}
                       onSelectedDateChange={setSelectedDate}
                       confirmationPeriod={confirmationPeriod}
@@ -2603,36 +2603,39 @@ const Index = () => {
                         deleteAction(client.id, topicId, targetId, actionId)
                       }
                     />
-                    <UnplannedActionDialog
-                      target={personUnplannedClientId === client.id ? (() => {
-                        const current = new Date(`${selectedDate}T00:00:00`);
-                        let dateFrom: string;
-                        if (confirmationPeriod === "day") {
-                          dateFrom = selectedDate;
-                        } else if (confirmationPeriod === "week") {
-                          const weekDay = current.getDay();
-                          const diff = weekDay === 0 ? -6 : 1 - weekDay;
-                          const start = new Date(current);
-                          start.setDate(current.getDate() + diff);
-                          dateFrom = format(start, "yyyy-MM-dd");
-                        } else if (confirmationPeriod === "lastNDays") {
-                          const start = new Date();
-                          start.setHours(0, 0, 0, 0);
-                          start.setDate(start.getDate() - Math.max(1, Math.floor(lastNDays)));
-                          dateFrom = format(start, "yyyy-MM-dd");
-                        } else {
-                          // month
-                          dateFrom = format(new Date(current.getFullYear(), current.getMonth(), 1), "yyyy-MM-dd");
-                        }
-                        return { dateFrom, dayPart: "none" as const };
-                      })() : null}
-                      onClose={() => setPersonUnplannedClientId(null)}
-                      onConfirm={(draft) => {
-                        addUnplannedAction(client.id, draft.dateFrom ?? "", draft.dayPart ?? "none", draft);
-                        setPersonUnplannedClientId(null);
-                      }}
-                      clientName={`${client.firstName} ${client.lastName}`.trim()}
-                    />
+                    {personUnplannedClientId === client.id && (() => {
+                      const current = new Date(`${selectedDate}T00:00:00`);
+                      let dateFrom: string;
+                      if (confirmationPeriod === "day") {
+                        dateFrom = selectedDate;
+                      } else if (confirmationPeriod === "week") {
+                        const weekDay = current.getDay();
+                        const diff = weekDay === 0 ? -6 : 1 - weekDay;
+                        const start = new Date(current);
+                        start.setDate(current.getDate() + diff);
+                        dateFrom = format(start, "yyyy-MM-dd");
+                      } else if (confirmationPeriod === "lastNDays") {
+                        const start = new Date();
+                        start.setHours(0, 0, 0, 0);
+                        start.setDate(start.getDate() - Math.max(1, Math.floor(lastNDays)));
+                        dateFrom = format(start, "yyyy-MM-dd");
+                      } else {
+                        dateFrom = format(new Date(current.getFullYear(), current.getMonth(), 1), "yyyy-MM-dd");
+                      }
+                      const dialogTarget = { dateFrom, dayPart: "none" as const };
+                      return (
+                        <UnplannedActionDialog
+                          key={client.id}
+                          target={dialogTarget}
+                          onClose={() => setPersonUnplannedClientId(null)}
+                          onConfirm={(draft) => {
+                            addUnplannedAction(client.id, draft.dateFrom ?? "", draft.dayPart ?? "none", draft);
+                            setPersonUnplannedClientId(null);
+                          }}
+                          clientName={`${client.firstName} ${client.lastName}`.trim()}
+                        />
+                      );
+                    })()}
                   </section>
                 ))}
               </div>
