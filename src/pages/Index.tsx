@@ -2400,14 +2400,25 @@ const Index = () => {
                                       )}
                                     </div>
                                     <div className="shrink-0 flex flex-col items-end gap-2">
-                                      <button
-                                        onClick={() => setReviewAssessmentPanel({ clientId: client.id, topicId: topic.id, target })}
-                                        className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
-                                        title="Zielbeurteilung erfassen"
-                                      >
-                                        <Pencil className="h-3.5 w-3.5" />
-                                        {target.assessment ? "Beurteilung bearbeiten" : "Beurteilung erfassen"}
-                                      </button>
+                                      <TooltipProvider delayDuration={150}>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <button
+                                              onClick={() => setReviewAssessmentPanel({ clientId: client.id, topicId: topic.id, target })}
+                                              className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
+                                              aria-label={target.assessment ? "Beurteilung bearbeiten" : "Beurteilung erfassen"}
+                                            >
+                                              <Pencil className="h-3.5 w-3.5" />
+                                            </button>
+                                          </TooltipTrigger>
+                                          <TooltipContent side="top">
+                                            <div className="max-w-[220px] space-y-0.5">
+                                              <div className="font-medium">{target.assessment ? "Beurteilung bearbeiten" : "Beurteilung erfassen"}</div>
+                                              <div className="text-xs text-muted-foreground">Zielerreichung und abgeleitete Massnahmen dokumentieren</div>
+                                            </div>
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
                                     </div>
                                   </div>
                                   {target.assessment && (

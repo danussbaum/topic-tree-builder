@@ -1065,32 +1065,46 @@ export function AssessmentOutline({
                                               <Trash2 className="h-4 w-4" />
                                             </button>
                                           </TooltipTrigger>
-                                          <TooltipContent side="top" align="center">Löschen</TooltipContent>
+                                          <TooltipContent side="top" align="center">
+                                            <div className="max-w-[220px] space-y-0.5">
+                                              <div className="font-medium">Ungeplante Handlung löschen</div>
+                                              <div className="text-xs text-muted-foreground">Handlung wird unwiderruflich entfernt</div>
+                                            </div>
+                                          </TooltipContent>
                                         </Tooltip>
                                       )}
                                     </div>
                                   </TooltipProvider>
                                 ) : (
                                   <div className="flex justify-center">
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        openConfirmationDialog(status as ConfirmationMode)
-                                      }
-                                      disabled={!canConfirm}
-                                      aria-label="Umsetzung bearbeiten"
-                                      title={
-                                        canConfirm
-                                          ? "Umsetzung bearbeiten"
-                                          : "Keine Umsetzung möglich (zu geringe Berechtigung)"
-                                      }
-                                      className={cn(
-                                        "pointer-events-auto inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background transition-colors hover:bg-secondary/60",
-                                        !canConfirm && "cursor-not-allowed opacity-50 hover:bg-background",
-                                      )}
-                                    >
-                                      <StatusIcon status={status} />
-                                    </button>
+                                    <TooltipProvider delayDuration={150}>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              openConfirmationDialog(status as ConfirmationMode)
+                                            }
+                                            disabled={!canConfirm}
+                                            aria-label="Umsetzung bearbeiten"
+                                            className={cn(
+                                              "pointer-events-auto inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background transition-colors hover:bg-secondary/60",
+                                              !canConfirm && "cursor-not-allowed opacity-50 hover:bg-background",
+                                            )}
+                                          >
+                                            <StatusIcon status={status} />
+                                          </button>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="top" align="center">
+                                          <div className="max-w-[220px] space-y-0.5">
+                                            <div className="font-medium">Umsetzung bearbeiten</div>
+                                            <div className="text-xs text-muted-foreground">
+                                              {canConfirm ? "Umsetzungsstatus anpassen oder ändern" : "Keine Umsetzung möglich (zu geringe Berechtigung)"}
+                                            </div>
+                                          </div>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
                                   </div>
                                 )}
                               </TableCell>
@@ -1370,13 +1384,25 @@ export function AssessmentOutline({
                       className={`w-full text-2xl font-semibold bg-transparent border-0 outline-none focus:ring-0 px-0 placeholder:text-muted-foreground/40 ${topic.targets.some((t) => t.actions.length > 0) ? "text-foreground cursor-default" : ""}`}
                     />
                   </div>
-                  <button
-                    onClick={() => onDeleteTopic(topic.id)}
-                    className="opacity-0 group-hover/topic:opacity-100 p-1.5 hover:bg-destructive/10 hover:text-destructive rounded transition-opacity"
-                    aria-label="Schwerpunkt löschen"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  <TooltipProvider delayDuration={150}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={() => onDeleteTopic(topic.id)}
+                          className="opacity-0 group-hover/topic:opacity-100 p-1.5 hover:bg-destructive/10 hover:text-destructive rounded transition-opacity"
+                          aria-label="Schwerpunkt löschen"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        <div className="max-w-[220px] space-y-0.5">
+                          <div className="font-medium">Schwerpunkt löschen</div>
+                          <div className="text-xs text-muted-foreground">Schwerpunkt mit allen Zielen und Handlungen entfernen</div>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
 
                 <Notes
@@ -1431,22 +1457,45 @@ export function AssessmentOutline({
                       </div>
                     </div>
                     {isTargetClosed ? (
-                      <button
-                        onClick={() => onReactivateTarget(topic.id, target.id)}
-                        className="p-1.5 hover:bg-primary/10 hover:text-primary rounded transition-colors"
-                        aria-label="Ziel wieder aktivieren"
-                        title="Ziel wieder aktivieren"
-                      >
-                        <RotateCcw className="h-3.5 w-3.5" />
-                      </button>
+                      <TooltipProvider delayDuration={150}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={() => onReactivateTarget(topic.id, target.id)}
+                              className="p-1.5 hover:bg-primary/10 hover:text-primary rounded transition-colors"
+                              aria-label="Ziel wieder aktivieren"
+                            >
+                              <RotateCcw className="h-3.5 w-3.5" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            <div className="max-w-[220px] space-y-0.5">
+                              <div className="font-medium">Ziel wieder aktivieren</div>
+                              <div className="text-xs text-muted-foreground">Abschlussdatum entfernen und Ziel reaktivieren</div>
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     ) : (
-                      <button
-                        onClick={() => onDeleteTarget(topic.id, target.id)}
-                        className="opacity-0 group-hover/target:opacity-100 p-1.5 hover:bg-destructive/10 hover:text-destructive rounded transition-opacity"
-                        aria-label="Ziel löschen"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      <TooltipProvider delayDuration={150}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={() => onDeleteTarget(topic.id, target.id)}
+                              className="opacity-0 group-hover/target:opacity-100 p-1.5 hover:bg-destructive/10 hover:text-destructive rounded transition-opacity"
+                              aria-label="Ziel löschen"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            <div className="max-w-[220px] space-y-0.5">
+                              <div className="font-medium">Ziel löschen</div>
+                              <div className="text-xs text-muted-foreground">Ziel mit allen Handlungen unwiderruflich entfernen</div>
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     )}
                   </div>
 
@@ -1587,16 +1636,28 @@ function DayPartHeader({
   onCreateUnplanned?: () => void;
 }) {
   const menu = onCreateUnplanned ? (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon"
-      className="h-7 w-7 rounded-full text-muted-foreground hover:text-primary"
-      aria-label="Ungeplante Handlung erstellen"
-      onClick={onCreateUnplanned}
-    >
-      <Plus className="h-4 w-4" />
-    </Button>
+    <TooltipProvider delayDuration={150}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 rounded-full text-muted-foreground hover:text-primary"
+            aria-label="Ungeplante Handlung erstellen"
+            onClick={onCreateUnplanned}
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="normal-case tracking-normal font-normal text-sm">
+          <div className="max-w-[220px] space-y-0.5">
+            <div className="font-medium">Ungeplante Handlung erstellen</div>
+            <div className="text-xs text-muted-foreground">Neue Handlung ausserhalb des Plans erfassen</div>
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   ) : null;
 
   if (part === "none") {
@@ -1792,22 +1853,46 @@ export function ActionRow({
             </span>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={onOpenEditPanel}
-          className="shrink-0 mt-0.5 opacity-0 group-hover/action:opacity-100 p-1 hover:bg-secondary rounded transition-opacity"
-          aria-label="Handlung bearbeiten"
-        >
-          <Pencil className="h-4 w-4 text-muted-foreground" />
-        </button>
-        <button
-          type="button"
-          onClick={() => onDeleteAction(topicId, targetId, action.id)}
-          className="shrink-0 mt-0.5 opacity-0 group-hover/action:opacity-100 p-1 hover:bg-destructive/10 hover:text-destructive rounded transition-opacity"
-          aria-label="Handlung löschen"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+        <TooltipProvider delayDuration={150}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={onOpenEditPanel}
+                className="shrink-0 mt-0.5 opacity-0 group-hover/action:opacity-100 p-1 hover:bg-secondary rounded transition-opacity"
+                aria-label="Handlung bearbeiten"
+              >
+                <Pencil className="h-4 w-4 text-muted-foreground" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              <div className="max-w-[220px] space-y-0.5">
+                <div className="font-medium">Handlung bearbeiten</div>
+                <div className="text-xs text-muted-foreground">Felder und Einstellungen anpassen</div>
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        <TooltipProvider delayDuration={150}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => onDeleteAction(topicId, targetId, action.id)}
+                className="shrink-0 mt-0.5 opacity-0 group-hover/action:opacity-100 p-1 hover:bg-destructive/10 hover:text-destructive rounded transition-opacity"
+                aria-label="Handlung löschen"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              <div className="max-w-[220px] space-y-0.5">
+                <div className="font-medium">Handlung löschen</div>
+                <div className="text-xs text-muted-foreground">Handlung unwiderruflich entfernen</div>
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </li>
     );
   }
@@ -1818,25 +1903,34 @@ export function ActionRow({
       action.isUnplanned && "border-amber-200 bg-amber-50/60",
       "py-2 px-2 -mx-2 hover:bg-secondary/40"
     )}>
-      <button
-        onClick={() => {
-          if (isConfirmationRestricted) return;
-          onOpenDialog(action.status === "open" ? "done_as_planned" : action.status);
-        }}
-        className={cn(
-          "pointer-events-auto mt-0.5 cursor-pointer",
-          isConfirmationRestricted && "cursor-not-allowed opacity-70",
-        )}
-        aria-label="Status ändern"
-        title={
-          isConfirmationRestricted
-            ? "Keine Rechte zur Umsetzung von Kategorie A"
-            : "Status ändern"
-        }
-        aria-disabled={isConfirmationRestricted}
-      >
-        <StatusIcon status={action.status} />
-      </button>
+      <TooltipProvider delayDuration={150}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => {
+                if (isConfirmationRestricted) return;
+                onOpenDialog(action.status === "open" ? "done_as_planned" : action.status);
+              }}
+              className={cn(
+                "pointer-events-auto mt-0.5 cursor-pointer",
+                isConfirmationRestricted && "cursor-not-allowed opacity-70",
+              )}
+              aria-label="Status ändern"
+              aria-disabled={isConfirmationRestricted}
+            >
+              <StatusIcon status={action.status} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            <div className="max-w-[220px] space-y-0.5">
+              <div className="font-medium">Status ändern</div>
+              <div className="text-xs text-muted-foreground">
+                {isConfirmationRestricted ? "Keine Rechte zur Umsetzung von Kategorie A" : "Umsetzungsstatus anpassen"}
+              </div>
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
       <div className="flex-1 min-w-0">
         <input
           value={action.title}
