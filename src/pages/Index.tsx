@@ -1737,7 +1737,7 @@ const Index = () => {
             <RibbonDivider />
             <RibbonButton
               icon={Download}
-              label="Import"
+              label="Import BESA/Qsys (InterRAI)"
               disabled={viewMode === "confirmation" || viewMode === "review"}
             />
             <RibbonButton
