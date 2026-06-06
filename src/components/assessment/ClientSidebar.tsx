@@ -130,7 +130,7 @@ export function ClientSidebar({
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Suchen (Ctrl+D)"
+              placeholder="Suchen"
               className="bg-transparent outline-none text-sm placeholder:text-sidebar-foreground/60 w-full"
             />
           )}
