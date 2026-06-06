@@ -16,8 +16,6 @@ import {
   HelpCircle,
   Plus,
   Filter,
-  Download,
-  Upload,
   ListTodo,
   ClipboardCheck,
   SearchCheck,
@@ -27,6 +25,9 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { ClientSidebar, ClientSidebarTrigger } from "@/components/assessment/ClientSidebar";
+import { RibbonButton, RibbonDivider } from "@/components/ribbon/Ribbon";
+import { ExcelIcon } from "@/components/icons/ExcelIcon";
+import { ImportIcon } from "@/components/icons/ImportIcon";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { useNavigate } from "react-router-dom";
 import { Settings as SettingsIcon } from "lucide-react";
@@ -86,6 +87,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const todayLocalISO = () => {
@@ -478,6 +480,13 @@ const Index = () => {
     target: import("@/types/assessment").TargetNode;
   } | null>(null);
   const [hideReviewAssessed, setHideReviewAssessed] = useState(false);
+  const [confirmDialogState, setConfirmDialogState] = useState<{
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
+  const showConfirm = (message: string, onConfirm: () => void) => {
+    setConfirmDialogState({ message, onConfirm });
+  };
   const [expandedReviewTargets, setExpandedReviewTargets] = useState<Set<string>>(new Set());
   const toggleReviewTarget = (targetId: string) =>
     setExpandedReviewTargets((prev) => {
@@ -989,18 +998,20 @@ const Index = () => {
     ) ?? [];
     const hasNestedPlanning = topicsInDiscipline.length > 0;
 
-    if (
-      hasNestedPlanning &&
-      !window.confirm(
+    const doDelete = () =>
+      updateClientTopicsFor(clientId, (topics) =>
+        topics.filter((topic) => (topic.disciplineId ?? DEFAULT_SEED_DISCIPLINE_ID) !== disciplineId),
+      );
+
+    if (hasNestedPlanning) {
+      showConfirm(
         "Diese Disziplin enthält Schwerpunkte, Ziele oder Handlungen. Beim Löschen werden alle verknüpften Daten ebenfalls gelöscht. Möchten Sie fortfahren?",
-      )
-    ) {
+        doDelete,
+      );
       return;
     }
 
-    updateClientTopicsFor(clientId, (topics) =>
-      topics.filter((topic) => (topic.disciplineId ?? DEFAULT_SEED_DISCIPLINE_ID) !== disciplineId),
-    );
+    doDelete();
   };
 
   const applyTargetUpdate = (
@@ -1337,18 +1348,20 @@ const Index = () => {
     const hasTargets = (topic?.targets.length ?? 0) > 0;
     const requiresConfirmation = hasTitle || hasNotes || hasTargets;
 
-    if (
-      requiresConfirmation &&
-      !window.confirm(
+    const doDelete = () =>
+      updateClientTopicsFor(clientId, (topics) => topics.filter((t) => t.id !== topicId));
+
+    if (requiresConfirmation) {
+      showConfirm(
         hasTargets
           ? "Dieser Schwerpunkt enthält Ziele oder Handlungen. Beim Löschen werden alle verknüpften Daten ebenfalls gelöscht. Möchten Sie fortfahren?"
           : "Diesen Schwerpunkt wirklich löschen?",
-      )
-    ) {
+        doDelete,
+      );
       return;
     }
 
-    updateClientTopicsFor(clientId, (topics) => topics.filter((t) => t.id !== topicId));
+    doDelete();
   };
 
   const deleteTarget = (clientId: string, topicId: string, targetId: string) => {
@@ -1357,22 +1370,24 @@ const Index = () => {
     const target = topic?.targets.find((tg) => tg.id === targetId);
     const hasActions = (target?.actions.length ?? 0) > 0;
 
-    if (
-      hasActions &&
-      !window.confirm(
+    const doDelete = () =>
+      updateClientTopicsFor(clientId, (topics) =>
+        topics.map((t) =>
+          t.id !== topicId
+            ? t
+            : { ...t, targets: t.targets.filter((tg) => tg.id !== targetId) },
+        ),
+      );
+
+    if (hasActions) {
+      showConfirm(
         "Dieses Ziel enthält Handlungen. Beim Löschen werden alle verknüpften Daten ebenfalls gelöscht. Möchten Sie fortfahren?",
-      )
-    ) {
+        doDelete,
+      );
       return;
     }
 
-    updateClientTopicsFor(clientId, (topics) =>
-      topics.map((t) =>
-        t.id !== topicId
-          ? t
-          : { ...t, targets: t.targets.filter((tg) => tg.id !== targetId) },
-      ),
-    );
+    doDelete();
   };
 
   const deleteAction = (
@@ -1387,38 +1402,41 @@ const Index = () => {
     const action = target?.actions.find((a) => a.id === actionId);
     const hasConfirmedActions = Object.keys(action?.confirmations ?? {}).length > 0;
 
-    if (
-      hasConfirmedActions &&
-      !window.confirm(
+    const doDelete = () => {
+      setTransientUnplannedActionIds((prev) => {
+        if (!prev.has(actionId)) return prev;
+        const next = new Set(prev);
+        next.delete(actionId);
+        return next;
+      });
+
+      updateClientTopicsFor(clientId, (topics) =>
+        topics.map((t) =>
+          t.id !== topicId
+            ? t
+            : {
+                ...t,
+                targets: t.targets.map((tg) =>
+                  tg.id !== targetId
+                    ? tg
+                    : { ...tg, actions: tg.actions.filter((a) => a.id !== actionId) },
+                ),
+              },
+        ),
+      );
+    };
+
+    if (hasConfirmedActions) {
+      showConfirm(
         action?.isUnplanned
           ? "Diese ungeplante Handlung wurde bereits bestätigt. Beim Löschen werden alle verknüpften Daten ebenfalls gelöscht. Möchten Sie fortfahren?"
           : "Diese geplante Handlung hat bereits bestätigte Einträge. Beim Löschen werden alle verknüpften Daten ebenfalls gelöscht. Möchten Sie fortfahren?",
-      )
-    ) {
+        doDelete,
+      );
       return;
     }
 
-    setTransientUnplannedActionIds((prev) => {
-      if (!prev.has(actionId)) return prev;
-      const next = new Set(prev);
-      next.delete(actionId);
-      return next;
-    });
-
-    updateClientTopicsFor(clientId, (topics) =>
-      topics.map((t) =>
-        t.id !== topicId
-          ? t
-          : {
-              ...t,
-              targets: t.targets.map((tg) =>
-                tg.id !== targetId
-                  ? tg
-                  : { ...tg, actions: tg.actions.filter((a) => a.id !== actionId) },
-              ),
-            },
-      ),
-    );
+    doDelete();
   };
 
   const updateClientName = (
@@ -1449,7 +1467,7 @@ const Index = () => {
     setSelectedDate(dateToISO(d));
   };
 
-  const exportReviewCsv = () => {
+  const exportReviewXlsx = () => {
     if (viewMode !== "review") return;
     const disciplineList = availableDisciplines.length > 0 ? availableDisciplines : initialActionPlanDisciplines;
     const headers = ["Dossier", "Disziplin", "Schwerpunkt", "Ziel", "Beschreibung", "Gültig ab", "Gültig bis", "Zielerreichung", "Abgeleitete Massnahmen", "Beurteilt von", "Beurteilt am"];
@@ -1474,13 +1492,11 @@ const Index = () => {
           ]);
       });
     });
-    const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
-    const csv = [headers, ...rows].map((row) => row.map(escape).join(";")).join("\r\n");
-    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const blob = createSimpleXlsxBlob({ sheetName: "Überprüfung", headers, rows });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "ueberpruefung.csv";
+    a.download = "ueberpruefung.xlsx";
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -1697,6 +1713,13 @@ const Index = () => {
               icon={Plus}
               label="Neuer Schwerpunkt"
               disabled={selectedClients.length !== 1 || viewMode === "confirmation" || viewMode === "review"}
+              title={
+                selectedClients.length !== 1
+                  ? "Bitte genau eine Klient/in auswählen"
+                  : viewMode !== "planning"
+                    ? "Nur in der Planungsansicht verfügbar"
+                    : undefined
+              }
               onClick={() => {
                 if (selectedClients[0]) addTopic(selectedClients[0].id);
               }}
@@ -1732,19 +1755,38 @@ const Index = () => {
                 onClick={() => (isFilterOpen ? cancelFilter() : openFilter())}
                 active={isFilterOpen}
                 highlighted={isFilterActive}
+                title={
+                  viewMode === "planning" || viewMode === "review"
+                    ? "Filter ist nur in der Umsetzungsansicht verfügbar"
+                    : isFilterOpen
+                      ? "Filter schliessen"
+                      : "Filter öffnen"
+                }
               />
             </div>
             <RibbonDivider />
             <RibbonButton
-              icon={Download}
-              label="Import BESA/Qsys (InterRAI)"
+              icon={ImportIcon}
+              label="BESA/Qsys"
               disabled={viewMode === "confirmation" || viewMode === "review"}
+              title={
+                viewMode !== "planning"
+                  ? "Import ist nur in der Planungsansicht verfügbar"
+                  : "Leistungsplanung aus BESA/Qsys (InterRAI-HC) importieren"
+              }
             />
             <RibbonButton
-              icon={Upload}
+              icon={ExcelIcon}
               label="Export"
-              onClick={viewMode === "review" ? exportReviewCsv : exportConfirmationExcel}
+              onClick={viewMode === "review" ? exportReviewXlsx : exportConfirmationExcel}
               disabled={viewMode !== "confirmation" && viewMode !== "review"}
+              title={
+                viewMode === "review"
+                  ? "Überprüfungsdaten als XLSX exportieren"
+                  : viewMode === "confirmation"
+                    ? "Umsetzungsdaten als XLSX exportieren"
+                    : "Export ist nur in der Umsetzungs- oder Überprüfungsansicht verfügbar"
+              }
             />
             </div>
 
@@ -2713,50 +2755,19 @@ const Index = () => {
         />,
         document.body,
       )}
+      <ConfirmDialog
+        open={confirmDialogState !== null}
+        message={confirmDialogState?.message ?? ""}
+        onConfirm={() => {
+          confirmDialogState?.onConfirm();
+          setConfirmDialogState(null);
+        }}
+        onCancel={() => setConfirmDialogState(null)}
+      />
     </SidebarProvider>
   );
 };
 
-function RibbonButton({
-  icon: Icon,
-  label,
-  onClick,
-  disabled,
-  active,
-  highlighted,
-}: {
-  icon: React.ElementType;
-  label: string;
-  onClick?: () => void;
-  disabled?: boolean;
-  active?: boolean;
-  highlighted?: boolean;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={cn(
-        "flex w-24 flex-col items-center justify-center gap-0.5 px-2 py-1.5 rounded transition-colors",
-        highlighted
-          ? "bg-primary/15 text-foreground ring-1 ring-primary/40 shadow-sm hover:bg-primary/25 disabled:opacity-100"
-          : active
-          ? "bg-secondary text-foreground shadow-sm disabled:opacity-100"
-          : "text-foreground/80 hover:bg-secondary hover:text-foreground",
-        "disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-foreground/80 disabled:cursor-not-allowed",
-      )}
-    >
-      <Icon className="h-5 w-5" />
-      <span className="text-center text-[11px] font-medium leading-tight whitespace-normal break-words">
-        {label}
-      </span>
-    </button>
-  );
-}
-
-function RibbonDivider() {
-  return <div className="w-px h-10 bg-border mx-1" />;
-}
 
 function TargetAssessmentPanel({
   target,

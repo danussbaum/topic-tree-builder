@@ -1,5 +1,7 @@
 import { useRef, useState } from "react";
-import { ArrowLeft, Download, Plus, Search, Upload, X } from "lucide-react";
+import { ArrowLeft, Plus, Search, X } from "lucide-react";
+import { CsvIcon } from "@/components/icons/CsvIcon";
+import { CsvImportIcon } from "@/components/icons/CsvImportIcon";
 import { SettingsTopBar } from "@/components/settings/SettingsTopBar";
 import { SettingsCategorySidebar } from "@/components/settings/SettingsCategorySidebar";
 import { SettingsGrid } from "@/components/settings/SettingsGrid";
@@ -61,13 +63,13 @@ const Settings = () => {
           {
             key: "import-templates",
             label: "Import",
-            icon: Download,
+            icon: CsvImportIcon,
             onClick: () => templatesRef.current?.openImport(),
           } satisfies SettingsRibbonAction,
           {
             key: "export-templates",
             label: "Export",
-            icon: Upload,
+            icon: CsvIcon,
             onClick: () => templatesRef.current?.exportCsv(),
           } satisfies SettingsRibbonAction,
         ]

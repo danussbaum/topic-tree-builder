@@ -1,5 +1,6 @@
 import type { ElementType, ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 /**
  * Shared ribbon primitives used by the planning/confirmation view and the
@@ -31,6 +32,7 @@ interface RibbonButtonProps {
   disabled?: boolean;
   active?: boolean;
   highlighted?: boolean;
+  title?: string;
 }
 
 export function RibbonButton({
@@ -40,8 +42,9 @@ export function RibbonButton({
   disabled,
   active,
   highlighted,
+  title,
 }: RibbonButtonProps) {
-  return (
+  const button = (
     <button
       type="button"
       onClick={onClick}
@@ -61,6 +64,17 @@ export function RibbonButton({
         {label}
       </span>
     </button>
+  );
+
+  if (!title) return button;
+
+  return (
+    <TooltipProvider delayDuration={300}>
+      <Tooltip>
+        <TooltipTrigger asChild>{button}</TooltipTrigger>
+        <TooltipContent side="bottom">{title}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
