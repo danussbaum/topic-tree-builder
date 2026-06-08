@@ -15,6 +15,7 @@ import {
   MoreHorizontal,
   HelpCircle,
   Plus,
+  CirclePlus,
   Filter,
   ListTodo,
   ClipboardCheck,
@@ -25,6 +26,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { ClientSidebar, ClientSidebarTrigger } from "@/components/assessment/ClientSidebar";
+import { ModuleNav } from "@/components/ModuleNav";
 import { RibbonButton, RibbonDivider } from "@/components/ribbon/Ribbon";
 import { ExcelIcon } from "@/components/icons/ExcelIcon";
 import { ImportIcon } from "@/components/icons/ImportIcon";
@@ -1634,7 +1636,7 @@ const Index = () => {
 
   return (
     <SidebarProvider>
-      <div className="h-dvh bg-[#f3f3f5] flex w-full">
+      <div className="h-dvh bg-[#F5F5F6] flex w-full">
         <ClientSidebar
           clients={clients}
           selectedClientIds={selectedClientIds}
@@ -1643,75 +1645,31 @@ const Index = () => {
           onAddClient={addClient}
         />
 
-        <main className="flex-1 min-w-0 flex flex-col">
+        <main className="flex-1 min-w-0 flex flex-col bg-[#F5F5F6]">
           {/* Top tab bar */}
-          <div className="flex items-center bg-topbar text-topbar-foreground border-b border-border h-12 pr-2">
-            <nav className="flex items-stretch h-full overflow-x-auto">
-              {[
-                { label: "Handlungen", icon: Target, active: true },
-                { label: "Journal", icon: BookOpen },
-                { label: "Aufgaben", icon: CheckSquare },
-                { label: "Termine", icon: Calendar },
-                { label: "Texte", icon: FileText },
-                { label: "Dateien", icon: Files },
-                { label: "Pflege", icon: HeartPulse },
-                { label: "Systeme", icon: Network },
-                { label: "Bewertungen", icon: Star },
-                { label: "Kontakte", icon: Users },
-              ].map((t) => (
+          <div className="flex items-center bg-topbar text-topbar-foreground border-b border-border h-12 pr-2 overflow-hidden">
+            <ModuleNav />
+            <div className="flex items-stretch shrink-0">
+              <div className="border-l border-border flex items-center">
                 <button
-                  key={t.label}
-                  className={
-                    "px-4 text-xs font-semibold uppercase tracking-wide flex items-center gap-2 border-r border-border transition-colors " +
-                    (t.active
-                      ? "bg-topbar-active text-topbar-active-foreground"
-                      : "hover:bg-secondary")
-                  }
+                  className="p-2 rounded hover:bg-secondary text-muted-foreground"
+                  aria-label="Hilfe"
                 >
-                  <t.icon className="h-4 w-4" />
-                  {t.label}
+                  <HelpCircle className="h-5 w-5" />
                 </button>
-              ))}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    className="px-4 text-xs font-semibold uppercase tracking-wide flex items-center gap-2 border-r border-border transition-colors hover:bg-secondary focus:outline-none data-[state=open]:bg-secondary"
-                  >
-                    <MoreHorizontal className="h-4 w-4" />
-                    Weitere
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="min-w-48">
-                  <DropdownMenuItem onClick={() => navigate("/settings")}>
-                    <SettingsIcon className="h-4 w-4 mr-2" />
-                    <span className="text-xs font-semibold uppercase tracking-wide">
-                      Einstellungen
-                    </span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </nav>
-            <div className="ml-auto flex items-center gap-1 pl-2">
-              <button
-                className="p-2 rounded hover:bg-secondary text-muted-foreground"
-                aria-label="Hilfe"
-              >
-                <HelpCircle className="h-5 w-5" />
-              </button>
-              <ApplicationLogoutButton />
+              </div>
+              <div className="border-l border-r border-border flex items-center">
+                <ApplicationLogoutButton />
+              </div>
             </div>
           </div>
 
           {/* Ribbon toolbar */}
           <div className="relative">
-            <div className="flex items-center gap-1 px-3 py-2 bg-secondary/60 border-b border-border">
-            <div className="flex items-center gap-1 pr-2 border-r border-border mr-1">
-              <ClientSidebarTrigger />
-            </div>
+            <div className="flex items-stretch bg-[#F5F5F6] border-b border-border overflow-x-auto shadow-[0_2px_4px_rgba(0,0,0,0.08)]">
             <RibbonButton
-              icon={Plus}
-              label="Neuer Schwerpunkt"
+              icon={CirclePlus}
+              label="Neu"
               disabled={selectedClients.length !== 1 || viewMode === "confirmation" || viewMode === "review"}
               title={
                 selectedClients.length !== 1
@@ -2154,7 +2112,7 @@ const Index = () => {
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto bg-[#f3f3f5]">
+          <div className="flex-1 overflow-y-auto bg-[#F5F5F6]">
             {selectedClients.length === 0 ? (
               <div className="p-12 text-center text-muted-foreground">
                 <p className="text-lg">Wählen Sie eine oder mehrere Klient/innen in der Navigation.</p>
@@ -2162,7 +2120,7 @@ const Index = () => {
             ) : (
               <div className="px-6 lg:px-10 py-6 w-full space-y-10">
                 {viewMode === "confirmation" && (
-                  <div className="flex items-center justify-between p-4 rounded-lg border border-border bg-[#f3f3f5]">
+                  <div className="flex items-center justify-between p-4 rounded-lg border border-border bg-[#F5F5F6]">
                     <div className="flex items-center gap-4">
                       <div className="flex items-center gap-1 bg-background border border-border rounded-md p-1">
                         <button
@@ -2336,7 +2294,7 @@ const Index = () => {
                 )}
                 {viewMode === "review" && (
                   <>
-                    <div className="flex items-center justify-end sticky top-0 z-20 py-2 bg-[#f3f3f5]">
+                    <div className="flex items-center justify-end sticky top-0 z-20 py-2 bg-[#F5F5F6]">
                       <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
                         <input
                           type="checkbox"
@@ -2365,7 +2323,7 @@ const Index = () => {
                       const clientName = `${client.firstName} ${client.lastName}`.trim();
                       return (
                         <section key={client.id} className="space-y-6">
-                          <h1 className="text-2xl font-semibold pb-5 border-b border-border sticky top-9 z-10 bg-[#f3f3f5]">
+                          <h1 className="text-2xl font-semibold pb-5 border-b border-border sticky top-9 z-10 bg-[#F5F5F6]">
                             {clientName}
                           </h1>
                           {closedTargets.length === 0 ? (
@@ -2545,7 +2503,7 @@ const Index = () => {
                 {viewMode !== "review" && visibleSelectedClients.map((client) => (
                   <section key={client.id} className="space-y-6">
                     {/* Client header */}
-                    <div className={cn("flex items-center gap-4 pb-5 border-b border-border sticky z-10 bg-[#f3f3f5]", viewMode === "confirmation" ? "top-0 pt-[5px]" : viewMode === "planning" ? "top-0 pb-2" : "top-9 pb-2")}>
+                    <div className={cn("flex items-center gap-4 pb-5 border-b border-border sticky z-10 bg-[#F5F5F6]", viewMode === "confirmation" ? "top-0 pt-[5px]" : viewMode === "planning" ? "top-0 pb-2" : "top-9 pb-2")}>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline gap-0">
                           <ClientNameInput
@@ -2810,7 +2768,7 @@ function TargetAssessmentPanel({
     >
       <aside
         ref={asideRef}
-        className={`pointer-events-auto flex h-dvh w-full max-w-lg flex-col bg-[#f3f3f5] transition-transform duration-300 ease-out ${isOpen ? "translate-x-0 shadow-2xl" : "translate-x-full"}`}
+        className={`pointer-events-auto flex h-dvh w-full max-w-lg flex-col bg-[#F5F5F6] transition-transform duration-300 ease-out ${isOpen ? "translate-x-0 shadow-2xl" : "translate-x-full"}`}
       >
         <div className="flex shrink-0 items-center justify-between bg-primary px-6 py-4 text-primary-foreground">
           <div>

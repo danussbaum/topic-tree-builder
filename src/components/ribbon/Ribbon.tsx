@@ -16,7 +16,7 @@ export function Ribbon({ children, className }: RibbonProps) {
   return (
     <div
       className={cn(
-        "flex items-center gap-1 px-3 py-2 bg-secondary/60 border-b border-border",
+        "flex items-stretch bg-[#F5F5F6] border-b border-border overflow-x-auto shadow-[0_2px_4px_rgba(0,0,0,0.08)] py-0",
         className,
       )}
     >
@@ -50,12 +50,12 @@ export function RibbonButton({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "flex w-24 flex-col items-center justify-center gap-0.5 px-2 py-1.5 rounded transition-colors",
+        "flex w-24 flex-col items-center justify-center gap-0.5 px-2 py-2 transition-colors",
         highlighted
           ? "bg-primary/15 text-foreground ring-1 ring-primary/40 shadow-sm hover:bg-primary/25 disabled:opacity-100"
           : active
             ? "bg-secondary text-foreground shadow-sm disabled:opacity-100"
-            : "text-foreground/80 hover:bg-secondary hover:text-foreground",
+            : "text-foreground/80 hover:bg-[#EDEDED] hover:text-foreground",
         "disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-foreground/80 disabled:cursor-not-allowed",
       )}
     >
@@ -79,5 +79,5 @@ export function RibbonButton({
 }
 
 export function RibbonDivider() {
-  return <div className="w-px h-10 bg-border mx-1" />;
+  return <div className="w-px bg-border" style={{ alignSelf: "stretch" }} />;
 }

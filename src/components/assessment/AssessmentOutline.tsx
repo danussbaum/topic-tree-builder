@@ -934,7 +934,7 @@ export function AssessmentOutline({
           {groupedFlatActions.map((dateGroup) => (
             <div key={dateGroup.dueDate} className="space-y-3">
               <div
-                className={cn(stickyOffset !== undefined && "sticky z-[6] bg-[#f3f3f5] rounded-lg")}
+                className={cn(stickyOffset !== undefined && "sticky z-[6] bg-[#F5F5F6] rounded-lg")}
                 style={stickyOffset !== undefined ? { top: stickyOffset } : undefined}
               >
                 <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
@@ -1700,7 +1700,7 @@ function DayPartHeader({
   );
 
   const stickyProps = stickyTop !== undefined
-    ? { className: "sticky z-[5] py-1 bg-[#f3f3f5]", style: { top: stickyTop } }
+    ? { className: "sticky z-[5] py-1 bg-[#F5F5F6]", style: { top: stickyTop } }
     : { className: "" };
 
   if (part === "none") {
@@ -2816,7 +2816,7 @@ function ActionSidePanel({
     >
       <aside
         ref={asideRef}
-        className={`pointer-events-auto flex h-dvh w-full max-w-2xl flex-col bg-[#f3f3f5] transition-transform duration-300 ease-out ${isPanelOpen ? "translate-x-0 shadow-2xl" : "translate-x-full"}`}
+        className={`pointer-events-auto flex h-dvh w-full max-w-2xl flex-col bg-[#F5F5F6] transition-transform duration-300 ease-out ${isPanelOpen ? "translate-x-0 shadow-2xl" : "translate-x-full"}`}
         onTransitionEnd={onTransitionEnd}
       >
         {/* Header */}
@@ -3361,7 +3361,7 @@ export function UnplannedActionDialog({
     >
       <aside
         ref={unplannedAsideRef}
-        className={`pointer-events-auto flex h-dvh w-full max-w-2xl flex-col bg-[#f3f3f5] transition-transform duration-300 ease-out ${isPanelVisible ? "translate-x-0 shadow-2xl" : "translate-x-full"}`}
+        className={`pointer-events-auto flex h-dvh w-full max-w-2xl flex-col bg-[#F5F5F6] transition-transform duration-300 ease-out ${isPanelVisible ? "translate-x-0 shadow-2xl" : "translate-x-full"}`}
       >
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between bg-primary px-6 py-4 text-primary-foreground">
@@ -3856,7 +3856,7 @@ function ConfirmActionDialog({
     >
       <aside
         ref={confirmAsideRef}
-        className={`pointer-events-auto flex h-dvh w-full max-w-2xl flex-col bg-[#f3f3f5] transition-transform duration-300 ease-out ${isPanelVisible ? "translate-x-0 shadow-2xl" : "translate-x-full"}`}
+        className={`pointer-events-auto flex h-dvh w-full max-w-2xl flex-col bg-[#F5F5F6] transition-transform duration-300 ease-out ${isPanelVisible ? "translate-x-0 shadow-2xl" : "translate-x-full"}`}
       >
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between bg-primary px-6 py-4 text-primary-foreground">

@@ -1,4 +1,4 @@
-import { Search, Users, Plus, PanelLeft } from "lucide-react";
+import { Search, Users, Plus, ChevronLeft, Star, User } from "lucide-react";
 import type { Client } from "@/types/assessment";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -7,7 +7,6 @@ import {
   SidebarContent,
   SidebarHeader,
   SidebarFooter,
-  SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
 
@@ -35,7 +34,7 @@ export function ClientSidebar({
   onAddClient,
 }: Props) {
   const [query, setQuery] = useState("");
-  const { state } = useSidebar();
+  const { state, toggleSidebar } = useSidebar();
   const collapsed = state === "collapsed";
 
   const filtered = clients.filter((c) =>
@@ -46,14 +45,12 @@ export function ClientSidebar({
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
-      <SidebarHeader className="border-b border-sidebar-border">
+      <SidebarHeader className="border-b border-sidebar-border text-white" style={{ backgroundColor: "hsl(158 28% 32%)" }}>
         {/* User chip */}
         <div className="flex items-center gap-3 px-2 py-2">
-          <div className="h-8 w-8 rounded-full bg-sidebar-accent flex items-center justify-center text-xs font-semibold shrink-0">
-            AS
-          </div>
+          <User className="h-5 w-5 shrink-0" strokeWidth={1.25} />
           {!collapsed && (
-            <div className="text-sm font-semibold leading-tight truncate">
+            <div className="text-sm leading-tight truncate">
               Assessor (GL)
             </div>
           )}
@@ -62,22 +59,21 @@ export function ClientSidebar({
 
       <SidebarContent>
         {/* Section header */}
-        <div className="flex items-center border-b border-sidebar-border bg-sidebar-primary/60">
+        <div className="flex items-center border-b border-sidebar-border" style={{ backgroundColor: "#666666" }}>
           <button
             className={cn(
-              "min-w-0 flex-1 flex items-center gap-2 px-3 py-2.5 text-xs font-semibold uppercase tracking-wide hover:bg-sidebar-primary transition-colors",
+              "min-w-0 flex-1 flex items-center gap-2 px-3 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-black/10",
               collapsed && "justify-center px-2",
             )}
             onClick={onToggleAllClients}
             title={allClientsSelected ? "Alle Klient/innen deselektieren" : "Alle Klient/innen selektieren"}
             aria-pressed={allClientsSelected}
           >
-            <Users className="h-4 w-4 shrink-0" />
-            {!collapsed && <span className="truncate">Klient/innen</span>}
+            {collapsed ? <Users className="h-4 w-4 shrink-0" /> : <span className="truncate">Klient/innen</span>}
           </button>
           {!collapsed && (
             <button
-              className="p-2.5 hover:bg-sidebar-primary transition-colors"
+              className="p-2.5 text-white hover:bg-black/10 transition-colors"
               onClick={onAddClient}
               title="Neue Klient/in hinzufügen"
               aria-label="Neue Klient/in hinzufügen"
@@ -105,11 +101,14 @@ export function ClientSidebar({
                 title={collapsed ? `${c.lastName}, ${c.firstName}` : undefined}
               >
                 {!collapsed && (
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium truncate">
-                      {c.lastName}, {c.firstName}
+                  <>
+                    <Star className="h-3.5 w-3.5 shrink-0 opacity-40" />
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate">
+                        {c.lastName}, {c.firstName}
+                      </div>
                     </div>
-                  </div>
+                  </>
                 )}
               </button>
             );
@@ -122,18 +121,29 @@ export function ClientSidebar({
         </div>
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-sidebar-border p-3">
-        {/* Search */}
-        <div className="flex items-center gap-2 bg-sidebar-accent/40 rounded px-2 py-1.5">
-          <Search className="h-4 w-4 opacity-80 shrink-0" />
+      <SidebarFooter className="border-t border-sidebar-border p-3" style={{ backgroundColor: "hsl(158 28% 32%)" }}>
+        <div className={cn("flex items-center gap-2", collapsed && "justify-center")}>
+          {/* Search */}
           {!collapsed && (
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Suchen"
-              className="bg-transparent outline-none text-sm placeholder:text-sidebar-foreground/60 w-full"
-            />
+            <div className="flex items-center gap-2 bg-white rounded px-2 py-1.5 min-w-0 flex-1">
+              <Search className="h-4 w-4 text-gray-400 shrink-0" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Suchen"
+                className="bg-transparent outline-none text-sm text-gray-700 placeholder:text-gray-400 w-full min-w-0"
+              />
+            </div>
           )}
+          {/* Collapse trigger */}
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            className="shrink-0 p-1.5 rounded hover:bg-black/10 transition-colors text-white"
+            title={collapsed ? "Sidebar ausklappen" : "Sidebar einklappen"}
+          >
+            <ChevronLeft className={cn("h-4 w-4 transition-transform", collapsed && "rotate-180")} />
+          </button>
         </div>
       </SidebarFooter>
     </Sidebar>
@@ -142,7 +152,7 @@ export function ClientSidebar({
 
 export function ClientSidebarTrigger() {
   return (
-    <SidebarTrigger className="h-9 w-9 p-2 hover:bg-secondary rounded">
+    <SidebarTrigger className="h-9 w-9 p-2 hover:bg-secondary rounded self-center">
       <PanelLeft className="h-5 w-5" />
     </SidebarTrigger>
   );

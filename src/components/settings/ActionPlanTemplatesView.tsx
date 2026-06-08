@@ -630,7 +630,7 @@ export const ActionPlanTemplatesView = forwardRef<
           className={`pointer-events-none fixed inset-0 z-50 flex justify-end transition-opacity duration-300 ${isPanelOpen ? "opacity-100" : "opacity-0"}`}
         >
           <aside
-            className={`pointer-events-auto flex h-full w-full max-w-4xl flex-col bg-[#f3f3f5] shadow-2xl transition-transform duration-300 ease-out ${isPanelOpen ? "translate-x-0" : "translate-x-full"}`}
+            className={`pointer-events-auto flex h-full w-full max-w-4xl flex-col bg-[#F5F5F6] shadow-2xl transition-transform duration-300 ease-out ${isPanelOpen ? "translate-x-0" : "translate-x-full"}`}
             onTransitionEnd={handlePanelAnimationEnd}
           >
             <div className="flex items-center justify-between border-b border-border px-6 py-4">

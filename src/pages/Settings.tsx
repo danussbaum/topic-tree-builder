@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { ArrowLeft, Plus, Search, X } from "lucide-react";
+import { ArrowLeft, CirclePlus, Search, X } from "lucide-react";
 import { CsvIcon } from "@/components/icons/CsvIcon";
 import { CsvImportIcon } from "@/components/icons/CsvImportIcon";
 import { SettingsTopBar } from "@/components/settings/SettingsTopBar";
@@ -49,8 +49,8 @@ const Settings = () => {
       ? [
           {
             key: showActionPlanDisciplines ? "new-discipline" : "new-template",
-            label: showActionPlanDisciplines ? "Neu" : "Neue Handlungsvorlage",
-            icon: Plus,
+            label: "Neu",
+            icon: CirclePlus,
             onClick: () =>
               showActionPlanDisciplines
                 ? disciplinesRef.current?.openCreate()
@@ -125,7 +125,7 @@ const Settings = () => {
   ) : null;
 
   return (
-    <div className="min-h-dvh flex w-full bg-background">
+    <div className="h-dvh flex w-full bg-[#F5F5F6]">
       <SettingsCategorySidebar
         activeId={activeGroup}
         onSelect={(id) => {
@@ -139,15 +139,17 @@ const Settings = () => {
       <main className="flex-1 min-w-0 flex flex-col min-h-0">
         <SettingsTopBar />
         {subPageTitle && (
-          <SettingsRibbon
-            actions={ribbonActions}
-            trailingContent={ribbonSearch}
-          />
+          <div className="relative">
+            <SettingsRibbon
+              actions={ribbonActions}
+              trailingContent={ribbonSearch}
+            />
+          </div>
         )}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto bg-[#F5F5F6]">
           {subPageTitle ? (
             <>
-              <div className="bg-[#ededf0] border-b border-border px-6 py-4">
+              <div className="bg-[#F5F5F6] border-b border-border px-6 py-4">
                 <h1 className="text-2xl font-light text-foreground">
                   {subPageTitle}
                 </h1>

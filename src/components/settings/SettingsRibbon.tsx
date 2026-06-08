@@ -47,7 +47,7 @@ export function SettingsRibbon({
           {action.dividerAfter && idx < actions.length - 1 && <RibbonDivider />}
         </Fragment>
       ))}
-      {trailingContent && <div className="ml-auto">{trailingContent}</div>}
+      {trailingContent && <div className="ml-auto flex items-center">{trailingContent}</div>}
     </Ribbon>
   );
 }

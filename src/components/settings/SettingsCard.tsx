@@ -15,7 +15,7 @@ export const SettingsCard = ({ category, onLinkClick }: SettingsCardProps) => {
       className="rounded-md border border-border bg-card overflow-hidden shadow-sm"
       aria-labelledby={`settings-card-${category.id}`}
     >
-      <header className="flex items-center gap-2 px-3 py-2 bg-sidebar-accent text-sidebar-accent-foreground">
+      <header className="flex items-center gap-2 px-3 py-2 text-white" style={{ backgroundColor: "hsl(158 28% 32%)" }}>
         <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
         <h2
           id={`settings-card-${category.id}`}

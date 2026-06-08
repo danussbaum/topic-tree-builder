@@ -1,4 +1,6 @@
-import { ChevronRight } from "lucide-react";
+import { useState } from "react";
+import { ChevronRight, ChevronLeft, User } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { settingsSidebarGroups } from "./settingsData";
 
 interface SettingsCategorySidebarProps {
@@ -6,29 +8,36 @@ interface SettingsCategorySidebarProps {
   onSelect?: (id: string) => void;
 }
 
-/**
- * Left navigation listing settings groups, mimicking the secondary sidebar
- * shown on the original settings screen.
- */
 export const SettingsCategorySidebar = ({
   activeId,
   onSelect,
 }: SettingsCategorySidebarProps) => {
+  const [collapsed, setCollapsed] = useState(false);
+
   return (
     <aside
       aria-label="Einstellungs-Kategorien"
-      className="hidden md:flex w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground border-r border-border overflow-y-auto"
+      className={cn(
+        "hidden md:flex flex-col bg-white border-r border-border transition-all duration-200 h-full self-stretch",
+        collapsed ? "w-12" : "w-64"
+      )}
     >
-      <div className="flex items-center gap-3 px-3 py-3 border-b border-sidebar-border bg-sidebar-primary">
-        <div className="h-8 w-8 rounded-full bg-sidebar-accent flex items-center justify-center text-xs font-semibold text-sidebar-accent-foreground shrink-0">
-          AS
-        </div>
-        <div className="text-sm font-semibold leading-tight truncate">
-          Assessor (GL)
-        </div>
+      {/* Profile header */}
+      <div
+        className={cn("flex items-center gap-3 px-4 py-4 border-b border-border shrink-0", collapsed && "justify-center px-4")}
+        style={{ backgroundColor: "hsl(158 28% 32%)" }}
+      >
+        <User className="h-5 w-5 shrink-0 text-white" strokeWidth={1.25} />
+        {!collapsed && (
+          <div className="text-sm leading-tight truncate text-white">
+            Assessor (GL)
+          </div>
+        )}
       </div>
 
-      <ul className="py-2">
+
+      {/* List */}
+      <ul className="py-1 flex-1 overflow-y-auto min-h-0" style={{ backgroundColor: "#666666" }}>
         {settingsSidebarGroups.map((group) => {
           const isActive = group.id === activeId;
           return (
@@ -36,20 +45,34 @@ export const SettingsCategorySidebar = ({
               <button
                 type="button"
                 onClick={() => onSelect?.(group.id)}
-                className={
-                  "w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-left transition-colors " +
-                  (isActive
-                    ? "bg-sidebar-accent/80 text-sidebar-accent-foreground font-medium"
-                    : "hover:bg-sidebar-primary")
-                }
+                title={collapsed ? group.label : undefined}
+                className={cn(
+                  "w-full flex items-center gap-2 py-2.5 text-sm text-left transition-colors border-b border-border/60 border-l-2",
+                  collapsed ? "justify-center px-2" : "justify-between px-4",
+                  isActive
+                    ? "bg-black/20 text-white border-l-white font-medium"
+                    : "border-l-transparent hover:bg-black/10 text-white"
+                )}
               >
-                <span className="truncate">{group.label}</span>
-                <ChevronRight className="h-4 w-4 opacity-70 shrink-0" />
+                {!collapsed && <span className="truncate">{group.label}</span>}
+                {!collapsed && <ChevronRight className="h-4 w-4 text-white opacity-70 shrink-0" />}
               </button>
             </li>
           );
         })}
       </ul>
+
+      {/* Footer */}
+      <div className="border-t border-border p-3 shrink-0 flex justify-end" style={{ backgroundColor: "hsl(158 28% 32%)" }}>
+        <button
+          type="button"
+          onClick={() => setCollapsed((v) => !v)}
+          className="shrink-0 p-1.5 rounded hover:bg-black/10 transition-colors text-white"
+          title={collapsed ? "Sidebar ausklappen" : "Sidebar einklappen"}
+        >
+          <ChevronLeft className={cn("h-4 w-4 transition-transform", collapsed && "rotate-180")} />
+        </button>
+      </div>
     </aside>
   );
 };

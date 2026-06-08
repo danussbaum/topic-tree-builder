@@ -168,7 +168,7 @@ export const PermissionLevelsView = () => {
           }`}
         >
           <aside
-            className={`pointer-events-auto flex h-full w-full max-w-3xl flex-col bg-[#f3f3f5] shadow-2xl transition-transform duration-300 ease-out ${
+            className={`pointer-events-auto flex h-full w-full max-w-3xl flex-col bg-[#F5F5F6] shadow-2xl transition-transform duration-300 ease-out ${
               isPanelOpen ? "translate-x-0" : "translate-x-full"
             }`}
             onTransitionEnd={handlePanelAnimationEnd}

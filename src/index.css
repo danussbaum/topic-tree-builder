@@ -23,10 +23,10 @@
     --primary-foreground: 0 0% 100%;
 
     /* Secondary = light surface (toolbar / panel) */
-    --secondary: 210 15% 96%;
+    --secondary: 240 2.4% 96.3%;
     --secondary-foreground: 210 10% 18%;
 
-    --muted: 210 15% 95%;
+    --muted: 240 2% 96%;
     --muted-foreground: 210 8% 45%;
 
     /* Accent = darker forest green (active tab / sidebar selection) */
@@ -43,17 +43,17 @@
     --radius: 0.25rem;
 
     /* socialweb-style left navigation */
-    --sidebar-background: 158 28% 32%;
-    --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 158 32% 26%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 158 32% 42%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 158 22% 26%;
-    --sidebar-ring: 168 73% 50%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 210 10% 18%;
+    --sidebar-primary: 210 14% 96%;
+    --sidebar-primary-foreground: 210 10% 18%;
+    --sidebar-accent: 210 14% 92%;
+    --sidebar-accent-foreground: 210 10% 18%;
+    --sidebar-border: 210 14% 89%;
+    --sidebar-ring: 168 73% 38%;
 
     /* Top tab bar */
-    --topbar-background: 210 16% 94%;
+    --topbar-background: 240 2% 96%;
     --topbar-foreground: 210 10% 28%;
     --topbar-active: 158 32% 36%;
     --topbar-active-foreground: 0 0% 100%;
@@ -62,43 +62,14 @@
     --brand: 173 70% 40%;
   }
 
-  .dark {
-    --background: 210 14% 10%;
-    --foreground: 210 14% 95%;
-    --card: 210 14% 12%;
-    --card-foreground: 210 14% 95%;
-    --popover: 210 14% 12%;
-    --popover-foreground: 210 14% 95%;
-    --primary: 168 65% 45%;
-    --primary-foreground: 210 14% 10%;
-    --secondary: 210 14% 16%;
-    --secondary-foreground: 210 14% 95%;
-    --muted: 210 14% 16%;
-    --muted-foreground: 210 10% 65%;
-    --accent: 158 32% 42%;
-    --accent-foreground: 0 0% 100%;
-    --destructive: 4 70% 50%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 210 14% 22%;
-    --input: 210 14% 22%;
-    --ring: 168 65% 45%;
-    --sidebar-background: 158 22% 18%;
-    --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 158 32% 26%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 158 32% 32%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 158 22% 14%;
-    --sidebar-ring: 168 65% 45%;
-    --topbar-background: 210 14% 14%;
-    --topbar-foreground: 210 14% 85%;
-    --topbar-active: 158 32% 36%;
-    --topbar-active-foreground: 0 0% 100%;
-    --brand: 173 70% 45%;
-  }
+
 }
 
 @layer base {
+  html {
+    color-scheme: light;
+  }
+
   * {
     @apply border-border;
   }

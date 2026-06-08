@@ -1,4 +1,4 @@
-import { LogOut } from "lucide-react";
+import { Power } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,7 +32,7 @@ export const ApplicationLogoutButton = ({ className }: ApplicationLogoutButtonPr
           aria-label="Logout"
           title="Logout"
         >
-          <LogOut className="h-5 w-5" />
+          <Power className="h-5 w-5" />
         </button>
       </AlertDialogTrigger>
       <AlertDialogContent>
