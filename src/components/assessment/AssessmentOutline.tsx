@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
@@ -2072,7 +2072,7 @@ export function ActionRow({
 
             <label className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1.5">
               <Clock className="h-3.5 w-3.5 shrink-0" />
-              <span className="shrink-0">geplante Minuten</span>
+              <span className="shrink-0">Min.</span>
               <input
                 type="number"
                 min={0}
@@ -2098,7 +2098,7 @@ export function ActionRow({
 
             <label className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1.5">
               <Users className="h-3.5 w-3.5 shrink-0" />
-              <span className="shrink-0">Anz. Personen</span>
+              <span className="shrink-0">Pers.</span>
               <input
                 type="number"
                 min={1}
@@ -4142,8 +4142,18 @@ function Notes({
   compact?: boolean;
   disabled?: boolean;
 }) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = el.scrollHeight + "px";
+  }, [value]);
+
   return (
     <Textarea
+      ref={ref}
       value={value}
       disabled={disabled}
       onChange={(e) => onChange(e.target.value)}

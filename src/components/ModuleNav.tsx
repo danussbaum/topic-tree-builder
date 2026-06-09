@@ -87,9 +87,12 @@ export function ModuleNav({ activeLabel }: { activeLabel?: string } = {}) {
             className={
               "px-4 text-xs font-semibold uppercase tracking-wide flex items-center whitespace-nowrap transition-colors " +
               (isActive
-                ? "bg-topbar-active text-topbar-active-foreground"
+                ? (["Handlungen", "Einstellungen"].includes(t.label)
+                    ? "text-white"
+                    : "bg-topbar-active text-topbar-active-foreground")
                 : "hover:bg-[#EDEDED]")
             }
+            style={isActive && ["Handlungen", "Einstellungen"].includes(t.label) ? { backgroundColor: "#5D9580" } : undefined}
           >
             {t.label}
           </button>

@@ -45,9 +45,9 @@ export function ClientSidebar({
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
-      <SidebarHeader className="border-b border-sidebar-border text-white" style={{ backgroundColor: "hsl(158 28% 32%)" }}>
+      <SidebarHeader className="border-b border-sidebar-border text-white h-12 flex flex-col justify-center" style={{ backgroundColor: "#357B60" }}>
         {/* User chip */}
-        <div className="flex items-center gap-3 px-2 py-2">
+        <div className="flex items-center gap-3 px-2">
           <User className="h-5 w-5 shrink-0" strokeWidth={1.25} />
           {!collapsed && (
             <div className="text-sm leading-tight truncate">
@@ -94,10 +94,11 @@ export function ClientSidebar({
                 className={cn(
                   "w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-b border-sidebar-border/60 border-l-2",
                   selected
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground border-l-primary"
+                    ? "text-white border-l-primary"
                     : "border-l-transparent hover:bg-sidebar-primary/70",
                   collapsed && "justify-center px-2"
                 )}
+                style={selected ? { backgroundColor: "#5D9580" } : undefined}
                 title={collapsed ? `${c.lastName}, ${c.firstName}` : undefined}
               >
                 {!collapsed && (
@@ -121,7 +122,7 @@ export function ClientSidebar({
         </div>
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-sidebar-border p-3" style={{ backgroundColor: "hsl(158 28% 32%)" }}>
+      <SidebarFooter className="border-t border-sidebar-border p-3" style={{ backgroundColor: "#357B60" }}>
         <div className={cn("flex items-center gap-2", collapsed && "justify-center")}>
           {/* Search */}
           {!collapsed && (

@@ -24,8 +24,8 @@ export const SettingsCategorySidebar = ({
     >
       {/* Profile header */}
       <div
-        className={cn("flex items-center gap-3 px-4 py-4 border-b border-border shrink-0", collapsed && "justify-center px-4")}
-        style={{ backgroundColor: "hsl(158 28% 32%)" }}
+        className={cn("flex items-center gap-3 px-4 h-12 border-b border-border shrink-0", collapsed && "justify-center px-4")}
+        style={{ backgroundColor: "#357B60" }}
       >
         <User className="h-5 w-5 shrink-0 text-white" strokeWidth={1.25} />
         {!collapsed && (
@@ -63,7 +63,7 @@ export const SettingsCategorySidebar = ({
       </ul>
 
       {/* Footer */}
-      <div className="border-t border-border p-3 shrink-0 flex justify-end" style={{ backgroundColor: "hsl(158 28% 32%)" }}>
+      <div className="border-t border-border p-3 shrink-0 flex justify-end" style={{ backgroundColor: "#357B60" }}>
         <button
           type="button"
           onClick={() => setCollapsed((v) => !v)}
