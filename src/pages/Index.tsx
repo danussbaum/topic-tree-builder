@@ -91,6 +91,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Label } from "@/components/ui/label";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const todayLocalISO = () => {
@@ -755,20 +757,30 @@ const Index = () => {
     });
   };
 
-  const addTopic = (clientId: string, disciplineId?: string) => {
+  const [pendingFocusTopicId, setPendingFocusTopicId] = useState<string | null>(null);
+  const [newTopicPopoverOpen, setNewTopicPopoverOpen] = useState(false);
+  const [newTopicRibbonDisciplineId, setNewTopicRibbonDisciplineId] = useState<string>("");
+
+  const addTopic = (clientId: string, disciplineId?: string): string => {
+    const newId = uid();
     updateClientTopicsFor(clientId, (topics) => [
       ...topics,
       {
-        id: uid(),
+        id: newId,
         title: "",
         notes: "",
         disciplineId: disciplineId ?? availableDisciplines[0]?.id ?? DEFAULT_SEED_DISCIPLINE_ID,
         targets: [],
       },
     ]);
+    setPendingFocusTopicId(newId);
+    return newId;
   };
 
-  const addTarget = (clientId: string, topicId: string) => {
+  const [pendingFocusTargetId, setPendingFocusTargetId] = useState<string | null>(null);
+
+  const addTarget = (clientId: string, topicId: string): string => {
+    const newId = uid();
     updateClientTopicsFor(clientId, (topics) =>
       topics.map((t) =>
         t.id === topicId
@@ -776,12 +788,14 @@ const Index = () => {
               ...t,
               targets: [
                 ...t.targets,
-                { id: uid(), title: "", notes: "", actions: [] },
+                { id: newId, title: "", notes: "", actions: [] },
               ],
             }
           : t,
       ),
     );
+    setPendingFocusTargetId(newId);
+    return newId;
   };
 
   const addAction = (
@@ -1804,21 +1818,73 @@ const Index = () => {
           {/* Ribbon toolbar */}
           <div className="relative">
             <div className="flex items-stretch bg-[#F5F5F6] border-b border-border overflow-x-auto shadow-[0_2px_4px_rgba(0,0,0,0.08)]">
-            <RibbonButton
-              icon={CirclePlus}
-              label="Neu"
-              disabled={selectedClients.length !== 1 || viewMode === "confirmation" || viewMode === "review"}
-              title={
-                selectedClients.length !== 1
-                  ? "Bitte genau eine Klient/in auswählen"
-                  : viewMode !== "planning"
-                    ? "Nur in der Planungsansicht verfügbar"
-                    : undefined
-              }
-              onClick={() => {
-                if (selectedClients[0]) addTopic(selectedClients[0].id);
-              }}
-            />
+            {(() => {
+              const isDisabled = selectedClients.length !== 1 || viewMode === "confirmation" || viewMode === "review";
+              const tooltipTitle = selectedClients.length !== 1
+                ? "Bitte genau eine Klient/in auswählen"
+                : viewMode !== "planning"
+                  ? "Nur in der Planungsansicht verfügbar"
+                  : undefined;
+              const disciplineList = availableDisciplines.length > 0 ? availableDisciplines : initialActionPlanDisciplines;
+              const effectiveDisciplineId = newTopicRibbonDisciplineId || disciplineList[0]?.id || "";
+              const btn = (
+                <Popover
+                  open={newTopicPopoverOpen && !isDisabled}
+                  onOpenChange={(open) => {
+                    if (!isDisabled) setNewTopicPopoverOpen(open);
+                  }}
+                >
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      disabled={isDisabled}
+                      className="flex w-24 flex-col items-center justify-center gap-0.5 px-2 py-2 transition-colors text-foreground/80 hover:bg-[#EDEDED] hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-foreground/80 disabled:cursor-not-allowed"
+                    >
+                      <CirclePlus className="h-5 w-5" />
+                      <span className="text-center text-[11px] font-medium leading-tight">Neu</span>
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-64 p-4 space-y-3" align="start" side="bottom">
+                    <div className="text-sm font-semibold">Neuer Schwerpunkt</div>
+                    <div>
+                      <Label className="mb-1 block text-xs uppercase tracking-widest text-muted-foreground">
+                        Disziplin
+                      </Label>
+                      <Select value={effectiveDisciplineId} onValueChange={setNewTopicRibbonDisciplineId}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Disziplin auswählen" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {disciplineList.map((d) => (
+                            <SelectItem key={d.id} value={d.id}>{d.title}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button
+                      className="w-full"
+                      onClick={() => {
+                        if (selectedClients[0]) {
+                          addTopic(selectedClients[0].id, effectiveDisciplineId);
+                          setNewTopicPopoverOpen(false);
+                        }
+                      }}
+                    >
+                      Schwerpunkt erstellen
+                    </Button>
+                  </PopoverContent>
+                </Popover>
+              );
+              if (!tooltipTitle) return btn;
+              return (
+                <TooltipProvider delayDuration={300}>
+                  <Tooltip>
+                    <TooltipTrigger asChild><span>{btn}</span></TooltipTrigger>
+                    <TooltipContent side="bottom">{tooltipTitle}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              );
+            })()}
             <RibbonDivider />
             <RibbonButton
               icon={ListTodo}
@@ -2742,11 +2808,15 @@ const Index = () => {
                         confirmAction(client.id, topicId, targetId, actionId, payload, date)
                       }
                       onAddTopic={(disciplineId) => addTopic(client.id, disciplineId)}
+                      focusTopicId={pendingFocusTopicId}
+                      onFocusHandled={() => setPendingFocusTopicId(null)}
                       onUpdateTopicDiscipline={(topicId, disciplineId) =>
                         updateTopicDiscipline(client.id, topicId, disciplineId)
                       }
                       onDeleteDiscipline={(disciplineId) => deleteDiscipline(client.id, disciplineId)}
                       onAddTarget={(topicId) => addTarget(client.id, topicId)}
+                      focusTargetId={pendingFocusTargetId}
+                      onFocusTargetHandled={() => setPendingFocusTargetId(null)}
                       onAddAction={(topicId, targetId, templateIds, serviceType, overrides, dayPartEntries) =>
                         addAction(client.id, topicId, targetId, templateIds, serviceType, overrides, dayPartEntries)
                       }

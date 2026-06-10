@@ -305,7 +305,9 @@ interface Props {
     payload: ConfirmPayload,
     date?: string,
   ) => void;
-  onAddTarget: (topicId: string) => void;
+  onAddTarget: (topicId: string) => string;
+  focusTargetId?: string | null;
+  onFocusTargetHandled?: () => void;
   onAddAction: (
     topicId: string,
     targetId: string,
@@ -327,7 +329,9 @@ interface Props {
     dayPart: DayPart | "none",
     draft: UnplannedActionDraft,
   ) => string | void;
-  onAddTopic: (disciplineId?: string) => void;
+  onAddTopic: (disciplineId?: string) => string;
+  focusTopicId?: string | null;
+  onFocusHandled?: () => void;
   onUpdateTopicDiscipline?: (topicId: string, disciplineId: string) => void;
   onDeleteDiscipline?: (disciplineId: string) => void;
   onDeleteTopic: (topicId: string) => void;
@@ -533,10 +537,14 @@ export function AssessmentOutline({
   onUpdateActionField,
   onConfirmAction,
   onAddTarget,
+  focusTargetId,
+  onFocusTargetHandled,
   onAddAction,
   onUpdateActionGroup,
   onAddUnplannedAction,
   onAddTopic,
+  focusTopicId,
+  onFocusHandled,
   onUpdateTopicDiscipline,
   onDeleteDiscipline,
   onDeleteTopic,
@@ -545,6 +553,29 @@ export function AssessmentOutline({
   onDeleteAction,
   onDeleteActionGroup,
 }: Props) {
+  const topicInputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
+  const targetInputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
+
+  useEffect(() => {
+    if (!focusTargetId) return;
+    const el = targetInputRefs.current.get(focusTargetId);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.focus();
+      onFocusTargetHandled?.();
+    }
+  }, [focusTargetId]);
+
+  useEffect(() => {
+    if (!focusTopicId) return;
+    const el = topicInputRefs.current.get(focusTopicId);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.focus();
+      onFocusHandled?.();
+    }
+  }, [focusTopicId]);
+
   const [panelContext, setPanelContext] = useState<{
     mode: "create" | "edit";
     topicId: string;
@@ -1420,11 +1451,15 @@ export function AssessmentOutline({
           </div>
 
           <div className="space-y-8 border-l border-primary/20 pl-5">
-            {groupTopics.filter((topic) => topic.targets.some((t) => t.actions.some((a) => !a.isUnplanned))).map((topic) => (
+            {groupTopics.map((topic) => (
               <article key={topic.id} className="group/topic space-y-3">
                 <div className="flex items-start gap-3">
                   <div className="min-w-0 flex-1">
                     <input
+                      ref={(el) => {
+                        if (el) topicInputRefs.current.set(topic.id, el);
+                        else topicInputRefs.current.delete(topic.id);
+                      }}
                       value={topic.title}
                       onChange={(e) => onUpdateTopic(topic.id, "title", e.target.value)}
                       readOnly={topic.targets.some((t) => t.actions.length > 0)}
@@ -1462,7 +1497,7 @@ export function AssessmentOutline({
 
                 {/* Targets */}
                 <div className="mt-6 space-y-6 pl-6 border-l border-border ml-4">
-                  {topic.targets.filter((target) => (showClosedTargets || !target.validTo) && target.actions.some((a) => !a.isUnplanned)).map((target) => {
+                  {topic.targets.filter((target) => showClosedTargets || !target.validTo).map((target) => {
               const isTargetClosed = !!target.validTo;
               return (
                 <div key={target.id} className="group/target">
@@ -1476,6 +1511,10 @@ export function AssessmentOutline({
                         </div>
                       )}
                       <input
+                        ref={(el) => {
+                          if (el) targetInputRefs.current.set(target.id, el);
+                          else targetInputRefs.current.delete(target.id);
+                        }}
                         value={target.title}
                         readOnly={isTargetClosed}
                         onChange={(e) =>
