@@ -116,7 +116,10 @@ export interface ActionNode {
   templateRequiredFields?: string[];
 }
 
+export type GoalStatus = "ja" | "nein" | "teilweise";
+
 export interface TargetAssessment {
+  goalStatus?: GoalStatus;
   goalAchievement: string;
   derivedMeasures: string;
   assessedBy?: string;

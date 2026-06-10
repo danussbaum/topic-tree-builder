@@ -39,7 +39,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { AssessmentOutline, UnplannedActionDialog, ActionRow } from "@/components/assessment/AssessmentOutline";
+import { AssessmentOutline, UnplannedActionDialog, ActionRow, ActionGroupRow } from "@/components/assessment/AssessmentOutline";
 import { ApplicationLogoutButton } from "@/components/ApplicationLogoutButton";
 import type {
   ActionNode,
@@ -49,7 +49,7 @@ import type {
   TopicNode,
   Weekday,
 } from "@/types/assessment";
-import { DAY_PART_LABEL, DAY_PART_SELECT_OPTIONS } from "@/types/assessment";
+import { DAY_PART_LABEL, DAY_PART_SELECT_OPTIONS, DAY_PART_ORDER } from "@/types/assessment";
 import {
   matchesAssessmentFilter,
   type AssessmentFilterModel,
@@ -1605,26 +1605,30 @@ const Index = () => {
   const exportReviewXlsx = () => {
     if (viewMode !== "review") return;
     const disciplineList = availableDisciplines.length > 0 ? availableDisciplines : initialActionPlanDisciplines;
-    const headers = ["Dossier", "Disziplin", "Schwerpunkt", "Ziel", "Beschreibung", "Gültig ab", "Gültig bis", "Zielerreichung", "Abgeleitete Massnahmen", "Beurteilt von", "Beurteilt am"];
+    const headers = ["Dossier", "Disziplin", "Schwerpunkt", "Ziel", "Beschreibung", "Gültig ab", "Gültig bis", "Ziel erreicht", "Auswertung", "Abgeleitete Massnahmen", "Beurteilt von", "Beurteilt am"];
     const rows = visibleSelectedClients.flatMap((client) => {
       const clientName = `${client.firstName} ${client.lastName}`.trim();
       return client.topics.flatMap((topic) => {
         const disciplineTitle = disciplineList.find((d) => d.id === topic.disciplineId)?.title ?? topic.disciplineId ?? "Ohne Disziplin";
         return topic.targets
           .filter((tg) => !!tg.validTo)
-          .map((tg) => [
-            clientName,
-            disciplineTitle,
-            topic.title,
-            tg.title,
-            tg.notes,
-            tg.validFrom ? format(new Date(tg.validFrom), "dd.MM.yyyy") : "",
-            tg.validTo ? format(new Date(tg.validTo), "dd.MM.yyyy") : "",
-            tg.assessment?.goalAchievement ?? "",
-            tg.assessment?.derivedMeasures ?? "",
-            tg.assessment?.assessedBy ?? "",
-            tg.assessment?.assessedAt ? format(new Date(tg.assessment.assessedAt), "dd.MM.yyyy, HH:mm") : "",
-          ]);
+          .map((tg) => {
+            const gs = tg.assessment?.goalStatus;
+            return [
+              clientName,
+              disciplineTitle,
+              topic.title,
+              tg.title,
+              tg.notes,
+              tg.validFrom ? format(new Date(tg.validFrom), "dd.MM.yyyy") : "",
+              tg.validTo ? format(new Date(tg.validTo), "dd.MM.yyyy") : "",
+              gs === "ja" ? "Ja" : gs === "nein" ? "Nein" : gs === "teilweise" ? "Teilweise" : "",
+              tg.assessment?.goalAchievement ?? "",
+              tg.assessment?.derivedMeasures ?? "",
+              tg.assessment?.assessedBy ?? "",
+              tg.assessment?.assessedAt ? format(new Date(tg.assessment.assessedAt), "dd.MM.yyyy, HH:mm") : "",
+            ];
+          });
       });
     });
     const blob = createSimpleXlsxBlob({ sheetName: "Überprüfung", headers, rows });
@@ -2532,7 +2536,7 @@ const Index = () => {
                                           </div>
                                         </div>
                                       )}
-                                      {target.notes && (
+                                      {target.notes?.trim() && (
                                         <p className="text-sm whitespace-pre-wrap">
                                           {target.notes}
                                         </p>
@@ -2562,12 +2566,19 @@ const Index = () => {
                                   </div>
                                   {target.assessment && (
                                     <div className="border-t border-border pt-3 space-y-2">
-                                      {target.assessment.goalAchievement && (
+                                      {(target.assessment.goalStatus || target.assessment.goalAchievement) && (
                                         <div>
                                           <div className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground mb-0.5">
-                                            Zielerreichung
+                                            Auswertung
                                           </div>
-                                          <p className="text-sm whitespace-pre-wrap">{target.assessment.goalAchievement}</p>
+                                          {target.assessment.goalStatus && (
+                                            <p className="text-sm font-medium">
+                                              Ziel erreicht: {target.assessment.goalStatus === "ja" ? "Ja" : target.assessment.goalStatus === "nein" ? "Nein" : "Teilweise"}
+                                            </p>
+                                          )}
+                                          {target.assessment.goalAchievement && (
+                                            <p className="text-sm whitespace-pre-wrap">{target.assessment.goalAchievement}</p>
+                                          )}
                                         </div>
                                       )}
                                       {target.assessment.derivedMeasures && (
@@ -2587,42 +2598,53 @@ const Index = () => {
                                       )}
                                     </div>
                                   )}
-                                  {target.actions.length > 0 && (
-                                    <div className="border-t border-border pt-3">
-                                      <button
-                                        type="button"
-                                        onClick={() => toggleReviewTarget(target.id)}
-                                        className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                                      >
-                                        {expandedReviewTargets.has(target.id)
-                                          ? <ChevronDown className="h-3.5 w-3.5" />
-                                          : <ChevronRight className="h-3.5 w-3.5" />}
-                                        {target.actions.length} {target.actions.length === 1 ? "Handlung" : "Handlungen"}
-                                      </button>
-                                      {expandedReviewTargets.has(target.id) && (
-                                        <div className="mt-2 pointer-events-none">
-                                          <ul className="space-y-1">
-                                            {target.actions.map((action) => (
-                                              <ActionRow
-                                                key={action.id}
-                                                viewMode="planning"
-                                                topicId={topic.id}
-                                                targetId={target.id}
-                                                action={action}
-                                                targetValidFrom={target.validFrom}
-                                                targetValidTo={target.validTo}
-                                                onUpdateAction={() => {}}
-                                                onUpdateActionField={() => {}}
-                                                onDeleteAction={() => {}}
-                                                onOpenEditPanel={() => {}}
-                                                onOpenDialog={() => {}}
-                                              />
-                                            ))}
-                                          </ul>
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
+                                  {(() => {
+                                    const plannedActions = target.actions.filter((a) => !a.isUnplanned);
+                                    if (plannedActions.length === 0) return null;
+                                    const groupMap = new Map<string, typeof plannedActions>();
+                                    for (const action of plannedActions) {
+                                      const existing = groupMap.get(action.groupId) ?? [];
+                                      existing.push(action);
+                                      groupMap.set(action.groupId, existing);
+                                    }
+                                    const groups = Array.from(groupMap.values()).sort((a, b) => {
+                                      const aMin = Math.min(...a.map((n) => DAY_PART_ORDER.indexOf(n.dayPart ?? "none")));
+                                      const bMin = Math.min(...b.map((n) => DAY_PART_ORDER.indexOf(n.dayPart ?? "none")));
+                                      return aMin - bMin;
+                                    });
+                                    return (
+                                      <div className="border-t border-border pt-3">
+                                        <button
+                                          type="button"
+                                          onClick={() => toggleReviewTarget(target.id)}
+                                          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                                        >
+                                          {expandedReviewTargets.has(target.id)
+                                            ? <ChevronDown className="h-3.5 w-3.5" />
+                                            : <ChevronRight className="h-3.5 w-3.5" />}
+                                          {groups.length} {groups.length === 1 ? "Handlung" : "Handlungen"}
+                                        </button>
+                                        {expandedReviewTargets.has(target.id) && (
+                                          <div className="mt-2 pointer-events-none overflow-x-auto">
+                                            <ul className="space-y-1 min-w-[900px]">
+                                              {groups.map((groupNodes) => (
+                                                <ActionGroupRow
+                                                  key={groupNodes[0].groupId}
+                                                  topicId={topic.id}
+                                                  targetId={target.id}
+                                                  groupNodes={groupNodes}
+                                                  targetValidFrom={target.validFrom}
+                                                  targetValidTo={target.validTo}
+                                                  onDeleteActionGroup={() => {}}
+                                                  onOpenEditPanel={() => {}}
+                                                />
+                                              ))}
+                                            </ul>
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
                                 </div>
                               );
                             })}
@@ -2882,6 +2904,7 @@ function TargetAssessmentPanel({
   onSave: (assessment: import("@/types/assessment").TargetAssessment) => void;
   clientName?: string;
 }) {
+  const [goalStatus, setGoalStatus] = useState<import("@/types/assessment").GoalStatus | "">(target.assessment?.goalStatus ?? "");
   const [goalAchievement, setGoalAchievement] = useState(target.assessment?.goalAchievement ?? "");
   const [derivedMeasures, setDerivedMeasures] = useState(target.assessment?.derivedMeasures ?? "");
   const [isOpen, setIsOpen] = useState(false);
@@ -2925,27 +2948,46 @@ function TargetAssessmentPanel({
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-          {(target.title || target.notes) && (
+          {(target.title?.trim() || target.notes?.trim()) && (
             <div className="space-y-1.5">
               <div className="text-xs font-medium text-muted-foreground uppercase tracking-widest">Ziel</div>
               <div className="rounded-md bg-background border border-border px-4 py-3 space-y-1">
-                {target.title && <p className="text-sm font-medium">{target.title}</p>}
-                {target.notes && <p className="text-sm text-muted-foreground">{target.notes}</p>}
+                {target.title?.trim() && <p className="text-sm font-medium">{target.title}</p>}
+                {target.notes?.trim() && <p className="text-sm text-muted-foreground">{target.notes}</p>}
               </div>
             </div>
           )}
 
           <div className="space-y-1.5">
             <label className="block text-xs font-medium text-muted-foreground uppercase tracking-widest">
-              Zielerreichung
+              Auswertung
             </label>
-            <textarea
-              value={goalAchievement}
-              onChange={(e) => setGoalAchievement(e.target.value)}
-              placeholder="Wie wurde das Ziel erreicht?"
-              rows={5}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:border-primary"
-            />
+            <div className="space-y-2">
+              <div className="space-y-1">
+                <label className="block text-xs text-muted-foreground">Ziel erreicht?</label>
+                <select
+                  value={goalStatus}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    setGoalStatus(e.target.value as import("@/types/assessment").GoalStatus | "");
+                  }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                >
+                  <option value="">— Bitte wählen —</option>
+                  <option value="ja">Ja</option>
+                  <option value="nein">Nein</option>
+                  <option value="teilweise">Teilweise</option>
+                </select>
+              </div>
+              <textarea
+                value={goalAchievement}
+                onChange={(e) => setGoalAchievement(e.target.value)}
+                placeholder={"Was hat funktioniert?\nWas war hinderlich?\nWelche Erkenntnisse wurden gewonnen?"}
+                rows={4}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:border-primary"
+              />
+            </div>
           </div>
 
           <div className="space-y-1.5">
@@ -2955,7 +2997,7 @@ function TargetAssessmentPanel({
             <textarea
               value={derivedMeasures}
               onChange={(e) => setDerivedMeasures(e.target.value)}
-              placeholder="Welche Massnahmen wurden abgeleitet?"
+              placeholder="Welche Massnahmen werden abgeleitet?"
               rows={5}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:border-primary"
             />
@@ -2966,7 +3008,7 @@ function TargetAssessmentPanel({
           <Button type="button" variant="ghost" onClick={handleClose} className="text-white hover:bg-white/10 hover:text-white">
             Abbrechen
           </Button>
-          <Button type="button" variant="ghost" onClick={() => onSave({ goalAchievement, derivedMeasures })} className="text-white hover:bg-white/10 hover:text-white">
+          <Button type="button" variant="ghost" onClick={() => onSave({ goalStatus: goalStatus || undefined, goalAchievement, derivedMeasures })} className="text-white hover:bg-white/10 hover:text-white">
             Speichern
           </Button>
         </div>

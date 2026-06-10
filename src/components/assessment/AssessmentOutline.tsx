@@ -1753,7 +1753,7 @@ function DayPartHeader({
   );
 }
 
-function ActionGroupRow({
+export function ActionGroupRow({
   topicId,
   targetId,
   groupNodes,
