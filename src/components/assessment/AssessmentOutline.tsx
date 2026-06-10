@@ -1038,11 +1038,11 @@ export function AssessmentOutline({
                             <TableHead className="w-[48px] px-2"><span className="sr-only">Mehrfachauswahl</span></TableHead>
                           )}
                           <TableHead className="w-[76px] px-1"><span className="sr-only">Umsetzung</span></TableHead>
-                          <TableHead className="w-[296px] px-2">Handlung</TableHead>
+                          <TableHead className="w-[324px] px-2">Handlung</TableHead>
                           <TableHead className="w-[90px] px-2">Kategorie</TableHead>
-                          <TableHead className="w-[80px] px-2">Uhrzeit</TableHead>
+                          <TableHead className="w-[60px] px-2">Uhrzeit</TableHead>
                           <TableHead className="w-[72px] px-2">Plan</TableHead>
-                          <TableHead className="w-[80px] px-2">Ist</TableHead>
+                          <TableHead className="w-[72px] px-2">Ist</TableHead>
                           <TableHead className="w-[64px] px-2">Anz. Pers.</TableHead>
                           <TableHead className="w-[200px] px-2">Rückmeldung</TableHead>
                         </TableRow>
@@ -1231,13 +1231,18 @@ export function AssessmentOutline({
                                   </TooltipProvider>
                                 </div>
                                 {conf?.postponedToDate && (
-                                  <div className="mt-1 inline-flex flex-col gap-0.5 rounded border border-border bg-muted/40 px-1.5 py-0.5 text-[11px] text-muted-foreground">
-                                    <span className="inline-flex items-center gap-1">
+                                  <div className="mt-1 inline-flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded border border-border bg-muted/40 px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                                    <span className="inline-flex items-center gap-1 shrink-0">
                                       <CalendarClock className="h-3 w-3 shrink-0" />
                                       Verschoben von {format(parseISO(confirmationDate), "dd.MM.yyyy", { locale: de })} auf {getPostponedLabel(conf.postponedToDate, conf.postponedToTime)}
                                     </span>
                                     {conf.postponedReason && (
-                                      <span className="pl-4">Grund: {conf.postponedReason}</span>
+                                      <span className="text-muted-foreground/80">· Grund: {conf.postponedReason}</span>
+                                    )}
+                                    {(conf.postponedBy || conf.postponedAt) && (
+                                      <span className="text-muted-foreground/60">
+                                        · {conf.postponedBy ?? "—"}{conf.postponedAt && <> · {format(parseISO(conf.postponedAt), "dd.MM.yyyy, HH:mm", { locale: de })} Uhr</>}
+                                      </span>
                                     )}
                                   </div>
                                 )}
