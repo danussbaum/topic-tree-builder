@@ -1,6 +1,6 @@
 import { APPLICATION_BROWSER_STORAGE_KEYS } from "@/lib/application-storage";
 import type { ActionPlanDiscipline } from "@/lib/action-plan-disciplines";
-import type { ActionNode } from "@/types/assessment";
+import type { ActionNode, DayPart } from "@/types/assessment";
 
 export type TemplateFieldKey =
   | "titel"
@@ -10,7 +10,6 @@ export type TemplateFieldKey =
   | "personen"
   | "kategorie"
   | "tageszeit"
-  | "uhrzeit"
   | "resultat"
   | "wiederholung"
   | "wiederholungWochentage"
@@ -34,7 +33,6 @@ const TEMPLATE_FIELD_TO_ACTION_FIELD: Record<TemplateFieldKey, keyof ActionNode>
   personen: "requiredPersons",
   kategorie: "category",
   tageszeit: "dayPart",
-  uhrzeit: "scheduledTime",
   resultat: "resultRequirement",
   wiederholung: "recurrence",
   wiederholungWochentage: "recurrenceWeekdays",
@@ -169,7 +167,6 @@ export const buildDefaultTemplateFields = (): Record<TemplateFieldKey, string> =
   personen: "",
   kategorie: "none",
   tageszeit: "none",
-  uhrzeit: "",
   resultat: "none",
   wiederholung: "daily",
   wiederholungWochentage: "",
@@ -185,7 +182,6 @@ export const buildDefaultTemplateEditable = (value = true): Record<TemplateField
   personen: value,
   kategorie: value,
   tageszeit: value,
-  uhrzeit: value,
   resultat: value,
   wiederholung: value,
   wiederholungWochentage: value,
@@ -201,7 +197,6 @@ export const buildDefaultTemplateRequired = (): Record<TemplateFieldKey, boolean
   personen: false,
   kategorie: false,
   tageszeit: false,
-  uhrzeit: false,
   resultat: false,
   wiederholung: false,
   wiederholungWochentage: false,
@@ -221,8 +216,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       dauer: "20",
       personen: "1",
       kategorie: "a",
-      tageszeit: "morning",
-      uhrzeit: "07:30",
+      tageszeit: "morning(07:30)",
       resultat: "required",
       wiederholung: "daily",
       wiederholungMonatlich: "none",
@@ -233,6 +227,43 @@ export const initialTemplates: ActionPlanTemplate[] = [
     required: buildDefaultTemplateRequired(),
   },
 ];
+
+export function parseTageszeit(value: string): Array<{ dayPart: DayPart; scheduledTime?: string }> {
+  if (!value || value === "none") return [];
+  return value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .flatMap((entry) => {
+      const match = entry.match(/^([a-z]+)(?:\((\d{2}:\d{2})\))?$/);
+      if (!match) return [];
+      const dayPart = match[1] as DayPart;
+      const validDayParts: DayPart[] = ["morning", "noon", "afternoon", "evening", "night"];
+      if (!validDayParts.includes(dayPart)) return [];
+      return [{ dayPart, scheduledTime: match[2] || undefined }];
+    });
+}
+
+export function serializeTageszeit(entries: Array<{ dayPart: DayPart; scheduledTime?: string }>): string {
+  if (entries.length === 0) return "none";
+  return entries
+    .map(({ dayPart, scheduledTime }) => scheduledTime ? `${dayPart}(${scheduledTime})` : dayPart)
+    .join(",");
+}
+
+const migrateTemplateFields = (fields: Record<string, string>): Record<TemplateFieldKey, string> => {
+  const defaults = buildDefaultTemplateFields();
+  const tageszeit = fields.tageszeit ?? defaults.tageszeit;
+  const uhrzeit = (fields as Record<string, string>).uhrzeit ?? "";
+
+  let normalizedTageszeit = tageszeit;
+  if (tageszeit && tageszeit !== "none" && !tageszeit.includes(",") && !tageszeit.includes("(") && uhrzeit) {
+    normalizedTageszeit = `${tageszeit}(${uhrzeit})`;
+  }
+
+  const { uhrzeit: _dropped, ...rest } = { ...defaults, ...fields, tageszeit: normalizedTageszeit } as Record<string, string>;
+  return rest as Record<TemplateFieldKey, string>;
+};
 
 export const loadActionPlanTemplates = (): ActionPlanTemplate[] => {
   if (typeof window === "undefined") return initialTemplates;
@@ -246,7 +277,7 @@ export const loadActionPlanTemplates = (): ActionPlanTemplate[] => {
       disciplineIds: Array.isArray(template.disciplineIds)
         ? template.disciplineIds.filter((disciplineId): disciplineId is string => typeof disciplineId === "string")
         : [],
-      fields: { ...buildDefaultTemplateFields(), ...(template.fields ?? {}) },
+      fields: migrateTemplateFields(template.fields ?? {}),
       editable: { ...buildDefaultTemplateEditable(true), ...(template.editable ?? {}) },
       required: { ...buildDefaultTemplateRequired(), ...(template.required ?? {}) },
     }));

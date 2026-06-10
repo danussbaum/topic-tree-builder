@@ -37,6 +37,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DatePickerInput } from "@/components/ui/date-picker-input";
@@ -77,6 +78,8 @@ import type {
   TopicNode,
 } from "@/types/assessment";
 import { DAY_PART_LABEL, DAY_PART_ORDER, DAY_PART_SELECT_OPTIONS } from "@/types/assessment";
+import { DayPartChipSelector, type DayPartEntry } from "@/components/assessment/DayPartChipSelector";
+import { parseTageszeit } from "@/lib/action-plan-templates";
 import {
   DEFAULT_ASSESSMENT_FILTER,
   matchesAssessmentFilter,
@@ -309,6 +312,15 @@ interface Props {
     templateIds: string[],
     serviceType?: ActionServiceType,
     overrides?: ActionDraftOverrides,
+    dayPartEntries?: DayPartEntry[],
+  ) => void;
+
+  onUpdateActionGroup: (
+    topicId: string,
+    targetId: string,
+    groupId: string,
+    sharedFields: Partial<Omit<ActionNode, "id" | "groupId" | "dayPart" | "scheduledTime" | "confirmations" | "isUnplanned">>,
+    dayPartEntries: Array<{ dayPart?: DayPart; scheduledTime?: string; existingActionId?: string }>,
   ) => void;
   onAddUnplannedAction?: (
     dueDate: string,
@@ -322,6 +334,7 @@ interface Props {
   onDeleteTarget: (topicId: string, targetId: string) => void;
   onReactivateTarget: (topicId: string, targetId: string) => void;
   onDeleteAction: (topicId: string, targetId: string, actionId: string) => void;
+  onDeleteActionGroup: (topicId: string, targetId: string, groupId: string) => void;
 }
 
 type ConfirmationMode = "done_as_planned" | "done_with_deviation" | "not_done" | "postponed";
@@ -521,6 +534,7 @@ export function AssessmentOutline({
   onConfirmAction,
   onAddTarget,
   onAddAction,
+  onUpdateActionGroup,
   onAddUnplannedAction,
   onAddTopic,
   onUpdateTopicDiscipline,
@@ -529,6 +543,7 @@ export function AssessmentOutline({
   onDeleteTarget,
   onReactivateTarget,
   onDeleteAction,
+  onDeleteActionGroup,
 }: Props) {
   const [panelContext, setPanelContext] = useState<{
     mode: "create" | "edit";
@@ -538,6 +553,7 @@ export function AssessmentOutline({
     targetValidFrom?: string;
     targetValidTo?: string;
     action?: ActionNode;
+    groupActions?: ActionNode[];
     initialDayPart?: DayPart | "none";
   } | null>(null);
   const [isPanelMounted, setIsPanelMounted] = useState(false);
@@ -606,7 +622,8 @@ export function AssessmentOutline({
   const openEditPanel = (topicId: string, targetId: string, action: ActionNode) => {
     const topic = topics.find((t) => t.id === topicId);
     const target = topic?.targets.find((tg) => tg.id === targetId);
-    setPanelContext({ mode: "edit", topicId, targetId, action, targetValidFrom: target?.validFrom, targetValidTo: target?.validTo });
+    const groupActions = target?.actions.filter((a) => a.groupId === action.groupId) ?? [action];
+    setPanelContext({ mode: "edit", topicId, targetId, action, groupActions, targetValidFrom: target?.validFrom, targetValidTo: target?.validTo });
     setIsPanelMounted(true);
   };
 
@@ -624,37 +641,57 @@ export function AssessmentOutline({
     return () => cancelAnimationFrame(frame);
   }, [isPanelMounted]);
 
-  const handlePanelSave = (draft: ActionDraft, selectedTemplateIds: string[]) => {
+  const handlePanelSave = (draft: ActionDraft, selectedTemplateIds: string[], dayPartEntries: DayPartEntry[]) => {
     if (!panelContext) return;
-    const { topicId, targetId, mode, action } = panelContext;
+    const { topicId, targetId, mode, action, groupActions } = panelContext;
 
     if (mode === "create") {
       const overrides = draftToOverrides(draft);
       const serviceType = draft.serviceType !== "none" ? (draft.serviceType as ActionServiceType) : undefined;
-      onAddAction(topicId, targetId, selectedTemplateIds, serviceType, overrides);
+      onAddAction(topicId, targetId, selectedTemplateIds, serviceType, overrides, dayPartEntries.length > 0 ? dayPartEntries : undefined);
+      closePanel();
     } else if (mode === "edit" && action) {
-      onUpdateAction(topicId, targetId, action.id, "title", draft.title);
-      onUpdateAction(topicId, targetId, action.id, "notes", draft.notes);
-      onUpdateAction(topicId, targetId, action.id, "requiredResources", draft.requiredResources);
-      onUpdateActionField(topicId, targetId, action.id, "dayPart", draft.dayPart !== "none" ? draft.dayPart : undefined);
-      onUpdateActionField(topicId, targetId, action.id, "scheduledTime", draft.scheduledTime || undefined);
-      onUpdateActionField(topicId, targetId, action.id, "plannedMinutes", draft.plannedMinutes !== "" ? Math.max(0, Number(draft.plannedMinutes)) : undefined);
-      onUpdateActionField(topicId, targetId, action.id, "requiredPersons", draft.requiredPersons !== "" ? Math.max(1, Math.floor(Number(draft.requiredPersons))) : undefined);
-      onUpdateActionField(topicId, targetId, action.id, "category", draft.category !== "none" ? draft.category : undefined);
-      onUpdateActionField(topicId, targetId, action.id, "resultRequirement", draft.resultRequirement !== "none" ? draft.resultRequirement : undefined);
-      onUpdateActionField(topicId, targetId, action.id, "validFrom", draft.validFrom || undefined);
-      onUpdateActionField(topicId, targetId, action.id, "validTo", draft.validTo || undefined);
-      onUpdateActionField(topicId, targetId, action.id, "recurrence", draft.recurrence !== "none" ? draft.recurrence : undefined);
-      onUpdateActionField(topicId, targetId, action.id, "recurrenceWeekdays", draft.recurrenceWeekdays.length > 0 ? draft.recurrenceWeekdays : undefined);
-      onUpdateActionField(topicId, targetId, action.id, "recurrenceMonthlyPattern", draft.recurrenceMonthlyPattern !== "none" ? draft.recurrenceMonthlyPattern : undefined);
-    }
+      const sharedFields: Parameters<typeof onUpdateActionGroup>[3] = {
+        title: draft.title,
+        notes: draft.notes,
+        requiredResources: draft.requiredResources || undefined,
+        plannedMinutes: draft.plannedMinutes !== "" ? Math.max(0, Number(draft.plannedMinutes)) : undefined,
+        requiredPersons: draft.requiredPersons !== "" ? Math.max(1, Math.floor(Number(draft.requiredPersons))) : undefined,
+        category: draft.category !== "none" ? (draft.category as ActionCategory) : undefined,
+        resultRequirement: draft.resultRequirement !== "none" ? (draft.resultRequirement as ActionNode["resultRequirement"]) : undefined,
+        validFrom: draft.validFrom || undefined,
+        validTo: draft.validTo || undefined,
+        recurrence: draft.recurrence !== "none" ? (draft.recurrence as ActionNode["recurrence"]) : undefined,
+        recurrenceWeekdays: draft.recurrenceWeekdays.length > 0 ? draft.recurrenceWeekdays : undefined,
+        recurrenceMonthlyPattern: draft.recurrenceMonthlyPattern !== "none" ? (draft.recurrenceMonthlyPattern as ActionNode["recurrenceMonthlyPattern"]) : undefined,
+        templateId: action.templateId,
+        templateName: action.templateName,
+        templateLockedFields: action.templateLockedFields,
+        templateRequiredFields: action.templateRequiredFields,
+      };
 
-    closePanel();
+      const sortedDayParts = [...dayPartEntries].sort(
+        (a, b) => DAY_PART_ORDER.indexOf(a.dayPart) - DAY_PART_ORDER.indexOf(b.dayPart),
+      );
+
+      const newDayPartSet = new Set(sortedDayParts.map((e) => e.dayPart));
+      const entries = sortedDayParts.map(({ dayPart, scheduledTime }) => {
+        const existing = groupActions?.find((a) => a.dayPart === dayPart);
+        return { dayPart, scheduledTime, existingActionId: existing?.id };
+      });
+
+      const removedWithConfirmations = (groupActions ?? []).filter(
+        (a) => !newDayPartSet.has(a.dayPart as DayPart) && Object.keys(a.confirmations ?? {}).length > 0,
+      );
+
+      onUpdateActionGroup(topicId, targetId, action.groupId, sharedFields, entries);
+      closePanel();
+    }
   };
 
   const handlePanelDelete = () => {
     if (!panelContext?.action) return;
-    onDeleteAction(panelContext.topicId, panelContext.targetId, panelContext.action.id);
+    onDeleteActionGroup(panelContext.topicId, panelContext.targetId, panelContext.action.groupId);
     closePanel();
   };
 
@@ -1307,6 +1344,7 @@ export function AssessmentOutline({
         {unplannedDialogTarget && (
           <UnplannedActionDialog
             target={unplannedDialogTarget}
+            fixedDayPart={unplannedDialogTarget.dayPart}
             onClose={() => setUnplannedDialogTarget(null)}
             onConfirm={(draft) => {
               if (!onAddUnplannedAction) return;
@@ -1382,7 +1420,7 @@ export function AssessmentOutline({
           </div>
 
           <div className="space-y-8 border-l border-primary/20 pl-5">
-            {groupTopics.map((topic) => (
+            {groupTopics.filter((topic) => topic.targets.some((t) => t.actions.some((a) => !a.isUnplanned))).map((topic) => (
               <article key={topic.id} className="group/topic space-y-3">
                 <div className="flex items-start gap-3">
                   <div className="min-w-0 flex-1">
@@ -1424,7 +1462,7 @@ export function AssessmentOutline({
 
                 {/* Targets */}
                 <div className="mt-6 space-y-6 pl-6 border-l border-border ml-4">
-                  {topic.targets.filter((target) => showClosedTargets || !target.validTo).map((target) => {
+                  {topic.targets.filter((target) => (showClosedTargets || !target.validTo) && target.actions.some((a) => !a.isUnplanned)).map((target) => {
               const isTargetClosed = !!target.validTo;
               return (
                 <div key={target.id} className="group/target">
@@ -1514,50 +1552,40 @@ export function AssessmentOutline({
                       className="mt-2 -ml-6 w-1/2"
                     />
 
-                    <div className="mt-3 space-y-3">
+                    <div className="mt-3 space-y-1">
                       {(() => {
                         const plannedActions = target.actions.filter((a) => !a.isUnplanned);
-                        const grouped = DAY_PART_ORDER.map((part) => ({
-                          part,
-                          actions: plannedActions.filter((a) => (a.dayPart ?? "none") === part),
-                        })).filter((g) => g.actions.length > 0);
-                        const hasNone = grouped.length === 0 || grouped.every((g) => g.part === "none");
-                        return grouped.length === 0 ? null : grouped.map(({ part, actions }) => (
-                          <div key={part}>
-                            {(!hasNone || part !== "none") && (
-                              <DayPartHeader
-                                part={part}
-                                onAdd={!isTargetClosed ? () => openCreatePanel(topic.id, target.id, part === "none" ? undefined : part) : undefined}
-                              />
-                            )}
-                            <ul className="mt-1.5 space-y-1">
-                              {actions.map((action) => (
-                                <ActionRow
-                                  key={action.id}
-                                  viewMode={viewMode}
-                                  topicId={topic.id}
-                                  targetId={target.id}
-                                  action={action}
-                                  targetValidFrom={target.validFrom}
-                                  targetValidTo={target.validTo}
-                                  onUpdateAction={onUpdateAction}
-                                  onUpdateActionField={onUpdateActionField}
-                                  onDeleteAction={onDeleteAction}
-                                  onOpenEditPanel={() => openEditPanel(topic.id, target.id, action)}
-                                  onOpenDialog={(initialMode) =>
-                                    openConfirmDialog({
-                                      topicId: topic.id,
-                                      targetId: target.id,
-                                      dueDate: selectedDate,
-                                      initialMode,
-                                      action,
-                                    })
-                                  }
-                                />
-                              ))}
-                            </ul>
-                          </div>
-                        ));
+                        if (plannedActions.length === 0) return null;
+
+                        const groupMap = new Map<string, ActionNode[]>();
+                        for (const action of plannedActions) {
+                          const gid = action.groupId;
+                          const existing = groupMap.get(gid) ?? [];
+                          existing.push(action);
+                          groupMap.set(gid, existing);
+                        }
+
+                        const groups = Array.from(groupMap.values()).sort((a, b) => {
+                          const aMin = Math.min(...a.map((n) => DAY_PART_ORDER.indexOf(n.dayPart ?? "none")));
+                          const bMin = Math.min(...b.map((n) => DAY_PART_ORDER.indexOf(n.dayPart ?? "none")));
+                          return aMin - bMin;
+                        });
+
+                        return groups.map((groupNodes) => {
+                          const representative = groupNodes[0];
+                          return (
+                            <ActionGroupRow
+                              key={representative.groupId}
+                              topicId={topic.id}
+                              targetId={target.id}
+                              groupNodes={groupNodes}
+                              targetValidFrom={target.validFrom}
+                              targetValidTo={target.validTo}
+                              onDeleteActionGroup={onDeleteActionGroup}
+                              onOpenEditPanel={() => openEditPanel(topic.id, target.id, representative)}
+                            />
+                          );
+                        });
                       })()}
                     </div>
 
@@ -1640,6 +1668,7 @@ export function AssessmentOutline({
           key={panelContext.mode === "edit" ? panelContext.action?.id : "create"}
           mode={panelContext.mode}
           action={panelContext.action}
+          groupActions={panelContext.groupActions}
           topicDisciplineId={panelContext.topicDisciplineId}
           targetValidFrom={panelContext.targetValidFrom}
           targetValidTo={panelContext.targetValidTo}
@@ -1721,6 +1750,163 @@ function DayPartHeader({
       <span className="h-px flex-1 bg-border" />
       {menu}
     </div>
+  );
+}
+
+function ActionGroupRow({
+  topicId,
+  targetId,
+  groupNodes,
+  targetValidFrom,
+  targetValidTo,
+  onDeleteActionGroup,
+  onOpenEditPanel,
+}: {
+  topicId: string;
+  targetId: string;
+  groupNodes: ActionNode[];
+  targetValidFrom?: string;
+  targetValidTo?: string;
+  onDeleteActionGroup: Props["onDeleteActionGroup"];
+  onOpenEditPanel: () => void;
+}) {
+  const representative = groupNodes[0];
+  const sortedNodes = [...groupNodes].sort(
+    (a, b) => DAY_PART_ORDER.indexOf(a.dayPart ?? "none") - DAY_PART_ORDER.indexOf(b.dayPart ?? "none"),
+  );
+
+  const isLocked = Object.values(groupNodes).some((a) => Object.keys(a.confirmations ?? {}).length > 0);
+  const hasConfirmations = isLocked;
+
+  return (
+    <li className={cn(
+      "group/action flex items-start gap-3 rounded px-3 py-2.5 border transition-colors",
+      "border-border bg-white hover:border-primary/40",
+    )}>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className={cn("text-base font-medium truncate", !representative.title && "text-muted-foreground/40")}>
+            {representative.title || "Handlung…"}
+          </span>
+          {hasConfirmations && (
+            <TooltipProvider delayDuration={150}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="shrink-0">
+                    <Lock className="h-3.5 w-3.5 text-muted-foreground/50" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <div className="text-xs">Handlung hat Bestätigungen — einige Felder können nicht mehr geändert werden</div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+        </div>
+
+        <div
+          className="mt-1.5 text-sm text-muted-foreground"
+          style={{ display: "grid", gridTemplateColumns: "320px 1px 320px 1px 180px 1px 1fr", columnGap: "8px", rowGap: "5px" }}
+        >
+          {(representative.notes || representative.requiredResources || sortedNodes.some((n) => n.dayPart)) && (
+            <>
+              <TooltipProvider delayDuration={300}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="self-center truncate cursor-default">{representative.notes}</span>
+                  </TooltipTrigger>
+                  {representative.notes && <TooltipContent side="top" className="max-w-xs whitespace-pre-wrap">{representative.notes}</TooltipContent>}
+                </Tooltip>
+              </TooltipProvider>
+              <span className="self-center h-3 bg-border" />
+              <TooltipProvider delayDuration={300}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="self-center truncate cursor-default">{representative.requiredResources}</span>
+                  </TooltipTrigger>
+                  {representative.requiredResources && <TooltipContent side="top" className="max-w-xs whitespace-pre-wrap">{representative.requiredResources}</TooltipContent>}
+                </Tooltip>
+              </TooltipProvider>
+              <span className="self-center h-3 bg-border" />
+              <div className="flex flex-wrap items-center gap-1" style={{ gridColumn: "5 / -1" }}>
+                {sortedNodes.map((node) => {
+                  const dp = node.dayPart;
+                  if (!dp) return null;
+                  const Icon = DAY_PART_ICONS[dp];
+                  return (
+                    <span key={node.id} className="inline-flex items-center gap-1 rounded bg-secondary px-1 font-medium text-muted-foreground">
+                      <Icon className="h-3 w-3" />
+                      {DAY_PART_LABEL[dp]}
+                      {node.scheduledTime && <span className="tabular-nums">{node.scheduledTime}</span>}
+                    </span>
+                  );
+                })}
+              </div>
+            </>
+          )}
+          <span className="tabular-nums self-center">
+            {representative.plannedMinutes != null ? `${representative.plannedMinutes} Min` : <span className="opacity-40 italic">Keine Minuten</span>}
+          </span>
+          <span className="self-center h-3 bg-border" />
+          <span className="self-center truncate">
+            {representative.recurrence === "daily" ? "Täglich" : representative.recurrence === "weekly" ? "Wöchentlich" : representative.recurrence === "monthly" ? "Monatlich" : <span className="opacity-40 italic">Keine Wiederholung</span>}
+          </span>
+          <span className="self-center h-3 bg-border" />
+          <span className="tabular-nums self-center">
+            {representative.validFrom
+              ? <>{representative.validFrom.split("-").reverse().join(".")}{representative.validTo ? ` – ${representative.validTo.split("-").reverse().join(".")}` : ""}</>
+              : <span className="opacity-40 italic">Kein Gültig ab</span>}
+          </span>
+          <span className="self-center h-3 bg-border" />
+          <span className="self-center">
+            {representative.category
+              ? <span className="rounded bg-secondary px-1 font-medium">Kat. {CATEGORY_LABEL[representative.category]}</span>
+              : <span className="opacity-40 italic">Keine Kategorie</span>}
+          </span>
+        </div>
+      </div>
+
+      <TooltipProvider delayDuration={150}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={onOpenEditPanel}
+              className="shrink-0 mt-0.5 opacity-0 group-hover/action:opacity-100 p-1 hover:bg-secondary rounded transition-opacity"
+              aria-label="Handlung bearbeiten"
+            >
+              <Pencil className="h-4 w-4 text-muted-foreground" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            <div className="max-w-[220px] space-y-0.5">
+              <div className="font-medium">Handlung bearbeiten</div>
+              <div className="text-xs text-muted-foreground">Felder und Tageszeiten anpassen</div>
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+      <TooltipProvider delayDuration={150}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={() => onDeleteActionGroup(topicId, targetId, representative.groupId)}
+              className="shrink-0 mt-0.5 opacity-0 group-hover/action:opacity-100 p-1 hover:bg-destructive/10 hover:text-destructive rounded transition-opacity"
+              aria-label="Handlung löschen"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            <div className="max-w-[220px] space-y-0.5">
+              <div className="font-medium">Handlung löschen</div>
+              <div className="text-xs text-muted-foreground">Handlung unwiderruflich entfernen</div>
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    </li>
   );
 }
 
@@ -2657,6 +2843,7 @@ function ActionField({
 function ActionSidePanel({
   mode,
   action,
+  groupActions,
   topicDisciplineId,
   targetValidFrom,
   targetValidTo,
@@ -2670,13 +2857,14 @@ function ActionSidePanel({
 }: {
   mode: "create" | "edit";
   action?: ActionNode;
+  groupActions?: ActionNode[];
   topicDisciplineId?: string;
   targetValidFrom?: string;
   targetValidTo?: string;
   initialDayPart?: DayPart | "none";
   isPanelOpen: boolean;
   onClose: () => void;
-  onSave: (draft: ActionDraft, selectedTemplateIds: string[]) => void;
+  onSave: (draft: ActionDraft, selectedTemplateIds: string[], dayPartEntries: DayPartEntry[]) => void;
   clientName?: string;
   onDelete: () => void;
   onTransitionEnd: () => void;
@@ -2685,7 +2873,21 @@ function ActionSidePanel({
     if (action) return actionToDraft(action);
     const base = emptyActionDraft();
     if (initialDayPart && initialDayPart !== "none") base.dayPart = initialDayPart;
+    if (targetValidFrom) base.validFrom = targetValidFrom;
+    if (targetValidTo) base.validTo = targetValidTo;
     return base;
+  });
+
+  const [dayPartEntries, setDayPartEntries] = useState<DayPartEntry[]>(() => {
+    if (mode === "edit" && groupActions && groupActions.length > 0) {
+      return [...groupActions]
+        .sort((a, b) => DAY_PART_ORDER.indexOf(a.dayPart ?? "none") - DAY_PART_ORDER.indexOf(b.dayPart ?? "none"))
+        .map((a) => ({ dayPart: a.dayPart ?? "morning", scheduledTime: a.scheduledTime }));
+    }
+    if (initialDayPart && initialDayPart !== "none") {
+      return [{ dayPart: initialDayPart }];
+    }
+    return [{ dayPart: "morning" as DayPart }];
   });
   const [lockedFields, setLockedFields] = useState<string[]>(() => action?.templateLockedFields ?? []);
   const [requiredFields, setRequiredFields] = useState<string[]>(() => action?.templateRequiredFields ?? []);
@@ -2696,20 +2898,22 @@ function ActionSidePanel({
   const [templateQuery, setTemplateQuery] = useState("");
   const [isDropdownOpen, setDropdownOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [showRemoveTzConfirm, setShowRemoveTzConfirm] = useState(false);
   const templateInputRef = useRef<HTMLInputElement | null>(null);
   const asideRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
     if (!isPanelOpen) return;
     const handler = (e: MouseEvent) => {
+      if (showRemoveTzConfirm) return;
       const target = e.target as Element;
       if (asideRef.current && !asideRef.current.contains(target)) {
-        if (target.closest?.("[data-radix-popper-content-wrapper],[data-radix-select-content],[data-radix-dropdown-menu-content],[data-radix-popover-content]")) return;
+        if (target.closest?.("[data-radix-popper-content-wrapper],[data-radix-select-content],[data-radix-dropdown-menu-content],[data-radix-popover-content],[data-radix-portal]")) return;
         onClose();
       }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [isPanelOpen, onClose]);
+  }, [isPanelOpen, onClose, showRemoveTzConfirm]);
 
   useEffect(() => {
     if (mode !== "create") return;
@@ -2743,6 +2947,7 @@ function ActionSidePanel({
       .split(",")
       .map((v) => weekdayMap[v.trim().toLowerCase()])
       .filter((v): v is Weekday => Boolean(v));
+    const parsedDayParts = parseTageszeit(fields.tageszeit);
     setDraft({
       title: template.name,
       notes: fields.beschreibung,
@@ -2750,8 +2955,8 @@ function ActionSidePanel({
       plannedMinutes: fields.dauer !== "0" && fields.dauer ? fields.dauer : "",
       requiredPersons: fields.personen !== "0" && fields.personen ? fields.personen : "",
       resultRequirement: fields.resultat !== "none" ? fields.resultat : "none",
-      dayPart: fields.tageszeit !== "none" ? fields.tageszeit : (initialDayPart && initialDayPart !== "none" ? initialDayPart : "none"),
-      scheduledTime: fields.uhrzeit || "",
+      dayPart: parsedDayParts.length > 0 ? parsedDayParts[0].dayPart : (initialDayPart && initialDayPart !== "none" ? initialDayPart : "none"),
+      scheduledTime: parsedDayParts.length > 0 ? (parsedDayParts[0].scheduledTime ?? "") : "",
       category: fields.kategorie !== "none" ? fields.kategorie : "none",
       serviceType: fields.leistungsart !== "none" ? fields.leistungsart : "none",
       validFrom: "",
@@ -2760,6 +2965,13 @@ function ActionSidePanel({
       recurrenceWeekdays,
       recurrenceMonthlyPattern: fields.wiederholungMonatlich !== "none" ? fields.wiederholungMonatlich : "none",
     });
+    if (parsedDayParts.length > 0) {
+      setDayPartEntries(parsedDayParts);
+    } else if (initialDayPart && initialDayPart !== "none") {
+      setDayPartEntries([{ dayPart: initialDayPart }]);
+    } else {
+      setDayPartEntries([{ dayPart: "morning" }]);
+    }
     setLockedFields(getTemplateLockedActionFields(template));
     setRequiredFields(getTemplateRequiredActionFields(template));
     setValidationErrors([]);
@@ -2800,12 +3012,30 @@ function ActionSidePanel({
   };
 
   const handleSave = () => {
+    if (mode === "create" && creationMode === "template" && !selectedTemplateId) {
+      setValidationErrors(["template"]);
+      return;
+    }
     const errors = requiredFields.filter((f) => !isDraftFieldFilled(f));
+    if (draft.validFrom && targetValidFrom && draft.validFrom < targetValidFrom) errors.push("validFrom");
+    if (draft.validFrom && targetValidTo && draft.validFrom > targetValidTo) errors.push("validFrom");
+    if (draft.validTo && targetValidFrom && draft.validTo < targetValidFrom) errors.push("validTo");
+    if (draft.validTo && targetValidTo && draft.validTo > targetValidTo) errors.push("validTo");
     if (errors.length > 0) {
       setValidationErrors(errors);
       return;
     }
-    onSave(draft, selectedTemplateId ? [selectedTemplateId] : []);
+    if (mode === "edit" && groupActions) {
+      const newDayPartSet = new Set(dayPartEntries.map((e) => e.dayPart));
+      const removedWithConfirmations = groupActions.filter(
+        (a) => !newDayPartSet.has(a.dayPart as DayPart) && Object.keys(a.confirmations ?? {}).length > 0,
+      );
+      if (removedWithConfirmations.length > 0) {
+        setShowRemoveTzConfirm(true);
+        return;
+      }
+    }
+    onSave(draft, selectedTemplateId ? [selectedTemplateId] : [], dayPartEntries);
   };
 
   const panelTitle = mode === "create" ? "Neue Handlung" : (action?.title || "Handlung bearbeiten");
@@ -2814,6 +3044,17 @@ function ActionSidePanel({
     <div
       className={`fixed inset-0 z-50 flex justify-end pointer-events-none overflow-hidden`}
     >
+      <ConfirmDialog
+        open={showRemoveTzConfirm}
+        title="Tageszeit mit Bestätigungen entfernen"
+        message="Eine oder mehrere entfernte Tageszeiten haben bereits bestätigte Einträge. Beim Speichern werden diese Daten unwiderruflich gelöscht. Fortfahren?"
+        confirmLabel="Speichern"
+        onConfirm={() => {
+          setShowRemoveTzConfirm(false);
+          onSave(draft, selectedTemplateId ? [selectedTemplateId] : [], dayPartEntries);
+        }}
+        onCancel={() => setShowRemoveTzConfirm(false)}
+      />
       <aside
         ref={asideRef}
         className={`pointer-events-auto flex h-dvh w-full max-w-2xl flex-col bg-[#F5F5F6] transition-transform duration-300 ease-out ${isPanelOpen ? "translate-x-0 shadow-2xl" : "translate-x-full"}`}
@@ -2867,7 +3108,7 @@ function ActionSidePanel({
               </div>
 
               {creationMode === "template" && (
-                <div className="rounded-md border border-input/70 bg-background shadow-sm focus-within:border-primary/70">
+                <div className={cn("rounded-md border bg-background shadow-sm focus-within:border-primary/70", hasError("template") ? "border-destructive" : "border-input/70")}>
                   <div className="flex items-center gap-2 px-3 py-2">
                     <input
                       ref={templateInputRef}
@@ -2913,6 +3154,9 @@ function ActionSidePanel({
                     </div>
                   )}
                 </div>
+              )}
+              {creationMode === "template" && hasError("template") && (
+                <p className="text-xs text-destructive">Bitte eine Vorlage auswählen.</p>
               )}
 
               {creationMode === "scratch" && (
@@ -2964,27 +3208,13 @@ function ActionSidePanel({
               />
             </ActionField>
 
-            <div className="grid grid-cols-2 gap-3">
-              <ActionField label="Tageszeit" fieldKey="dayPart">
-                <Select value={draft.dayPart} disabled={isLocked("dayPart")} onValueChange={(v) => { setDraft((p) => ({ ...p, dayPart: v })); setValidationErrors((prev) => prev.filter((f) => f !== "dayPart")); }}>
-                  <SelectTrigger className={cn("bg-background", hasError("dayPart") && "border-destructive")}><SelectValue placeholder="Keine Angabe" /></SelectTrigger>
-                  <SelectContent>
-                    {DAY_PART_SELECT_OPTIONS.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </ActionField>
-              <ActionField label="Uhrzeit" fieldKey="scheduledTime">
-                <Input
-                  type="time"
-                  value={draft.scheduledTime}
-                  disabled={isLocked("scheduledTime")}
-                  onChange={(e) => { setDraft((p) => ({ ...p, scheduledTime: e.target.value })); setValidationErrors((prev) => prev.filter((f) => f !== "scheduledTime")); }}
-                  className={cn("bg-background", hasError("scheduledTime") && "border-destructive")}
-                />
-              </ActionField>
-            </div>
+            <ActionField label="Tageszeiten" fieldKey="dayPart">
+              <DayPartChipSelector
+                value={dayPartEntries}
+                onChange={setDayPartEntries}
+                disabled={isLocked("dayPart")}
+              />
+            </ActionField>
 
             <div className="grid grid-cols-2 gap-3">
               <ActionField label="Geplante Minuten" fieldKey="plannedMinutes">
@@ -3042,7 +3272,7 @@ function ActionSidePanel({
                 <div className={cn("flex items-center rounded-md border border-input bg-background px-3 py-2 text-sm focus-within:border-primary", hasError("validFrom") && "border-destructive")}>
                   <DatePickerInput
                     value={draft.validFrom || undefined}
-                    onChange={(v) => setDraft((p) => ({ ...p, validFrom: v ?? "" }))}
+                    onChange={(v) => { setDraft((p) => ({ ...p, validFrom: v ?? "" })); setValidationErrors((prev) => prev.filter((f) => f !== "validFrom")); }}
                     placeholder="TT.MM.JJJJ"
                     minDate={targetValidFrom}
                     maxDate={targetValidTo}
@@ -3051,10 +3281,10 @@ function ActionSidePanel({
                 </div>
               </ActionField>
               <ActionField label="Gültig bis">
-                <div className="flex items-center rounded-md border border-input bg-background px-3 py-2 text-sm focus-within:border-primary">
+                <div className={cn("flex items-center rounded-md border border-input bg-background px-3 py-2 text-sm focus-within:border-primary", hasError("validTo") && "border-destructive")}>
                   <DatePickerInput
                     value={draft.validTo || undefined}
-                    onChange={(v) => setDraft((p) => ({ ...p, validTo: v ?? "" }))}
+                    onChange={(v) => { setDraft((p) => ({ ...p, validTo: v ?? "" })); setValidationErrors((prev) => prev.filter((f) => f !== "validTo")); }}
                     placeholder="TT.MM.JJJJ"
                     minDate={targetValidFrom}
                     maxDate={targetValidTo}
@@ -3062,6 +3292,16 @@ function ActionSidePanel({
                   />
                 </div>
               </ActionField>
+              {(hasError("validFrom") || hasError("validTo")) && (targetValidFrom || targetValidTo) && (
+                <p className="col-span-2 text-xs text-destructive">
+                  Datum muss innerhalb des Ziel-Gültigkeitsbereichs liegen
+                  {targetValidFrom && targetValidTo
+                    ? ` (${targetValidFrom.split("-").reverse().join(".")} – ${targetValidTo.split("-").reverse().join(".")})`
+                    : targetValidFrom
+                    ? ` (ab ${targetValidFrom.split("-").reverse().join(".")})`
+                    : ` (bis ${targetValidTo!.split("-").reverse().join(".")})`}.
+                </p>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -3170,15 +3410,18 @@ const buildEmptyUnplannedTemplateDraft = (dayPart?: DayPart | "none"): Unplanned
 
 export function UnplannedActionDialog({
   target,
+  fixedDayPart,
   onClose,
   onConfirm,
   clientName,
 }: {
   target: { dueDate?: string; dateFrom?: string; dayPart: DayPart | "none" };
+  fixedDayPart?: DayPart | "none";
   onClose: () => void;
-  onConfirm: (draft: UnplannedActionDraft) => void;
+  onConfirm: (draft: UnplannedActionDraft, dayPartEntries?: DayPartEntry[]) => void;
   clientName?: string;
 }) {
+  const useChipSelector = fixedDayPart === undefined || fixedDayPart === "none";
   const [creationMode, setCreationMode] = useState<"template" | "scratch">("template");
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [templates, setTemplates] = useState<ActionPlanTemplate[]>(() => loadActionPlanTemplates());
@@ -3187,6 +3430,7 @@ export function UnplannedActionDialog({
   const [activeTemplateIndex, setActiveTemplateIndex] = useState(0);
   const templateInputRef = useRef<HTMLInputElement | null>(null);
   const [draft, setDraft] = useState<UnplannedActionDraft>(() => buildEmptyUnplannedTemplateDraft(target.dayPart));
+  const [dayPartEntries, setDayPartEntries] = useState<DayPartEntry[]>([{ dayPart: "morning" }]);
   const [dateFrom, setDateFrom] = useState<string>(target.dateFrom ?? target.dueDate ?? "");
   const [dateTo, setDateTo] = useState<string>(target.dueDate ?? "");
   const [isPanelVisible, setIsPanelVisible] = useState(false);
@@ -3208,7 +3452,7 @@ export function UnplannedActionDialog({
     const handler = (e: MouseEvent) => {
       const t = e.target as Element;
       if (unplannedAsideRef.current && !unplannedAsideRef.current.contains(t)) {
-        if (t.closest?.("[data-radix-popper-content-wrapper],[data-radix-select-content],[data-radix-dropdown-menu-content],[data-radix-popover-content]")) return;
+        if (t.closest?.("[data-radix-popper-content-wrapper],[data-radix-select-content],[data-radix-dropdown-menu-content],[data-radix-popover-content],[data-radix-portal]")) return;
         handleClose();
       }
     };
@@ -3221,6 +3465,7 @@ export function UnplannedActionDialog({
     setTemplateQuery("");
     setTemplateDropdownOpen(false);
     setDraft(buildEmptyUnplannedTemplateDraft(target?.dayPart));
+    if (useChipSelector) setDayPartEntries([{ dayPart: "morning" }]);
   };
 
   const applyTemplate = (templateId: string, fallbackDayPart: DayPart | "none") => {
@@ -3229,6 +3474,8 @@ export function UnplannedActionDialog({
     const fields = template.fields;
     const plannedMinutes = Number(fields.dauer);
     const requiredPersons = Number(fields.personen);
+    const parsedEntries = parseTageszeit(fields.tageszeit);
+    if (useChipSelector && parsedEntries.length > 0) setDayPartEntries(parsedEntries);
     setDraft({
       title: template.name,
       notes: fields.beschreibung,
@@ -3238,7 +3485,6 @@ export function UnplannedActionDialog({
       category: fields.kategorie !== "none" ? (fields.kategorie as ActionCategory) : undefined,
       serviceType: fields.leistungsart !== "none" ? (fields.leistungsart as ActionServiceType) : undefined,
       dayPart: fallbackDayPart,
-      scheduledTime: fields.uhrzeit || undefined,
       resultRequirement: fields.resultat !== "none" ? (fields.resultat as ActionNode["resultRequirement"]) : undefined,
       templateId: template.id,
       templateName: template.name,
@@ -3344,7 +3590,7 @@ export function UnplannedActionDialog({
     if (!dateFrom || !dateTo) return;
     if (dateRangeError) return;
     if (missingRequiredFields.length > 0) return;
-    onConfirm({
+    const finalDraft: UnplannedActionDraft = {
       ...draft,
       title,
       notes: draft.notes.trim(),
@@ -3352,7 +3598,8 @@ export function UnplannedActionDialog({
       dayPart: draft.dayPart ?? "none",
       dateFrom: dateFrom,
       dateTo: dateTo,
-    });
+    };
+    onConfirm(finalDraft, useChipSelector ? dayPartEntries : undefined);
   };
 
   return createPortal(
@@ -3547,21 +3794,34 @@ export function UnplannedActionDialog({
               <Label>Hilfsmittel</Label>
               <Textarea rows={2} value={draft.requiredResources ?? ""} disabled={isDraftFieldLocked("requiredResources")} onChange={(e) => updateDraft("requiredResources", e.target.value || undefined)} className="bg-background" />
             </label>
-            <div className="space-y-1.5">
-              <Label>Tageszeit</Label>
-              <Select value={draft.dayPart ?? "none"} disabled={isDraftFieldLocked("dayPart")} onValueChange={(value) => updateDraft("dayPart", value as DayPart | "none")}>
-                <SelectTrigger aria-label="Tageszeit" className="bg-background"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {DAY_PART_SELECT_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <label className="space-y-1.5">
-              <Label>Uhrzeit</Label>
-              <Input type="time" value={draft.scheduledTime ?? ""} disabled={isDraftFieldLocked("scheduledTime")} onChange={(e) => updateDraft("scheduledTime", e.target.value || undefined)} className="bg-background" />
-            </label>
+            {useChipSelector ? (
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label>Tageszeit</Label>
+                <DayPartChipSelector
+                  value={dayPartEntries}
+                  onChange={setDayPartEntries}
+                  disabled={isDraftFieldLocked("dayPart")}
+                />
+              </div>
+            ) : (
+              <>
+                <div className="space-y-1.5">
+                  <Label>Tageszeit</Label>
+                  <Select value={draft.dayPart ?? "none"} disabled={isDraftFieldLocked("dayPart")} onValueChange={(value) => updateDraft("dayPart", value as DayPart | "none")}>
+                    <SelectTrigger aria-label="Tageszeit" className="bg-background"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {DAY_PART_SELECT_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <label className="space-y-1.5">
+                  <Label>Uhrzeit</Label>
+                  <Input type="time" value={draft.scheduledTime ?? ""} disabled={isDraftFieldLocked("scheduledTime")} onChange={(e) => updateDraft("scheduledTime", e.target.value || undefined)} className="bg-background" />
+                </label>
+              </>
+            )}
             <label className="space-y-1.5">
               <Label>Geplante Minuten</Label>
               <Input type="number" min={0} step={5} value={draft.plannedMinutes ?? ""} disabled={isDraftFieldLocked("plannedMinutes")} onChange={(e) => updateDraft("plannedMinutes", e.target.value === "" ? undefined : Math.max(0, Number(e.target.value)))} className="bg-background" />
@@ -3758,7 +4018,7 @@ function ConfirmActionDialog({
     const handler = (e: MouseEvent) => {
       const el = e.target as Element;
       if (confirmAsideRef.current && !confirmAsideRef.current.contains(el)) {
-        if (el.closest?.("[data-radix-popper-content-wrapper],[data-radix-select-content],[data-radix-dropdown-menu-content],[data-radix-popover-content]")) return;
+        if (el.closest?.("[data-radix-popper-content-wrapper],[data-radix-select-content],[data-radix-dropdown-menu-content],[data-radix-popover-content],[data-radix-portal]")) return;
         handleClose();
       }
     };

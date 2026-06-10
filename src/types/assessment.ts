@@ -68,6 +68,8 @@ export interface ActionConfirmation {
 
 export interface ActionNode {
   id: string;
+  /** Gemeinsame ID aller ActionNodes derselben Gruppe (1..n Tageszeiten) */
+  groupId: string;
   title: string;
   notes: string;
   /** Hilfsmittel fuer die Durchfuehrung */

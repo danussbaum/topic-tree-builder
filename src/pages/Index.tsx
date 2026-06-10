@@ -64,6 +64,7 @@ import {
   getTemplateRequiredActionFields,
   isTemplateLockedActionField,
   loadActionPlanTemplates,
+  parseTageszeit,
 } from "@/lib/action-plan-templates";
 import {
   DEFAULT_LAST_N_DAYS,
@@ -402,6 +403,7 @@ const seedClients: Client[] = [
             actions: [
               {
                 id: uid(),
+                groupId: uid(),
                 title: "LZ-1 IND-2: Ressourcen aktivieren",
                 notes:
                   "Die Aktivierung und Förderung des Systems wurde gemeinsam reflektiert.",
@@ -413,6 +415,7 @@ const seedClients: Client[] = [
               },
               {
                 id: uid(),
+                groupId: uid(),
                 title: "LZ-2 IND-1: Individuelle Kontaktregelung",
                 notes:
                   "Eine individuelle Kontaktregelung liegt vor und wurde kongruent umgesetzt.",
@@ -788,6 +791,7 @@ const Index = () => {
     templateIds: string[],
     serviceType?: ActionServiceType,
     overrides?: Partial<ActionNode>,
+    panelDayPartEntries?: Array<{ dayPart?: DayPart; scheduledTime?: string }>,
   ) => {
     const templates = loadActionPlanTemplates().filter((template) => templateIds.includes(template.id));
     const weekdayMap: Record<string, Weekday> = {
@@ -800,10 +804,10 @@ const Index = () => {
       sun: "sunday",
     };
 
-    const createActionFromTemplate = (
+    const createActionsFromTemplate = (
       template?: (typeof templates)[number],
       scratchServiceType?: ActionServiceType,
-    ): ActionNode => {
+    ): ActionNode[] => {
       const fields = template?.fields ?? buildDefaultTemplateFields();
       const plannedMinutes = Number(fields.dauer);
       const requiredPersons = Number(fields.personen);
@@ -816,8 +820,14 @@ const Index = () => {
         .split(",")
         .map((value) => weekdayMap[value.trim().toLowerCase()])
         .filter((value): value is Weekday => Boolean(value));
-      return {
-        id: uid(),
+
+      const tageszeitEntries = panelDayPartEntries && panelDayPartEntries.length > 0
+        ? panelDayPartEntries.map(({ dayPart, scheduledTime }) => ({ dayPart: dayPart ?? ("morning" as DayPart), scheduledTime }))
+        : parseTageszeit(fields.tageszeit);
+      const groupId = uid();
+
+      const baseAction: Omit<ActionNode, "id" | "dayPart" | "scheduledTime"> = {
+        groupId,
         title: fields.titel,
         notes: fields.beschreibung,
         requiredResources: fields.hilfsmittel || undefined,
@@ -825,8 +835,6 @@ const Index = () => {
         requiredPersons: Number.isFinite(requiredPersons) ? requiredPersons : undefined,
         category: fields.kategorie !== "none" ? (fields.kategorie as ActionNode["category"]) : undefined,
         serviceType: selectedServiceType,
-        dayPart: fields.tageszeit !== "none" ? (fields.tageszeit as ActionNode["dayPart"]) : undefined,
-        scheduledTime: fields.uhrzeit || undefined,
         resultRequirement: fields.resultat !== "none"
           ? (fields.resultat as ActionNode["resultRequirement"])
           : undefined,
@@ -842,12 +850,32 @@ const Index = () => {
         templateLockedFields: getTemplateLockedActionFields(template),
         templateRequiredFields: getTemplateRequiredActionFields(template),
       };
+
+      if (tageszeitEntries.length === 0) {
+        return [{ ...baseAction, id: uid() }];
+      }
+
+      return tageszeitEntries.map(({ dayPart, scheduledTime }) => ({
+        ...baseAction,
+        id: uid(),
+        dayPart,
+        scheduledTime,
+      }));
     };
 
     const newActions = (templates.length > 0
-      ? templates.map((template) => createActionFromTemplate(template))
-      : [createActionFromTemplate(undefined, serviceType)]
-    ).map((a) => overrides ? { ...a, ...overrides } : a);
+      ? templates.flatMap((template) => createActionsFromTemplate(template))
+      : createActionsFromTemplate(undefined, serviceType)
+    ).map((a) => {
+      if (!overrides) return a;
+      // When dayPartEntries drives the per-node dayPart/scheduledTime, don't let
+      // the single-value draft overrides clobber them.
+      if (panelDayPartEntries && panelDayPartEntries.length > 0) {
+        const { dayPart: _dp, scheduledTime: _st, ...rest } = overrides;
+        return { ...a, ...rest };
+      }
+      return { ...a, ...overrides };
+    });
 
     updateClientTopicsFor(clientId, (topics) =>
       topics.map((t) =>
@@ -894,13 +922,22 @@ const Index = () => {
       dateTo?: string;
     },
   ) => {
-    const actionId = uid();
     const unplannedTopicTitle = "Ungeplante Handlungen";
     const unplannedTargetTitle = "Direkt in der Umsetzung erfasst";
     const selectedDayPart = draft.dayPart ?? dayPart;
 
-    const newAction: ActionNode = {
-      id: actionId,
+    // Expand date range: one ActionNode per day, each with its own groupId
+    const dateFrom = (draft.dateFrom && draft.dateFrom !== "") ? draft.dateFrom : dueDate;
+    const dateTo = (draft.dateTo && draft.dateTo !== "") ? draft.dateTo : dateFrom;
+    const dates: string[] = [];
+    for (let d = new Date(`${dateFrom}T00:00:00`); d <= new Date(`${dateTo}T00:00:00`); d.setDate(d.getDate() + 1)) {
+      dates.push(dateToISO(d));
+    }
+    if (dates.length === 0) dates.push(dateFrom || dueDate);
+
+    const newActions: ActionNode[] = dates.map((date) => ({
+      id: uid(),
+      groupId: uid(),
       title: draft.title,
       notes: draft.notes,
       requiredResources: draft.requiredResources,
@@ -911,14 +948,16 @@ const Index = () => {
       scheduledTime: draft.scheduledTime,
       category: draft.category,
       serviceType: draft.serviceType,
-      validFrom: draft.dateFrom ?? dueDate,
-      validTo: draft.dateTo ?? dueDate,
+      validFrom: date,
+      validTo: date,
       recurrence: "daily",
       isUnplanned: true,
       templateId: draft.templateId,
       templateName: draft.templateName,
       templateLockedFields: draft.templateLockedFields,
-    };
+    }));
+
+    const firstActionId = newActions[0]?.id ?? uid();
 
     updateClientTopicsFor(clientId, (topics) => {
       const existingTopic = topics.find((topic) => topic.title === unplannedTopicTitle);
@@ -935,7 +974,7 @@ const Index = () => {
                 id: uid(),
                 title: unplannedTargetTitle,
                 notes: "",
-                actions: [newAction],
+                actions: newActions,
               },
             ],
           },
@@ -950,7 +989,7 @@ const Index = () => {
             ...topic,
             targets: [
               ...topic.targets,
-              { id: uid(), title: unplannedTargetTitle, notes: "", actions: [newAction] },
+              { id: uid(), title: unplannedTargetTitle, notes: "", actions: newActions },
             ],
           };
         }
@@ -958,16 +997,16 @@ const Index = () => {
           ...topic,
           targets: topic.targets.map((target) =>
             target.id === existingTarget.id
-              ? { ...target, actions: [...target.actions, newAction] }
+              ? { ...target, actions: [...target.actions, ...newActions] }
               : target,
           ),
         };
       });
     });
 
-    setTransientUnplannedActionIds((prev) => new Set(prev).add(actionId));
+    newActions.forEach((a) => setTransientUnplannedActionIds((prev) => new Set(prev).add(a.id)));
 
-    return actionId;
+    return firstActionId;
   };
 
   const updateTopic = (
@@ -1232,6 +1271,61 @@ const Index = () => {
 
   };
 
+  const updateActionGroup = (
+    clientId: string,
+    topicId: string,
+    targetId: string,
+    groupId: string,
+    sharedFields: Partial<Omit<ActionNode, "id" | "groupId" | "dayPart" | "scheduledTime" | "confirmations" | "isUnplanned">>,
+    dayPartEntries: Array<{ dayPart?: import("@/types/assessment").DayPart; scheduledTime?: string; existingActionId?: string }>,
+  ) => {
+    updateClientTopicsFor(clientId, (topics) =>
+      topics.map((t) => {
+        if (t.id !== topicId) return t;
+        return {
+          ...t,
+          targets: t.targets.map((tg) => {
+            if (tg.id !== targetId) return tg;
+            const groupActions = tg.actions.filter((a) => a.groupId === groupId);
+            const insertIndex = tg.actions.findIndex((a) => a.groupId === groupId);
+
+            const updatedGroupActions: ActionNode[] = dayPartEntries.map(({ dayPart, scheduledTime, existingActionId }) => {
+              const existing = existingActionId
+                ? groupActions.find((a) => a.id === existingActionId)
+                : undefined;
+              if (existing) {
+                return { ...existing, ...sharedFields, dayPart, scheduledTime };
+              }
+              return {
+                id: uid(),
+                groupId,
+                ...sharedFields,
+                dayPart,
+                scheduledTime,
+                status: "open" as const,
+                done: false,
+              };
+            });
+
+            const nonGroupActions = tg.actions.filter((a) => a.groupId !== groupId);
+            const splitAt = insertIndex >= 0
+              ? tg.actions.slice(0, insertIndex).filter((a) => a.groupId !== groupId).length
+              : nonGroupActions.length;
+
+            return {
+              ...tg,
+              actions: [
+                ...nonGroupActions.slice(0, splitAt),
+                ...updatedGroupActions,
+                ...nonGroupActions.slice(splitAt),
+              ],
+            };
+          }),
+        };
+      }),
+    );
+  };
+
   const confirmAction = (
     clientId: string,
     topicId: string,
@@ -1384,6 +1478,45 @@ const Index = () => {
     if (hasActions) {
       showConfirm(
         "Dieses Ziel enthält Handlungen. Beim Löschen werden alle verknüpften Daten ebenfalls gelöscht. Möchten Sie fortfahren?",
+        doDelete,
+      );
+      return;
+    }
+
+    doDelete();
+  };
+
+  const deleteActionGroup = (
+    clientId: string,
+    topicId: string,
+    targetId: string,
+    groupId: string,
+  ) => {
+    const client = clients.find((c) => c.id === clientId);
+    const target = client?.topics.find((t) => t.id === topicId)?.targets.find((tg) => tg.id === targetId);
+    const groupNodes = target?.actions.filter((a) => a.groupId === groupId) ?? [];
+    const hasConfirmedActions = groupNodes.some((a) => Object.keys(a.confirmations ?? {}).length > 0);
+
+    const doDelete = () => {
+      updateClientTopicsFor(clientId, (topics) =>
+        topics.map((t) =>
+          t.id !== topicId
+            ? t
+            : {
+                ...t,
+                targets: t.targets.map((tg) =>
+                  tg.id !== targetId
+                    ? tg
+                    : { ...tg, actions: tg.actions.filter((a) => a.groupId !== groupId) },
+                ),
+              },
+        ),
+      );
+    };
+
+    if (hasConfirmedActions) {
+      showConfirm(
+        "Diese geplante Handlung hat bereits bestätigte Einträge. Beim Löschen werden alle verknüpften Daten ebenfalls gelöscht. Möchten Sie fortfahren?",
         doDelete,
       );
       return;
@@ -2592,8 +2725,11 @@ const Index = () => {
                       }
                       onDeleteDiscipline={(disciplineId) => deleteDiscipline(client.id, disciplineId)}
                       onAddTarget={(topicId) => addTarget(client.id, topicId)}
-                      onAddAction={(topicId, targetId, templateIds, serviceType, overrides) =>
-                        addAction(client.id, topicId, targetId, templateIds, serviceType, overrides)
+                      onAddAction={(topicId, targetId, templateIds, serviceType, overrides, dayPartEntries) =>
+                        addAction(client.id, topicId, targetId, templateIds, serviceType, overrides, dayPartEntries)
+                      }
+                      onUpdateActionGroup={(topicId, targetId, groupId, sharedFields, dayPartEntries) =>
+                        updateActionGroup(client.id, topicId, targetId, groupId, sharedFields, dayPartEntries)
                       }
                       onAddUnplannedAction={(dueDate, dayPart, draft) =>
                         addUnplannedAction(client.id, dueDate, dayPart, draft)
@@ -2607,6 +2743,9 @@ const Index = () => {
                       }
                       onDeleteAction={(topicId, targetId, actionId) =>
                         deleteAction(client.id, topicId, targetId, actionId)
+                      }
+                      onDeleteActionGroup={(topicId, targetId, groupId) =>
+                        deleteActionGroup(client.id, topicId, targetId, groupId)
                       }
                     />
                     {personUnplannedClientId === client.id && (() => {
@@ -2634,8 +2773,13 @@ const Index = () => {
                           key={client.id}
                           target={dialogTarget}
                           onClose={() => setPersonUnplannedClientId(null)}
-                          onConfirm={(draft) => {
-                            addUnplannedAction(client.id, draft.dateFrom ?? "", draft.dayPart ?? "none", draft);
+                          onConfirm={(draft, dayPartEntries) => {
+                            const entries = dayPartEntries && dayPartEntries.length > 0
+                              ? dayPartEntries
+                              : [{ dayPart: (draft.dayPart && draft.dayPart !== "none" ? draft.dayPart : "morning") as DayPart, scheduledTime: draft.scheduledTime }];
+                            entries.forEach(({ dayPart, scheduledTime }) =>
+                              addUnplannedAction(client.id, draft.dateFrom ?? "", dayPart, { ...draft, scheduledTime }),
+                            );
                             setPersonUnplannedClientId(null);
                           }}
                           clientName={`${client.firstName} ${client.lastName}`.trim()}

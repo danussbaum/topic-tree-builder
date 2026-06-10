@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { DAY_PART_SELECT_OPTIONS } from "@/types/assessment";
+import type { DayPart } from "@/types/assessment";
 import {
   ACTION_SERVICE_TYPE_SELECT_OPTIONS,
   buildDefaultTemplateEditable as buildDefaultEditable,
@@ -28,9 +28,15 @@ import {
   loadActionPlanTemplates,
   normalizeTemplateDisciplineIds,
   normalizeTemplateSelectValue,
+  parseTageszeit,
   resolveTemplateDisciplineIds,
   saveActionPlanTemplates,
+  serializeTageszeit,
 } from "@/lib/action-plan-templates";
+import {
+  DayPartChipSelector,
+  type DayPartEntry,
+} from "@/components/assessment/DayPartChipSelector";
 import { loadActionPlanDisciplines } from "@/lib/action-plan-disciplines";
 import { DisciplineMultiSelect } from "@/components/settings/DisciplineMultiSelect";
 
@@ -49,7 +55,6 @@ type TemplateFieldKey =
   | "personen"
   | "kategorie"
   | "tageszeit"
-  | "uhrzeit"
   | "resultat"
   | "wiederholung"
   | "wiederholungWochentage"
@@ -59,7 +64,7 @@ type TemplateFieldKey =
 interface TemplateFieldMeta {
   key: TemplateFieldKey;
   label: string;
-  type: "text" | "textarea" | "select" | "time";
+  type: "text" | "textarea" | "select" | "time" | "dayparts";
   options?: Array<{ value: string; label: string }>;
   editable?: boolean;
 }
@@ -84,10 +89,8 @@ const templateFieldMeta: TemplateFieldMeta[] = [
   {
     key: "tageszeit",
     label: "Tageszeit",
-    type: "select",
-    options: DAY_PART_SELECT_OPTIONS,
+    type: "dayparts",
   },
-  { key: "uhrzeit", label: "Uhrzeit", type: "time" },
   {
     key: "resultat",
     label: "Resultat",
@@ -253,6 +256,9 @@ export const ActionPlanTemplatesView = forwardRef<
     const headerRow = rows[0] ?? [];
     const hasDisciplineColumn =
       headerRow[1]?.toLocaleLowerCase("de") === "disziplinen";
+    const hasUhrzeitColumn = headerRow.some(
+      (h) => h.trim().toLocaleLowerCase("de") === "uhrzeit",
+    );
     const dataRows = rows.slice(1);
     const rowErrors: string[] = [];
     const validRows: ActionPlanTemplate[] = [];
@@ -307,12 +313,15 @@ export const ActionPlanTemplatesView = forwardRef<
           }
         }
 
-        if (
-          field.key === "uhrzeit" &&
-          value &&
-          !/^([01]\d|2[0-3]):[0-5]\d$/.test(value)
-        ) {
-          errors.push(`${field.label}: muss im Format HH:mm sein`);
+        if (field.key === "tageszeit" && hasUhrzeitColumn) {
+          // Old CSV format: uhrzeit was a separate column after tageszeit
+          const uhrzeitValue = (row[columnIndex] ?? "").trim();
+          columnIndex += 1; // uhrzeit value
+          columnIndex += 1; // uhrzeit veränderbar
+          columnIndex += 1; // uhrzeit zwingend
+          if (uhrzeitValue && value && value !== "none") {
+            nextFields[field.key] = `${value}(${uhrzeitValue})`;
+          }
         }
 
         if (field.key === "wiederholungWochentage" && value) {
@@ -718,6 +727,21 @@ export const ActionPlanTemplatesView = forwardRef<
                           ))}
                         </SelectContent>
                       </Select>
+                    ) : field.type === "dayparts" ? (
+                      <DayPartChipSelector
+                        value={(() => {
+                          const entries = parseTageszeit(draftFields[field.key]);
+                          return entries.length > 0
+                            ? entries
+                            : [{ dayPart: "morning" as DayPart }];
+                        })()}
+                        onChange={(entries: DayPartEntry[]) =>
+                          setDraftFields((prev) => ({
+                            ...prev,
+                            [field.key]: serializeTageszeit(entries),
+                          }))
+                        }
+                      />
                     ) : field.type === "time" ? (
                       <Input
                         type="time"

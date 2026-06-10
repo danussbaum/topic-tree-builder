@@ -6,6 +6,23 @@ import {
   isApplicationLogoutClearing,
 } from "@/lib/application-storage";
 
+const uid = () => Math.random().toString(36).slice(2, 10);
+
+export const migrateActionNodeGroupIds = (clients: Client[]): Client[] =>
+  clients.map((client) => ({
+    ...client,
+    topics: client.topics.map((topic) => ({
+      ...topic,
+      targets: topic.targets.map((target) => ({
+        ...target,
+        actions: target.actions.map((action) =>
+          // Unplanned actions always get their own unique groupId
+          (action.isUnplanned || !action.groupId) ? { ...action, groupId: uid() } : action,
+        ),
+      })),
+    })),
+  }));
+
 export type ConfirmationPeriod = "day" | "week" | "month" | "lastNDays";
 
 export const DEFAULT_LAST_N_DAYS = 3;
@@ -73,7 +90,7 @@ export const loadCachedAssessmentState = (
         typeof parsed.lastNDays === "number" && Number.isFinite(parsed.lastNDays) && parsed.lastNDays > 0
           ? Math.floor(parsed.lastNDays)
           : DEFAULT_LAST_N_DAYS,
-      clients: migrateCachedTopicsToDisciplines(parsed.clients as Client[]),
+      clients: migrateActionNodeGroupIds(migrateCachedTopicsToDisciplines(parsed.clients as Client[])),
       selectedClientIds: parsed.selectedClientIds,
       confirmationFilter: parsed.confirmationFilter ?? fallbackConfirmationFilter,
     };
