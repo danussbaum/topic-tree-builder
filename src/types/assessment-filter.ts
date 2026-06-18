@@ -31,6 +31,7 @@ export interface AssessmentFilterModel {
   disciplineIds?: string[];
   unplanned?: "planned" | "unplanned";
   actionTitleSearch?: string;
+  showClosedTargets?: boolean;
 }
 
 export const DEFAULT_ASSESSMENT_FILTER: AssessmentFilterModel = {

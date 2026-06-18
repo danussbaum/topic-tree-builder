@@ -8,6 +8,11 @@ export type ActionStatus =
 export type DayPart = "morning" | "noon" | "afternoon" | "evening" | "night";
 export type ActionCategory = "a" | "b" | "c";
 export type ActionServiceType = "spitex-klv-a" | "spitex-klv-b" | "spitex-klv-c";
+
+export interface ActionServiceEntry {
+  serviceType: ActionServiceType;
+  maxMinutes?: number;
+}
 export type ResultRequirement = "none" | "optional" | "required";
 export type NumericComparisonOperator = "gt" | "lt" | "eq";
 export type RecurrenceType = "daily" | "weekly" | "monthly";
@@ -88,6 +93,8 @@ export interface ActionNode {
   category?: ActionCategory;
   /** Leistungsart fuer Abrechnung/Planung */
   serviceType?: ActionServiceType;
+  /** Mehrere Leistungsarten mit optionaler Max-Minuten-Angabe */
+  serviceEntries?: ActionServiceEntry[];
   /** Gültig ab (ISO Datum, zwingend bei erfasster Handlung) */
   validFrom?: string;
   /** Gültig bis (ISO Datum, optional) */

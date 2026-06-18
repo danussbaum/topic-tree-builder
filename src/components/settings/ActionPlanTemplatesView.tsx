@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { DayPart } from "@/types/assessment";
+import type { ActionServiceEntry, ActionServiceType, DayPart } from "@/types/assessment";
 import {
   ACTION_SERVICE_TYPE_SELECT_OPTIONS,
   buildDefaultTemplateEditable as buildDefaultEditable,
@@ -29,10 +29,13 @@ import {
   normalizeTemplateDisciplineIds,
   normalizeTemplateSelectValue,
   parseTageszeit,
+  parseLeistungsarten,
+  serializeLeistungsarten,
   resolveTemplateDisciplineIds,
   saveActionPlanTemplates,
   serializeTageszeit,
 } from "@/lib/action-plan-templates";
+import { Trash2 } from "lucide-react";
 import {
   DayPartChipSelector,
   type DayPartEntry,
@@ -64,7 +67,7 @@ type TemplateFieldKey =
 interface TemplateFieldMeta {
   key: TemplateFieldKey;
   label: string;
-  type: "text" | "textarea" | "select" | "time" | "dayparts";
+  type: "text" | "textarea" | "select" | "time" | "dayparts" | "leistungsarten";
   options?: Array<{ value: string; label: string }>;
   editable?: boolean;
 }
@@ -132,10 +135,9 @@ const templateFieldMeta: TemplateFieldMeta[] = [
   },
   {
     key: "leistungsart",
-    label: "Leistungsart",
-    type: "select",
+    label: "Leistungsarten",
+    type: "leistungsarten",
     editable: false,
-    options: ACTION_SERVICE_TYPE_SELECT_OPTIONS,
   },
 ];
 
@@ -167,6 +169,8 @@ export const ActionPlanTemplatesView = forwardRef<
   const [importErrors, setImportErrors] = useState<string[]>([]);
   const [draftFields, setDraftFields] =
     useState<Record<TemplateFieldKey, string>>(buildDefaultFields);
+  const [leistungsartenAddError, setLeistungsartenAddError] = useState(false);
+  const [leistungsartenSaveError, setLeistungsartenSaveError] = useState(false);
   const [draftEditable, setDraftEditable] =
     useState<Record<TemplateFieldKey, boolean>>(buildDefaultEditable);
   const [draftRequired, setDraftRequired] =
@@ -305,6 +309,17 @@ export const ActionPlanTemplatesView = forwardRef<
         const allowed = allowedByField.get(field.key);
         if (allowed && !allowed.has(value)) {
           errors.push(`${field.label}: ungültiger Wert "${rawValue}"`);
+        }
+
+        if (field.key === "leistungsart" && value && value !== "none") {
+          const validTypes = new Set(["spitex-klv-a", "spitex-klv-b", "spitex-klv-c"]);
+          const entries = value.split("|").map((p) => p.trim()).filter(Boolean);
+          const invalidTypes = entries
+            .map((p) => p.split(":")[0].trim())
+            .filter((t) => !validTypes.has(t));
+          if (invalidTypes.length > 0) {
+            errors.push(`${field.label}: ungültige Leistungsart(en) "${invalidTypes.join(", ")}"`);
+          }
         }
 
         if (field.key === "dauer" || field.key === "personen") {
@@ -462,6 +477,13 @@ export const ActionPlanTemplatesView = forwardRef<
   };
 
   const saveTemplate = () => {
+    const leistungsartenEntries = parseLeistungsarten(draftFields.leistungsart);
+    const hasInvalidOrder = leistungsartenEntries.slice(0, -1).some((e) => e.maxMinutes == null);
+    if (hasInvalidOrder) {
+      setLeistungsartenSaveError(true);
+      return;
+    }
+    setLeistungsartenSaveError(false);
     if (isCreating) {
       setTemplates((prev) => [
         ...prev,
@@ -623,10 +645,10 @@ export const ActionPlanTemplatesView = forwardRef<
                   {getFieldOptionLabel("kategorie", entry.fields.kategorie)}
                 </td>
                 <td className="px-4 py-2 text-[13px] text-muted-foreground">
-                  {getFieldOptionLabel(
-                    "leistungsart",
-                    entry.fields.leistungsart,
-                  )}
+                  {parseLeistungsarten(entry.fields.leistungsart).map((e) => {
+                    const label = ACTION_SERVICE_TYPE_SELECT_OPTIONS.find((o) => o.value === e.serviceType)?.label ?? e.serviceType;
+                    return e.maxMinutes != null ? `${label} (max. ${e.maxMinutes} Min.)` : label;
+                  }).join(" | ") || "–"}
                 </td>
               </tr>
             ))}
@@ -729,12 +751,7 @@ export const ActionPlanTemplatesView = forwardRef<
                       </Select>
                     ) : field.type === "dayparts" ? (
                       <DayPartChipSelector
-                        value={(() => {
-                          const entries = parseTageszeit(draftFields[field.key]);
-                          return entries.length > 0
-                            ? entries
-                            : [{ dayPart: "morning" as DayPart }];
-                        })()}
+                        value={parseTageszeit(draftFields[field.key])}
                         onChange={(entries: DayPartEntry[]) =>
                           setDraftFields((prev) => ({
                             ...prev,
@@ -794,7 +811,68 @@ export const ActionPlanTemplatesView = forwardRef<
                           );
                         })}
                       </div>
-                    ) : field.key === "dauer" || field.key === "personen" ? (
+                    ) : field.type === "leistungsarten" ? (() => {
+                      const entries = parseLeistungsarten(draftFields[field.key]);
+                      const setEntries = (next: ActionServiceEntry[]) =>
+                        setDraftFields((prev) => ({ ...prev, [field.key]: serializeLeistungsarten(next) }));
+                      return (
+                        <div className="space-y-2">
+                          {entries.map((entry, idx) => {
+                            const usedTypes = new Set(entries.filter((_, i) => i !== idx).map((e) => e.serviceType));
+                            return (
+                            <div key={idx} className="flex items-center gap-1.5">
+                              <Select
+                                value={entry.serviceType}
+                                onValueChange={(v) => {
+                                  const next = entries.map((e, i) => i === idx ? { ...e, serviceType: v as ActionServiceType } : e);
+                                  setEntries(next);
+                                }}
+                              >
+                                <SelectTrigger className="flex-1 min-w-0"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {ACTION_SERVICE_TYPE_SELECT_OPTIONS.filter((o) => o.value !== "none" && !usedTypes.has(o.value as ActionServiceType)).map((o) => (
+                                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <Input
+                                type="number"
+                                min={1}
+                                placeholder="Max. Min."
+                                value={entry.maxMinutes ?? ""}
+                                onChange={(e) => {
+                                  const v = e.target.value === "" ? undefined : Math.max(1, Number(e.target.value));
+                                  const next = entries.map((en, i) => i === idx ? { ...en, maxMinutes: v } : en);
+                                  setEntries(next);
+                                  if (v != null && idx === entries.length - 1) { setLeistungsartenAddError(false); setLeistungsartenSaveError(false); }
+                                }}
+                                className="w-24"
+                              />
+                              <div className="flex flex-col gap-0.5">
+                                <button type="button" disabled={idx === 0} onClick={() => { const n = [...entries]; [n[idx-1],n[idx]]=[n[idx],n[idx-1]]; setEntries(n); }} className="inline-flex h-4 w-6 items-center justify-center rounded border border-border bg-background text-xs disabled:opacity-30 hover:bg-secondary/60" aria-label="Nach oben">▲</button>
+                                <button type="button" disabled={idx === entries.length - 1} onClick={() => { const n = [...entries]; [n[idx+1],n[idx]]=[n[idx],n[idx+1]]; setEntries(n); }} className="inline-flex h-4 w-6 items-center justify-center rounded border border-border bg-background text-xs disabled:opacity-30 hover:bg-secondary/60" aria-label="Nach unten">▼</button>
+                              </div>
+                              <button type="button" onClick={() => setEntries(entries.filter((_, i) => i !== idx))} className="shrink-0 inline-flex h-8 w-8 items-center justify-center rounded border border-border bg-background hover:bg-destructive/10 hover:text-destructive" aria-label="Entfernen"><Trash2 className="h-3.5 w-3.5" /></button>
+                            </div>
+                            );
+                          })}
+                          {leistungsartenAddError && (
+                            <p className="text-xs text-destructive">Die letzte Leistungsart benötigt eine Max. Anzahl Minuten, bevor eine weitere hinzugefügt werden kann.</p>
+                          )}
+                          {(() => {
+                            const usedTypes = new Set(entries.map((e) => e.serviceType));
+                            const nextType = ACTION_SERVICE_TYPE_SELECT_OPTIONS.find((o) => o.value !== "none" && !usedTypes.has(o.value as ActionServiceType));
+                            if (!nextType) return null;
+                            return <button type="button" onClick={() => {
+                              const last = entries[entries.length - 1];
+                              if (last && last.maxMinutes == null) { setLeistungsartenAddError(true); return; }
+                              setLeistungsartenAddError(false);
+                              setEntries([...entries, { serviceType: nextType.value as ActionServiceType }]);
+                            }} className="flex items-center gap-1 text-xs text-primary hover:underline">+ Leistungsart hinzufügen</button>;
+                          })()}
+                        </div>
+                      );
+                    })() : field.key === "dauer" || field.key === "personen" ? (
                       <Input
                         type="number"
                         min={0}
@@ -892,14 +970,19 @@ export const ActionPlanTemplatesView = forwardRef<
                   </Button>
                 )}
               </div>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={saveTemplate}
-                className="text-white hover:bg-white/10 hover:text-white"
-              >
-                Speichern
-              </Button>
+              <div className="flex flex-col items-end gap-1">
+                {leistungsartenSaveError && (
+                  <p className="text-xs text-primary-foreground/80">Nur die unterste Leistungsart darf kein Max. Min. haben.</p>
+                )}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={saveTemplate}
+                  className="text-white hover:bg-white/10 hover:text-white"
+                >
+                  Speichern
+                </Button>
+              </div>
             </div>
           </aside>
         </div>
