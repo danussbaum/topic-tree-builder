@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 import type { DayPart } from "@/types/assessment";
 import { DAY_PART_ORDER, DAY_PART_LABEL } from "@/types/assessment";
-import { Sunrise, Utensils, Sun, Sunset, Moon } from "lucide-react";
+import { Sunrise, Utensils, Sun, Sunset, Moon, Minus } from "lucide-react";
 
 const DAY_PART_ICONS: Record<DayPart, typeof Sunrise> = {
   morning: Sunrise,
@@ -13,9 +13,21 @@ const DAY_PART_ICONS: Record<DayPart, typeof Sunrise> = {
 
 const ALL_DAY_PARTS = DAY_PART_ORDER.filter((p): p is DayPart => p !== "none");
 
+export type DayPartOrNone = DayPart | "none";
+
 export interface DayPartEntry {
-  dayPart: DayPart;
+  dayPart: DayPartOrNone;
   scheduledTime?: string;
+}
+
+const ALL_CHIPS: DayPartOrNone[] = ["none", ...ALL_DAY_PARTS];
+
+function chipLabel(dayPart: DayPartOrNone): string {
+  return dayPart === "none" ? "ohne" : DAY_PART_LABEL[dayPart];
+}
+
+function chipIcon(dayPart: DayPartOrNone) {
+  return dayPart === "none" ? Minus : DAY_PART_ICONS[dayPart];
 }
 
 interface DayPartChipSelectorProps {
@@ -27,19 +39,19 @@ interface DayPartChipSelectorProps {
 export function DayPartChipSelector({ value, onChange, disabled }: DayPartChipSelectorProps) {
   const selectedDayParts = new Set(value.map((e) => e.dayPart));
 
-  const toggleDayPart = (dayPart: DayPart) => {
+  const toggleDayPart = (dayPart: DayPartOrNone) => {
     if (disabled) return;
     if (selectedDayParts.has(dayPart)) {
-      if (value.length <= 1) return;
       onChange(value.filter((e) => e.dayPart !== dayPart));
     } else {
       const newEntries = [...value, { dayPart }];
-      onChange(ALL_DAY_PARTS.filter((dp) => newEntries.some((e) => e.dayPart === dp))
+      // Maintain canonical order
+      onChange(ALL_CHIPS.filter((dp) => newEntries.some((e) => e.dayPart === dp))
         .map((dp) => newEntries.find((e) => e.dayPart === dp)!));
     }
   };
 
-  const updateTime = (dayPart: DayPart, time: string) => {
+  const updateTime = (dayPart: DayPartOrNone, time: string) => {
     if (disabled) return;
     onChange(value.map((e) => e.dayPart === dayPart ? { ...e, scheduledTime: time || undefined } : e));
   };
@@ -47,39 +59,39 @@ export function DayPartChipSelector({ value, onChange, disabled }: DayPartChipSe
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap gap-2">
-        {ALL_DAY_PARTS.map((dayPart) => {
-          const Icon = DAY_PART_ICONS[dayPart];
+        {ALL_CHIPS.map((dayPart) => {
+          const Icon = chipIcon(dayPart);
           const isSelected = selectedDayParts.has(dayPart);
           return (
             <button
               key={dayPart}
               type="button"
-              disabled={disabled || (isSelected && value.length <= 1)}
+              disabled={disabled}
               onClick={() => toggleDayPart(dayPart)}
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
                 isSelected
                   ? "border-primary bg-primary/10 text-primary hover:bg-primary/20"
                   : "border-border bg-background text-muted-foreground hover:border-primary/40 hover:bg-secondary/60",
-                (disabled || (isSelected && value.length <= 1)) && "cursor-not-allowed opacity-50",
+                disabled && "cursor-not-allowed opacity-50",
               )}
             >
               <Icon className="h-3.5 w-3.5" />
-              {DAY_PART_LABEL[dayPart]}
+              {chipLabel(dayPart)}
             </button>
           );
         })}
       </div>
 
-      {value.length > 0 && (
+      {value.filter((e) => e.dayPart !== "none").length > 0 && (
         <div className="space-y-1.5">
-          {value.map(({ dayPart, scheduledTime }) => {
-            const Icon = DAY_PART_ICONS[dayPart];
+          {value.filter((e) => e.dayPart !== "none").map(({ dayPart, scheduledTime }) => {
+            const Icon = chipIcon(dayPart);
             return (
               <label key={dayPart} className="flex items-center gap-2 text-xs">
                 <span className="inline-flex w-32 items-center gap-1 text-muted-foreground">
                   <Icon className="h-3.5 w-3.5 shrink-0" />
-                  {DAY_PART_LABEL[dayPart]}
+                  {chipLabel(dayPart)}
                 </span>
                 <input
                   type="time"

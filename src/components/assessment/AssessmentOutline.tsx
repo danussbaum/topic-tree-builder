@@ -10,6 +10,7 @@ import {
   Clock,
   CalendarClock,
   Users,
+  CheckCircle,
   CheckCircle2,
   AlertTriangle,
   XCircle,
@@ -73,13 +74,14 @@ import type {
   DayPart,
   ActionCategory,
   ActionServiceType,
+  ActionServiceEntry,
   Weekday,
   MonthlyRecurrencePattern,
   TopicNode,
 } from "@/types/assessment";
 import { DAY_PART_LABEL, DAY_PART_ORDER, DAY_PART_SELECT_OPTIONS } from "@/types/assessment";
 import { DayPartChipSelector, type DayPartEntry } from "@/components/assessment/DayPartChipSelector";
-import { parseTageszeit } from "@/lib/action-plan-templates";
+import { parseLeistungsarten, parseTageszeit } from "@/lib/action-plan-templates";
 import {
   DEFAULT_ASSESSMENT_FILTER,
   matchesAssessmentFilter,
@@ -129,7 +131,7 @@ type ActionField =
   | "dayPart"
   | "scheduledTime"
   | "category"
-  | "serviceType"
+  | "serviceEntries"
   | "validFrom"
   | "validTo"
   | "recurrence"
@@ -148,7 +150,7 @@ interface UnplannedActionDraft {
   dayPart?: DayPart | "none";
   scheduledTime?: string;
   category?: ActionCategory;
-  serviceType?: ActionServiceType;
+  serviceEntries?: ActionServiceEntry[];
   templateId?: string;
   templateName?: string;
   templateLockedFields?: string[];
@@ -172,6 +174,7 @@ type ActionDraftOverrides = Partial<Pick<ActionNode,
   | "recurrence"
   | "recurrenceWeekdays"
   | "recurrenceMonthlyPattern"
+  | "serviceEntries"
 >>;
 
 interface ActionDraft {
@@ -184,7 +187,7 @@ interface ActionDraft {
   dayPart: string;
   scheduledTime: string;
   category: string;
-  serviceType: string;
+  serviceEntries: ActionServiceEntry[];
   validFrom: string;
   validTo: string;
   recurrence: string;
@@ -203,7 +206,7 @@ function emptyActionDraft(): ActionDraft {
     dayPart: "none",
     scheduledTime: "",
     category: "none",
-    serviceType: "none",
+    serviceEntries: [],
     validFrom: "",
     validTo: "",
     recurrence: "none",
@@ -223,7 +226,7 @@ function actionToDraft(action: ActionNode): ActionDraft {
     dayPart: action.dayPart ?? "none",
     scheduledTime: action.scheduledTime ?? "",
     category: action.category ?? "none",
-    serviceType: action.serviceType ?? "none",
+    serviceEntries: action.serviceEntries ?? (action.serviceType ? [{ serviceType: action.serviceType }] : []),
     validFrom: action.validFrom ?? "",
     validTo: action.validTo ?? "",
     recurrence: action.recurrence ?? "none",
@@ -272,6 +275,8 @@ interface Props {
   hideConfirmationHeader?: boolean;
   bulkNotDoneMode?: boolean;
   onBulkNotDoneModeChange?: (enabled: boolean) => void;
+  bulkDoneAsPlannedMode?: boolean;
+  onBulkDoneAsPlannedModeChange?: (enabled: boolean) => void;
   showConfirmed?: boolean;
   confirmationFilter?: ConfirmationFilter;
   filterModel?: AssessmentFilterModel;
@@ -312,7 +317,6 @@ interface Props {
     topicId: string,
     targetId: string,
     templateIds: string[],
-    serviceType?: ActionServiceType,
     overrides?: ActionDraftOverrides,
     dayPartEntries?: DayPartEntry[],
   ) => void;
@@ -354,6 +358,15 @@ interface DialogTarget {
 }
 
 interface BulkNotDoneTarget {
+  key: string;
+  topicId: string;
+  targetId: string;
+  actionId: string;
+  dueDate: string;
+  actionTitle: string;
+}
+
+interface BulkDoneAsPlannedTarget {
   key: string;
   topicId: string;
   targetId: string;
@@ -527,6 +540,8 @@ export function AssessmentOutline({
   hideConfirmationHeader,
   bulkNotDoneMode = false,
   onBulkNotDoneModeChange,
+  bulkDoneAsPlannedMode = false,
+  onBulkDoneAsPlannedModeChange,
   confirmationFilter,
   filterModel = DEFAULT_ASSESSMENT_FILTER,
   showClosedTargets = false,
@@ -605,6 +620,8 @@ export function AssessmentOutline({
   };
   const [selectedBulkNotDoneKeys, setSelectedBulkNotDoneKeys] = useState<Set<string>>(new Set());
   const [bulkNotDoneDialogOpen, setBulkNotDoneDialogOpen] = useState(false);
+  const [selectedBulkDoneAsPlannedKeys, setSelectedBulkDoneAsPlannedKeys] = useState<Set<string>>(new Set());
+  const [bulkDoneAsPlannedDialogOpen, setBulkDoneAsPlannedDialogOpen] = useState(false);
   const [unplannedDialogTarget, setUnplannedDialogTarget] = useState<{ dueDate?: string; dayPart: DayPart | "none" } | null>(null);
   const today = format(new Date(), "yyyy-MM-dd");
   const disciplineOptions = disciplines.length > 0 ? disciplines : initialActionPlanDisciplines;
@@ -642,6 +659,13 @@ export function AssessmentOutline({
     }
   }, [bulkNotDoneMode]);
 
+  useEffect(() => {
+    if (!bulkDoneAsPlannedMode) {
+      setSelectedBulkDoneAsPlannedKeys(new Set());
+      setBulkDoneAsPlannedDialogOpen(false);
+    }
+  }, [bulkDoneAsPlannedMode]);
+
   const openCreatePanel = (topicId: string, targetId: string, initialDayPart?: DayPart | "none") => {
     const topic = topics.find((t) => t.id === topicId);
     const topicDisciplineId = topic ? getTopicDisciplineId(topic) : undefined;
@@ -677,9 +701,8 @@ export function AssessmentOutline({
     const { topicId, targetId, mode, action, groupActions } = panelContext;
 
     if (mode === "create") {
-      const overrides = draftToOverrides(draft);
-      const serviceType = draft.serviceType !== "none" ? (draft.serviceType as ActionServiceType) : undefined;
-      onAddAction(topicId, targetId, selectedTemplateIds, serviceType, overrides, dayPartEntries.length > 0 ? dayPartEntries : undefined);
+      const overrides = { ...draftToOverrides(draft), serviceEntries: draft.serviceEntries.length > 0 ? draft.serviceEntries : undefined };
+      onAddAction(topicId, targetId, selectedTemplateIds, overrides, dayPartEntries);
       closePanel();
     } else if (mode === "edit" && action) {
       const sharedFields: Parameters<typeof onUpdateActionGroup>[3] = {
@@ -695,6 +718,7 @@ export function AssessmentOutline({
         recurrence: draft.recurrence !== "none" ? (draft.recurrence as ActionNode["recurrence"]) : undefined,
         recurrenceWeekdays: draft.recurrenceWeekdays.length > 0 ? draft.recurrenceWeekdays : undefined,
         recurrenceMonthlyPattern: draft.recurrenceMonthlyPattern !== "none" ? (draft.recurrenceMonthlyPattern as ActionNode["recurrenceMonthlyPattern"]) : undefined,
+        serviceEntries: draft.serviceEntries.length > 0 ? draft.serviceEntries : undefined,
         templateId: action.templateId,
         templateName: action.templateName,
         templateLockedFields: action.templateLockedFields,
@@ -704,16 +728,13 @@ export function AssessmentOutline({
       const sortedDayParts = [...dayPartEntries].sort(
         (a, b) => DAY_PART_ORDER.indexOf(a.dayPart) - DAY_PART_ORDER.indexOf(b.dayPart),
       );
-
-      const newDayPartSet = new Set(sortedDayParts.map((e) => e.dayPart));
-      const entries = sortedDayParts.map(({ dayPart, scheduledTime }) => {
-        const existing = groupActions?.find((a) => a.dayPart === dayPart);
-        return { dayPart, scheduledTime, existingActionId: existing?.id };
+      const entries: Parameters<typeof onUpdateActionGroup>[4] = sortedDayParts.map(({ dayPart, scheduledTime }) => {
+        const actionDayPart = dayPart === "none" ? undefined : dayPart;
+        const existing = groupActions?.find((a) =>
+          dayPart === "none" ? a.dayPart === undefined : a.dayPart === dayPart
+        );
+        return { dayPart: actionDayPart, scheduledTime: actionDayPart !== undefined ? scheduledTime : undefined, existingActionId: existing?.id };
       });
-
-      const removedWithConfirmations = (groupActions ?? []).filter(
-        (a) => !newDayPartSet.has(a.dayPart as DayPart) && Object.keys(a.confirmations ?? {}).length > 0,
-      );
 
       onUpdateActionGroup(topicId, targetId, action.groupId, sharedFields, entries);
       closePanel();
@@ -798,7 +819,7 @@ export function AssessmentOutline({
 
     const flatActions: Array<{
       topic: TopicNode;
-      target: { id: string; title: string; notes: string };
+      target: { id: string; title: string; notes: string; validTo?: string };
       action: ActionNode;
       dueDate: string;
       confirmationDate: string;
@@ -815,13 +836,16 @@ export function AssessmentOutline({
           if (action.validTo && action.validTo < periodRange.start) return;
 
           const dueDates = getDueDatesInPeriod(action);
+          const isTargetClosedInConfirmation = !!target.validTo;
+          if (filterModel?.showClosedTargets ? !isTargetClosedInConfirmation : isTargetClosedInConfirmation) return;
+
           dueDates.forEach((dueDate) => {
             const confirmation = action.confirmations?.[dueDate];
             if (confirmation?.postponedToDate) return;
             const status = getStatusForDate(action, dueDate);
             const forceShowTransientUnplanned = action.isUnplanned && transientUnplannedActionIds.has(action.id);
             if (!forceShowTransientUnplanned && !matchesAssessmentFilter({ action, status, confirmation, disciplineId: topic.disciplineId }, filterModel)) return;
-            flatActions.push({ topic, target, action, dueDate, confirmationDate: dueDate, status });
+            flatActions.push({ topic, target: { id: target.id, title: target.title, notes: target.notes, validTo: target.validTo }, action, dueDate, confirmationDate: dueDate, status });
           });
 
           Object.entries(action.confirmations ?? {}).forEach(([confirmationDate, confirmation]) => {
@@ -833,7 +857,7 @@ export function AssessmentOutline({
             if (!forceShowTransientUnplanned && !matchesAssessmentFilter({ action, status: confirmation.status, confirmation, disciplineId: topic.disciplineId }, filterModel)) return;
             flatActions.push({
               topic,
-              target,
+              target: { id: target.id, title: target.title, notes: target.notes, validTo: target.validTo },
               action,
               dueDate: confirmation.postponedToDate,
               confirmationDate,
@@ -890,14 +914,29 @@ export function AssessmentOutline({
       visibleBulkNotDoneKeys.length > 0 && visibleBulkNotDoneKeys.every((key) => selectedBulkNotDoneKeys.has(key));
     const someVisibleBulkNotDoneSelected = visibleBulkNotDoneKeys.some((key) => selectedBulkNotDoneKeys.has(key));
 
+    const bulkDoneAsPlannedTargets: BulkDoneAsPlannedTarget[] = sortedFlatActions
+      .filter(({ action, status }) => canConfirmAction(action) && (status === "open" || status === "postponed"))
+      .map(({ topic, target, action, confirmationDate }) => ({
+        key: buildBulkNotDoneKey(topic.id, target.id, action.id, confirmationDate),
+        topicId: topic.id,
+        targetId: target.id,
+        actionId: action.id,
+        dueDate: confirmationDate,
+        actionTitle: action.title,
+      }));
+    const bulkDoneAsPlannedTargetsByKey = new Map(bulkDoneAsPlannedTargets.map((t) => [t.key, t]));
+    const selectedBulkDoneAsPlannedTargets = [...selectedBulkDoneAsPlannedKeys]
+      .map((key) => bulkDoneAsPlannedTargetsByKey.get(key))
+      .filter((t): t is BulkDoneAsPlannedTarget => Boolean(t));
+    const visibleBulkDoneAsPlannedKeys = bulkDoneAsPlannedTargets.map((t) => t.key);
+    const allVisibleBulkDoneAsPlannedSelected =
+      visibleBulkDoneAsPlannedKeys.length > 0 && visibleBulkDoneAsPlannedKeys.every((key) => selectedBulkDoneAsPlannedKeys.has(key));
+    const someVisibleBulkDoneAsPlannedSelected = visibleBulkDoneAsPlannedKeys.some((key) => selectedBulkDoneAsPlannedKeys.has(key));
+
     const toggleBulkNotDoneSelection = (key: string, checked: boolean) => {
       setSelectedBulkNotDoneKeys((prev) => {
         const next = new Set(prev);
-        if (checked) {
-          next.add(key);
-        } else {
-          next.delete(key);
-        }
+        if (checked) next.add(key); else next.delete(key);
         return next;
       });
     };
@@ -905,13 +944,23 @@ export function AssessmentOutline({
     const toggleAllVisibleBulkNotDoneSelection = (checked: boolean) => {
       setSelectedBulkNotDoneKeys((prev) => {
         const next = new Set(prev);
-        visibleBulkNotDoneKeys.forEach((key) => {
-          if (checked) {
-            next.add(key);
-          } else {
-            next.delete(key);
-          }
-        });
+        visibleBulkNotDoneKeys.forEach((key) => { if (checked) next.add(key); else next.delete(key); });
+        return next;
+      });
+    };
+
+    const toggleBulkDoneAsPlannedSelection = (key: string, checked: boolean) => {
+      setSelectedBulkDoneAsPlannedKeys((prev) => {
+        const next = new Set(prev);
+        if (checked) next.add(key); else next.delete(key);
+        return next;
+      });
+    };
+
+    const toggleAllVisibleBulkDoneAsPlannedSelection = (checked: boolean) => {
+      setSelectedBulkDoneAsPlannedKeys((prev) => {
+        const next = new Set(prev);
+        visibleBulkDoneAsPlannedKeys.forEach((key) => { if (checked) next.add(key); else next.delete(key); });
         return next;
       });
     };
@@ -998,6 +1047,53 @@ export function AssessmentOutline({
           </div>
         )}
 
+        {bulkDoneAsPlannedMode && (
+          <div className="rounded-lg border border-border/60 bg-muted/20 p-2.5">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2.5">
+                <Checkbox
+                  id="bulk-done-as-planned-select-all"
+                  checked={allVisibleBulkDoneAsPlannedSelected || (someVisibleBulkDoneAsPlannedSelected && "indeterminate")}
+                  disabled={visibleBulkDoneAsPlannedKeys.length === 0}
+                  onCheckedChange={(checked) => toggleAllVisibleBulkDoneAsPlannedSelection(checked === true)}
+                  aria-label="Alle offenen Handlungen für Mehrfachbestätigung auswählen"
+                />
+                <Label htmlFor="bulk-done-as-planned-select-all" className="text-sm font-normal text-muted-foreground">
+                  Offene/verschobene Handlungen auswählen
+                </Label>
+                <span className="rounded-full bg-background px-2 py-0.5 text-xs text-muted-foreground">
+                  {selectedBulkDoneAsPlannedTargets.length} ausgewählt
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2 sm:justify-end">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground"
+                  onClick={() => onBulkDoneAsPlannedModeChange?.(false)}
+                >
+                  Mehrfachauswahl beenden
+                </Button>
+                <Button
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  className="shadow-sm"
+                  disabled={selectedBulkDoneAsPlannedTargets.length === 0}
+                  onClick={() => setBulkDoneAsPlannedDialogOpen(true)}
+                >
+                  <CheckCircle className="h-4 w-4" aria-hidden="true" />
+                  Ausgewählte als „Erledigt wie geplant" bestätigen
+                </Button>
+              </div>
+            </div>
+            <p className="mt-1.5 text-xs text-muted-foreground/80">
+              Alle ausgewählten offenen/verschobenen Handlungen werden ohne weitere Angaben als erledigt wie geplant bestätigt. Bereits abgeschlossene Handlungen werden nicht in die Mehrfachauswahl aufgenommen.
+            </p>
+          </div>
+        )}
+
         <div className="space-y-4">
           {groupedFlatActions.map((dateGroup) => (
             <div key={dateGroup.dueDate} className="space-y-3">
@@ -1023,7 +1119,7 @@ export function AssessmentOutline({
                     <Table
                       className={cn(
                         "w-full table-fixed",
-                        bulkNotDoneMode
+                        (bulkNotDoneMode || bulkDoneAsPlannedMode)
                           ? clientName
                             ? "min-w-[1130px]"
                             : "min-w-[1020px]"
@@ -1034,7 +1130,7 @@ export function AssessmentOutline({
                     >
                       <TableHeader className="bg-secondary/40">
                         <TableRow className="hover:bg-transparent">
-                          {bulkNotDoneMode && (
+                          {(bulkNotDoneMode || bulkDoneAsPlannedMode) && (
                             <TableHead className="w-[48px] px-2"><span className="sr-only">Mehrfachauswahl</span></TableHead>
                           )}
                           <TableHead className="w-[76px] px-1"><span className="sr-only">Umsetzung</span></TableHead>
@@ -1050,9 +1146,12 @@ export function AssessmentOutline({
                       <TableBody>
                         {group.actions.map(({ topic, target, action, dueDate, confirmationDate, status }) => {
                           const conf = action.confirmations?.[confirmationDate];
-                          const canConfirm = canConfirmAction(action);
+                          const isTargetClosed = !!target.validTo;
+                          const canConfirm = canConfirmAction(action) && !isTargetClosed;
                           const bulkNotDoneKey = buildBulkNotDoneKey(topic.id, target.id, action.id, confirmationDate);
                           const isBulkNotDoneSelectable = canConfirm && (status === "open" || status === "postponed");
+                          const bulkDoneAsPlannedKey = bulkNotDoneKey;
+                          const isBulkDoneAsPlannedSelectable = canConfirm && (status === "open" || status === "postponed");
                           const disciplineTitle =
                             disciplineOptions.find((discipline) => discipline.id === topic.disciplineId)?.title ??
                             topic.disciplineId ??
@@ -1103,24 +1202,38 @@ export function AssessmentOutline({
                                   />
                                 </TableCell>
                               )}
+                              {bulkDoneAsPlannedMode && (
+                                <TableCell className="px-2 py-3 align-top text-center">
+                                  <Checkbox
+                                    checked={selectedBulkDoneAsPlannedKeys.has(bulkDoneAsPlannedKey)}
+                                    disabled={!isBulkDoneAsPlannedSelectable}
+                                    onCheckedChange={(checked) =>
+                                      toggleBulkDoneAsPlannedSelection(bulkDoneAsPlannedKey, checked === true)
+                                    }
+                                    aria-label={`Handlung ${action.title} für Mehrfachbestätigung auswählen`}
+                                  />
+                                </TableCell>
+                              )}
                               <TableCell className="px-2 py-3 align-top text-xs text-muted-foreground">
                                 {status === "open" || status === "postponed" ? (
                                   <TooltipProvider delayDuration={150}>
                                     <div className="mx-auto grid w-max grid-cols-2 gap-1.5">
                                       {CONFIRMATION_MODE_OPTIONS.map((option) => {
                                         const Icon = option.icon;
+                                        const isBulkMode = bulkNotDoneMode || bulkDoneAsPlannedMode;
+                                        const isDisabled = !canConfirm || isBulkMode;
                                         return (
                                           <Tooltip key={option.mode}>
                                             <TooltipTrigger asChild>
                                               <button
                                                 type="button"
                                                 onClick={() => openConfirmationDialog(option.mode)}
-                                                disabled={!canConfirm}
+                                                disabled={isDisabled}
                                                 aria-label={option.label}
                                                 className={cn(
                                                   "pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-md border transition-colors",
                                                   "border-border bg-background hover:bg-secondary/60",
-                                                  !canConfirm && "cursor-not-allowed opacity-50 hover:bg-background",
+                                                  isDisabled && "cursor-not-allowed opacity-50 hover:bg-background",
                                                 )}
                                               >
                                                 <Icon className={cn("h-4 w-4", option.iconClassName)} />
@@ -1130,9 +1243,11 @@ export function AssessmentOutline({
                                               <div className="max-w-[220px] space-y-0.5">
                                                 <div className="font-medium">{option.label}</div>
                                                 <div className="text-xs text-muted-foreground">
-                                                  {canConfirm
-                                                    ? option.description
-                                                    : "Keine Umsetzung möglich (zu geringe Berechtigung)"}
+                                                  {isBulkMode
+                                                    ? "Im Mehrfachauswahl-Modus nicht verfügbar"
+                                                    : canConfirm
+                                                      ? option.description
+                                                      : "Keine Umsetzung möglich (zu geringe Berechtigung)"}
                                                 </div>
                                               </div>
                                             </TooltipContent>
@@ -1145,8 +1260,9 @@ export function AssessmentOutline({
                                             <button
                                               type="button"
                                               onClick={() => onDeleteAction(topic.id, target.id, action.id)}
+                                              disabled={bulkNotDoneMode || bulkDoneAsPlannedMode}
                                               aria-label="Ungeplante Handlung löschen"
-                                              className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+                                              className={cn("pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive", (bulkNotDoneMode || bulkDoneAsPlannedMode) && "cursor-not-allowed opacity-50 hover:bg-background hover:border-border hover:text-foreground")}
                                             >
                                               <Trash2 className="h-4 w-4" />
                                             </button>
@@ -1171,11 +1287,11 @@ export function AssessmentOutline({
                                             onClick={() =>
                                               openConfirmationDialog(status as ConfirmationMode)
                                             }
-                                            disabled={!canConfirm}
+                                            disabled={!canConfirm || bulkNotDoneMode || bulkDoneAsPlannedMode}
                                             aria-label="Umsetzung bearbeiten"
                                             className={cn(
                                               "pointer-events-auto inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background transition-colors hover:bg-secondary/60",
-                                              !canConfirm && "cursor-not-allowed opacity-50 hover:bg-background",
+                                              (!canConfirm || bulkNotDoneMode || bulkDoneAsPlannedMode) && "cursor-not-allowed opacity-50 hover:bg-background",
                                             )}
                                           >
                                             <StatusIcon status={status} />
@@ -1185,7 +1301,7 @@ export function AssessmentOutline({
                                           <div className="max-w-[220px] space-y-0.5">
                                             <div className="font-medium">Umsetzung bearbeiten</div>
                                             <div className="text-xs text-muted-foreground">
-                                              {canConfirm ? "Umsetzungsstatus anpassen oder ändern" : "Keine Umsetzung möglich (zu geringe Berechtigung)"}
+                                              {(bulkNotDoneMode || bulkDoneAsPlannedMode) ? "Im Mehrfachauswahl-Modus nicht verfügbar" : isTargetClosed ? "Ziel abgeschlossen — Bestätigungen gesperrt" : canConfirm ? "Umsetzungsstatus anpassen oder ändern" : "Keine Umsetzung möglich (zu geringe Berechtigung)"}
                                             </div>
                                           </div>
                                         </TooltipContent>
@@ -1407,6 +1523,25 @@ export function AssessmentOutline({
             setSelectedBulkNotDoneKeys(new Set());
             setBulkNotDoneDialogOpen(false);
             onBulkNotDoneModeChange?.(false);
+          }}
+        />
+        <BulkDoneAsPlannedDialog
+          open={bulkDoneAsPlannedDialogOpen}
+          targets={selectedBulkDoneAsPlannedTargets}
+          onClose={() => setBulkDoneAsPlannedDialogOpen(false)}
+          onConfirm={() => {
+            selectedBulkDoneAsPlannedTargets.forEach((target) => {
+              onConfirmAction(
+                target.topicId,
+                target.targetId,
+                target.actionId,
+                { status: "done_as_planned" },
+                target.dueDate,
+              );
+            });
+            setSelectedBulkDoneAsPlannedKeys(new Set());
+            setBulkDoneAsPlannedDialogOpen(false);
+            onBulkDoneAsPlannedModeChange?.(false);
           }}
         />
       </div>
@@ -1778,9 +1913,9 @@ function DayPartHeader({
 
   if (part === "none") {
     return (
-      <div className={cn("flex items-center gap-2 text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/70", stickyProps.className)} style={stickyProps.style}>
-        <span className="h-px flex-1 bg-border" />
-        <span>Ohne Tageszeit</span>
+      <div className={cn("flex items-center gap-2 text-[10px] uppercase tracking-widest font-semibold text-accent", stickyProps.className)} style={stickyProps.style}>
+        <Minus className="h-3.5 w-3.5" />
+        <span>ohne Tageszeit</span>
         <span className="h-px flex-1 bg-border" />
         {menu}
       </div>
@@ -1852,7 +1987,7 @@ export function ActionGroupRow({
           className="mt-1.5 text-sm text-muted-foreground"
           style={{ display: "grid", gridTemplateColumns: "320px 1px 320px 1px 180px 1px 1fr", columnGap: "8px", rowGap: "5px" }}
         >
-          {(representative.notes || representative.requiredResources || sortedNodes.some((n) => n.dayPart)) && (
+          {(representative.notes || representative.requiredResources || sortedNodes.length > 0) && (
             <>
               <TooltipProvider delayDuration={300}>
                 <Tooltip>
@@ -1875,7 +2010,14 @@ export function ActionGroupRow({
               <div className="flex flex-wrap items-center gap-1" style={{ gridColumn: "5 / -1" }}>
                 {sortedNodes.map((node) => {
                   const dp = node.dayPart;
-                  if (!dp) return null;
+                  if (!dp) {
+                    return (
+                      <span key={node.id} className="inline-flex items-center gap-1 rounded bg-secondary px-1 font-medium text-muted-foreground">
+                        <Minus className="h-3 w-3" />
+                        ohne
+                      </span>
+                    );
+                  }
                   const Icon = DAY_PART_ICONS[dp];
                   return (
                     <span key={node.id} className="inline-flex items-center gap-1 rounded bg-secondary px-1 font-medium text-muted-foreground">
@@ -2926,7 +3068,7 @@ function ActionSidePanel({
     if (mode === "edit" && groupActions && groupActions.length > 0) {
       return [...groupActions]
         .sort((a, b) => DAY_PART_ORDER.indexOf(a.dayPart ?? "none") - DAY_PART_ORDER.indexOf(b.dayPart ?? "none"))
-        .map((a) => ({ dayPart: a.dayPart ?? "morning", scheduledTime: a.scheduledTime }));
+        .map((a) => ({ dayPart: (a.dayPart ?? "none") as import("@/components/assessment/DayPartChipSelector").DayPartOrNone, scheduledTime: a.scheduledTime }));
     }
     if (initialDayPart && initialDayPart !== "none") {
       return [{ dayPart: initialDayPart }];
@@ -3002,7 +3144,7 @@ function ActionSidePanel({
       dayPart: parsedDayParts.length > 0 ? parsedDayParts[0].dayPart : (initialDayPart && initialDayPart !== "none" ? initialDayPart : "none"),
       scheduledTime: parsedDayParts.length > 0 ? (parsedDayParts[0].scheduledTime ?? "") : "",
       category: fields.kategorie !== "none" ? fields.kategorie : "none",
-      serviceType: fields.leistungsart !== "none" ? fields.leistungsart : "none",
+      serviceEntries: parseLeistungsarten(fields.leistungsart),
       validFrom: "",
       validTo: "",
       recurrence: fields.wiederholung !== "none" ? fields.wiederholung : "none",
@@ -3050,7 +3192,7 @@ function ActionSidePanel({
       case "recurrence": return draft.recurrence !== "none";
       case "recurrenceWeekdays": return draft.recurrenceWeekdays.length > 0;
       case "recurrenceMonthlyPattern": return draft.recurrenceMonthlyPattern !== "none";
-      case "serviceType": return draft.serviceType !== "none";
+      case "serviceEntries": return draft.serviceEntries.length > 0;
       default: return true;
     }
   };
@@ -3061,6 +3203,12 @@ function ActionSidePanel({
       return;
     }
     const errors = requiredFields.filter((f) => !isDraftFieldFilled(f));
+    if (draft.serviceEntries.length >= 2) {
+      const allButLast = draft.serviceEntries.slice(0, -1);
+      if (allButLast.some((e) => e.maxMinutes === undefined)) {
+        errors.push("serviceEntries");
+      }
+    }
     if (draft.validFrom && targetValidFrom && draft.validFrom < targetValidFrom) errors.push("validFrom");
     if (draft.validFrom && targetValidTo && draft.validFrom > targetValidTo) errors.push("validFrom");
     if (draft.validTo && targetValidFrom && draft.validTo < targetValidFrom) errors.push("validTo");
@@ -3070,9 +3218,10 @@ function ActionSidePanel({
       return;
     }
     if (mode === "edit" && groupActions) {
-      const newDayPartSet = new Set(dayPartEntries.map((e) => e.dayPart));
+      // Map "none" chip → undefined to compare against ActionNode.dayPart
+      const newDayPartSet = new Set(dayPartEntries.map((e) => e.dayPart === "none" ? undefined : e.dayPart));
       const removedWithConfirmations = groupActions.filter(
-        (a) => !newDayPartSet.has(a.dayPart as DayPart) && Object.keys(a.confirmations ?? {}).length > 0,
+        (a) => !newDayPartSet.has(a.dayPart) && Object.keys(a.confirmations ?? {}).length > 0,
       );
       if (removedWithConfirmations.length > 0) {
         setShowRemoveTzConfirm(true);
@@ -3203,18 +3352,6 @@ function ActionSidePanel({
                 <p className="text-xs text-destructive">Bitte eine Vorlage auswählen.</p>
               )}
 
-              {creationMode === "scratch" && (
-                <ActionField label="Leistungsart" fieldKey="serviceType">
-                  <Select value={draft.serviceType} onValueChange={(v) => setDraft((p) => ({ ...p, serviceType: v }))}>
-                    <SelectTrigger className="bg-background"><SelectValue placeholder="Leistungsart wählen" /></SelectTrigger>
-                    <SelectContent>
-                      {ACTION_SERVICE_TYPE_SELECT_OPTIONS.map((o) => (
-                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </ActionField>
-              )}
             </div>
           )}
 
@@ -3250,6 +3387,113 @@ function ActionSidePanel({
                 rows={2}
                 className={cn("bg-background", hasError("requiredResources") && "border-destructive")}
               />
+            </ActionField>
+
+            <ActionField label="Leistungsarten" fieldKey="serviceEntries">
+              <div className="space-y-2">
+                {draft.serviceEntries.map((entry, idx) => {
+                  const usedTypes = new Set(draft.serviceEntries.filter((_, i) => i !== idx).map((e) => e.serviceType));
+                  return (
+                  <div key={idx} className="flex items-center gap-1.5">
+                    <Select
+                      value={entry.serviceType}
+                      onValueChange={(v) => {
+                        const next = draft.serviceEntries.map((e, i) => i === idx ? { ...e, serviceType: v as ActionServiceType } : e);
+                        setDraft((p) => ({ ...p, serviceEntries: next }));
+                        setValidationErrors((prev) => prev.filter((f) => f !== "serviceEntries"));
+                      }}
+                    >
+                      <SelectTrigger className="bg-background flex-1 min-w-0"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {ACTION_SERVICE_TYPE_SELECT_OPTIONS.filter((o) => o.value !== "none" && !usedTypes.has(o.value as ActionServiceType)).map((o) => (
+                          <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="number"
+                      min={1}
+                      placeholder="Max. Min."
+                      value={entry.maxMinutes ?? ""}
+                      onChange={(e) => {
+                        const v = e.target.value === "" ? undefined : Math.max(1, Number(e.target.value));
+                        const next = draft.serviceEntries.map((en, i) => i === idx ? { ...en, maxMinutes: v } : en);
+                        setDraft((p) => ({ ...p, serviceEntries: next }));
+                        setValidationErrors((prev) => {
+                          let filtered = prev.filter((f) => f !== "serviceEntries");
+                          if (v != null && idx === draft.serviceEntries.length - 1) filtered = filtered.filter((f) => f !== "serviceEntriesAdd");
+                          return filtered;
+                        });
+                      }}
+                      className="w-24 bg-background"
+                    />
+                    <div className="flex flex-col gap-0.5">
+                      <button
+                        type="button"
+                        disabled={idx === 0}
+                        onClick={() => {
+                          const next = [...draft.serviceEntries];
+                          [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+                          setDraft((p) => ({ ...p, serviceEntries: next }));
+                        }}
+                        className="inline-flex h-4 w-6 items-center justify-center rounded border border-border bg-background text-xs disabled:opacity-30 hover:bg-secondary/60"
+                        aria-label="Nach oben"
+                      >▲</button>
+                      <button
+                        type="button"
+                        disabled={idx === draft.serviceEntries.length - 1}
+                        onClick={() => {
+                          const next = [...draft.serviceEntries];
+                          [next[idx + 1], next[idx]] = [next[idx], next[idx + 1]];
+                          setDraft((p) => ({ ...p, serviceEntries: next }));
+                        }}
+                        className="inline-flex h-4 w-6 items-center justify-center rounded border border-border bg-background text-xs disabled:opacity-30 hover:bg-secondary/60"
+                        aria-label="Nach unten"
+                      >▼</button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDraft((p) => ({ ...p, serviceEntries: p.serviceEntries.filter((_, i) => i !== idx) }));
+                        setValidationErrors((prev) => prev.filter((f) => f !== "serviceEntries"));
+                      }}
+                      className="shrink-0 inline-flex h-8 w-8 items-center justify-center rounded border border-border bg-background hover:bg-destructive/10 hover:text-destructive"
+                      aria-label="Leistungsart entfernen"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  );
+                })}
+                {hasError("serviceEntries") && (
+                  <p className="text-xs text-destructive">Alle Leistungsarten ausser der letzten benötigen eine Max. Anzahl Minuten.</p>
+                )}
+                {hasError("serviceEntriesAdd") && (
+                  <p className="text-xs text-destructive">Die letzte Leistungsart benötigt eine Max. Anzahl Minuten, bevor eine weitere hinzugefügt werden kann.</p>
+                )}
+                {(() => {
+                  const usedTypes = new Set(draft.serviceEntries.map((e) => e.serviceType));
+                  const nextType = ACTION_SERVICE_TYPE_SELECT_OPTIONS.find((o) => o.value !== "none" && !usedTypes.has(o.value as ActionServiceType));
+                  if (!nextType) return null;
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const last = draft.serviceEntries[draft.serviceEntries.length - 1];
+                        if (last && last.maxMinutes == null) {
+                          setValidationErrors((prev) => prev.includes("serviceEntriesAdd") ? prev : [...prev, "serviceEntriesAdd"]);
+                          return;
+                        }
+                        setValidationErrors((prev) => prev.filter((f) => f !== "serviceEntriesAdd"));
+                        setDraft((p) => ({ ...p, serviceEntries: [...p.serviceEntries, { serviceType: nextType.value as ActionServiceType }] }));
+                      }}
+                      className="flex items-center gap-1 text-xs text-primary hover:underline"
+                    >
+                      + Leistungsart hinzufügen
+                    </button>
+                  );
+                })()}
+              </div>
             </ActionField>
 
             <ActionField label="Tageszeiten" fieldKey="dayPart">
@@ -3449,6 +3693,7 @@ const buildEmptyUnplannedTemplateDraft = (dayPart?: DayPart | "none"): Unplanned
     title: "",
     notes: defaultFields.beschreibung,
     dayPart: dayPart ?? "none",
+    serviceEntries: [],
   };
 };
 
@@ -3527,7 +3772,7 @@ export function UnplannedActionDialog({
       plannedMinutes: Number.isFinite(plannedMinutes) ? plannedMinutes : undefined,
       requiredPersons: Number.isFinite(requiredPersons) ? requiredPersons : undefined,
       category: fields.kategorie !== "none" ? (fields.kategorie as ActionCategory) : undefined,
-      serviceType: fields.leistungsart !== "none" ? (fields.leistungsart as ActionServiceType) : undefined,
+      serviceEntries: parseLeistungsarten(fields.leistungsart),
       dayPart: fallbackDayPart,
       resultRequirement: fields.resultat !== "none" ? (fields.resultat as ActionNode["resultRequirement"]) : undefined,
       templateId: template.id,
@@ -3594,7 +3839,7 @@ export function UnplannedActionDialog({
   };
 
   const selectedDayPart = draft.dayPart ?? target.dayPart ?? "none";
-  const selectedDayPartLabel = selectedDayPart === "none" ? "Ohne Tageszeit" : DAY_PART_LABEL[selectedDayPart];
+  const selectedDayPartLabel = selectedDayPart === "none" ? "ohne" : DAY_PART_LABEL[selectedDayPart];
 
   const dateRangeError = (() => {
     if (!dateFrom || !dateTo) return null;
@@ -3619,7 +3864,7 @@ export function UnplannedActionDialog({
       case "recurrence": return false;
       case "recurrenceWeekdays": return !draft.recurrenceWeekdays;
       case "recurrenceMonthlyPattern": return !draft.recurrenceMonthlyPattern || draft.recurrenceMonthlyPattern === "none";
-      case "serviceType": return !draft.serviceType || draft.serviceType === "none";
+      case "serviceEntries": return (draft.serviceEntries?.length ?? 0) === 0;
       default: return false;
     }
   };
@@ -3628,12 +3873,17 @@ export function UnplannedActionDialog({
     ? (draft.templateRequiredFields ?? []).filter(isDraftRequiredFieldMissing)
     : [];
 
+  const serviceEntriesError = (draft.serviceEntries?.length ?? 0) >= 2
+    && (draft.serviceEntries ?? []).slice(0, -1).some((e) => e.maxMinutes === undefined);
+  const [serviceEntriesAddError, setServiceEntriesAddError] = useState(false);
+
   const submit = () => {
     const title = draft.title.trim() || (creationMode === "scratch" ? "Ungeplante Handlung" : "");
     if (!title) return;
     if (!dateFrom || !dateTo) return;
     if (dateRangeError) return;
     if (missingRequiredFields.length > 0) return;
+    if (serviceEntriesError) return;
     const finalDraft: UnplannedActionDraft = {
       ...draft,
       title,
@@ -3901,21 +4151,109 @@ export function UnplannedActionDialog({
                 </SelectContent>
               </Select>
             </div>
-            {creationMode === "scratch" && (
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label>Leistungsart</Label>
-                <Select value={draft.serviceType ?? "none"} onValueChange={(value) => updateDraft("serviceType", value === "none" ? undefined : value as ActionServiceType)}>
-                  <SelectTrigger className="bg-background"><SelectValue placeholder="Leistungsart" /></SelectTrigger>
-                  <SelectContent>
-                    {ACTION_SERVICE_TYPE_SELECT_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
           </div>
         </div>
+
+        {/* Leistungsarten */}
+        {creationMode === "scratch" && (
+          <div className="px-6 py-4 border-t border-border space-y-2">
+            <Label>Leistungsarten</Label>
+            <div className="space-y-2">
+              {(draft.serviceEntries ?? []).map((entry, idx) => {
+                const usedTypes = new Set((draft.serviceEntries ?? []).filter((_, i) => i !== idx).map((e) => e.serviceType));
+                return (
+                <div key={idx} className="flex items-center gap-1.5">
+                  <Select
+                    value={entry.serviceType}
+                    onValueChange={(v) => {
+                      const next = (draft.serviceEntries ?? []).map((e, i) => i === idx ? { ...e, serviceType: v as ActionServiceType } : e);
+                      setDraft((p) => ({ ...p, serviceEntries: next }));
+                    }}
+                  >
+                    <SelectTrigger className="bg-background flex-1 min-w-0"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {ACTION_SERVICE_TYPE_SELECT_OPTIONS.filter((o) => o.value !== "none" && !usedTypes.has(o.value as ActionServiceType)).map((o) => (
+                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    type="number"
+                    min={1}
+                    placeholder="Max. Min."
+                    value={entry.maxMinutes ?? ""}
+                    onChange={(e) => {
+                      const v = e.target.value === "" ? undefined : Math.max(1, Number(e.target.value));
+                      const next = (draft.serviceEntries ?? []).map((en, i) => i === idx ? { ...en, maxMinutes: v } : en);
+                      setDraft((p) => ({ ...p, serviceEntries: next }));
+                      if (v != null && idx === (draft.serviceEntries ?? []).length - 1) setServiceEntriesAddError(false);
+                    }}
+                    className="w-24 bg-background"
+                  />
+                  <div className="flex flex-col gap-0.5">
+                    <button
+                      type="button"
+                      disabled={idx === 0}
+                      onClick={() => {
+                        const next = [...(draft.serviceEntries ?? [])];
+                        [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+                        setDraft((p) => ({ ...p, serviceEntries: next }));
+                      }}
+                      className="inline-flex h-4 w-6 items-center justify-center rounded border border-border bg-background text-xs disabled:opacity-30 hover:bg-secondary/60"
+                      aria-label="Nach oben"
+                    >▲</button>
+                    <button
+                      type="button"
+                      disabled={idx === (draft.serviceEntries ?? []).length - 1}
+                      onClick={() => {
+                        const next = [...(draft.serviceEntries ?? [])];
+                        [next[idx + 1], next[idx]] = [next[idx], next[idx + 1]];
+                        setDraft((p) => ({ ...p, serviceEntries: next }));
+                      }}
+                      className="inline-flex h-4 w-6 items-center justify-center rounded border border-border bg-background text-xs disabled:opacity-30 hover:bg-secondary/60"
+                      aria-label="Nach unten"
+                    >▼</button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setDraft((p) => ({ ...p, serviceEntries: (p.serviceEntries ?? []).filter((_, i) => i !== idx) }))}
+                    className="shrink-0 inline-flex h-8 w-8 items-center justify-center rounded border border-border bg-background hover:bg-destructive/10 hover:text-destructive"
+                    aria-label="Leistungsart entfernen"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                );
+              })}
+              {serviceEntriesError && (
+                <p className="text-xs text-destructive">Alle Leistungsarten ausser der letzten benötigen eine Max. Anzahl Minuten.</p>
+              )}
+              {serviceEntriesAddError && (
+                <p className="text-xs text-destructive">Die letzte Leistungsart benötigt eine Max. Anzahl Minuten, bevor eine weitere hinzugefügt werden kann.</p>
+              )}
+              {(() => {
+                const usedTypes = new Set((draft.serviceEntries ?? []).map((e) => e.serviceType));
+                const nextType = ACTION_SERVICE_TYPE_SELECT_OPTIONS.find((o) => o.value !== "none" && !usedTypes.has(o.value as ActionServiceType));
+                if (!nextType) return null;
+                return (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const entries = draft.serviceEntries ?? [];
+                      const last = entries[entries.length - 1];
+                      if (last && last.maxMinutes == null) { setServiceEntriesAddError(true); return; }
+                      setServiceEntriesAddError(false);
+                      setDraft((p) => ({ ...p, serviceEntries: [...(p.serviceEntries ?? []), { serviceType: nextType.value as ActionServiceType }] }));
+                    }}
+                    className="flex items-center gap-1 text-xs text-primary hover:underline"
+                  >
+                    + Leistungsart hinzufügen
+                  </button>
+                );
+              })()}
+            </div>
+          </div>
+        )}
 
         {/* Footer */}
         <div className="flex shrink-0 items-center justify-between bg-primary px-6 py-3">
@@ -4015,6 +4353,50 @@ function BulkNotDoneDialog({
           <Button variant="outline" onClick={handleClose}>Abbrechen</Button>
           <Button variant="destructive" onClick={submit} disabled={!reason.trim() || targets.length === 0}>
             {targets.length} als „Nicht durchgeführt" bestätigen
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function BulkDoneAsPlannedDialog({
+  open,
+  targets,
+  onClose,
+  onConfirm,
+}: {
+  open: boolean;
+  targets: BulkDoneAsPlannedTarget[];
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={(value) => (!value ? onClose() : null)}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Mehrere Handlungen als erledigt wie geplant bestätigen</DialogTitle>
+          <DialogDescription>
+            {targets.length} ausgewählte {targets.length === 1 ? "Handlung wird" : "Handlungen werden"} ohne weitere Angaben als erledigt wie geplant bestätigt.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="max-h-36 overflow-y-auto rounded-md border border-border bg-muted/20 p-2 text-sm">
+          {targets.length > 0 ? (
+            <ul className="space-y-1">
+              {targets.map((target) => (
+                <li key={target.key} className="line-clamp-1 text-foreground/80">
+                  {target.actionTitle}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="text-muted-foreground">Keine Handlungen ausgewählt.</div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Abbrechen</Button>
+          <Button variant="default" onClick={onConfirm} disabled={targets.length === 0}>
+            {targets.length} als „Erledigt wie geplant" bestätigen
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -44,6 +44,7 @@ import { ApplicationLogoutButton } from "@/components/ApplicationLogoutButton";
 import type {
   ActionNode,
   ActionServiceType,
+  ActionServiceEntry,
   Client,
   DayPart,
   TopicNode,
@@ -58,12 +59,14 @@ import {
 import { cn } from "@/lib/utils";
 import { createSimpleXlsxBlob } from "@/lib/xlsx";
 import {
+  ACTION_SERVICE_TYPE_SELECT_OPTIONS,
   buildDefaultTemplateFields,
   getActionServiceTypeLabel,
   getTemplateLockedActionFields,
   getTemplateRequiredActionFields,
   isTemplateLockedActionField,
   loadActionPlanTemplates,
+  parseLeistungsarten,
   parseTageszeit,
 } from "@/lib/action-plan-templates";
 import {
@@ -509,6 +512,7 @@ const Index = () => {
     affectedActionCount: number;
   } | null>(null);
   const [bulkNotDoneClientIds, setBulkNotDoneClientIds] = useState<Set<string>>(new Set());
+  const [bulkDoneAsPlannedClientIds, setBulkDoneAsPlannedClientIds] = useState<Set<string>>(new Set());
   const [personUnplannedClientId, setPersonUnplannedClientId] = useState<string | null>(null);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
   const filterButtonRef = useRef<HTMLDivElement | null>(null);
@@ -526,11 +530,15 @@ const Index = () => {
   const setClientBulkNotDoneMode = (clientId: string, enabled: boolean) => {
     setBulkNotDoneClientIds((prev) => {
       const next = new Set(prev);
-      if (enabled) {
-        next.add(clientId);
-      } else {
-        next.delete(clientId);
-      }
+      if (enabled) next.add(clientId); else next.delete(clientId);
+      return next;
+    });
+  };
+
+  const setClientBulkDoneAsPlannedMode = (clientId: string, enabled: boolean) => {
+    setBulkDoneAsPlannedClientIds((prev) => {
+      const next = new Set(prev);
+      if (enabled) next.add(clientId); else next.delete(clientId);
       return next;
     });
   };
@@ -604,7 +612,8 @@ const Index = () => {
       (f.disciplineIds?.length ?? 0) > 0 ||
       f.persons != null ||
       f.result != null ||
-      !!f.actionTitleSearch?.trim()
+      !!f.actionTitleSearch?.trim() ||
+      !!f.showClosedTargets
     );
   })();
   const isOpenVisible = OPEN_CONFIRMATION_STATUSES.some((status) =>
@@ -803,9 +812,8 @@ const Index = () => {
     topicId: string,
     targetId: string,
     templateIds: string[],
-    serviceType?: ActionServiceType,
     overrides?: Partial<ActionNode>,
-    panelDayPartEntries?: Array<{ dayPart?: DayPart; scheduledTime?: string }>,
+    panelDayPartEntries?: Array<{ dayPart?: DayPart | "none"; scheduledTime?: string }>,
   ) => {
     const templates = loadActionPlanTemplates().filter((template) => templateIds.includes(template.id));
     const weekdayMap: Record<string, Weekday> = {
@@ -820,24 +828,27 @@ const Index = () => {
 
     const createActionsFromTemplate = (
       template?: (typeof templates)[number],
-      scratchServiceType?: ActionServiceType,
     ): ActionNode[] => {
       const fields = template?.fields ?? buildDefaultTemplateFields();
       const plannedMinutes = Number(fields.dauer);
       const requiredPersons = Number(fields.personen);
-      const selectedServiceType = template
-        ? fields.leistungsart !== "none"
-          ? (fields.leistungsart as ActionServiceType)
-          : undefined
-        : scratchServiceType;
+      const parsedTemplateEntries = parseLeistungsarten(fields.leistungsart);
+      const templateServiceEntries: ActionServiceEntry[] | undefined =
+        template && parsedTemplateEntries.length > 0 ? parsedTemplateEntries : undefined;
       const recurrenceWeekdays = fields.wiederholungWochentage
         .split(",")
         .map((value) => weekdayMap[value.trim().toLowerCase()])
         .filter((value): value is Weekday => Boolean(value));
 
-      const tageszeitEntries = panelDayPartEntries && panelDayPartEntries.length > 0
-        ? panelDayPartEntries.map(({ dayPart, scheduledTime }) => ({ dayPart: dayPart ?? ("morning" as DayPart), scheduledTime }))
-        : parseTageszeit(fields.tageszeit);
+      const tageszeitEntries = panelDayPartEntries !== undefined
+        ? panelDayPartEntries.map(({ dayPart, scheduledTime }) => ({
+            dayPart: (dayPart && dayPart !== "none") ? (dayPart as DayPart) : undefined,
+            scheduledTime: (dayPart && dayPart !== "none") ? scheduledTime : undefined,
+          }))
+        : parseTageszeit(fields.tageszeit).map(({ dayPart, scheduledTime }) => ({
+            dayPart: dayPart === "none" ? undefined : dayPart,
+            scheduledTime: dayPart === "none" ? undefined : scheduledTime,
+          }));
       const groupId = uid();
 
       const baseAction: Omit<ActionNode, "id" | "dayPart" | "scheduledTime"> = {
@@ -848,7 +859,7 @@ const Index = () => {
         plannedMinutes: Number.isFinite(plannedMinutes) ? plannedMinutes : undefined,
         requiredPersons: Number.isFinite(requiredPersons) ? requiredPersons : undefined,
         category: fields.kategorie !== "none" ? (fields.kategorie as ActionNode["category"]) : undefined,
-        serviceType: selectedServiceType,
+        serviceEntries: templateServiceEntries ?? overrides?.serviceEntries,
         resultRequirement: fields.resultat !== "none"
           ? (fields.resultat as ActionNode["resultRequirement"])
           : undefined,
@@ -879,12 +890,12 @@ const Index = () => {
 
     const newActions = (templates.length > 0
       ? templates.flatMap((template) => createActionsFromTemplate(template))
-      : createActionsFromTemplate(undefined, serviceType)
+      : createActionsFromTemplate()
     ).map((a) => {
       if (!overrides) return a;
       // When dayPartEntries drives the per-node dayPart/scheduledTime, don't let
       // the single-value draft overrides clobber them.
-      if (panelDayPartEntries && panelDayPartEntries.length > 0) {
+      if (panelDayPartEntries !== undefined) {
         const { dayPart: _dp, scheduledTime: _st, ...rest } = overrides;
         return { ...a, ...rest };
       }
@@ -927,7 +938,7 @@ const Index = () => {
       resultRequirement?: ActionNode["resultRequirement"];
       scheduledTime?: string;
       category?: ActionNode["category"];
-      serviceType?: ActionServiceType;
+      serviceEntries?: ActionServiceEntry[];
       templateId?: string;
       templateName?: string;
       templateLockedFields?: string[];
@@ -961,7 +972,7 @@ const Index = () => {
       dayPart: selectedDayPart === "none" ? undefined : selectedDayPart,
       scheduledTime: draft.scheduledTime,
       category: draft.category,
-      serviceType: draft.serviceType,
+      serviceEntries: draft.serviceEntries,
       validFrom: date,
       validTo: date,
       recurrence: "daily",
@@ -1304,17 +1315,18 @@ const Index = () => {
             const insertIndex = tg.actions.findIndex((a) => a.groupId === groupId);
 
             const updatedGroupActions: ActionNode[] = dayPartEntries.map(({ dayPart, scheduledTime, existingActionId }) => {
+              const actionDayPart = (dayPart === "none" || dayPart === undefined) ? undefined : dayPart;
               const existing = existingActionId
                 ? groupActions.find((a) => a.id === existingActionId)
                 : undefined;
               if (existing) {
-                return { ...existing, ...sharedFields, dayPart, scheduledTime };
+                return { ...existing, ...sharedFields, dayPart: actionDayPart, scheduledTime };
               }
               return {
                 id: uid(),
                 groupId,
                 ...sharedFields,
-                dayPart,
+                dayPart: actionDayPart,
                 scheduledTime,
                 status: "open" as const,
                 done: false,
@@ -1702,13 +1714,13 @@ const Index = () => {
           Timestamp: confirmation?.confirmedAt ?? "",
           "Gültig ab": action.validFrom ?? "",
           "Gültig bis": action.validTo ?? "",
-          "Tageszeit": action.dayPart ? DAY_PART_LABEL[action.dayPart] : "",
+          "Tageszeit": action.dayPart ? DAY_PART_LABEL[action.dayPart] : "ohne",
           "Uhrzeit": action.scheduledTime ?? "",
           Kategorie: action.category ?? "",
-          Leistungsart:
-            confirmation?.done && confirmation.status !== "not_done"
-              ? getActionServiceTypeLabel(confirmation.serviceType)
-              : "",
+          Leistungsarten: (action.serviceEntries ?? []).map((e) => {
+            const label = ACTION_SERVICE_TYPE_SELECT_OPTIONS.find((o) => o.value === e.serviceType)?.label ?? e.serviceType;
+            return e.maxMinutes != null ? `${label} (max. ${e.maxMinutes} Min.)` : label;
+          }).join(" | "),
           "Minuten geplant": action.plannedMinutes ?? "",
           "Minuten tatsächlich": confirmation?.actualMinutes ?? "",
         };
@@ -1741,7 +1753,7 @@ const Index = () => {
       "Tageszeit",
       "Uhrzeit",
       "Kategorie",
-      "Leistungsart",
+      "Leistungsarten",
       "Minuten geplant",
       "Minuten tatsächlich",
     ];
@@ -2301,6 +2313,21 @@ const Index = () => {
                       onKeyDown={(e) => { if (e.key === "Enter") applyFilter(); }}
                     />
                   </div>
+
+                  <label className="flex items-center gap-2 text-xs cursor-pointer select-none pt-1">
+                    <input
+                      type="checkbox"
+                      checked={draftFilter.showClosedTargets ?? false}
+                      onChange={(e) =>
+                        updateDraftFilter((prev) => ({
+                          ...prev,
+                          showClosedTargets: e.target.checked || undefined,
+                        }))
+                      }
+                      className="h-3.5 w-3.5 rounded border-border accent-primary"
+                    />
+                    Nur abgeschlossene Ziele einblenden
+                  </label>
                 </div>
 
                 <div className="flex items-center justify-end border-t border-border px-3 py-2">
@@ -2771,6 +2798,15 @@ const Index = () => {
                                 Mehrere als nicht durchgeführt abschliessen
                               </DropdownMenuItem>
                             )}
+                            {bulkDoneAsPlannedClientIds.has(client.id) ? (
+                              <DropdownMenuItem onClick={() => setClientBulkDoneAsPlannedMode(client.id, false)}>
+                                Mehrfachauswahl beenden
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem onClick={() => setClientBulkDoneAsPlannedMode(client.id, true)}>
+                                Mehrere als erledigt wie geplant abschliessen
+                              </DropdownMenuItem>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       )}
@@ -2789,6 +2825,8 @@ const Index = () => {
                       hideConfirmationHeader
                       bulkNotDoneMode={bulkNotDoneClientIds.has(client.id)}
                       onBulkNotDoneModeChange={(enabled) => setClientBulkNotDoneMode(client.id, enabled)}
+                      bulkDoneAsPlannedMode={bulkDoneAsPlannedClientIds.has(client.id)}
+                      onBulkDoneAsPlannedModeChange={(enabled) => setClientBulkDoneAsPlannedMode(client.id, enabled)}
                       filterModel={confirmationFilter}
                       showClosedTargets={showClosedTargets}
                       transientUnplannedActionIds={transientUnplannedActionIds}
@@ -2817,8 +2855,8 @@ const Index = () => {
                       onAddTarget={(topicId) => addTarget(client.id, topicId)}
                       focusTargetId={pendingFocusTargetId}
                       onFocusTargetHandled={() => setPendingFocusTargetId(null)}
-                      onAddAction={(topicId, targetId, templateIds, serviceType, overrides, dayPartEntries) =>
-                        addAction(client.id, topicId, targetId, templateIds, serviceType, overrides, dayPartEntries)
+                      onAddAction={(topicId, targetId, templateIds, overrides, dayPartEntries) =>
+                        addAction(client.id, topicId, targetId, templateIds, overrides, dayPartEntries)
                       }
                       onUpdateActionGroup={(topicId, targetId, groupId, sharedFields, dayPartEntries) =>
                         updateActionGroup(client.id, topicId, targetId, groupId, sharedFields, dayPartEntries)
@@ -2866,12 +2904,16 @@ const Index = () => {
                           target={dialogTarget}
                           onClose={() => setPersonUnplannedClientId(null)}
                           onConfirm={(draft, dayPartEntries) => {
-                            const entries = dayPartEntries && dayPartEntries.length > 0
-                              ? dayPartEntries
-                              : [{ dayPart: (draft.dayPart && draft.dayPart !== "none" ? draft.dayPart : "morning") as DayPart, scheduledTime: draft.scheduledTime }];
-                            entries.forEach(({ dayPart, scheduledTime }) =>
-                              addUnplannedAction(client.id, draft.dateFrom ?? "", dayPart, { ...draft, scheduledTime }),
-                            );
+                            if (dayPartEntries !== undefined && dayPartEntries.length === 0) {
+                              addUnplannedAction(client.id, draft.dateFrom ?? "", "none", { ...draft, scheduledTime: undefined });
+                            } else {
+                              const entries = dayPartEntries && dayPartEntries.length > 0
+                                ? dayPartEntries
+                                : [{ dayPart: (draft.dayPart && draft.dayPart !== "none" ? draft.dayPart : "morning") as DayPart, scheduledTime: draft.scheduledTime }];
+                              entries.forEach(({ dayPart, scheduledTime }) =>
+                                addUnplannedAction(client.id, draft.dateFrom ?? "", dayPart, { ...draft, scheduledTime }),
+                              );
+                            }
                             setPersonUnplannedClientId(null);
                           }}
                           clientName={`${client.firstName} ${client.lastName}`.trim()}
