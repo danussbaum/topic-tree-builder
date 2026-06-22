@@ -18,7 +18,7 @@ describe("action plan categories", () => {
     expect(loadActionPlanCategoryPermissions()).toEqual([
       {
         id: "a",
-        name: "A",
+        name: "KLV A",
         authorizedRoleIds: [
           "kl-handlungen-planen-bestaetigen-inhouse-spitex-a",
           "kl-alle-handlungen-sehen-inhouse-spitex-b",
@@ -27,7 +27,7 @@ describe("action plan categories", () => {
       },
       {
         id: "b",
-        name: "B",
+        name: "KLV B",
         authorizedRoleIds: [
           "kl-handlungen-planen-bestaetigen-inhouse-spitex-a",
           "kl-handlungen-bestaetigen-inhouse-spitex-b",
@@ -36,7 +36,7 @@ describe("action plan categories", () => {
       },
       {
         id: "c",
-        name: "C",
+        name: "KLV C",
         authorizedRoleIds: [
           "kl-handlungen-planen-bestaetigen-inhouse-spitex-a",
           "kl-handlungen-bestaetigen-inhouse-spitex-b",
@@ -61,9 +61,9 @@ describe("action plan categories", () => {
 
   it("persistiert angepasste Kategorie-Rollen im Browser-Cache", () => {
     const categories = [
-      { id: "a" as const, name: "A", authorizedRoleIds: [] },
-      { id: "b" as const, name: "B", authorizedRoleIds: [] },
-      { id: "c" as const, name: "C", authorizedRoleIds: [] },
+      { id: "a" as const, name: "KLV A", authorizedRoleIds: [] },
+      { id: "b" as const, name: "KLV B", authorizedRoleIds: [] },
+      { id: "c" as const, name: "KLV C", authorizedRoleIds: [] },
     ];
 
     saveActionPlanCategoryPermissions(categories);

@@ -70,7 +70,6 @@ import {
 import type {
   ActionNode,
   ActionStatus,
-  ConfirmationFilter,
   DayPart,
   ActionCategory,
   ActionServiceType,
@@ -88,7 +87,6 @@ import {
   type AssessmentFilterModel,
 } from "@/types/assessment-filter";
 import { cn } from "@/lib/utils";
-import { matchesConfirmationFilter } from "@/lib/confirmation-filter";
 import {
   ACTION_SERVICE_TYPE_SELECT_OPTIONS,
   buildDefaultTemplateFields,
@@ -278,7 +276,6 @@ interface Props {
   bulkDoneAsPlannedMode?: boolean;
   onBulkDoneAsPlannedModeChange?: (enabled: boolean) => void;
   showConfirmed?: boolean;
-  confirmationFilter?: ConfirmationFilter;
   filterModel?: AssessmentFilterModel;
   transientUnplannedActionIds?: Set<string>;
   onUpdateTopic: (topicId: string, field: "title" | "notes", value: string) => void;
@@ -384,9 +381,9 @@ const DAY_PART_ICONS: Record<DayPart, typeof Sunrise> = {
 };
 
 const CATEGORY_LABEL: Record<ActionCategory, string> = {
-  a: "A",
-  b: "B",
-  c: "C",
+  a: "KLV A",
+  b: "KLV B",
+  c: "KLV C",
 };
 
 const CONFIRMATION_MODE_OPTIONS: Array<{
@@ -542,7 +539,6 @@ export function AssessmentOutline({
   onBulkNotDoneModeChange,
   bulkDoneAsPlannedMode = false,
   onBulkDoneAsPlannedModeChange,
-  confirmationFilter,
   filterModel = DEFAULT_ASSESSMENT_FILTER,
   showClosedTargets = false,
   transientUnplannedActionIds = new Set(),
@@ -769,7 +765,8 @@ export function AssessmentOutline({
         const end = new Date();
         end.setHours(0, 0, 0, 0);
         const start = new Date(end);
-        start.setDate(end.getDate() - Math.max(1, Math.floor(lastNDays)));
+        // Inklusiver Bereich (heute + N-1 Vortage) ergibt N Tage.
+        start.setDate(end.getDate() - (Math.max(1, Math.floor(lastNDays)) - 1));
         return {
           start: format(start, "yyyy-MM-dd"),
           end: format(end, "yyyy-MM-dd"),
@@ -868,20 +865,7 @@ export function AssessmentOutline({
       });
     });
 
-    const matchesFilter = (
-      action: ActionNode,
-      status: ActionStatus,
-      dueDate: string,
-    ) => {
-      if (!confirmationFilter) return true;
-      return matchesConfirmationFilter(action, status, dueDate, confirmationFilter);
-    };
-
-    const filteredFlatActions = flatActions.filter(({ action, status, dueDate }) =>
-      (action.isUnplanned && transientUnplannedActionIds.has(action.id)) || matchesFilter(action, status, dueDate),
-    );
-
-    const sortedFlatActions = [...filteredFlatActions].sort((left, right) => {
+    const sortedFlatActions = [...flatActions].sort((left, right) => {
       if (left.dueDate !== right.dueDate) {
         return left.dueDate.localeCompare(right.dueDate);
       }
@@ -995,7 +979,7 @@ export function AssessmentOutline({
               </div>
             </div>
             <div className="text-sm text-muted-foreground bg-background px-3 py-1 rounded-full border border-border">
-              {filteredFlatActions.length} Handlungen geplant
+              {flatActions.length} Handlungen geplant
             </div>
           </div>
         )}
@@ -1095,25 +1079,108 @@ export function AssessmentOutline({
         )}
 
         <div className="space-y-4">
-          {groupedFlatActions.map((dateGroup) => (
+          {groupedFlatActions.map((dateGroup) => {
+            const isBulkActive = bulkNotDoneMode || bulkDoneAsPlannedMode;
+            const daySelectableKeys = dateGroup.dayPartGroups.flatMap((g) =>
+              g.actions
+                .filter(({ action, target, status }) =>
+                  canConfirmAction(action) && !target.validTo && (status === "open" || status === "postponed"))
+                .map(({ topic, target, action, confirmationDate }) =>
+                  buildBulkNotDoneKey(topic.id, target.id, action.id, confirmationDate)));
+            const selectedDayKeys = isBulkActive
+              ? daySelectableKeys.filter((k) =>
+                  bulkNotDoneMode ? selectedBulkNotDoneKeys.has(k) : selectedBulkDoneAsPlannedKeys.has(k))
+              : [];
+            const daySelectState: "all" | "some" | "none" | undefined = isBulkActive && daySelectableKeys.length > 0
+              ? selectedDayKeys.length === daySelectableKeys.length
+                ? "all"
+                : selectedDayKeys.length > 0
+                  ? "some"
+                  : "none"
+              : undefined;
+            const onDaySelectAll = isBulkActive && daySelectableKeys.length > 0
+              ? (checked: boolean) => {
+                  if (bulkNotDoneMode) {
+                    setSelectedBulkNotDoneKeys((prev) => {
+                      const next = new Set(prev);
+                      daySelectableKeys.forEach((k) => { if (checked) next.add(k); else next.delete(k); });
+                      return next;
+                    });
+                  } else {
+                    setSelectedBulkDoneAsPlannedKeys((prev) => {
+                      const next = new Set(prev);
+                      daySelectableKeys.forEach((k) => { if (checked) next.add(k); else next.delete(k); });
+                      return next;
+                    });
+                  }
+                }
+              : undefined;
+            return (
             <div key={dateGroup.dueDate} className="space-y-3">
               <div
                 className={cn(stickyOffset !== undefined && "sticky z-[6] bg-[#F5F5F6] rounded-lg")}
                 style={stickyOffset !== undefined ? { top: stickyOffset } : undefined}
               >
-                <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+                <div className="rounded-lg border border-primary/20 bg-primary/5 pl-2 pr-4 py-3 flex items-center gap-3">
+                  {onDaySelectAll && (
+                    <Checkbox
+                      checked={daySelectState === "all" ? true : daySelectState === "some" ? "indeterminate" : false}
+                      onCheckedChange={(checked) => onDaySelectAll(checked === true)}
+                      aria-label="Alle Handlungen dieses Tages auswählen"
+                      className="shrink-0"
+                    />
+                  )}
                   <h3 className="text-sm font-semibold text-primary">
                     {format(parseISO(dateGroup.dueDate), "EEEE, dd.MM.yyyy", { locale: de })}
                   </h3>
                 </div>
               </div>
-              {dateGroup.dayPartGroups.map((group) => (
+              {dateGroup.dayPartGroups.map((group) => {
+                const groupSelectableKeys = group.actions
+                  .filter(({ action, target, status }) =>
+                    canConfirmAction(action) && !target.validTo && (status === "open" || status === "postponed"))
+                  .map(({ topic, target, action, confirmationDate }) =>
+                    buildBulkNotDoneKey(topic.id, target.id, action.id, confirmationDate));
+                const isBulkActive = bulkNotDoneMode || bulkDoneAsPlannedMode;
+                const selectedGroupKeys = isBulkActive
+                  ? groupSelectableKeys.filter((k) =>
+                      bulkNotDoneMode ? selectedBulkNotDoneKeys.has(k) : selectedBulkDoneAsPlannedKeys.has(k))
+                  : [];
+                const groupSelectState: "all" | "some" | "none" | undefined = isBulkActive
+                  ? groupSelectableKeys.length === 0
+                    ? undefined
+                    : selectedGroupKeys.length === groupSelectableKeys.length
+                      ? "all"
+                      : selectedGroupKeys.length > 0
+                        ? "some"
+                        : "none"
+                  : undefined;
+                const onGroupSelectAll = isBulkActive && groupSelectableKeys.length > 0
+                  ? (checked: boolean) => {
+                      if (bulkNotDoneMode) {
+                        setSelectedBulkNotDoneKeys((prev) => {
+                          const next = new Set(prev);
+                          groupSelectableKeys.forEach((k) => { if (checked) next.add(k); else next.delete(k); });
+                          return next;
+                        });
+                      } else {
+                        setSelectedBulkDoneAsPlannedKeys((prev) => {
+                          const next = new Set(prev);
+                          groupSelectableKeys.forEach((k) => { if (checked) next.add(k); else next.delete(k); });
+                          return next;
+                        });
+                      }
+                    }
+                  : undefined;
+                return (
                 <div key={`${dateGroup.dueDate}-${group.key}`}>
                   <DayPartHeader
                     part={group.key}
                     stickyTop={stickyOffset !== undefined ? stickyOffset + 46 : undefined}
                     onCreateUnplanned={onAddUnplannedAction ? () =>
                       setUnplannedDialogTarget({ dueDate: dateGroup.dueDate, dayPart: group.key }) : undefined}
+                    groupSelectState={groupSelectState}
+                    onGroupSelectAll={onGroupSelectAll}
                   />
                   <div className="mt-2 overflow-hidden rounded-lg border border-border bg-card">
                     <Table
@@ -1135,7 +1202,7 @@ export function AssessmentOutline({
                           )}
                           <TableHead className="w-[76px] px-1"><span className="sr-only">Umsetzung</span></TableHead>
                           <TableHead className="w-[324px] px-2">Handlung</TableHead>
-                          <TableHead className="w-[90px] px-2">Kategorie</TableHead>
+                          <TableHead className="w-[90px] px-2">Klassifizierung</TableHead>
                           <TableHead className="w-[60px] px-2">Uhrzeit</TableHead>
                           <TableHead className="w-[72px] px-2">Plan</TableHead>
                           <TableHead className="w-[72px] px-2">Ist</TableHead>
@@ -1247,7 +1314,9 @@ export function AssessmentOutline({
                                                     ? "Im Mehrfachauswahl-Modus nicht verfügbar"
                                                     : canConfirm
                                                       ? option.description
-                                                      : "Keine Umsetzung möglich (zu geringe Berechtigung)"}
+                                                      : isTargetClosed
+                                                        ? "Ziel abgeschlossen — Bestätigungen gesperrt"
+                                                        : "Keine Umsetzung möglich (zu geringe Berechtigung)"}
                                                 </div>
                                               </div>
                                             </TooltipContent>
@@ -1374,7 +1443,9 @@ export function AssessmentOutline({
                                 )}
                                 {!canConfirm && (
                                   <div className="mt-1 text-[11px] italic text-muted-foreground/70">
-                                    Keine Umsetzung möglich (zu geringe Berechtigung)
+                                    {isTargetClosed
+                                      ? "Ziel abgeschlossen — Bestätigungen gesperrt"
+                                      : "Keine Umsetzung möglich (zu geringe Berechtigung)"}
                                   </div>
                                 )}
                               </TableCell>
@@ -1466,9 +1537,9 @@ export function AssessmentOutline({
                     </Table>
                   </div>
                 </div>
-              ))}
+                ); })}
             </div>
-          ))}
+            ); })}
         </div>
 
         {isConfirmDialogMounted && dialogTarget && (
@@ -1869,11 +1940,15 @@ function DayPartHeader({
   stickyTop,
   onCreateUnplanned,
   onAdd,
+  groupSelectState,
+  onGroupSelectAll,
 }: {
   part: DayPart | "none";
   stickyTop?: number;
   onCreateUnplanned?: () => void;
   onAdd?: () => void;
+  groupSelectState?: "all" | "some" | "none";
+  onGroupSelectAll?: (checked: boolean) => void;
 }) {
   const addButton = (onClick: () => void, ariaLabel: string, tooltipTitle: string, tooltipDesc: string) => (
     <TooltipProvider delayDuration={150}>
@@ -1908,12 +1983,22 @@ function DayPartHeader({
   );
 
   const stickyProps = stickyTop !== undefined
-    ? { className: "sticky z-[5] py-1 bg-[#F5F5F6]", style: { top: stickyTop } }
-    : { className: "" };
+    ? { className: "sticky z-[5] py-1 pl-2 bg-[#F5F5F6]", style: { top: stickyTop } }
+    : { className: "pl-2" };
+
+  const groupCheckbox = onGroupSelectAll ? (
+    <Checkbox
+      checked={groupSelectState === "all" ? true : groupSelectState === "some" ? "indeterminate" : false}
+      onCheckedChange={(checked) => onGroupSelectAll(checked === true)}
+      aria-label="Alle Handlungen dieser Tageszeit auswählen"
+      className="mr-0.5 shrink-0"
+    />
+  ) : null;
 
   if (part === "none") {
     return (
       <div className={cn("flex items-center gap-2 text-[10px] uppercase tracking-widest font-semibold text-accent", stickyProps.className)} style={stickyProps.style}>
+        {groupCheckbox}
         <Minus className="h-3.5 w-3.5" />
         <span>ohne Tageszeit</span>
         <span className="h-px flex-1 bg-border" />
@@ -1924,6 +2009,7 @@ function DayPartHeader({
   const Icon = DAY_PART_ICONS[part];
   return (
     <div className={cn("flex items-center gap-2 text-[10px] uppercase tracking-widest font-semibold text-accent", stickyProps.className)} style={stickyProps.style}>
+      {groupCheckbox}
       <Icon className="h-3.5 w-3.5" />
       <span>{DAY_PART_LABEL[part]}</span>
       <span className="h-px flex-1 bg-border" />
@@ -2046,8 +2132,8 @@ export function ActionGroupRow({
           <span className="self-center h-3 bg-border" />
           <span className="self-center">
             {representative.category
-              ? <span className="rounded bg-secondary px-1 font-medium">Kat. {CATEGORY_LABEL[representative.category]}</span>
-              : <span className="opacity-40 italic">Keine Kategorie</span>}
+              ? <span className="rounded bg-secondary px-1 font-medium">{CATEGORY_LABEL[representative.category]}</span>
+              : <span className="opacity-40 italic">Keine Klassifizierung</span>}
           </span>
         </div>
       </div>
@@ -2206,7 +2292,7 @@ export function ActionRow({
             className="mt-1.5 text-sm text-muted-foreground"
             style={{ display: "grid", gridTemplateColumns: "140px 1px 100px 1px 130px 1px 180px 1px 1fr", columnGap: "8px", rowGap: "4px" }}
           >
-            {/* Zeile 1: Tageszeit | Uhrzeit | Minuten | Personen | Kategorie */}
+            {/* Zeile 1: Tageszeit | Uhrzeit | Minuten | Personen | Klassifizierung */}
             <span className="inline-flex items-center gap-1 overflow-hidden self-center">
               {action.dayPart
                 ? <>{(() => { const Icon = DAY_PART_ICONS[action.dayPart]; return <Icon className="h-3.5 w-3.5 shrink-0" />; })()}<span className="truncate">{DAY_PART_LABEL[action.dayPart]}</span></>
@@ -2228,8 +2314,8 @@ export function ActionRow({
             <span className="self-center h-3 bg-border" />
             <span className="self-center">
               {action.category
-                ? <span className="rounded bg-secondary px-1 font-medium">Kat. {CATEGORY_LABEL[action.category]}</span>
-                : <span className="opacity-40 italic">Keine Kategorie</span>}
+                ? <span className="rounded bg-secondary px-1 font-medium">{CATEGORY_LABEL[action.category]}</span>
+                : <span className="opacity-40 italic">Keine Klassifizierung</span>}
             </span>
 
             {/* Zeile 2: Gültig ab | Gültig bis | Wiederholung | Wochentage | Resultat */}
@@ -2340,7 +2426,7 @@ export function ActionRow({
             <div className="max-w-[220px] space-y-0.5">
               <div className="font-medium">Status ändern</div>
               <div className="text-xs text-muted-foreground">
-                {isConfirmationRestricted ? "Keine Rechte zur Umsetzung von Kategorie A" : "Umsetzungsstatus anpassen"}
+                {isConfirmationRestricted ? "Keine Rechte zur Umsetzung von KLV A" : "Umsetzungsstatus anpassen"}
               </div>
             </div>
           </TooltipContent>
@@ -2392,7 +2478,7 @@ export function ActionRow({
         {/* Meta fields */}
         {viewMode === "planning" ? (
           <div className="mt-1.5 flex flex-col gap-1 text-xs text-muted-foreground">
-            {/* Zeile 1: Tageszeit | Uhrzeit | geplante Minuten | Anz. Personen | Kategorie */}
+            {/* Zeile 1: Tageszeit | Uhrzeit | geplante Minuten | Anz. Personen | Klassifizierung */}
             <div className="grid grid-cols-5 gap-1">
             <div className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1 transition-colors focus-within:border-primary">
               <span className="shrink-0 text-muted-foreground">Tageszeit</span>
@@ -2495,7 +2581,7 @@ export function ActionRow({
             </label>
 
             <div className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1 transition-colors focus-within:border-primary">
-              <span className="shrink-0 text-muted-foreground">Kategorie</span>
+              <span className="shrink-0 text-muted-foreground">Klassifizierung</span>
               <Select
                 value={action.category ?? "none"}
                 disabled={isFieldLocked("category")}
@@ -2509,14 +2595,14 @@ export function ActionRow({
                   )
                 }
               >
-                <SelectTrigger aria-label="Kategorie" className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0 focus-visible:ring-0">
+                <SelectTrigger aria-label="Klassifizierung" className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0 focus-visible:ring-0">
                   <SelectValue placeholder="Keine Angabe" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Keine Angabe</SelectItem>
-                  <SelectItem value="a">A</SelectItem>
-                  <SelectItem value="b">B</SelectItem>
-                  <SelectItem value="c">C</SelectItem>
+                  <SelectItem value="a">KLV A</SelectItem>
+                  <SelectItem value="b">KLV B</SelectItem>
+                  <SelectItem value="c">KLV C</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -2789,14 +2875,14 @@ export function ActionRow({
                 )
               }
             >
-              <SelectTrigger aria-label="Kategorie" className="h-7 w-[130px] text-xs px-2 py-0">
-                <SelectValue placeholder="Kategorie" />
+              <SelectTrigger aria-label="Klassifizierung" className="h-7 w-[130px] text-xs px-2 py-0">
+                <SelectValue placeholder="Klassifizierung" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Keine Angabe</SelectItem>
-                <SelectItem value="a">A</SelectItem>
-                <SelectItem value="b">B</SelectItem>
-                <SelectItem value="c">C</SelectItem>
+                <SelectItem value="a">KLV A</SelectItem>
+                <SelectItem value="b">KLV B</SelectItem>
+                <SelectItem value="c">KLV C</SelectItem>
               </SelectContent>
             </Select>
             <Select
@@ -3205,7 +3291,8 @@ function ActionSidePanel({
     const errors = requiredFields.filter((f) => !isDraftFieldFilled(f));
     if (draft.serviceEntries.length >= 2) {
       const allButLast = draft.serviceEntries.slice(0, -1);
-      if (allButLast.some((e) => e.maxMinutes === undefined)) {
+      const last = draft.serviceEntries[draft.serviceEntries.length - 1];
+      if (allButLast.some((e) => e.maxMinutes === undefined) || last.maxMinutes != null) {
         errors.push("serviceEntries");
       }
     }
@@ -3466,12 +3553,13 @@ function ActionSidePanel({
                   );
                 })}
                 {hasError("serviceEntries") && (
-                  <p className="text-xs text-destructive">Alle Leistungsarten ausser der letzten benötigen eine Max. Anzahl Minuten.</p>
+                  <p className="text-xs text-destructive">Alle Leistungsarten ausser der letzten benötigen eine Max. Anzahl Minuten — die letzte darf keine haben.</p>
                 )}
                 {hasError("serviceEntriesAdd") && (
                   <p className="text-xs text-destructive">Die letzte Leistungsart benötigt eine Max. Anzahl Minuten, bevor eine weitere hinzugefügt werden kann.</p>
                 )}
                 {(() => {
+                  if (isLocked("serviceEntries")) return null;
                   const usedTypes = new Set(draft.serviceEntries.map((e) => e.serviceType));
                   const nextType = ACTION_SERVICE_TYPE_SELECT_OPTIONS.find((o) => o.value !== "none" && !usedTypes.has(o.value as ActionServiceType));
                   if (!nextType) return null;
@@ -3532,14 +3620,14 @@ function ActionSidePanel({
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <ActionField label="Kategorie" fieldKey="category">
+              <ActionField label="Klassifizierung" fieldKey="category">
                 <Select value={draft.category} disabled={isLocked("category")} onValueChange={(v) => { setDraft((p) => ({ ...p, category: v })); setValidationErrors((prev) => prev.filter((f) => f !== "category")); }}>
                   <SelectTrigger className={cn("bg-background", hasError("category") && "border-destructive")}><SelectValue placeholder="Keine Angabe" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Keine Angabe</SelectItem>
-                    <SelectItem value="a">A</SelectItem>
-                    <SelectItem value="b">B</SelectItem>
-                    <SelectItem value="c">C</SelectItem>
+                    <SelectItem value="a">KLV A</SelectItem>
+                    <SelectItem value="b">KLV B</SelectItem>
+                    <SelectItem value="c">KLV C</SelectItem>
                   </SelectContent>
                 </Select>
               </ActionField>
@@ -3873,8 +3961,9 @@ export function UnplannedActionDialog({
     ? (draft.templateRequiredFields ?? []).filter(isDraftRequiredFieldMissing)
     : [];
 
-  const serviceEntriesError = (draft.serviceEntries?.length ?? 0) >= 2
-    && (draft.serviceEntries ?? []).slice(0, -1).some((e) => e.maxMinutes === undefined);
+  const entries = draft.serviceEntries ?? [];
+  const serviceEntriesError = entries.length >= 2
+    && (entries.slice(0, -1).some((e) => e.maxMinutes === undefined) || entries[entries.length - 1]?.maxMinutes != null);
   const [serviceEntriesAddError, setServiceEntriesAddError] = useState(false);
 
   const submit = () => {
@@ -4125,18 +4214,18 @@ export function UnplannedActionDialog({
               <Input type="number" min={1} step={1} value={draft.requiredPersons ?? ""} disabled={isDraftFieldLocked("requiredPersons")} onChange={(e) => updateDraft("requiredPersons", e.target.value === "" ? undefined : Math.max(1, Math.floor(Number(e.target.value))))} className="bg-background" />
             </label>
             <div className="space-y-1.5">
-              <Label>Kategorie</Label>
+              <Label>Klassifizierung</Label>
               <Select
                 value={draft.category ?? "none"}
                 disabled={isDraftFieldLocked("category")}
                 onValueChange={(value) => updateDraft("category", value === "none" ? undefined : value as ActionCategory)}
               >
-                <SelectTrigger aria-label="Kategorie" className="bg-background"><SelectValue /></SelectTrigger>
+                <SelectTrigger aria-label="Klassifizierung" className="bg-background"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Keine Angabe</SelectItem>
-                  <SelectItem value="a">A</SelectItem>
-                  <SelectItem value="b">B</SelectItem>
-                  <SelectItem value="c">C</SelectItem>
+                  <SelectItem value="a">KLV A</SelectItem>
+                  <SelectItem value="b">KLV B</SelectItem>
+                  <SelectItem value="c">KLV C</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -4226,7 +4315,7 @@ export function UnplannedActionDialog({
                 );
               })}
               {serviceEntriesError && (
-                <p className="text-xs text-destructive">Alle Leistungsarten ausser der letzten benötigen eine Max. Anzahl Minuten.</p>
+                <p className="text-xs text-destructive">Alle Leistungsarten ausser der letzten benötigen eine Max. Anzahl Minuten — die letzte darf keine haben.</p>
               )}
               {serviceEntriesAddError && (
                 <p className="text-xs text-destructive">Die letzte Leistungsart benötigt eine Max. Anzahl Minuten, bevor eine weitere hinzugefügt werden kann.</p>

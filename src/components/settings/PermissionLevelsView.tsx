@@ -126,7 +126,7 @@ export const PermissionLevelsView = () => {
                   className="inline-flex items-center gap-1"
                   onClick={() => toggleSort("name")}
                 >
-                  Kategorie
+                  Klassifizierung
                   <span aria-hidden="true">{getSortArrow("name")}</span>
                 </button>
               </th>

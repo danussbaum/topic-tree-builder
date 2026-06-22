@@ -302,7 +302,7 @@ describe("AssessmentOutline confirmation actions", () => {
     expect(within(dialog).getByLabelText("Uhrzeit")).toBeDisabled();
     expect(within(dialog).getByLabelText("Geplante Minuten")).toBeDisabled();
     expect(within(dialog).getByLabelText("Anz. Personen")).toBeDisabled();
-    expect(within(dialog).getByRole("combobox", { name: "Kategorie" })).toBeDisabled();
+    expect(within(dialog).getByRole("combobox", { name: "Klassifizierung" })).toBeDisabled();
     expect(within(dialog).getByRole("combobox", { name: "Resultat" })).toBeDisabled();
   });
 
@@ -395,7 +395,7 @@ describe("AssessmentOutline confirmation actions", () => {
     expect(monthlyScope.getByDisplayValue("Gesperrte Vorlage")).toHaveAttribute("readonly");
     expect(monthlyScope.getByPlaceholderText("Beschreibung zur Handlung...")).toBeDisabled();
     expect(monthlyScope.getByPlaceholderText("Hilfsmittel zur Durchführung...")).toBeDisabled();
-    expect(monthlyScope.getByRole("combobox", { name: "Kategorie" })).toBeDisabled();
+    expect(monthlyScope.getByRole("combobox", { name: "Klassifizierung" })).toBeDisabled();
     expect(monthlyScope.getByRole("combobox", { name: "Tageszeit" })).toBeDisabled();
     expect(monthlyScope.getByLabelText("Uhrzeit")).toBeDisabled();
     expect(monthlyScope.getByDisplayValue("25")).toBeDisabled();

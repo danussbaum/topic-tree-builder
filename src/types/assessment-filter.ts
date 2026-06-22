@@ -24,7 +24,7 @@ export interface AssessmentFilterModel {
   actualMinutes?: NumericComparison;
   differenceMinutes?: NumericRange;
   differencePercent?: NumericRange;
-  dayPart?: DayPart | "none";
+  dayParts?: DayPart[];
   category?: ActionCategory | "none";
   persons?: PersonsFilter;
   result?: "none" | "with_result";
@@ -94,9 +94,9 @@ export const matchesAssessmentFilter = (
   const differencePercent = getDifferencePercent(plannedMinutes, actualMinutes);
   if (!matchesNumericRange(differencePercent, filter.differencePercent)) return false;
 
-  if (filter.dayPart != null) {
-    const dayPart = action.dayPart ?? "none";
-    if (dayPart !== filter.dayPart) return false;
+  if (filter.dayParts && filter.dayParts.length > 0) {
+    const dayPart = action.dayPart;
+    if (!dayPart || !filter.dayParts.includes(dayPart)) return false;
   }
 
   if (filter.category != null) {

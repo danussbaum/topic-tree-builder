@@ -1,3 +1,4 @@
+import { cn } from "@/lib/utils";
 import type { SettingsCategory } from "./settingsData";
 
 interface SettingsCardProps {
@@ -30,7 +31,12 @@ export const SettingsCard = ({ category, onLinkClick }: SettingsCardProps) => {
             <button
               type="button"
               onClick={() => onLinkClick?.(category.id, link.label)}
-              className="text-sm text-primary hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+              className={cn(
+                "text-sm text-primary hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm",
+                // Prototyp: tatsächlich klickbare Links sind eingekreist
+                link.implemented &&
+                  "inline-block rounded-full border-2 border-[#E11D48] px-2 py-0.5 font-medium no-underline hover:no-underline",
+              )}
             >
               {link.label}
             </button>

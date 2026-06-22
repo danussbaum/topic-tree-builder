@@ -26,6 +26,8 @@ import {
 export interface SettingsLink {
   label: string;
   href?: string;
+  /** Prototyp-Markierung: Link ist tatsächlich klickbar und dahinter ist etwas implementiert. */
+  implemented?: boolean;
 }
 
 export interface SettingsCategory {
@@ -89,9 +91,8 @@ export const settingsCategories: SettingsCategory[] = [
     title: "Handlungen",
     icon: Target,
     links: [
-      { label: "Disziplinen" },
-      { label: "Kategorien" },
-      { label: "Handlungsvorlagen" },
+      { label: "Disziplinen", implemented: true },
+      { label: "Handlungsvorlagen", implemented: true },
     ],
   },
 
@@ -202,7 +203,7 @@ export const settingsCategories: SettingsCategory[] = [
       { label: "Benutzer/innen" },
       { label: "Benutzer/innen-Gruppen" },
       { label: "Rollen" },
-      { label: "Klassifizierungen" },
+      { label: "Klassifizierungen", implemented: true },
       { label: "Sicherheitseinstellungen" },
       { label: "Sicherheitsprotokoll" },
       { label: "Client Zertifikate" },

@@ -77,7 +77,7 @@ const Settings = () => {
   ];
 
   const subPageTitle = showPermissionLevels
-    ? "Kategorien"
+    ? "Klassifizierungen"
     : showActionPlanTemplates
       ? "Handlungsvorlagen"
       : showActionPlanDisciplines
@@ -176,12 +176,7 @@ const Settings = () => {
               <SettingsGrid
                 onLinkClick={(catId, label) => {
                   setActiveGroup(catId);
-                  if (
-                    (catId === "handlungsplanung" &&
-                      (label === "Berechtigungsstufen" ||
-                        label === "Kategorien")) ||
-                    (catId === "kategorien" && label === "Kategorien")
-                  ) {
+                  if (catId === "sicherheit" && label === "Klassifizierungen") {
                     setShowPermissionLevels(true);
                     setShowActionPlanTemplates(false);
                     setShowActionPlanDisciplines(false);

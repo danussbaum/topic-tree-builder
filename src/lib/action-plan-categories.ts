@@ -36,9 +36,9 @@ const CATEGORY_C_AUTHORIZED_ROLE_IDS = [
 ];
 
 export const initialActionPlanCategoryPermissions: ActionPlanCategoryPermission[] = [
-  { id: "a", name: "A", authorizedRoleIds: CATEGORY_A_AUTHORIZED_ROLE_IDS },
-  { id: "b", name: "B", authorizedRoleIds: CATEGORY_B_AUTHORIZED_ROLE_IDS },
-  { id: "c", name: "C", authorizedRoleIds: CATEGORY_C_AUTHORIZED_ROLE_IDS },
+  { id: "a", name: "KLV A", authorizedRoleIds: CATEGORY_A_AUTHORIZED_ROLE_IDS },
+  { id: "b", name: "KLV B", authorizedRoleIds: CATEGORY_B_AUTHORIZED_ROLE_IDS },
+  { id: "c", name: "KLV C", authorizedRoleIds: CATEGORY_C_AUTHORIZED_ROLE_IDS },
 ];
 
 const validCategoryIds = new Set<ActionCategory>(["a", "b", "c"]);
@@ -58,10 +58,16 @@ const normalizeCategoryPermission = (
   if (!id) return null;
 
   const defaultCategory = initialActionPlanCategoryPermissions.find((entry) => entry.id === id);
-  const name =
+  const storedName =
     typeof category.name === "string" && category.name.trim()
       ? category.name.trim()
-      : (defaultCategory?.name ?? id.toUpperCase());
+      : null;
+  // Prototyp: alte Bezeichnungen ("A"/"B"/"C") auf die neuen Defaults ("KLV A"...) migrieren.
+  const isLegacyName = storedName === id.toUpperCase();
+  const name =
+    storedName && !isLegacyName
+      ? storedName
+      : (defaultCategory?.name ?? `KLV ${id.toUpperCase()}`);
   const authorizedRoleIds = Array.isArray(category.authorizedRoleIds)
     ? Array.from(
         new Set(

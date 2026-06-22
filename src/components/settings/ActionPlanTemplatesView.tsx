@@ -80,13 +80,13 @@ const templateFieldMeta: TemplateFieldMeta[] = [
   { key: "personen", label: "Anz. Personen", type: "text" },
   {
     key: "kategorie",
-    label: "Kategorie",
+    label: "Klassifizierung",
     type: "select",
     options: [
       { value: "none", label: "Keine Angabe" },
-      { value: "a", label: "A" },
-      { value: "b", label: "B" },
-      { value: "c", label: "C" },
+      { value: "a", label: "KLV A" },
+      { value: "b", label: "KLV B" },
+      { value: "c", label: "KLV C" },
     ],
   },
   {
@@ -478,7 +478,10 @@ export const ActionPlanTemplatesView = forwardRef<
 
   const saveTemplate = () => {
     const leistungsartenEntries = parseLeistungsarten(draftFields.leistungsart);
-    const hasInvalidOrder = leistungsartenEntries.slice(0, -1).some((e) => e.maxMinutes == null);
+    const hasInvalidOrder = leistungsartenEntries.length >= 2 && (
+      leistungsartenEntries.slice(0, -1).some((e) => e.maxMinutes == null) ||
+      leistungsartenEntries[leistungsartenEntries.length - 1]?.maxMinutes != null
+    );
     if (hasInvalidOrder) {
       setLeistungsartenSaveError(true);
       return;
@@ -618,7 +621,7 @@ export const ActionPlanTemplatesView = forwardRef<
                 {renderSortableHeader("name", "Name")}
               </th>
               <th className="w-32 px-4 py-2 text-left text-xs font-semibold text-foreground">
-                {renderSortableHeader("kategorie", "Kategorie")}
+                {renderSortableHeader("kategorie", "Klassifizierung")}
               </th>
               <th className="w-44 px-4 py-2 text-left text-xs font-semibold text-foreground">
                 {renderSortableHeader("leistungsart", "Leistungsart")}
@@ -972,7 +975,7 @@ export const ActionPlanTemplatesView = forwardRef<
               </div>
               <div className="flex flex-col items-end gap-1">
                 {leistungsartenSaveError && (
-                  <p className="text-xs text-primary-foreground/80">Nur die unterste Leistungsart darf kein Max. Min. haben.</p>
+                  <p className="text-xs text-primary-foreground/80">Alle ausser der letzten Leistungsart brauchen eine Max. Zeit — die letzte darf keine haben.</p>
                 )}
                 <Button
                   type="button"

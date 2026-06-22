@@ -24,6 +24,11 @@ import {
   Info,
   ChevronDown,
   ChevronRight,
+  Sunrise,
+  Utensils,
+  Sun,
+  Sunset,
+  Moon,
 } from "lucide-react";
 import { ClientSidebar, ClientSidebarTrigger } from "@/components/assessment/ClientSidebar";
 import { ModuleNav } from "@/components/ModuleNav";
@@ -50,7 +55,7 @@ import type {
   TopicNode,
   Weekday,
 } from "@/types/assessment";
-import { DAY_PART_LABEL, DAY_PART_SELECT_OPTIONS, DAY_PART_ORDER } from "@/types/assessment";
+import { DAY_PART_LABEL, DAY_PART_ORDER } from "@/types/assessment";
 import {
   matchesAssessmentFilter,
   type AssessmentFilterModel,
@@ -114,6 +119,14 @@ const OPERATOR_OPTIONS: Array<{ value: NumericComparison["op"]; label: ">" | "<"
 
 const COMPACT_FILTER_INPUT_CLASS = "h-8 px-2 text-xs";
 const COMPACT_FILTER_SELECT_CLASS = "h-8 px-2 text-xs";
+
+const DAY_PART_FILTER_ICONS: Record<DayPart, typeof Sunrise> = {
+  morning: Sunrise,
+  noon: Utensils,
+  afternoon: Sun,
+  evening: Sunset,
+  night: Moon,
+};
 
 const INITIAL_CONFIRMATION_FILTER: AssessmentFilterModel = {
   statuses: ["open", "postponed"],
@@ -348,7 +361,8 @@ const getPeriodRange = (
   if (period === "lastNDays") {
     const end = new Date(`${todayLocalISO()}T00:00:00`);
     const start = new Date(end);
-    start.setDate(end.getDate() - clampLastNDays(lastNDays));
+    // Inklusiver Bereich (heute + N-1 Vortage) ergibt N Tage.
+    start.setDate(end.getDate() - (clampLastNDays(lastNDays) - 1));
     return { start: dateToISO(start), end: dateToISO(end) };
   }
   const start = new Date(date.getFullYear(), date.getMonth(), 1);
@@ -482,6 +496,8 @@ const Index = () => {
     cached?.confirmationFilter ?? INITIAL_CONFIRMATION_FILTER,
   );
   const [draftFilter, setDraftFilter] = useState<AssessmentFilterModel>(confirmationFilter);
+  const [pendingPlannedMinutesOp, setPendingPlannedMinutesOp] = useState<"gt" | "lt" | "eq">("eq");
+  const [pendingActualMinutesOp, setPendingActualMinutesOp] = useState<"gt" | "lt" | "eq">("eq");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [showClosedTargets, setShowClosedTargets] = useState(false);
   const [reviewAssessmentPanel, setReviewAssessmentPanel] = useState<{
@@ -574,6 +590,7 @@ const Index = () => {
   useEffect(() => {
     if (viewMode !== "confirmation") {
       setBulkNotDoneClientIds(new Set());
+      setBulkDoneAsPlannedClientIds(new Set());
     }
   }, [viewMode]);
 
@@ -606,7 +623,7 @@ const Index = () => {
       f.actualMinutes != null ||
       f.differenceMinutes != null ||
       f.differencePercent != null ||
-      f.dayPart != null ||
+      (f.dayParts?.length ?? 0) > 0 ||
       f.category != null ||
       f.unplanned != null ||
       (f.disciplineIds?.length ?? 0) > 0 ||
@@ -636,13 +653,20 @@ const Index = () => {
     });
   };
 
+  const syncPendingOps = (filter: AssessmentFilterModel) => {
+    setPendingPlannedMinutesOp(filter.plannedMinutes?.op ?? "eq");
+    setPendingActualMinutesOp(filter.actualMinutes?.op ?? "eq");
+  };
+
   const openFilter = () => {
     setDraftFilter(confirmationFilter);
+    syncPendingOps(confirmationFilter);
     setIsFilterOpen(true);
   };
 
   const cancelFilter = () => {
     setDraftFilter(confirmationFilter);
+    syncPendingOps(confirmationFilter);
     setIsFilterOpen(false);
   };
 
@@ -693,6 +717,19 @@ const Index = () => {
         ? prev.statuses.filter((item) => item !== status)
         : [...prev.statuses, status];
       return { ...prev, statuses: statuses.length > 0 ? statuses : ["open"] };
+    });
+  };
+
+  const toggleDraftDayPart = (dayPart: DayPart) => {
+    updateDraftFilter((prev) => {
+      const selected = prev.dayParts ?? [];
+      const dayParts = selected.includes(dayPart)
+        ? selected.filter((d) => d !== dayPart)
+        : [...selected, dayPart];
+      return {
+        ...prev,
+        dayParts: dayParts.length > 0 ? dayParts : undefined,
+      };
     });
   };
 
@@ -1716,7 +1753,7 @@ const Index = () => {
           "Gültig bis": action.validTo ?? "",
           "Tageszeit": action.dayPart ? DAY_PART_LABEL[action.dayPart] : "ohne",
           "Uhrzeit": action.scheduledTime ?? "",
-          Kategorie: action.category ?? "",
+          Klassifizierung: action.category ? `KLV ${action.category.toUpperCase()}` : "",
           Leistungsarten: (action.serviceEntries ?? []).map((e) => {
             const label = ACTION_SERVICE_TYPE_SELECT_OPTIONS.find((o) => o.value === e.serviceType)?.label ?? e.serviceType;
             return e.maxMinutes != null ? `${label} (max. ${e.maxMinutes} Min.)` : label;
@@ -1752,7 +1789,7 @@ const Index = () => {
       "Gültig bis",
       "Tageszeit",
       "Uhrzeit",
-      "Kategorie",
+      "Klassifizierung",
       "Leistungsarten",
       "Minuten geplant",
       "Minuten tatsächlich",
@@ -2008,18 +2045,17 @@ const Index = () => {
                       <div className="text-xs font-medium">Minuten geplant</div>
                       <div className="flex gap-1.5">
                         <Select
-                          value={draftFilter.plannedMinutes?.op ?? "eq"}
-                          onValueChange={(value) =>
+                          value={draftFilter.plannedMinutes?.op ?? pendingPlannedMinutesOp}
+                          onValueChange={(value) => {
+                            const op = value as "gt" | "lt" | "eq";
+                            setPendingPlannedMinutesOp(op);
                             updateDraftFilter((prev) => ({
                               ...prev,
                               plannedMinutes: prev.plannedMinutes
-                                ? {
-                                    op: value as NumericComparison["op"],
-                                    value: prev.plannedMinutes.value,
-                                  }
+                                ? { op, value: prev.plannedMinutes.value }
                                 : undefined,
-                            }))
-                          }
+                            }));
+                          }}
                         >
                           <SelectTrigger className={cn("w-14", COMPACT_FILTER_SELECT_CLASS)}><SelectValue /></SelectTrigger>
                           <SelectContent>
@@ -2038,7 +2074,7 @@ const Index = () => {
                               (num) =>
                                 updateDraftFilter((prev) => ({
                                   ...prev,
-                                  plannedMinutes: { op: prev.plannedMinutes?.op ?? "eq", value: num },
+                                  plannedMinutes: { op: prev.plannedMinutes?.op ?? pendingPlannedMinutesOp, value: num },
                                 })),
                               () => updateDraftFilter((prev) => ({ ...prev, plannedMinutes: undefined })),
                             )
@@ -2051,18 +2087,17 @@ const Index = () => {
                       <div className="text-xs font-medium">Minuten tatsächlich</div>
                       <div className="flex gap-1.5">
                         <Select
-                          value={draftFilter.actualMinutes?.op ?? "eq"}
-                          onValueChange={(value) =>
+                          value={draftFilter.actualMinutes?.op ?? pendingActualMinutesOp}
+                          onValueChange={(value) => {
+                            const op = value as "gt" | "lt" | "eq";
+                            setPendingActualMinutesOp(op);
                             updateDraftFilter((prev) => ({
                               ...prev,
                               actualMinutes: prev.actualMinutes
-                                ? {
-                                    op: value as NumericComparison["op"],
-                                    value: prev.actualMinutes.value,
-                                  }
+                                ? { op, value: prev.actualMinutes.value }
                                 : undefined,
-                            }))
-                          }
+                            }));
+                          }}
                         >
                           <SelectTrigger className={cn("w-14", COMPACT_FILTER_SELECT_CLASS)}><SelectValue /></SelectTrigger>
                           <SelectContent>
@@ -2081,7 +2116,7 @@ const Index = () => {
                               (num) =>
                                 updateDraftFilter((prev) => ({
                                   ...prev,
-                                  actualMinutes: { op: prev.actualMinutes?.op ?? "eq", value: num },
+                                  actualMinutes: { op: prev.actualMinutes?.op ?? pendingActualMinutesOp, value: num },
                                 })),
                               () => updateDraftFilter((prev) => ({ ...prev, actualMinutes: undefined })),
                             )
@@ -2176,22 +2211,25 @@ const Index = () => {
 
                     <div className="space-y-1">
                       <div className="text-xs font-medium">Tageszeit</div>
-                      <Select
-                        value={draftFilter.dayPart ?? "all"}
-                        onValueChange={(value) =>
-                          updateDraftFilter((prev) => ({ ...prev, dayPart: value === "all" ? undefined : value as AssessmentFilterModel["dayPart"] }))
-                        }
-                      >
-                        <SelectTrigger className={COMPACT_FILTER_SELECT_CLASS}><SelectValue placeholder="Tageszeit" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Alle Tageszeiten</SelectItem>
-                          {DAY_PART_SELECT_OPTIONS.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="max-h-24 space-y-0.5 overflow-y-auto rounded-md border border-border bg-background p-1">
+                        {(DAY_PART_ORDER.filter((p) => p !== "none") as DayPart[]).map((dayPart) => (
+                          <label
+                            key={dayPart}
+                            className="flex cursor-pointer items-center gap-1.5 rounded px-1.5 py-0.5 text-xs leading-tight hover:bg-secondary/50"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={(draftFilter.dayParts ?? []).includes(dayPart)}
+                              onChange={() => toggleDraftDayPart(dayPart)}
+                              className="h-3.5 w-3.5 rounded border-border accent-primary"
+                            />
+                            <span>{DAY_PART_LABEL[dayPart]}</span>
+                          </label>
+                        ))}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground">
+                        Keine Auswahl zeigt alle Tageszeiten.
+                      </div>
                     </div>
 
                     <div className="space-y-1">
@@ -2215,7 +2253,7 @@ const Index = () => {
                     </div>
 
                     <div className="space-y-1">
-                      <div className="text-xs font-medium">Kategorie</div>
+                      <div className="text-xs font-medium">Klassifizierung</div>
                       <Select
                         value={draftFilter.category ?? "all"}
                         onValueChange={(value) =>
@@ -2228,13 +2266,13 @@ const Index = () => {
                           }))
                         }
                       >
-                        <SelectTrigger className={COMPACT_FILTER_SELECT_CLASS}><SelectValue placeholder="Kategorie" /></SelectTrigger>
+                        <SelectTrigger className={COMPACT_FILTER_SELECT_CLASS}><SelectValue placeholder="Klassifizierung" /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">Alle Kategorien</SelectItem>
+                          <SelectItem value="all">Alle Klassifizierungen</SelectItem>
                           <SelectItem value="none">Keine Angabe</SelectItem>
-                          <SelectItem value="a">A</SelectItem>
-                          <SelectItem value="b">B</SelectItem>
-                          <SelectItem value="c">C</SelectItem>
+                          <SelectItem value="a">KLV A</SelectItem>
+                          <SelectItem value="b">KLV B</SelectItem>
+                          <SelectItem value="c">KLV C</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -2271,7 +2309,7 @@ const Index = () => {
                                   ...prev,
                                   persons: { kind: "exact", value: Math.max(0, Math.floor(num)) },
                                 })),
-                                () => updateDraftFilter((prev) => ({ ...prev, persons: { kind: "exact", value: 0 } })),
+                                () => updateDraftFilter((prev) => ({ ...prev, persons: undefined })),
                               )
                             }
                           />
@@ -2474,6 +2512,38 @@ const Index = () => {
                       )}
                     </div>
                     <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-1">
+                        {(DAY_PART_ORDER.filter((p) => p !== "none") as DayPart[]).map((dayPart) => {
+                          const Icon = DAY_PART_FILTER_ICONS[dayPart];
+                          const isActive = (confirmationFilter.dayParts ?? []).includes(dayPart);
+                          return (
+                            <button
+                              key={dayPart}
+                              type="button"
+                              onClick={() =>
+                                setConfirmationFilter((prev) => {
+                                  const selected = prev.dayParts ?? [];
+                                  const dayParts = selected.includes(dayPart)
+                                    ? selected.filter((d) => d !== dayPart)
+                                    : [...selected, dayPart];
+                                  return { ...prev, dayParts: dayParts.length > 0 ? dayParts : undefined };
+                                })
+                              }
+                              title={DAY_PART_LABEL[dayPart]}
+                              className={cn(
+                                "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium transition-colors",
+                                isActive
+                                  ? "border-primary bg-primary/10 text-primary"
+                                  : "border-border bg-background text-muted-foreground hover:border-primary/40 hover:bg-secondary/60",
+                              )}
+                            >
+                              <Icon className="h-3 w-3" />
+                              {DAY_PART_LABEL[dayPart]}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="h-5 w-px bg-border" />
                       <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
                         <input
                           type="checkbox"

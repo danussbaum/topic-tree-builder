@@ -39,7 +39,7 @@ afterEach(() => {
 });
 
 describe("ActionPlanTemplatesView", () => {
-  it("zeigt Kategorie und Leistungsart in der Übersicht und sortiert danach", () => {
+  it("zeigt Klassifizierung und Leistungsart in der Übersicht und sortiert danach", () => {
     window.localStorage.setItem(
       ACTION_PLAN_TEMPLATES_STORAGE_KEY,
       JSON.stringify([
@@ -50,25 +50,25 @@ describe("ActionPlanTemplatesView", () => {
 
     render(<ActionPlanTemplatesView searchQuery="" />);
 
-    expect(screen.getByRole("button", { name: /Kategorie/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Klassifizierung/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Leistungsart/i })).toBeInTheDocument();
     expect(getRowTexts()).toEqual([
-      ["Alle", "Alpha", "C", "Spitex, KLV c"],
-      ["Alle", "Beta", "A", "Spitex, KLV a"],
+      ["Alle", "Alpha", "KLV C", "Spitex, KLV c"],
+      ["Alle", "Beta", "KLV A", "Spitex, KLV a"],
     ]);
 
-    fireEvent.click(screen.getByRole("button", { name: /Kategorie/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Klassifizierung/i }));
 
     expect(getRowTexts()).toEqual([
-      ["Alle", "Beta", "A", "Spitex, KLV a"],
-      ["Alle", "Alpha", "C", "Spitex, KLV c"],
+      ["Alle", "Beta", "KLV A", "Spitex, KLV a"],
+      ["Alle", "Alpha", "KLV C", "Spitex, KLV c"],
     ]);
 
     fireEvent.click(screen.getByRole("button", { name: /Leistungsart/i }));
 
     expect(getRowTexts()).toEqual([
-      ["Alle", "Beta", "A", "Spitex, KLV a"],
-      ["Alle", "Alpha", "C", "Spitex, KLV c"],
+      ["Alle", "Beta", "KLV A", "Spitex, KLV a"],
+      ["Alle", "Alpha", "KLV C", "Spitex, KLV c"],
     ]);
   });
 });
