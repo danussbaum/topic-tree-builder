@@ -1,4 +1,4 @@
-import { clearAuthentication } from "@/lib/auth";
+import { resetThrottle } from "@/lib/auth";
 
 export const APPLICATION_LOGOUT_CLEARING_KEY = "topic-tree-builder:logout-clearing";
 
@@ -26,5 +26,5 @@ export const clearApplicationBrowserData = () => {
   APPLICATION_BROWSER_STORAGE_KEYS.forEach((key) => {
     window.localStorage.removeItem(key);
   });
-  clearAuthentication();
+  resetThrottle();
 };

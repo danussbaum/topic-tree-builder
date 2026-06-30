@@ -11,6 +11,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { clearApplicationBrowserData } from "@/lib/application-storage";
+import { logout } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 interface ApplicationLogoutButtonProps {
@@ -18,7 +19,8 @@ interface ApplicationLogoutButtonProps {
 }
 
 export const ApplicationLogoutButton = ({ className }: ApplicationLogoutButtonProps) => {
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await logout();
     clearApplicationBrowserData();
     window.location.assign("/");
   };

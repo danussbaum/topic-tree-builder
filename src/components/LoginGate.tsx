@@ -1,22 +1,22 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { Lock } from "lucide-react";
+import { Loader2, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  checkSession,
   getLockoutRemainingMs,
-  getSessionRemainingMs,
-  isAuthenticated,
+  login,
   registerFailedAttempt,
   resetThrottle,
-  setAuthenticated,
-  verifyCredentials,
 } from "@/lib/auth";
 
 interface LoginGateProps {
   children: ReactNode;
 }
+
+type Status = "checking" | "authed" | "login";
 
 const formatRemaining = (ms: number) => {
   const totalSeconds = Math.ceil(ms / 1000);
@@ -30,18 +30,31 @@ const formatRemaining = (ms: number) => {
 
 /**
  * Sperrt den Zugriff auf die Applikation hinter einer Username/Passwort-Abfrage.
- * Sind keine Zugangsdaten konfiguriert, lässt isAuthenticated() den Zugriff
- * direkt durch (z. B. lokale Entwicklung ohne .env.local).
- *
- * Nach 3 Fehlversuchen wird die Anmeldung gesperrt (1 Minute, danach mit jedem
- * weiteren Fehlversuch doppelt so lange).
+ * Die eigentliche Prüfung erfolgt serverseitig über /api/auth (das Passwort liegt
+ * nur auf dem Server). Nach 3 Fehlversuchen wird die Anmeldung clientseitig
+ * gedrosselt (1 Minute, danach mit jedem weiteren Fehlversuch doppelt so lange).
  */
 export const LoginGate = ({ children }: LoginGateProps) => {
-  const [authed, setAuthed] = useState(() => isAuthenticated());
+  const [status, setStatus] = useState<Status>("checking");
+  const [expiresAt, setExpiresAt] = useState<number | null>(null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [lockoutMs, setLockoutMs] = useState(() => getLockoutRemainingMs());
+
+  // Beim Laden den Sitzungsstatus serverseitig prüfen.
+  useEffect(() => {
+    let active = true;
+    checkSession().then((info) => {
+      if (!active) return;
+      setExpiresAt(info.expiresAt ?? null);
+      setStatus(info.authenticated ? "authed" : "login");
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Countdown herunterzählen, solange eine Sperre aktiv ist.
   useEffect(() => {
@@ -52,33 +65,45 @@ export const LoginGate = ({ children }: LoginGateProps) => {
     return () => window.clearInterval(interval);
   }, [lockoutMs]);
 
-  // Session-Ablauf auch im offenen Tab erzwingen: nach Ablauf der Gültigkeit
-  // automatisch ausloggen, ohne dass ein Reload nötig ist.
+  // Session-Ablauf auch im offenen Tab erzwingen.
   useEffect(() => {
-    if (!authed) return;
-    const remaining = getSessionRemainingMs();
+    if (status !== "authed" || !expiresAt) return;
+    const remaining = expiresAt - Date.now();
     if (remaining <= 0) {
-      setAuthed(false);
+      setStatus("login");
       return;
     }
-    const timeout = window.setTimeout(() => setAuthed(false), remaining);
+    const timeout = window.setTimeout(() => setStatus("login"), remaining);
     return () => window.clearTimeout(timeout);
-  }, [authed]);
+  }, [status, expiresAt]);
 
-  if (authed) {
+  if (status === "checking") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-muted/40">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (status === "authed") {
     return <>{children}</>;
   }
 
   const isLocked = lockoutMs > 0;
+  const disabled = isLocked || submitting;
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (isLocked) return;
+    if (disabled) return;
 
-    if (verifyCredentials(username, password)) {
+    setSubmitting(true);
+    const info = await login(username, password);
+    setSubmitting(false);
+
+    if (info.authenticated) {
       resetThrottle();
-      setAuthenticated();
-      setAuthed(true);
+      setExpiresAt(info.expiresAt ?? null);
+      setStatus("authed");
       return;
     }
 
@@ -106,7 +131,7 @@ export const LoginGate = ({ children }: LoginGateProps) => {
                 id="login-username"
                 autoFocus
                 autoComplete="username"
-                disabled={isLocked}
+                disabled={disabled}
                 value={username}
                 onChange={(event) => {
                   setUsername(event.target.value);
@@ -120,7 +145,7 @@ export const LoginGate = ({ children }: LoginGateProps) => {
                 id="login-password"
                 type="password"
                 autoComplete="current-password"
-                disabled={isLocked}
+                disabled={disabled}
                 value={password}
                 onChange={(event) => {
                   setPassword(event.target.value);
@@ -137,8 +162,17 @@ export const LoginGate = ({ children }: LoginGateProps) => {
                 versuchst.
               </p>
             )}
-            <Button type="submit" className="w-full" disabled={isLocked}>
-              {isLocked ? `Gesperrt (${formatRemaining(lockoutMs)})` : "Anmelden"}
+            <Button type="submit" className="w-full" disabled={disabled}>
+              {isLocked ? (
+                `Gesperrt (${formatRemaining(lockoutMs)})`
+              ) : submitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Anmelden …
+                </>
+              ) : (
+                "Anmelden"
+              )}
             </Button>
           </form>
           <p className="mt-6 text-center text-xs text-muted-foreground">

@@ -1,17 +1,10 @@
-// Einfache clientseitige Zugangssperre für die Applikation.
+// Auth-Client für die serverseitige Login-Prüfung (Vercel Edge Function /api/auth).
 //
-// WICHTIG: Dies ist eine reine Client-SPA ohne Backend. Die Zugangsdaten werden
-// beim Build aus den Vite-Umgebungsvariablen eingelesen und landen damit im
-// ausgelieferten JavaScript-Bundle. Das ist KEINE echte Sicherheit, sondern nur
-// eine simple Sperre gegen Gelegenheitsbesucher. Für echten Schutz wäre ein
-// Backend nötig, das die Anmeldedaten serverseitig prüft.
-//
-// Konfiguration:
-//   Lokal:   .env.local mit VITE_APP_USER / VITE_APP_PASSWORD (nicht in Git).
-//   Vercel:  Project → Settings → Environment Variables → VITE_APP_USER,
-//            VITE_APP_PASSWORD setzen und neu deployen.
+// Das Passwort wird ausschliesslich auf dem Server geprüft (siehe api/auth.ts) und
+// landet NICHT im Browser-Bundle. Hier liegt nur der Client: er ruft den Endpoint
+// auf und merkt sich nichts Geheimes. Das Brute-Force-Throttling läuft bewusst
+// weiterhin clientseitig (localStorage) — als UX-Bremse, nicht als harter Schutz.
 
-export const APPLICATION_AUTH_STORAGE_KEY = "topic-tree-builder:auth:v1";
 export const APPLICATION_AUTH_THROTTLE_KEY = "topic-tree-builder:auth-throttle:v1";
 
 // Ab wie vielen Fehlversuchen gesperrt wird und wie lange die Basis-Sperre dauert.
@@ -78,67 +71,65 @@ export const resetThrottle = () => {
   window.localStorage.removeItem(APPLICATION_AUTH_THROTTLE_KEY);
 };
 
-const expectedUser = (import.meta.env.VITE_APP_USER ?? "").trim();
-const expectedPassword = import.meta.env.VITE_APP_PASSWORD ?? "";
+// --- Serverseitiger Login (Vercel Edge Function /api/auth) ---
+
+export interface SessionInfo {
+  authenticated: boolean;
+  /** Ablaufzeitpunkt der Sitzung als Unix-ms (für Auto-Logout im offenen Tab). */
+  expiresAt?: number;
+}
+
+const AUTH_ENDPOINT = "/api/auth";
+
+// Beim reinen `vite`-Dev-Server (npm run dev) existieren die /api-Funktionen nicht.
+// In diesem Fall lassen wir die App offen, damit Frontend-Entwicklung möglich ist.
+// Für echtes Login-Testen `vercel dev` verwenden (dort antwortet der Endpoint).
+const isDev = import.meta.env.DEV;
 
 /**
- * Gibt true zurück, wenn überhaupt Zugangsdaten konfiguriert sind. Ist nichts
- * gesetzt (z. B. lokale Entwicklung ohne .env.local), bleibt die App offen,
- * statt sich auszusperren.
+ * Fragt den Server, ob die aktuelle Sitzung (httpOnly-Cookie) gültig ist.
  */
-export const isAuthConfigured = () => expectedUser.length > 0 && expectedPassword.length > 0;
-
-/**
- * Prüft die eingegebenen Anmeldedaten gegen die konfigurierten Werte.
- */
-export const verifyCredentials = (username: string, password: string) =>
-  isAuthConfigured() && username.trim() === expectedUser && password === expectedPassword;
-
-// Gültigkeitsdauer einer Anmeldung. Danach muss man sich erneut anmelden.
-const SESSION_DURATION_MS = 12 * 60 * 60 * 1000; // 12 Stunden
-
-/**
- * Verbleibende Gültigkeit der aktuellen Anmeldung in Millisekunden (0 = abgelaufen
- * oder nicht angemeldet). Wird genutzt, um auch im offenen Tab automatisch
- * auszuloggen.
- */
-export const getSessionRemainingMs = () => {
-  if (typeof window === "undefined") return 0;
-  const raw = window.sessionStorage.getItem(APPLICATION_AUTH_STORAGE_KEY);
-  if (!raw) return 0;
-  const expiresAt = Number(raw);
-  if (!Number.isFinite(expiresAt)) return 0;
-  return Math.max(0, expiresAt - Date.now());
-};
-
-/**
- * Ist der Nutzer aktuell angemeldet? Wenn keine Zugangsdaten konfiguriert sind,
- * gilt der Zugriff immer als erlaubt. Eine Anmeldung läuft nach SESSION_DURATION_MS
- * automatisch ab und verfällt zusätzlich beim Schließen des Browsers/Tabs
- * (Speicherung in sessionStorage).
- */
-export const isAuthenticated = () => {
-  if (!isAuthConfigured()) return true;
-  if (typeof window === "undefined") return false;
-
-  const raw = window.sessionStorage.getItem(APPLICATION_AUTH_STORAGE_KEY);
-  if (!raw) return false;
-
-  const expiresAt = Number(raw);
-  if (!Number.isFinite(expiresAt) || Date.now() >= expiresAt) {
-    window.sessionStorage.removeItem(APPLICATION_AUTH_STORAGE_KEY);
-    return false;
+export const checkSession = async (): Promise<SessionInfo> => {
+  try {
+    const response = await fetch(AUTH_ENDPOINT, { method: "GET", credentials: "same-origin" });
+    if (!response.ok) {
+      // 404 -> Funktionen laufen nicht (reines vite dev): lokal offen lassen.
+      if (response.status === 404 && isDev) return { authenticated: true };
+      return { authenticated: false };
+    }
+    return (await response.json()) as SessionInfo;
+  } catch {
+    // Netzwerk-/Parsefehler: lokal offen, in Production fail-closed.
+    return { authenticated: isDev };
   }
-  return true;
 };
 
-export const setAuthenticated = () => {
-  if (typeof window === "undefined") return;
-  window.sessionStorage.setItem(APPLICATION_AUTH_STORAGE_KEY, String(Date.now() + SESSION_DURATION_MS));
+/**
+ * Sendet die Anmeldedaten an den Server. Bei Erfolg setzt der Server das Cookie.
+ */
+export const login = async (username: string, password: string): Promise<SessionInfo> => {
+  try {
+    const response = await fetch(AUTH_ENDPOINT, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+    if (!response.ok) return { authenticated: false };
+    return (await response.json()) as SessionInfo;
+  } catch {
+    return { authenticated: false };
+  }
 };
 
-export const clearAuthentication = () => {
-  if (typeof window === "undefined") return;
-  window.sessionStorage.removeItem(APPLICATION_AUTH_STORAGE_KEY);
+/**
+ * Meldet serverseitig ab (löscht das httpOnly-Cookie) und setzt das Throttling zurück.
+ */
+export const logout = async (): Promise<void> => {
+  try {
+    await fetch(AUTH_ENDPOINT, { method: "DELETE", credentials: "same-origin" });
+  } catch {
+    // Fehler beim Logout ignorieren — Cookie läuft spätestens nach Ablauf aus.
+  }
   resetThrottle();
 };
