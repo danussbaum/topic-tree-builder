@@ -3112,7 +3112,7 @@ function ActionField({
   );
 }
 
-function ActionSidePanel({
+export function ActionSidePanel({
   mode,
   action,
   groupActions,
@@ -3126,6 +3126,7 @@ function ActionSidePanel({
   onDelete,
   onTransitionEnd,
   clientName,
+  readOnly,
 }: {
   mode: "create" | "edit";
   action?: ActionNode;
@@ -3140,6 +3141,8 @@ function ActionSidePanel({
   clientName?: string;
   onDelete: () => void;
   onTransitionEnd: () => void;
+  /** Nur-Lese-Ansicht (z.B. in Auswertungen): identische Optik, keine Bearbeitung. */
+  readOnly?: boolean;
 }) {
   const [draft, setDraft] = useState<ActionDraft>(() => {
     if (action) return actionToDraft(action);
@@ -3443,7 +3446,7 @@ function ActionSidePanel({
           )}
 
           {/* Fields */}
-          <div className="space-y-3">
+          <div className={cn("space-y-3", readOnly && "pointer-events-none")}>
             <ActionField label="Bezeichnung" fieldKey="title">
               <Input
                 value={draft.title}
@@ -3749,26 +3752,34 @@ function ActionSidePanel({
         </ActionFieldCtx.Provider>
 
         {/* Footer */}
-        <div className="flex items-center justify-between bg-primary px-6 py-3">
-          <div className="flex items-center gap-2">
+        {readOnly ? (
+          <div className="flex items-center justify-end bg-primary px-6 py-3">
             <Button type="button" variant="ghost" onClick={onClose} className="text-white hover:bg-white/10 hover:text-white">
-              Abbrechen
+              Schliessen
             </Button>
-            {mode === "edit" && (
-              <Button type="button" variant="ghost" onClick={onDelete} className="text-white hover:bg-white/10 hover:text-white">
-                Löschen
-              </Button>
-            )}
           </div>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={handleSave}
-            className="text-white hover:bg-white/10 hover:text-white"
-          >
-            Speichern
-          </Button>
-        </div>
+        ) : (
+          <div className="flex items-center justify-between bg-primary px-6 py-3">
+            <div className="flex items-center gap-2">
+              <Button type="button" variant="ghost" onClick={onClose} className="text-white hover:bg-white/10 hover:text-white">
+                Abbrechen
+              </Button>
+              {mode === "edit" && (
+                <Button type="button" variant="ghost" onClick={onDelete} className="text-white hover:bg-white/10 hover:text-white">
+                  Löschen
+                </Button>
+              )}
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={handleSave}
+              className="text-white hover:bg-white/10 hover:text-white"
+            >
+              Speichern
+            </Button>
+          </div>
+        )}
       </aside>
     </div>,
     document.body,
@@ -4493,18 +4504,21 @@ function BulkDoneAsPlannedDialog({
   );
 }
 
-function ConfirmActionDialog({
+export function ConfirmActionDialog({
   target,
   onClose,
   onConfirm,
   onDelete,
   clientName,
+  readOnly,
 }: {
   target: DialogTarget;
   onClose: () => void;
   onConfirm: (p: ConfirmPayload) => void;
   onDelete?: () => void;
   clientName?: string;
+  /** Nur-Lese-Ansicht (z.B. in Auswertungen): identische Optik, keine Bearbeitung. */
+  readOnly?: boolean;
 }) {
   const confirmation = target.action.confirmations?.[target.dueDate];
   const [mode, setMode] = useState<ActionStatus | null>(
@@ -4527,6 +4541,22 @@ function ConfirmActionDialog({
     const id = requestAnimationFrame(() => setIsPanelVisible(true));
     return () => cancelAnimationFrame(id);
   }, []);
+
+  // Wird eine andere Handlung gewählt, während das Panel offen ist, Felder direkt
+  // neu befüllen (Panel bleibt offen, kein Schliessen/Neu-Öffnen).
+  useEffect(() => {
+    const conf = target.action.confirmations?.[target.dueDate];
+    setMode(target.initialMode ?? (target.action.status === "open" ? null : target.action.status));
+    setActualMinutes(target.action.actualMinutes != null ? String(target.action.actualMinutes) : "");
+    setReason(target.action.reason ?? "");
+    setResult(target.action.result ?? "");
+    setObservations(target.action.observations ?? "");
+    setPostponedDate(conf?.postponedToDate ?? "");
+    setPostponedTime(conf?.postponedToTime ?? "");
+    setPostponedReason(conf?.postponedReason ?? "");
+    setPostponedError("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target.action.id, target.dueDate]);
 
   useEffect(() => {
     if (!isPanelVisible) return;
@@ -4645,7 +4675,8 @@ function ConfirmActionDialog({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+          <div className={cn("space-y-4", readOnly && "pointer-events-none")}>
           {/* Action info */}
           <div className="rounded-md border border-border bg-background p-3 text-sm space-y-1.5">
             <div className="font-medium">{target.action.title}</div>
@@ -4834,9 +4865,22 @@ function ConfirmActionDialog({
               />
             </div>
           )}
+          </div>
         </div>
 
         {/* Footer */}
+        {readOnly ? (
+          <div className="flex shrink-0 items-center justify-start bg-primary px-6 py-3">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={handleClose}
+              className="text-white hover:bg-white/10 hover:text-white"
+            >
+              Schliessen
+            </Button>
+          </div>
+        ) : (
         <div className="flex shrink-0 items-center justify-between bg-primary px-6 py-3">
           <Button
             type="button"
@@ -4896,6 +4940,7 @@ function ConfirmActionDialog({
             </Button>
           </div>
         </div>
+        )}
       </aside>
     </div>,
     document.body,

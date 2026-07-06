@@ -33,6 +33,7 @@ interface RibbonButtonProps {
   active?: boolean;
   highlighted?: boolean;
   title?: string;
+  iconClassName?: string;
 }
 
 export function RibbonButton({
@@ -43,6 +44,7 @@ export function RibbonButton({
   active,
   highlighted,
   title,
+  iconClassName,
 }: RibbonButtonProps) {
   const button = (
     <button
@@ -59,7 +61,7 @@ export function RibbonButton({
         "disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-foreground/80 disabled:cursor-not-allowed",
       )}
     >
-      <Icon className="h-5 w-5" />
+      <Icon className={cn("h-5 w-5", iconClassName)} />
       <span className="text-center text-[11px] font-medium leading-tight whitespace-normal break-words">
         {label}
       </span>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { format } from "date-fns";
 import {
@@ -29,6 +29,7 @@ import {
   Sun,
   Sunset,
   Moon,
+  LayoutGrid,
 } from "lucide-react";
 import { ClientSidebar, ClientSidebarTrigger } from "@/components/assessment/ClientSidebar";
 import { ModuleNav } from "@/components/ModuleNav";
@@ -44,7 +45,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { AssessmentOutline, UnplannedActionDialog, ActionRow, ActionGroupRow } from "@/components/assessment/AssessmentOutline";
+import { AssessmentOutline, UnplannedActionDialog, ActionRow, ActionGroupRow, ConfirmActionDialog } from "@/components/assessment/AssessmentOutline";
 import { ApplicationLogoutButton } from "@/components/ApplicationLogoutButton";
 import type {
   ActionNode,
@@ -323,6 +324,297 @@ const getVisibleConfirmationRows = (
   return rows;
 };
 
+// --- Auswertungen (Evaluations) ---------------------------------------------
+
+/**
+ * Als "abgeschlossen" gelten alle bestätigten Handlungen – auch nicht
+ * durchgeführte (deren effektive Zeit als 0 zählt).
+ */
+const EVALUATION_DONE_STATUSES: ActionNode["status"][] = [
+  "done_as_planned",
+  "done_with_deviation",
+  "not_done",
+];
+
+const KLV_CATEGORY_LABEL: Record<string, string> = {
+  a: "KLV A",
+  b: "KLV B",
+  c: "KLV C",
+  none: "Ohne Klassifizierung",
+};
+const KLV_CATEGORY_ORDER = ["a", "b", "c", "none"];
+
+const formatEvalMinutes = (minutes: number) => `${Math.round(minutes)} Min`;
+const formatEvalDiff = (minutes: number) => {
+  const rounded = Math.round(minutes);
+  return `${rounded > 0 ? "+" : ""}${rounded} Min`;
+};
+
+/** Spalten für den Handlungs-Export (identisch für "Umsetzung" und "Auswertungen"). */
+const CONFIRMATION_EXPORT_HEADERS = [
+  "Datum",
+  "Klient/in",
+  "Disziplin",
+  "Schwerpunkt",
+  "Ziel",
+  "Handlung",
+  "Planungsart",
+  "Beschreibung",
+  "Hilfsmittel",
+  "Status",
+  "Grund",
+  "Resultat",
+  "Beobachtungen",
+  "Verschoben auf Datum",
+  "Verschoben auf Uhrzeit",
+  "Verschiebungsgrund",
+  "Verschoben von",
+  "Verschoben am",
+  "Benutzername",
+  "Timestamp",
+  "Gültig ab",
+  "Gültig bis",
+  "Tageszeit",
+  "Uhrzeit",
+  "Klassifizierung",
+  "Leistungsarten",
+  "Minuten geplant",
+  "Minuten tatsächlich",
+];
+const CONFIRMATION_EXPORT_DATE_HEADERS = new Set(["Datum", "Verschoben auf Datum", "Gültig ab", "Gültig bis"]);
+const CONFIRMATION_EXPORT_NUMBER_HEADERS = new Set(["Minuten geplant", "Minuten tatsächlich"]);
+
+interface EvaluationActionEntry {
+  key: string;
+  clientId: string;
+  clientName: string;
+  topic: TopicNode;
+  target: { id: string; title: string; notes: string };
+  action: ActionNode;
+  dueDate: string;
+  confirmationDate: string;
+  status: ActionNode["status"];
+  reason: string;
+  ist: number;
+  soll: number;
+}
+
+/** Tatsächliche/geplante Minuten einer Handlung: nicht durchgeführt zählt als 0 IST. */
+const getEntryMinutes = (
+  action: ActionNode,
+  confirmation: { actualMinutes?: number } | undefined,
+  status: ActionNode["status"],
+) => ({
+  ist: status === "not_done" ? 0 : confirmation?.actualMinutes ?? 0,
+  soll: action.plannedMinutes ?? 0,
+});
+
+/** Ein Knoten im Auswertungsbaum – Gruppe (mit children) oder Blatt (mit entry). */
+interface EvalGroupNode {
+  key: string;
+  groupKey: string;
+  label: string;
+  ist: number;
+  soll: number;
+  children: EvalGroupNode[];
+  entry?: EvaluationActionEntry;
+}
+interface EvaluationResult {
+  roots: EvalGroupNode[];
+  totalIst: number;
+  totalSoll: number;
+  actionCount: number;
+}
+
+const EMPTY_EVALUATION: EvaluationResult = {
+  roots: [],
+  totalIst: 0,
+  totalSoll: 0,
+  actionCount: 0,
+};
+
+const sumBy = <T,>(items: T[], pick: (item: T) => number) =>
+  items.reduce((sum, item) => sum + pick(item), 0);
+
+/** Eine Gruppierungs-Dimension (z.B. Kategorie, Klient/in, Tag). */
+interface EvalDimension {
+  keyOf: (entry: EvaluationActionEntry) => string;
+  labelOf: (entry: EvaluationActionEntry) => string;
+  sort: (nodes: EvalGroupNode[]) => EvalGroupNode[];
+}
+
+const CATEGORY_DIMENSION: EvalDimension = {
+  keyOf: (entry) => entry.action.category ?? "none",
+  labelOf: (entry) => KLV_CATEGORY_LABEL[entry.action.category ?? "none"] ?? (entry.action.category ?? "none"),
+  sort: (nodes) =>
+    nodes.slice().sort((a, b) => KLV_CATEGORY_ORDER.indexOf(a.groupKey) - KLV_CATEGORY_ORDER.indexOf(b.groupKey)),
+};
+const CLIENT_DIMENSION: EvalDimension = {
+  keyOf: (entry) => entry.clientId,
+  labelOf: (entry) => entry.clientName,
+  sort: (nodes) => nodes.slice().sort((a, b) => a.label.localeCompare(b.label)),
+};
+const DAY_DIMENSION: EvalDimension = {
+  keyOf: (entry) => entry.dueDate,
+  labelOf: (entry) => formatGermanDate(entry.dueDate),
+  sort: (nodes) => nodes.slice().sort((a, b) => a.groupKey.localeCompare(b.groupKey)),
+};
+
+/** Sammelt alle abgeschlossenen Handlungen des Monats (Filter gilt, Status = abgeschlossen). */
+const collectEvaluationEntries = (
+  clients: Client[],
+  selectedDate: string,
+  filter: AssessmentFilterModel,
+  lastNDays: number,
+  onlyWithDifference: boolean,
+): EvaluationActionEntry[] => {
+  const evalFilter: AssessmentFilterModel = { ...filter, statuses: EVALUATION_DONE_STATUSES };
+  const entries: EvaluationActionEntry[] = [];
+
+  clients.forEach((client) => {
+    const clientName = `${client.firstName} ${client.lastName}`.trim() || "Unbenannt";
+    getVisibleConfirmationRows(client, selectedDate, "month", evalFilter, lastNDays).forEach((row) => {
+      const confirmation = row.action.confirmations?.[row.confirmationDate];
+      const { ist, soll } = getEntryMinutes(row.action, confirmation, row.status);
+      if (onlyWithDifference && ist === soll) return;
+      entries.push({
+        key: `${client.id}|${row.action.id}|${row.dueDate}|${row.confirmationDate}`,
+        clientId: client.id,
+        clientName,
+        topic: row.topic,
+        target: row.target,
+        action: row.action,
+        dueDate: row.dueDate,
+        confirmationDate: row.confirmationDate,
+        status: row.status,
+        reason: confirmation?.reason ?? "",
+        ist,
+        soll,
+      });
+    });
+  });
+
+  return entries;
+};
+
+/** Blattknoten für einzelne Handlungen (eine Zeile pro Vorkommen). */
+const buildActionLeaves = (entries: EvaluationActionEntry[], keyPrefix: string): EvalGroupNode[] =>
+  entries
+    .slice()
+    .sort(
+      (a, b) =>
+        (a.action.scheduledTime ?? "").localeCompare(b.action.scheduledTime ?? "") ||
+        a.action.title.localeCompare(b.action.title),
+    )
+    .map((entry) => ({
+      key: `${keyPrefix}|${entry.key}`,
+      groupKey: entry.key,
+      label: entry.action.title || "Ohne Titel",
+      ist: entry.ist,
+      soll: entry.soll,
+      children: [],
+      entry,
+    }));
+
+/**
+ * Gruppiert Einträge rekursiv nach den Dimensionen.
+ * expandLeaves=true: unterste Ebene fächert in einzelne Handlungen auf (4 Ebenen).
+ * expandLeaves=false: die letzte Dimension ist selbst das (anklickbare) Blatt (3 Ebenen);
+ *   nur bei mehreren Vorkommen wird sie zusätzlich in Handlungen aufgeklappt.
+ */
+const buildGroupNodes = (
+  entries: EvaluationActionEntry[],
+  dimensions: EvalDimension[],
+  keyPrefix: string,
+  expandLeaves: boolean,
+): EvalGroupNode[] => {
+  if (dimensions.length === 0) {
+    return buildActionLeaves(entries, keyPrefix);
+  }
+
+  const [dimension, ...rest] = dimensions;
+  const isLastDimension = rest.length === 0;
+  const groups = new Map<string, EvaluationActionEntry[]>();
+  entries.forEach((entry) => {
+    const key = dimension.keyOf(entry);
+    const list = groups.get(key) ?? [];
+    list.push(entry);
+    groups.set(key, list);
+  });
+
+  const nodes: EvalGroupNode[] = [...groups.entries()].map(([groupKey, groupEntries]) => {
+    const nodeKey = `${keyPrefix}|${groupKey}`;
+    const base = {
+      key: nodeKey,
+      groupKey,
+      label: dimension.labelOf(groupEntries[0]),
+      ist: sumBy(groupEntries, (e) => e.ist),
+      soll: sumBy(groupEntries, (e) => e.soll),
+    };
+
+    // Letzte Dimension ohne Auffächerung: Knoten selbst ist das Blatt (falls genau
+    // ein Vorkommen), sonst in einzelne Handlungen aufklappbar.
+    if (isLastDimension && !expandLeaves) {
+      if (groupEntries.length === 1) {
+        return { ...base, children: [], entry: groupEntries[0] };
+      }
+      return { ...base, children: buildActionLeaves(groupEntries, nodeKey) };
+    }
+
+    return { ...base, children: buildGroupNodes(groupEntries, rest, nodeKey, expandLeaves) };
+  });
+
+  return dimension.sort(nodes);
+};
+
+/**
+ * Baut die Auswertung für die gewählte Gruppierungs-Reihenfolge. Nur abgeschlossene
+ * Handlungen des Monats; der Umsetzungs-Filter gilt mit (ausser Status = immer abgeschlossen).
+ */
+const buildEvaluation = (
+  clients: Client[],
+  selectedDate: string,
+  filter: AssessmentFilterModel,
+  lastNDays: number,
+  onlyWithDifference: boolean,
+  dimensions: EvalDimension[],
+  expandLeaves: boolean,
+): EvaluationResult => {
+  const entries = collectEvaluationEntries(clients, selectedDate, filter, lastNDays, onlyWithDifference);
+  return {
+    roots: buildGroupNodes(entries, dimensions, "root", expandLeaves),
+    totalIst: sumBy(entries, (e) => e.ist),
+    totalSoll: sumBy(entries, (e) => e.soll),
+    actionCount: entries.length,
+  };
+};
+
+const HANDLUNG_DIMENSION: EvalDimension = {
+  keyOf: (entry) => entry.action.title || "Ohne Titel",
+  labelOf: (entry) => entry.action.title || "Ohne Titel",
+  sort: (nodes) => nodes.slice().sort((a, b) => a.label.localeCompare(b.label)),
+};
+
+type AuswertungMode = "category" | "client" | "action";
+
+const EVALUATION_CONFIG: Record<AuswertungMode, { dimensions: EvalDimension[]; expandLeaves: boolean; columnLabel: string }> = {
+  category: {
+    dimensions: [CATEGORY_DIMENSION, CLIENT_DIMENSION, DAY_DIMENSION],
+    expandLeaves: true,
+    columnLabel: "Klassifizierung / Klient/in / Tag / Handlung",
+  },
+  client: {
+    dimensions: [CLIENT_DIMENSION, CATEGORY_DIMENSION, DAY_DIMENSION],
+    expandLeaves: true,
+    columnLabel: "Klient/in / Klassifizierung / Tag / Handlung",
+  },
+  action: {
+    dimensions: [HANDLUNG_DIMENSION, DAY_DIMENSION, CLIENT_DIMENSION],
+    expandLeaves: false,
+    columnLabel: "Handlung / Tag / Klient/in",
+  },
+};
+
 const formatGermanDate = (isoDate: string) => {
   const [year, month, day] = isoDate.split("-");
   return `${day}.${month}.${year}`;
@@ -476,9 +768,12 @@ const seedClients: Client[] = [
 const Index = () => {
   const navigate = useNavigate();
   const cached = loadCachedAssessmentState(todayLocalISO(), INITIAL_CONFIRMATION_FILTER);
-  const [viewMode, setViewMode] = useState<"planning" | "confirmation" | "review">(
+  const [viewMode, setViewMode] = useState<"planning" | "confirmation" | "review" | "auswertungen">(
     cached?.viewMode ?? "planning",
   );
+  const [auswertungMode, setAuswertungMode] = useState<"category" | "client" | "action">("category");
+  const [auswertungDetail, setAuswertungDetail] = useState<EvaluationActionEntry | null>(null);
+  const [auswertungOnlyWithDifference, setAuswertungOnlyWithDifference] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string>(cached?.selectedDate ?? todayLocalISO());
   const [confirmationPeriod, setConfirmationPeriod] = useState<ConfirmationPeriod>(
     cached?.confirmationPeriod ?? "day",
@@ -1665,6 +1960,27 @@ const Index = () => {
     setSelectedDate(dateToISO(d));
   };
 
+  const shiftAuswertungMonth = (step: number) => {
+    const d = new Date(`${selectedDate}T00:00:00`);
+    d.setDate(1);
+    d.setMonth(d.getMonth() + step);
+    setSelectedDate(dateToISO(d));
+  };
+
+  const evaluation = useMemo<EvaluationResult>(() => {
+    if (viewMode !== "auswertungen") return EMPTY_EVALUATION;
+    const config = EVALUATION_CONFIG[auswertungMode];
+    return buildEvaluation(
+      selectedClients,
+      selectedDate,
+      confirmationFilter,
+      lastNDays,
+      auswertungOnlyWithDifference,
+      config.dimensions,
+      config.expandLeaves,
+    );
+  }, [viewMode, auswertungMode, selectedClients, selectedDate, confirmationFilter, lastNDays, auswertungOnlyWithDifference]);
+
   const exportReviewXlsx = () => {
     if (viewMode !== "review") return;
     const disciplineList = availableDisciplines.length > 0 ? availableDisciplines : initialActionPlanDisciplines;
@@ -1703,10 +2019,90 @@ const Index = () => {
     URL.revokeObjectURL(url);
   };
 
+  const toConfirmationExportRecord = (
+    client: Client,
+    { dueDate, topic, target, action, confirmationDate, status }: ReturnType<typeof getVisibleConfirmationRows>[number],
+  ): Record<string, string | number> => {
+    const confirmation = action.confirmations?.[confirmationDate];
+    return {
+      Datum: dueDate,
+      "Klient/in": `${client.firstName} ${client.lastName}`.trim(),
+      Disziplin:
+        availableDisciplines.find((discipline) => discipline.id === topic.disciplineId)?.title ??
+        topic.disciplineId ??
+        "",
+      Schwerpunkt: topic.title,
+      Ziel: target.title,
+      Handlung: action.title,
+      "Planungsart": action.isUnplanned ? "Ungeplant" : "Geplant",
+      Beschreibung: action.notes,
+      Hilfsmittel: action.requiredResources ?? "",
+      Status:
+        status === "done_as_planned"
+          ? "Durchgeführt"
+          : status === "done_with_deviation"
+            ? "Mit Abweichung durchgeführt"
+            : status === "not_done"
+              ? "Nicht durchgeführt"
+              : status === "postponed"
+                ? "Verschoben"
+                : "Offen",
+      Grund: confirmation?.reason ?? "",
+      Resultat: confirmation?.result ?? "",
+      Beobachtungen: confirmation?.observations ?? "",
+      "Verschoben auf Datum": confirmation?.postponedToDate ?? "",
+      "Verschoben auf Uhrzeit": confirmation?.postponedToTime ?? "",
+      "Verschiebungsgrund": confirmation?.postponedReason ?? "",
+      "Verschoben von": confirmation?.postponedBy ?? "",
+      "Verschoben am": confirmation?.postponedAt ?? "",
+      Benutzername: confirmation?.confirmedBy ?? "",
+      Timestamp: confirmation?.confirmedAt ?? "",
+      "Gültig ab": action.validFrom ?? "",
+      "Gültig bis": action.validTo ?? "",
+      "Tageszeit": action.dayPart ? DAY_PART_LABEL[action.dayPart] : "ohne",
+      "Uhrzeit": action.scheduledTime ?? "",
+      Klassifizierung: action.category ? `KLV ${action.category.toUpperCase()}` : "",
+      Leistungsarten: (action.serviceEntries ?? []).map((e) => {
+        const label = ACTION_SERVICE_TYPE_SELECT_OPTIONS.find((o) => o.value === e.serviceType)?.label ?? e.serviceType;
+        return e.maxMinutes != null ? `${label} (max. ${e.maxMinutes} Min.)` : label;
+      }).join(" | "),
+      "Minuten geplant": action.plannedMinutes ?? "",
+      "Minuten tatsächlich": confirmation?.actualMinutes ?? "",
+    };
+  };
+
+  const downloadConfirmationXlsx = (
+    records: Record<string, string | number>[],
+    sheetName: string,
+    filename: string,
+  ) => {
+    const blob = createSimpleXlsxBlob({
+      sheetName,
+      headers: CONFIRMATION_EXPORT_HEADERS,
+      rows: records.map((row) =>
+        CONFIRMATION_EXPORT_HEADERS.map((header) => {
+          const value = row[header] ?? "";
+          if (value === "") return "";
+          if (CONFIRMATION_EXPORT_DATE_HEADERS.has(header)) return { type: "date" as const, value: String(value) };
+          if (CONFIRMATION_EXPORT_NUMBER_HEADERS.has(header)) return { type: "number" as const, value };
+          return value;
+        }),
+      ),
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const exportConfirmationExcel = () => {
     if (viewMode !== "confirmation") return;
 
-    const rows = selectedClients.flatMap((client) =>
+    const records = selectedClients.flatMap((client) =>
       getVisibleConfirmationRows(
         client,
         selectedDate,
@@ -1714,105 +2110,9 @@ const Index = () => {
         confirmationFilter,
         lastNDays,
         transientUnplannedActionIds,
-      ).map(({ dueDate, topic, target, action, confirmationDate, status }) => {
-        const confirmation = action.confirmations?.[confirmationDate];
-        return {
-          Datum: dueDate,
-          "Klient/in": `${client.firstName} ${client.lastName}`.trim(),
-          Disziplin:
-            availableDisciplines.find((discipline) => discipline.id === topic.disciplineId)?.title ??
-            topic.disciplineId ??
-            "",
-          Schwerpunkt: topic.title,
-          Ziel: target.title,
-          Handlung: action.title,
-          "Planungsart": action.isUnplanned ? "Ungeplant" : "Geplant",
-          Beschreibung: action.notes,
-          Hilfsmittel: action.requiredResources ?? "",
-          Status:
-            status === "done_as_planned"
-              ? "Durchgeführt"
-              : status === "done_with_deviation"
-                ? "Mit Abweichung durchgeführt"
-                : status === "not_done"
-                  ? "Nicht durchgeführt"
-                  : status === "postponed"
-                    ? "Verschoben"
-                    : "Offen",
-          Grund: confirmation?.reason ?? "",
-          Resultat: confirmation?.result ?? "",
-          Beobachtungen: confirmation?.observations ?? "",
-          "Verschoben auf Datum": confirmation?.postponedToDate ?? "",
-          "Verschoben auf Uhrzeit": confirmation?.postponedToTime ?? "",
-          "Verschiebungsgrund": confirmation?.postponedReason ?? "",
-          "Verschoben von": confirmation?.postponedBy ?? "",
-          "Verschoben am": confirmation?.postponedAt ?? "",
-          Benutzername: confirmation?.confirmedBy ?? "",
-          Timestamp: confirmation?.confirmedAt ?? "",
-          "Gültig ab": action.validFrom ?? "",
-          "Gültig bis": action.validTo ?? "",
-          "Tageszeit": action.dayPart ? DAY_PART_LABEL[action.dayPart] : "ohne",
-          "Uhrzeit": action.scheduledTime ?? "",
-          Klassifizierung: action.category ? `KLV ${action.category.toUpperCase()}` : "",
-          Leistungsarten: (action.serviceEntries ?? []).map((e) => {
-            const label = ACTION_SERVICE_TYPE_SELECT_OPTIONS.find((o) => o.value === e.serviceType)?.label ?? e.serviceType;
-            return e.maxMinutes != null ? `${label} (max. ${e.maxMinutes} Min.)` : label;
-          }).join(" | "),
-          "Minuten geplant": action.plannedMinutes ?? "",
-          "Minuten tatsächlich": confirmation?.actualMinutes ?? "",
-        };
-      }),
+      ).map((row) => toConfirmationExportRecord(client, row)),
     );
 
-    const allHeaders = [
-      "Datum",
-      "Klient/in",
-      "Disziplin",
-      "Schwerpunkt",
-      "Ziel",
-      "Handlung",
-      "Planungsart",
-      "Beschreibung",
-      "Hilfsmittel",
-      "Status",
-      "Grund",
-      "Resultat",
-      "Beobachtungen",
-      "Verschoben auf Datum",
-      "Verschoben auf Uhrzeit",
-      "Verschiebungsgrund",
-      "Verschoben von",
-      "Verschoben am",
-      "Benutzername",
-      "Timestamp",
-      "Gültig ab",
-      "Gültig bis",
-      "Tageszeit",
-      "Uhrzeit",
-      "Klassifizierung",
-      "Leistungsarten",
-      "Minuten geplant",
-      "Minuten tatsächlich",
-    ];
-
-    const dateHeaders = new Set(["Datum", "Verschoben auf Datum", "Gültig ab", "Gültig bis"]);
-    const numberHeaders = new Set(["Minuten geplant", "Minuten tatsächlich"]);
-
-    const blob = createSimpleXlsxBlob({
-      sheetName: "Umsetzungen",
-      headers: allHeaders,
-      rows: rows.map((row) =>
-        allHeaders.map((header) => {
-          const value = row[header as keyof typeof row] ?? "";
-
-          if (value === "") return "";
-          if (dateHeaders.has(header)) return { type: "date" as const, value: String(value) };
-          if (numberHeaders.has(header)) return { type: "number" as const, value };
-
-          return value;
-        }),
-      ),
-    });
     const periodLabel =
       confirmationPeriod === "day"
         ? selectedDate
@@ -1824,14 +2124,25 @@ const Index = () => {
           : confirmationPeriod === "lastNDays"
             ? `letzte-${lastNDays}-tage`
             : selectedDate.slice(0, 7);
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `bestaetigungen_alle_${periodLabel}.xlsx`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    downloadConfirmationXlsx(records, "Umsetzungen", `bestaetigungen_alle_${periodLabel}.xlsx`);
+  };
+
+  const exportAuswertungExcel = () => {
+    if (viewMode !== "auswertungen") return;
+
+    const evalFilter: AssessmentFilterModel = { ...confirmationFilter, statuses: EVALUATION_DONE_STATUSES };
+    const records = selectedClients.flatMap((client) =>
+      getVisibleConfirmationRows(client, selectedDate, "month", evalFilter, lastNDays)
+        .filter((row) => {
+          if (!auswertungOnlyWithDifference) return true;
+          const confirmation = row.action.confirmations?.[row.confirmationDate];
+          const { ist, soll } = getEntryMinutes(row.action, confirmation, row.status);
+          return ist !== soll;
+        })
+        .map((row) => toConfirmationExportRecord(client, row)),
+    );
+
+    downloadConfirmationXlsx(records, "Auswertung", `auswertung_${selectedDate.slice(0, 7)}.xlsx`);
   };
 
   return (
@@ -1957,6 +2268,46 @@ const Index = () => {
               active={viewMode === "review"}
             />
             <RibbonDivider />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <span>
+                  <RibbonButton
+                    icon={LayoutGrid}
+                    iconClassName="h-7 w-7"
+                    label="Auswertungen"
+                    title="Auswertungen"
+                    active={viewMode === "auswertungen"}
+                  />
+                </span>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem
+                  onClick={() => {
+                    setAuswertungMode("category");
+                    setViewMode("auswertungen");
+                  }}
+                >
+                  Nach Klassifizierung
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    setAuswertungMode("client");
+                    setViewMode("auswertungen");
+                  }}
+                >
+                  Nach Klientin
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    setAuswertungMode("action");
+                    setViewMode("auswertungen");
+                  }}
+                >
+                  Nach Handlung
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <RibbonDivider />
             <div ref={filterButtonRef} className="inline-flex">
               <RibbonButton
                 icon={Filter}
@@ -1988,25 +2339,33 @@ const Index = () => {
             <RibbonButton
               icon={ExcelIcon}
               label="Export"
-              onClick={viewMode === "review" ? exportReviewXlsx : exportConfirmationExcel}
-              disabled={viewMode !== "confirmation" && viewMode !== "review"}
+              onClick={
+                viewMode === "review"
+                  ? exportReviewXlsx
+                  : viewMode === "auswertungen"
+                    ? exportAuswertungExcel
+                    : exportConfirmationExcel
+              }
+              disabled={viewMode === "planning"}
               title={
                 viewMode === "review"
                   ? "Überprüfungsdaten als XLSX exportieren"
-                  : viewMode === "confirmation"
-                    ? "Umsetzungsdaten als XLSX exportieren"
-                    : "Export ist nur in der Umsetzungs- oder Überprüfungsansicht verfügbar"
+                  : viewMode === "auswertungen"
+                    ? "Handlungen der Auswertung als XLSX exportieren"
+                    : viewMode === "confirmation"
+                      ? "Umsetzungsdaten als XLSX exportieren"
+                      : "Export ist nur in der Umsetzungs-, Auswertungs- oder Überprüfungsansicht verfügbar"
               }
             />
             </div>
 
-            {viewMode === "confirmation" && isFilterOpen && (
+            {(viewMode === "confirmation" || viewMode === "auswertungen") && isFilterOpen && (
               <div
                 className="fixed inset-0 z-30"
                 onMouseDown={cancelFilter}
               />
             )}
-            {viewMode === "confirmation" && isFilterOpen && (
+            {(viewMode === "confirmation" || viewMode === "auswertungen") && isFilterOpen && (
               <div
                 ref={filterMenuRef}
                 style={{ left: `${filterMenuLeft}px` }}
@@ -2017,28 +2376,30 @@ const Index = () => {
                 </div>
 
                 <div className="space-y-3 p-3 text-xs">
-                  <div className="space-y-1.5">
-                    <div className="text-sm font-medium">Status (ODER)</div>
-                    <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-                      {[
-                        { value: "open", label: "Offen" },
-                        { value: "done_as_planned", label: "Erledigt wie geplant" },
-                        { value: "done_with_deviation", label: "Erledigt mit Abweichung" },
-                        { value: "not_done", label: "Nicht durchgeführt" },
-                        { value: "postponed", label: "Verschoben" },
-                      ].map((item) => (
-                        <label key={item.value} className="inline-flex items-center gap-1.5 leading-tight">
-                          <input
-                            type="checkbox"
-                            checked={draftFilter.statuses.includes(item.value as ActionNode["status"])}
-                            onChange={() => toggleDraftStatus(item.value as ActionNode["status"])}
-                            className="h-3.5 w-3.5 rounded border-border accent-primary"
-                          />
-                          {item.label}
-                        </label>
-                      ))}
+                  {viewMode !== "auswertungen" && (
+                    <div className="space-y-1.5">
+                      <div className="text-sm font-medium">Status (ODER)</div>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                        {[
+                          { value: "open", label: "Offen" },
+                          { value: "done_as_planned", label: "Erledigt wie geplant" },
+                          { value: "done_with_deviation", label: "Erledigt mit Abweichung" },
+                          { value: "not_done", label: "Nicht durchgeführt" },
+                          { value: "postponed", label: "Verschoben" },
+                        ].map((item) => (
+                          <label key={item.value} className="inline-flex items-center gap-1.5 leading-tight">
+                            <input
+                              type="checkbox"
+                              checked={draftFilter.statuses.includes(item.value as ActionNode["status"])}
+                              onChange={() => toggleDraftStatus(item.value as ActionNode["status"])}
+                              className="h-3.5 w-3.5 rounded border-border accent-primary"
+                            />
+                            {item.label}
+                          </label>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     <div className="space-y-1">
@@ -2818,7 +3179,58 @@ const Index = () => {
                     })}
                   </>
                 )}
-                {viewMode !== "review" && visibleSelectedClients.map((client) => (
+                {viewMode === "auswertungen" && (
+                  <div className="space-y-6">
+                    <div className="flex items-center justify-between p-4 rounded-lg border border-border bg-[#F5F5F6]">
+                      <div className="flex items-center gap-4">
+                        <div className="text-sm font-medium">
+                          {auswertungMode === "category"
+                            ? "Auswertung nach Klassifizierung"
+                            : auswertungMode === "client"
+                              ? "Auswertung nach Klientin"
+                              : "Auswertung nach Handlung"}
+                        </div>
+                        <div className="flex items-center gap-1 bg-background border border-border rounded-md p-1">
+                          <button
+                            className="h-8 w-8 inline-flex items-center justify-center rounded hover:bg-secondary"
+                            onClick={() => shiftAuswertungMonth(-1)}
+                            aria-label="Vorheriger Monat"
+                          >
+                            ‹
+                          </button>
+                          <input
+                            type="month"
+                            value={selectedDate.slice(0, 7)}
+                            onChange={(e) => e.target.value && setSelectedDate(`${e.target.value}-01`)}
+                            className="bg-transparent text-sm px-2 py-1 outline-none"
+                          />
+                          <button
+                            className="h-8 w-8 inline-flex items-center justify-center rounded hover:bg-secondary"
+                            onClick={() => shiftAuswertungMonth(1)}
+                            aria-label="Nächster Monat"
+                          >
+                            ›
+                          </button>
+                        </div>
+                      </div>
+                      <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={auswertungOnlyWithDifference}
+                          onChange={(e) => setAuswertungOnlyWithDifference(e.target.checked)}
+                          className="h-4 w-4 rounded border-border accent-primary"
+                        />
+                        Nur mit Differenz
+                      </label>
+                    </div>
+                    <EvaluationTreeView
+                      data={evaluation}
+                      columnLabel={EVALUATION_CONFIG[auswertungMode].columnLabel}
+                      onSelectAction={(entry) => setAuswertungDetail(entry)}
+                    />
+                  </div>
+                )}
+                {(viewMode === "planning" || viewMode === "confirmation") && visibleSelectedClients.map((client) => (
                   <section key={client.id} className="space-y-6">
                     {/* Client header */}
                     <div className={cn("flex items-center gap-4 pb-5 border-b border-border sticky z-10 bg-[#F5F5F6]", viewMode === "confirmation" ? "top-0 pt-[5px]" : viewMode === "planning" ? "top-0 pb-2" : "top-9 pb-2")}>
@@ -3061,6 +3473,32 @@ const Index = () => {
         />,
         document.body,
       )}
+      {auswertungDetail && (() => {
+        const confirmation = auswertungDetail.action.confirmations?.[auswertungDetail.confirmationDate];
+        return (
+          <ConfirmActionDialog
+            readOnly
+            target={{
+              topicId: auswertungDetail.topic.id,
+              targetId: auswertungDetail.target.id,
+              dueDate: auswertungDetail.confirmationDate,
+              confirmedBy: confirmation?.confirmedBy,
+              confirmedAt: confirmation?.confirmedAt,
+              action: {
+                ...auswertungDetail.action,
+                status: auswertungDetail.status,
+                actualMinutes: confirmation?.actualMinutes,
+                reason: confirmation?.reason,
+                result: confirmation?.result,
+                observations: confirmation?.observations,
+              },
+            }}
+            onClose={() => setAuswertungDetail(null)}
+            onConfirm={() => {}}
+            clientName={auswertungDetail.clientName}
+          />
+        );
+      })()}
       <ConfirmDialog
         open={confirmDialogState !== null}
         message={confirmDialogState?.message ?? ""}
@@ -3074,6 +3512,154 @@ const Index = () => {
   );
 };
 
+
+const EvaluationRow = ({
+  depth,
+  label,
+  subLabel,
+  ist,
+  soll,
+  expandable,
+  expanded,
+  emphasis,
+  onClick,
+}: {
+  depth: number;
+  label: string;
+  subLabel?: string;
+  ist: number;
+  soll: number;
+  expandable?: boolean;
+  expanded?: boolean;
+  emphasis?: boolean;
+  onClick?: () => void;
+}) => {
+  const diff = ist - soll;
+  return (
+    <div
+      className={cn(
+        "grid grid-cols-[1fr_7rem_7rem_7rem] gap-2 border-b border-border/60 px-4 py-1.5 text-sm",
+        subLabel ? "items-start" : "items-center",
+        onClick && "cursor-pointer hover:bg-secondary/50",
+        emphasis && "bg-[#F5F5F6]",
+      )}
+      onClick={onClick}
+    >
+      <div className={cn("flex min-w-0 gap-1", subLabel ? "items-start" : "items-center")} style={{ paddingLeft: `${depth * 18}px` }}>
+        {expandable ? (
+          expanded ? (
+            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+          )
+        ) : (
+          <span className="inline-block w-4 shrink-0" />
+        )}
+        <div className="min-w-0">
+          <span className={cn("block truncate", emphasis && "font-medium")}>{label}</span>
+          {subLabel && (
+            <span className="mt-0.5 block text-xs italic text-muted-foreground">{subLabel}</span>
+          )}
+        </div>
+      </div>
+      <div className="text-right tabular-nums">{formatEvalMinutes(ist)}</div>
+      <div className="text-right tabular-nums text-muted-foreground">{formatEvalMinutes(soll)}</div>
+      <div
+        className={cn(
+          "text-right tabular-nums",
+          diff > 0 ? "text-amber-600" : diff < 0 ? "text-emerald-600" : "text-muted-foreground",
+        )}
+      >
+        {formatEvalDiff(diff)}
+      </div>
+    </div>
+  );
+};
+
+function EvaluationTreeView({
+  data,
+  columnLabel,
+  onSelectAction,
+}: {
+  data: EvaluationResult;
+  columnLabel: string;
+  onSelectAction: (entry: EvaluationActionEntry) => void;
+}) {
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+
+  const toggle = (key: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  if (data.actionCount === 0) {
+    return (
+      <div className="rounded-lg border border-border bg-background p-12 text-center text-muted-foreground">
+        Keine abgeschlossenen Handlungen in diesem Monat.
+      </div>
+    );
+  }
+
+  const renderNode = (node: EvalGroupNode, depth: number) => {
+    if (node.entry) {
+      return (
+        <EvaluationRow
+          key={node.key}
+          depth={depth}
+          label={node.label}
+          subLabel={node.entry.reason ? `Begründung: ${node.entry.reason}` : undefined}
+          ist={node.ist}
+          soll={node.soll}
+          onClick={() => onSelectAction(node.entry!)}
+        />
+      );
+    }
+    const open = expanded.has(node.key);
+    return (
+      <div key={node.key}>
+        <EvaluationRow
+          depth={depth}
+          label={node.label}
+          ist={node.ist}
+          soll={node.soll}
+          expandable
+          expanded={open}
+          emphasis={depth === 0}
+          onClick={() => toggle(node.key)}
+        />
+        {open && node.children.map((child) => renderNode(child, depth + 1))}
+      </div>
+    );
+  };
+
+  return (
+    <div
+      className="overflow-hidden rounded-lg border border-border bg-background"
+      // Klicks im Baum sollen das offene Detailpanel nicht schliessen, sondern
+      // (bei Handlungen) direkt aktualisieren.
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      <div className="grid grid-cols-[1fr_7rem_7rem_7rem] gap-2 border-b border-border bg-[#F5F5F6] px-4 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        <div>{columnLabel}</div>
+        <div className="text-right">Tatsächlich</div>
+        <div className="text-right">Geplant</div>
+        <div className="text-right">Differenz</div>
+      </div>
+
+      {data.roots.map((node) => renderNode(node, 0))}
+
+      <div className="grid grid-cols-[1fr_7rem_7rem_7rem] gap-2 border-t-2 border-border bg-[#F5F5F6] px-4 py-2.5 text-sm font-semibold">
+        <div>Total ({data.actionCount} Handlungen)</div>
+        <div className="text-right tabular-nums">{formatEvalMinutes(data.totalIst)}</div>
+        <div className="text-right tabular-nums">{formatEvalMinutes(data.totalSoll)}</div>
+        <div className="text-right tabular-nums">{formatEvalDiff(data.totalIst - data.totalSoll)}</div>
+      </div>
+    </div>
+  );
+}
 
 function TargetAssessmentPanel({
   target,
