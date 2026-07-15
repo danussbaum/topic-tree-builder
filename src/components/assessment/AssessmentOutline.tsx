@@ -4511,12 +4511,14 @@ export function ConfirmActionDialog({
   onDelete,
   clientName,
   readOnly,
+  title = "Handlung bestätigen",
 }: {
   target: DialogTarget;
   onClose: () => void;
   onConfirm: (p: ConfirmPayload) => void;
   onDelete?: () => void;
   clientName?: string;
+  title?: string;
   /** Nur-Lese-Ansicht (z.B. in Auswertungen): identische Optik, keine Bearbeitung. */
   readOnly?: boolean;
 }) {
@@ -4666,7 +4668,7 @@ export function ConfirmActionDialog({
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between bg-primary px-6 py-4 text-primary-foreground">
           <div>
-            <h2 className="text-2xl font-light">Handlung bestätigen</h2>
+            <h2 className="text-2xl font-light">{title}</h2>
             {clientName && <p className="text-sm opacity-80 mt-0.5">{clientName}</p>}
           </div>
           <button type="button" onClick={handleClose} className="opacity-70 hover:opacity-100">

@@ -46,7 +46,7 @@ const migrateCachedTopicsToDisciplines = (clients: Client[]): Client[] =>
   }));
 
 export interface CachedAssessmentState {
-  viewMode: "planning" | "confirmation" | "review" | "auswertungen";
+  viewMode: "planning" | "confirmation" | "evaluation" | "auswertungen";
   selectedDate: string;
   confirmationPeriod: ConfirmationPeriod;
   lastNDays: number;
@@ -80,8 +80,8 @@ export const loadCachedAssessmentState = (
       viewMode:
         parsed.viewMode === "confirmation"
           ? "confirmation"
-          : parsed.viewMode === "review"
-            ? "review"
+          : parsed.viewMode === "evaluation"
+            ? "evaluation"
             : parsed.viewMode === "auswertungen"
               ? "auswertungen"
               : "planning",

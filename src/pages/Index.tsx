@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { format } from "date-fns";
 import {
@@ -23,6 +23,7 @@ import {
   Pencil,
   Info,
   ChevronDown,
+  ChevronUp,
   ChevronRight,
   Sunrise,
   Utensils,
@@ -595,9 +596,22 @@ const HANDLUNG_DIMENSION: EvalDimension = {
   sort: (nodes) => nodes.slice().sort((a, b) => a.label.localeCompare(b.label)),
 };
 
-type AuswertungMode = "category" | "client" | "action";
+type AuswertungMode = "category" | "client" | "action" | "resultObservation";
+type AuswertungTreeMode = "category" | "client" | "action";
 
-const EVALUATION_CONFIG: Record<AuswertungMode, { dimensions: EvalDimension[]; expandLeaves: boolean; columnLabel: string }> = {
+/** Effektives Datum/Uhrzeit einer Handlung: bei Verschiebung gilt der neue Termin. */
+const getEffectiveDateTime = (entry: EvaluationActionEntry) => {
+  const confirmation = entry.action.confirmations?.[entry.confirmationDate];
+  const time = confirmation?.postponedToTime ?? entry.action.scheduledTime ?? "";
+  return { date: entry.dueDate, time };
+};
+
+const formatEvalDateTime = (entry: EvaluationActionEntry) => {
+  const { date, time } = getEffectiveDateTime(entry);
+  return time ? `${formatGermanDate(date)}, ${time}` : formatGermanDate(date);
+};
+
+const EVALUATION_CONFIG: Record<AuswertungTreeMode, { dimensions: EvalDimension[]; expandLeaves: boolean; columnLabel: string }> = {
   category: {
     dimensions: [CATEGORY_DIMENSION, CLIENT_DIMENSION, DAY_DIMENSION],
     expandLeaves: true,
@@ -768,12 +782,14 @@ const seedClients: Client[] = [
 const Index = () => {
   const navigate = useNavigate();
   const cached = loadCachedAssessmentState(todayLocalISO(), INITIAL_CONFIRMATION_FILTER);
-  const [viewMode, setViewMode] = useState<"planning" | "confirmation" | "review" | "auswertungen">(
+  const [viewMode, setViewMode] = useState<"planning" | "confirmation" | "evaluation" | "auswertungen">(
     cached?.viewMode ?? "planning",
   );
-  const [auswertungMode, setAuswertungMode] = useState<"category" | "client" | "action">("category");
+  const [auswertungMode, setAuswertungMode] = useState<AuswertungMode>("category");
   const [auswertungDetail, setAuswertungDetail] = useState<EvaluationActionEntry | null>(null);
   const [auswertungOnlyWithDifference, setAuswertungOnlyWithDifference] = useState(false);
+  const [auswertungOnlyWithResult, setAuswertungOnlyWithResult] = useState(false);
+  const [auswertungOnlyWithObservation, setAuswertungOnlyWithObservation] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string>(cached?.selectedDate ?? todayLocalISO());
   const [confirmationPeriod, setConfirmationPeriod] = useState<ConfirmationPeriod>(
     cached?.confirmationPeriod ?? "day",
@@ -795,12 +811,12 @@ const Index = () => {
   const [pendingActualMinutesOp, setPendingActualMinutesOp] = useState<"gt" | "lt" | "eq">("eq");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [showClosedTargets, setShowClosedTargets] = useState(false);
-  const [reviewAssessmentPanel, setReviewAssessmentPanel] = useState<{
+  const [evaluationAssessmentPanel, setEvaluationAssessmentPanel] = useState<{
     clientId: string;
     topicId: string;
     target: import("@/types/assessment").TargetNode;
   } | null>(null);
-  const [hideReviewAssessed, setHideReviewAssessed] = useState(false);
+  const [hideEvaluationAssessed, setHideEvaluationAssessed] = useState(false);
   const [confirmDialogState, setConfirmDialogState] = useState<{
     message: string;
     onConfirm: () => void;
@@ -808,9 +824,9 @@ const Index = () => {
   const showConfirm = (message: string, onConfirm: () => void) => {
     setConfirmDialogState({ message, onConfirm });
   };
-  const [expandedReviewTargets, setExpandedReviewTargets] = useState<Set<string>>(new Set());
-  const toggleReviewTarget = (targetId: string) =>
-    setExpandedReviewTargets((prev) => {
+  const [expandedEvaluationTargets, setExpandedEvaluationTargets] = useState<Set<string>>(new Set());
+  const toggleEvaluationTarget = (targetId: string) =>
+    setExpandedEvaluationTargets((prev) => {
       const next = new Set(prev);
       next.has(targetId) ? next.delete(targetId) : next.add(targetId);
       return next;
@@ -1968,7 +1984,7 @@ const Index = () => {
   };
 
   const evaluation = useMemo<EvaluationResult>(() => {
-    if (viewMode !== "auswertungen") return EMPTY_EVALUATION;
+    if (viewMode !== "auswertungen" || auswertungMode === "resultObservation") return EMPTY_EVALUATION;
     const config = EVALUATION_CONFIG[auswertungMode];
     return buildEvaluation(
       selectedClients,
@@ -1981,8 +1997,38 @@ const Index = () => {
     );
   }, [viewMode, auswertungMode, selectedClients, selectedDate, confirmationFilter, lastNDays, auswertungOnlyWithDifference]);
 
-  const exportReviewXlsx = () => {
-    if (viewMode !== "review") return;
+  const resultObservationEntries = useMemo<EvaluationActionEntry[]>(() => {
+    if (viewMode !== "auswertungen" || auswertungMode !== "resultObservation") return [];
+    return collectEvaluationEntries(selectedClients, selectedDate, confirmationFilter, lastNDays, false)
+      .filter((entry) => {
+        const confirmation = entry.action.confirmations?.[entry.confirmationDate];
+        if (auswertungOnlyWithResult && !(confirmation?.result ?? "").trim()) return false;
+        if (auswertungOnlyWithObservation && !(confirmation?.observations ?? "").trim()) return false;
+        return true;
+      })
+      .sort((a, b) => {
+        const dtA = getEffectiveDateTime(a);
+        const dtB = getEffectiveDateTime(b);
+        return (
+          a.clientName.localeCompare(b.clientName) ||
+          dtA.date.localeCompare(dtB.date) ||
+          dtA.time.localeCompare(dtB.time) ||
+          (a.action.title || "Ohne Titel").localeCompare(b.action.title || "Ohne Titel")
+        );
+      });
+  }, [
+    viewMode,
+    auswertungMode,
+    selectedClients,
+    selectedDate,
+    confirmationFilter,
+    lastNDays,
+    auswertungOnlyWithResult,
+    auswertungOnlyWithObservation,
+  ]);
+
+  const exportEvaluationXlsx = () => {
+    if (viewMode !== "evaluation") return;
     const disciplineList = availableDisciplines.length > 0 ? availableDisciplines : initialActionPlanDisciplines;
     const headers = ["Dossier", "Disziplin", "Schwerpunkt", "Ziel", "Beschreibung", "Gültig ab", "Gültig bis", "Ziel erreicht", "Auswertung", "Abgeleitete Massnahmen", "Beurteilt von", "Beurteilt am"];
     const rows = visibleSelectedClients.flatMap((client) => {
@@ -2010,11 +2056,11 @@ const Index = () => {
           });
       });
     });
-    const blob = createSimpleXlsxBlob({ sheetName: "Überprüfung", headers, rows });
+    const blob = createSimpleXlsxBlob({ sheetName: "Evaluation", headers, rows });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "ueberpruefung.xlsx";
+    a.download = "evaluation.xlsx";
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -2075,12 +2121,13 @@ const Index = () => {
     records: Record<string, string | number>[],
     sheetName: string,
     filename: string,
+    headers: string[] = CONFIRMATION_EXPORT_HEADERS,
   ) => {
     const blob = createSimpleXlsxBlob({
       sheetName,
-      headers: CONFIRMATION_EXPORT_HEADERS,
+      headers,
       rows: records.map((row) =>
-        CONFIRMATION_EXPORT_HEADERS.map((header) => {
+        headers.map((header) => {
           const value = row[header] ?? "";
           if (value === "") return "";
           if (CONFIRMATION_EXPORT_DATE_HEADERS.has(header)) return { type: "date" as const, value: String(value) };
@@ -2134,15 +2181,22 @@ const Index = () => {
     const records = selectedClients.flatMap((client) =>
       getVisibleConfirmationRows(client, selectedDate, "month", evalFilter, lastNDays)
         .filter((row) => {
-          if (!auswertungOnlyWithDifference) return true;
           const confirmation = row.action.confirmations?.[row.confirmationDate];
+          if (auswertungMode === "resultObservation") {
+            if (auswertungOnlyWithResult && !(confirmation?.result ?? "").trim()) return false;
+            if (auswertungOnlyWithObservation && !(confirmation?.observations ?? "").trim()) return false;
+            return true;
+          }
+          if (!auswertungOnlyWithDifference) return true;
           const { ist, soll } = getEntryMinutes(row.action, confirmation, row.status);
           return ist !== soll;
         })
         .map((row) => toConfirmationExportRecord(client, row)),
     );
 
-    downloadConfirmationXlsx(records, "Auswertung", `auswertung_${selectedDate.slice(0, 7)}.xlsx`);
+    const sheetName = auswertungMode === "resultObservation" ? "Resultat und Beobachtung" : "Auswertung";
+    const filenamePrefix = auswertungMode === "resultObservation" ? "auswertung_resultat_beobachtung" : "auswertung";
+    downloadConfirmationXlsx(records, sheetName, `${filenamePrefix}_${selectedDate.slice(0, 7)}.xlsx`);
   };
 
   return (
@@ -2179,7 +2233,7 @@ const Index = () => {
           <div className="relative">
             <div className="flex items-stretch bg-[#F5F5F6] border-b border-border overflow-x-auto shadow-[0_2px_4px_rgba(0,0,0,0.08)]">
             {(() => {
-              const isDisabled = selectedClients.length !== 1 || viewMode === "confirmation" || viewMode === "review";
+              const isDisabled = selectedClients.length !== 1 || viewMode === "confirmation" || viewMode === "evaluation";
               const tooltipTitle = selectedClients.length !== 1
                 ? "Bitte genau eine Klient/in auswählen"
                 : viewMode !== "planning"
@@ -2250,22 +2304,19 @@ const Index = () => {
               icon={ListTodo}
               label="Planung"
               onClick={() => setViewMode("planning")}
-              disabled={viewMode === "planning"}
               active={viewMode === "planning"}
             />
             <RibbonButton
               icon={ClipboardCheck}
               label="Umsetzung"
               onClick={() => setViewMode("confirmation")}
-              disabled={viewMode === "confirmation"}
               active={viewMode === "confirmation"}
             />
             <RibbonButton
               icon={SearchCheck}
-              label="Überprüfen"
-              onClick={() => setViewMode("review")}
-              disabled={viewMode === "review"}
-              active={viewMode === "review"}
+              label="Evaluation"
+              onClick={() => setViewMode("evaluation")}
+              active={viewMode === "evaluation"}
             />
             <RibbonDivider />
             <DropdownMenu>
@@ -2305,6 +2356,14 @@ const Index = () => {
                 >
                   Nach Handlung
                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    setAuswertungMode("resultObservation");
+                    setViewMode("auswertungen");
+                  }}
+                >
+                  Nach Resultat und Beobachtung
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <RibbonDivider />
@@ -2312,12 +2371,12 @@ const Index = () => {
               <RibbonButton
                 icon={Filter}
                 label="Filter"
-                disabled={viewMode === "planning" || viewMode === "review"}
+                disabled={viewMode === "planning" || viewMode === "evaluation"}
                 onClick={() => (isFilterOpen ? cancelFilter() : openFilter())}
                 active={isFilterOpen}
                 highlighted={isFilterActive}
                 title={
-                  viewMode === "planning" || viewMode === "review"
+                  viewMode === "planning" || viewMode === "evaluation"
                     ? "Filter ist nur in der Umsetzungsansicht verfügbar"
                     : isFilterOpen
                       ? "Filter schliessen"
@@ -2329,7 +2388,7 @@ const Index = () => {
             <RibbonButton
               icon={ImportIcon}
               label="BESA/Qsys"
-              disabled={viewMode === "confirmation" || viewMode === "review"}
+              disabled={viewMode === "confirmation" || viewMode === "evaluation"}
               title={
                 viewMode !== "planning"
                   ? "Import ist nur in der Planungsansicht verfügbar"
@@ -2340,21 +2399,21 @@ const Index = () => {
               icon={ExcelIcon}
               label="Export"
               onClick={
-                viewMode === "review"
-                  ? exportReviewXlsx
+                viewMode === "evaluation"
+                  ? exportEvaluationXlsx
                   : viewMode === "auswertungen"
                     ? exportAuswertungExcel
                     : exportConfirmationExcel
               }
               disabled={viewMode === "planning"}
               title={
-                viewMode === "review"
-                  ? "Überprüfungsdaten als XLSX exportieren"
+                viewMode === "evaluation"
+                  ? "Evaluationsdaten als XLSX exportieren"
                   : viewMode === "auswertungen"
                     ? "Handlungen der Auswertung als XLSX exportieren"
                     : viewMode === "confirmation"
                       ? "Umsetzungsdaten als XLSX exportieren"
-                      : "Export ist nur in der Umsetzungs-, Auswertungs- oder Überprüfungsansicht verfügbar"
+                      : "Export ist nur in der Umsetzungs-, Auswertungs- oder Evaluationsansicht verfügbar"
               }
             />
             </div>
@@ -2953,14 +3012,14 @@ const Index = () => {
                     </label>
                   </div>
                 )}
-                {viewMode === "review" && (
+                {viewMode === "evaluation" && (
                   <>
                     <div className="flex items-center justify-end sticky top-0 z-20 py-2 bg-[#F5F5F6]">
                       <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
                         <input
                           type="checkbox"
-                          checked={hideReviewAssessed}
-                          onChange={(e) => setHideReviewAssessed(e.target.checked)}
+                          checked={hideEvaluationAssessed}
+                          onChange={(e) => setHideEvaluationAssessed(e.target.checked)}
                           className="h-4 w-4 rounded border-border accent-primary"
                         />
                         Beurteilte Ziele ausblenden
@@ -2978,7 +3037,7 @@ const Index = () => {
                         topic.targets.filter((tg) => !!tg.validTo).map((tg) => ({ topic, target: tg }))
                       );
                       const closedTargets = allClosedTargets.filter(
-                        ({ target: tg }) => !hideReviewAssessed || !tg.assessment,
+                        ({ target: tg }) => !hideEvaluationAssessed || !tg.assessment,
                       );
                       if (allClosedTargets.length === 0) return null;
                       const clientName = `${client.firstName} ${client.lastName}`.trim();
@@ -3071,7 +3130,7 @@ const Index = () => {
                                         <Tooltip>
                                           <TooltipTrigger asChild>
                                             <button
-                                              onClick={() => setReviewAssessmentPanel({ clientId: client.id, topicId: topic.id, target })}
+                                              onClick={() => setEvaluationAssessmentPanel({ clientId: client.id, topicId: topic.id, target })}
                                               className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
                                               aria-label={target.assessment ? "Beurteilung bearbeiten" : "Beurteilung erfassen"}
                                             >
@@ -3140,15 +3199,15 @@ const Index = () => {
                                       <div className="border-t border-border pt-3">
                                         <button
                                           type="button"
-                                          onClick={() => toggleReviewTarget(target.id)}
+                                          onClick={() => toggleEvaluationTarget(target.id)}
                                           className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
                                         >
-                                          {expandedReviewTargets.has(target.id)
+                                          {expandedEvaluationTargets.has(target.id)
                                             ? <ChevronDown className="h-3.5 w-3.5" />
                                             : <ChevronRight className="h-3.5 w-3.5" />}
                                           {groups.length} {groups.length === 1 ? "Handlung" : "Handlungen"}
                                         </button>
-                                        {expandedReviewTargets.has(target.id) && (
+                                        {expandedEvaluationTargets.has(target.id) && (
                                           <div className="mt-2 pointer-events-none overflow-x-auto">
                                             <ul className="space-y-1 min-w-[900px]">
                                               {groups.map((groupNodes) => (
@@ -3188,7 +3247,9 @@ const Index = () => {
                             ? "Auswertung nach Klassifizierung"
                             : auswertungMode === "client"
                               ? "Auswertung nach Klientin"
-                              : "Auswertung nach Handlung"}
+                              : auswertungMode === "action"
+                                ? "Auswertung nach Handlung"
+                                : "Auswertung nach Resultat und Beobachtung"}
                         </div>
                         <div className="flex items-center gap-1 bg-background border border-border rounded-md p-1">
                           <button
@@ -3213,21 +3274,51 @@ const Index = () => {
                           </button>
                         </div>
                       </div>
-                      <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={auswertungOnlyWithDifference}
-                          onChange={(e) => setAuswertungOnlyWithDifference(e.target.checked)}
-                          className="h-4 w-4 rounded border-border accent-primary"
-                        />
-                        Nur mit Differenz
-                      </label>
+                      {auswertungMode === "resultObservation" ? (
+                        <div className="flex items-center gap-4">
+                          <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={auswertungOnlyWithResult}
+                              onChange={(e) => setAuswertungOnlyWithResult(e.target.checked)}
+                              className="h-4 w-4 rounded border-border accent-primary"
+                            />
+                            Nur mit Resultat
+                          </label>
+                          <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={auswertungOnlyWithObservation}
+                              onChange={(e) => setAuswertungOnlyWithObservation(e.target.checked)}
+                              className="h-4 w-4 rounded border-border accent-primary"
+                            />
+                            Nur mit Beobachtung
+                          </label>
+                        </div>
+                      ) : (
+                        <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={auswertungOnlyWithDifference}
+                            onChange={(e) => setAuswertungOnlyWithDifference(e.target.checked)}
+                            className="h-4 w-4 rounded border-border accent-primary"
+                          />
+                          Nur mit Differenz
+                        </label>
+                      )}
                     </div>
-                    <EvaluationTreeView
-                      data={evaluation}
-                      columnLabel={EVALUATION_CONFIG[auswertungMode].columnLabel}
-                      onSelectAction={(entry) => setAuswertungDetail(entry)}
-                    />
+                    {auswertungMode === "resultObservation" ? (
+                      <EvaluationResultObservationTable
+                        entries={resultObservationEntries}
+                        onSelectAction={(entry) => setAuswertungDetail(entry)}
+                      />
+                    ) : (
+                      <EvaluationTreeView
+                        data={evaluation}
+                        columnLabel={EVALUATION_CONFIG[auswertungMode].columnLabel}
+                        onSelectAction={(entry) => setAuswertungDetail(entry)}
+                      />
+                    )}
                   </div>
                 )}
                 {(viewMode === "planning" || viewMode === "confirmation") && visibleSelectedClients.map((client) => (
@@ -3452,23 +3543,23 @@ const Index = () => {
         </DialogContent>
       </Dialog>
 
-      {reviewAssessmentPanel && createPortal(
+      {evaluationAssessmentPanel && createPortal(
         <TargetAssessmentPanel
-          target={reviewAssessmentPanel.target}
-          onClose={() => setReviewAssessmentPanel(null)}
-          clientName={(() => { const c = clients.find(x => x.id === reviewAssessmentPanel.clientId); return c ? `${c.firstName} ${c.lastName}`.trim() : undefined; })()}
+          target={evaluationAssessmentPanel.target}
+          onClose={() => setEvaluationAssessmentPanel(null)}
+          clientName={(() => { const c = clients.find(x => x.id === evaluationAssessmentPanel.clientId); return c ? `${c.firstName} ${c.lastName}`.trim() : undefined; })()}
           onSave={(assessment) => {
             updateTargetAssessment(
-              reviewAssessmentPanel.clientId,
-              reviewAssessmentPanel.topicId,
-              reviewAssessmentPanel.target.id,
+              evaluationAssessmentPanel.clientId,
+              evaluationAssessmentPanel.topicId,
+              evaluationAssessmentPanel.target.id,
               {
                 ...assessment,
                 assessedBy: "danuss",
                 assessedAt: new Date().toISOString().slice(0, 19) + "Z",
               },
             );
-            setReviewAssessmentPanel(null);
+            setEvaluationAssessmentPanel(null);
           }}
         />,
         document.body,
@@ -3478,6 +3569,7 @@ const Index = () => {
         return (
           <ConfirmActionDialog
             readOnly
+            title="Handlung"
             target={{
               topicId: auswertungDetail.topic.id,
               targetId: auswertungDetail.target.id,
@@ -3595,6 +3687,22 @@ function EvaluationTreeView({
       return next;
     });
 
+  const allGroupKeys = useMemo(() => {
+    const keys: string[] = [];
+    const collect = (node: EvalGroupNode) => {
+      if (node.entry) return;
+      keys.push(node.key);
+      node.children.forEach(collect);
+    };
+    data.roots.forEach(collect);
+    return keys;
+  }, [data]);
+
+  const allExpanded = allGroupKeys.length > 0 && allGroupKeys.every((key) => expanded.has(key));
+
+  const toggleAll = () =>
+    setExpanded(allExpanded ? new Set() : new Set(allGroupKeys));
+
   if (data.actionCount === 0) {
     return (
       <div className="rounded-lg border border-border bg-background p-12 text-center text-muted-foreground">
@@ -3636,12 +3744,23 @@ function EvaluationTreeView({
   };
 
   return (
-    <div
-      className="overflow-hidden rounded-lg border border-border bg-background"
-      // Klicks im Baum sollen das offene Detailpanel nicht schliessen, sondern
-      // (bei Handlungen) direkt aktualisieren.
-      onMouseDown={(e) => e.stopPropagation()}
-    >
+    <div>
+      <div className="grid grid-cols-[1fr_7rem_7rem_7rem] gap-2 px-4 mb-2">
+        <button
+          type="button"
+          onClick={toggleAll}
+          disabled={allGroupKeys.length === 0}
+          className="justify-self-start text-sm text-primary hover:underline disabled:pointer-events-none disabled:opacity-40"
+        >
+          {allExpanded ? "Alle zuklappen" : "Alle aufklappen"}
+        </button>
+      </div>
+      <div
+        className="overflow-hidden rounded-lg border border-border bg-background"
+        // Klicks im Baum sollen das offene Detailpanel nicht schliessen, sondern
+        // (bei Handlungen) direkt aktualisieren.
+        onMouseDown={(e) => e.stopPropagation()}
+      >
       <div className="grid grid-cols-[1fr_7rem_7rem_7rem] gap-2 border-b border-border bg-[#F5F5F6] px-4 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
         <div>{columnLabel}</div>
         <div className="text-right">Tatsächlich</div>
@@ -3656,6 +3775,449 @@ function EvaluationTreeView({
         <div className="text-right tabular-nums">{formatEvalMinutes(data.totalIst)}</div>
         <div className="text-right tabular-nums">{formatEvalMinutes(data.totalSoll)}</div>
         <div className="text-right tabular-nums">{formatEvalDiff(data.totalIst - data.totalSoll)}</div>
+      </div>
+      </div>
+    </div>
+  );
+}
+
+type ResultObservationSortColumn = "client" | "datetime" | "action" | "result" | "observation";
+
+const resultOf = (entry: EvaluationActionEntry) => entry.action.confirmations?.[entry.confirmationDate]?.result ?? "";
+const observationOf = (entry: EvaluationActionEntry) =>
+  entry.action.confirmations?.[entry.confirmationDate]?.observations ?? "";
+
+const RESULT_OBSERVATION_COMPARATORS: Record<
+  ResultObservationSortColumn,
+  (a: EvaluationActionEntry, b: EvaluationActionEntry) => number
+> = {
+  client: (a, b) => a.clientName.localeCompare(b.clientName),
+  datetime: (a, b) => {
+    const dtA = getEffectiveDateTime(a);
+    const dtB = getEffectiveDateTime(b);
+    return dtA.date.localeCompare(dtB.date) || dtA.time.localeCompare(dtB.time);
+  },
+  action: (a, b) => (a.action.title || "Ohne Titel").localeCompare(b.action.title || "Ohne Titel"),
+  result: (a, b) => resultOf(a).localeCompare(resultOf(b)),
+  observation: (a, b) => observationOf(a).localeCompare(observationOf(b)),
+};
+
+function ResultObservationSortHeader({
+  column,
+  label,
+  sortColumn,
+  sortDir,
+  onToggle,
+}: {
+  column: ResultObservationSortColumn;
+  label: string;
+  sortColumn: ResultObservationSortColumn;
+  sortDir: "asc" | "desc";
+  onToggle: (column: ResultObservationSortColumn) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onToggle(column)}
+      className="flex items-center gap-1 hover:text-foreground"
+    >
+      <span>{label}</span>
+      {sortColumn === column &&
+        (sortDir === "asc" ? (
+          <ChevronUp className="h-3.5 w-3.5" />
+        ) : (
+          <ChevronDown className="h-3.5 w-3.5" />
+        ))}
+    </button>
+  );
+}
+
+function ColumnFilterMenu({
+  active,
+  onReset,
+  onApply,
+  onOpenChange,
+  children,
+  contentClassName = "w-64",
+}: {
+  active: boolean;
+  onReset: () => void;
+  onApply: () => void;
+  onOpenChange?: (open: boolean) => void;
+  children: (close: () => void) => ReactNode;
+  contentClassName?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next);
+    onOpenChange?.(next);
+  };
+  return (
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          onClick={(e) => e.stopPropagation()}
+          title="Filtern"
+          className={cn(
+            "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded hover:bg-secondary",
+            active && "bg-primary text-primary-foreground hover:bg-primary/90",
+          )}
+        >
+          <Filter className="h-3 w-3" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className={cn(contentClassName, "space-y-3 normal-case")}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        {children(() => setOpen(false))}
+        <div className="flex items-center justify-between pt-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={!active}
+            onClick={() => {
+              onReset();
+              setOpen(false);
+            }}
+          >
+            Zurücksetzen
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => {
+              onApply();
+              setOpen(false);
+            }}
+          >
+            Anwenden
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function EvaluationResultObservationTable({
+  entries,
+  onSelectAction,
+}: {
+  entries: EvaluationActionEntry[];
+  onSelectAction: (entry: EvaluationActionEntry) => void;
+}) {
+  const [sortColumn, setSortColumn] = useState<ResultObservationSortColumn>("client");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  const [filterClient, setFilterClient] = useState("");
+  const [filterAction, setFilterAction] = useState("");
+  const [filterResult, setFilterResult] = useState("");
+  const [filterObservation, setFilterObservation] = useState("");
+  const [filterDateFrom, setFilterDateFrom] = useState("");
+  const [filterTimeFrom, setFilterTimeFrom] = useState("");
+  const [filterDateTo, setFilterDateTo] = useState("");
+  const [filterTimeTo, setFilterTimeTo] = useState("");
+
+  const [draftClient, setDraftClient] = useState("");
+  const [draftAction, setDraftAction] = useState("");
+  const [draftResult, setDraftResult] = useState("");
+  const [draftObservation, setDraftObservation] = useState("");
+  const [draftDateFrom, setDraftDateFrom] = useState("");
+  const [draftTimeFrom, setDraftTimeFrom] = useState("");
+  const [draftDateTo, setDraftDateTo] = useState("");
+  const [draftTimeTo, setDraftTimeTo] = useState("");
+
+  const toggleSort = (column: ResultObservationSortColumn) => {
+    if (column === sortColumn) {
+      setSortDir((dir) => (dir === "asc" ? "desc" : "asc"));
+    } else {
+      setSortColumn(column);
+      setSortDir("asc");
+    }
+  };
+
+  const contains = (value: string, needle: string) =>
+    !needle.trim() || value.trim().toLowerCase().includes(needle.trim().toLowerCase());
+
+  const filteredEntries = useMemo(() => {
+    const fromDateTime = filterDateFrom ? `${filterDateFrom}T${filterTimeFrom || "00:00"}` : "";
+    const toDateTime = filterDateTo ? `${filterDateTo}T${filterTimeTo || "23:59"}` : "";
+    return entries.filter((entry) => {
+      if (!contains(entry.clientName, filterClient)) return false;
+      if (!contains(entry.action.title || "Ohne Titel", filterAction)) return false;
+      if (!contains(resultOf(entry), filterResult)) return false;
+      if (!contains(observationOf(entry), filterObservation)) return false;
+      if (fromDateTime || toDateTime) {
+        const { date, time } = getEffectiveDateTime(entry);
+        const entryDateTime = `${date}T${time || "00:00"}`;
+        if (fromDateTime && entryDateTime < fromDateTime) return false;
+        if (toDateTime && entryDateTime > toDateTime) return false;
+      }
+      return true;
+    });
+  }, [
+    entries,
+    filterClient,
+    filterAction,
+    filterResult,
+    filterObservation,
+    filterDateFrom,
+    filterTimeFrom,
+    filterDateTo,
+    filterTimeTo,
+  ]);
+
+  const sortedEntries = useMemo(() => {
+    const dir = sortDir === "asc" ? 1 : -1;
+    return filteredEntries.slice().sort((a, b) => {
+      const primary = RESULT_OBSERVATION_COMPARATORS[sortColumn](a, b) * dir;
+      if (primary !== 0) return primary;
+      return (
+        RESULT_OBSERVATION_COMPARATORS.client(a, b) ||
+        RESULT_OBSERVATION_COMPARATORS.datetime(a, b) ||
+        RESULT_OBSERVATION_COMPARATORS.action(a, b)
+      );
+    });
+  }, [filteredEntries, sortColumn, sortDir]);
+
+  if (entries.length === 0) {
+    return (
+      <div className="rounded-lg border border-border bg-background p-12 text-center text-muted-foreground">
+        Keine abgeschlossenen Handlungen in diesem Monat.
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="overflow-hidden rounded-lg border border-border bg-background"
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      <div className="grid grid-cols-[10rem_12rem_1fr_1fr_1fr] gap-3 border-b border-border bg-[#F5F5F6] px-4 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        <div className="flex items-center gap-1">
+          <ColumnFilterMenu
+            active={filterClient.trim() !== ""}
+            onReset={() => setFilterClient("")}
+            onApply={() => setFilterClient(draftClient)}
+            onOpenChange={(open) => { if (open) setDraftClient(filterClient); }}
+          >
+            {(close) => (
+              <div className="space-y-1.5">
+                <Label className="text-xs normal-case text-foreground">Klient/in</Label>
+                <Input
+                  value={draftClient}
+                  onChange={(e) => setDraftClient(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      setFilterClient(draftClient);
+                      close();
+                    }
+                  }}
+                  placeholder="Filtern…"
+                  className="h-8 text-sm"
+                  autoFocus
+                />
+              </div>
+            )}
+          </ColumnFilterMenu>
+          <ResultObservationSortHeader column="client" label="Klient/in" sortColumn={sortColumn} sortDir={sortDir} onToggle={toggleSort} />
+        </div>
+        <div className="flex items-center gap-1">
+          <ColumnFilterMenu
+            contentClassName="w-96"
+            active={
+              filterDateFrom.trim() !== "" ||
+              filterTimeFrom.trim() !== "" ||
+              filterDateTo.trim() !== "" ||
+              filterTimeTo.trim() !== ""
+            }
+            onReset={() => {
+              setFilterDateFrom("");
+              setFilterTimeFrom("");
+              setFilterDateTo("");
+              setFilterTimeTo("");
+            }}
+            onApply={() => {
+              setFilterDateFrom(draftDateFrom);
+              setFilterTimeFrom(draftTimeFrom);
+              setFilterDateTo(draftDateTo);
+              setFilterTimeTo(draftTimeTo);
+            }}
+            onOpenChange={(open) => {
+              if (open) {
+                setDraftDateFrom(filterDateFrom);
+                setDraftTimeFrom(filterTimeFrom);
+                setDraftDateTo(filterDateTo);
+                setDraftTimeTo(filterTimeTo);
+              }
+            }}
+          >
+            {(close) => {
+              const applyOnEnter = (e: React.KeyboardEvent) => {
+                if (e.key !== "Enter") return;
+                setFilterDateFrom(draftDateFrom);
+                setFilterTimeFrom(draftTimeFrom);
+                setFilterDateTo(draftDateTo);
+                setFilterTimeTo(draftTimeTo);
+                close();
+              };
+              return (
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs normal-case text-foreground">Von</Label>
+                    <div className="flex gap-1.5">
+                      <Input
+                        type="date"
+                        value={draftDateFrom}
+                        onChange={(e) => setDraftDateFrom(e.target.value)}
+                        onKeyDown={applyOnEnter}
+                        className="h-8 flex-1 min-w-0 text-sm"
+                      />
+                      <Input
+                        type="time"
+                        value={draftTimeFrom}
+                        onChange={(e) => setDraftTimeFrom(e.target.value)}
+                        onKeyDown={applyOnEnter}
+                        className="h-8 flex-1 min-w-0 text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs normal-case text-foreground">Bis</Label>
+                    <div className="flex gap-1.5">
+                      <Input
+                        type="date"
+                        value={draftDateTo}
+                        onChange={(e) => setDraftDateTo(e.target.value)}
+                        onKeyDown={applyOnEnter}
+                        className="h-8 flex-1 min-w-0 text-sm"
+                      />
+                      <Input
+                        type="time"
+                        value={draftTimeTo}
+                        onChange={(e) => setDraftTimeTo(e.target.value)}
+                        onKeyDown={applyOnEnter}
+                        className="h-8 flex-1 min-w-0 text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            }}
+          </ColumnFilterMenu>
+          <ResultObservationSortHeader column="datetime" label="Datum / Uhrzeit" sortColumn={sortColumn} sortDir={sortDir} onToggle={toggleSort} />
+        </div>
+        <div className="flex items-center gap-1">
+          <ColumnFilterMenu
+            active={filterAction.trim() !== ""}
+            onReset={() => setFilterAction("")}
+            onApply={() => setFilterAction(draftAction)}
+            onOpenChange={(open) => { if (open) setDraftAction(filterAction); }}
+          >
+            {(close) => (
+              <div className="space-y-1.5">
+                <Label className="text-xs normal-case text-foreground">Handlung</Label>
+                <Input
+                  value={draftAction}
+                  onChange={(e) => setDraftAction(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      setFilterAction(draftAction);
+                      close();
+                    }
+                  }}
+                  placeholder="Filtern…"
+                  className="h-8 text-sm"
+                  autoFocus
+                />
+              </div>
+            )}
+          </ColumnFilterMenu>
+          <ResultObservationSortHeader column="action" label="Handlung" sortColumn={sortColumn} sortDir={sortDir} onToggle={toggleSort} />
+        </div>
+        <div className="flex items-center gap-1">
+          <ColumnFilterMenu
+            active={filterResult.trim() !== ""}
+            onReset={() => setFilterResult("")}
+            onApply={() => setFilterResult(draftResult)}
+            onOpenChange={(open) => { if (open) setDraftResult(filterResult); }}
+          >
+            {(close) => (
+              <div className="space-y-1.5">
+                <Label className="text-xs normal-case text-foreground">Resultat</Label>
+                <Input
+                  value={draftResult}
+                  onChange={(e) => setDraftResult(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      setFilterResult(draftResult);
+                      close();
+                    }
+                  }}
+                  placeholder="Filtern…"
+                  className="h-8 text-sm"
+                  autoFocus
+                />
+              </div>
+            )}
+          </ColumnFilterMenu>
+          <ResultObservationSortHeader column="result" label="Resultat" sortColumn={sortColumn} sortDir={sortDir} onToggle={toggleSort} />
+        </div>
+        <div className="flex items-center gap-1">
+          <ColumnFilterMenu
+            active={filterObservation.trim() !== ""}
+            onReset={() => setFilterObservation("")}
+            onApply={() => setFilterObservation(draftObservation)}
+            onOpenChange={(open) => { if (open) setDraftObservation(filterObservation); }}
+          >
+            {(close) => (
+              <div className="space-y-1.5">
+                <Label className="text-xs normal-case text-foreground">Beobachtung</Label>
+                <Input
+                  value={draftObservation}
+                  onChange={(e) => setDraftObservation(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      setFilterObservation(draftObservation);
+                      close();
+                    }
+                  }}
+                  placeholder="Filtern…"
+                  className="h-8 text-sm"
+                  autoFocus
+                />
+              </div>
+            )}
+          </ColumnFilterMenu>
+          <ResultObservationSortHeader column="observation" label="Beobachtung" sortColumn={sortColumn} sortDir={sortDir} onToggle={toggleSort} />
+        </div>
+      </div>
+      {sortedEntries.length === 0 && (
+        <div className="p-8 text-center text-sm text-muted-foreground">
+          Keine Handlungen entsprechen den aktiven Filtern.
+        </div>
+      )}
+      {sortedEntries.map((entry) => {
+        const confirmation = entry.action.confirmations?.[entry.confirmationDate];
+        return (
+          <div
+            key={entry.key}
+            onClick={() => onSelectAction(entry)}
+            className="grid grid-cols-[10rem_12rem_1fr_1fr_1fr] gap-3 items-start border-b border-border/60 px-4 py-2 text-sm cursor-pointer hover:bg-secondary/50"
+          >
+            <div className="truncate">{entry.clientName}</div>
+            <div className="truncate">{formatEvalDateTime(entry)}</div>
+            <div className="truncate">{entry.action.title || "Ohne Titel"}</div>
+            <div className="min-w-0 whitespace-pre-wrap break-words">{confirmation?.result || "—"}</div>
+            <div className="min-w-0 whitespace-pre-wrap break-words">{confirmation?.observations || "—"}</div>
+          </div>
+        );
+      })}
+      <div className="border-t-2 border-border bg-[#F5F5F6] px-4 py-2.5 text-sm font-semibold">
+        Total ({sortedEntries.length} Handlungen)
       </div>
     </div>
   );

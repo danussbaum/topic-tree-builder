@@ -56,7 +56,7 @@ export function RibbonButton({
         highlighted
           ? "bg-primary/15 text-foreground ring-1 ring-primary/40 shadow-sm hover:bg-primary/25 disabled:opacity-100"
           : active
-            ? "bg-secondary text-foreground shadow-sm disabled:opacity-100"
+            ? "bg-[#EDEDED] text-foreground shadow-sm disabled:opacity-100"
             : "text-foreground/80 hover:bg-[#EDEDED] hover:text-foreground",
         "disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-foreground/80 disabled:cursor-not-allowed",
       )}
