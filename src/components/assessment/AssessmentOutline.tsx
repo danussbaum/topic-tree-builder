@@ -2067,14 +2067,17 @@ export function ActionGroupRow({
   targetValidTo,
   onDeleteActionGroup,
   onOpenEditPanel,
+  readOnly = false,
 }: {
   topicId: string;
   targetId: string;
   groupNodes: ActionNode[];
   targetValidFrom?: string;
   targetValidTo?: string;
-  onDeleteActionGroup: Props["onDeleteActionGroup"];
-  onOpenEditPanel: () => void;
+  onDeleteActionGroup?: Props["onDeleteActionGroup"];
+  onOpenEditPanel?: () => void;
+  // Nur-Ansicht (z.B. Evaluation): keine Bearbeiten-/Löschen-Aktionen anbieten.
+  readOnly?: boolean;
 }) {
   const representative = groupNodes[0];
   const sortedNodes = [...groupNodes].sort(
@@ -2179,46 +2182,50 @@ export function ActionGroupRow({
         </div>
       </div>
 
-      <TooltipProvider delayDuration={150}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              onClick={onOpenEditPanel}
-              className="shrink-0 mt-0.5 opacity-0 group-hover/action:opacity-100 p-1 hover:bg-secondary rounded transition-opacity"
-              aria-label="Handlung bearbeiten"
-            >
-              <Pencil className="h-4 w-4 text-muted-foreground" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="top">
-            <div className="max-w-[220px] space-y-0.5">
-              <div className="font-medium">Handlung bearbeiten</div>
-              <div className="text-xs text-muted-foreground">Felder und Tageszeiten anpassen</div>
-            </div>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-      <TooltipProvider delayDuration={150}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              onClick={() => onDeleteActionGroup(topicId, targetId, representative.groupId)}
-              className="shrink-0 mt-0.5 opacity-0 group-hover/action:opacity-100 p-1 hover:bg-destructive/10 hover:text-destructive rounded transition-opacity"
-              aria-label="Handlung löschen"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="top">
-            <div className="max-w-[220px] space-y-0.5">
-              <div className="font-medium">Handlung löschen</div>
-              <div className="text-xs text-muted-foreground">Handlung unwiderruflich entfernen</div>
-            </div>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      {!readOnly && (
+        <TooltipProvider delayDuration={150}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={onOpenEditPanel}
+                className="shrink-0 mt-0.5 opacity-0 group-hover/action:opacity-100 p-1 hover:bg-secondary rounded transition-opacity"
+                aria-label="Handlung bearbeiten"
+              >
+                <Pencil className="h-4 w-4 text-muted-foreground" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              <div className="max-w-[220px] space-y-0.5">
+                <div className="font-medium">Handlung bearbeiten</div>
+                <div className="text-xs text-muted-foreground">Felder und Tageszeiten anpassen</div>
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
+      {!readOnly && (
+        <TooltipProvider delayDuration={150}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => onDeleteActionGroup?.(topicId, targetId, representative.groupId)}
+                className="shrink-0 mt-0.5 opacity-0 group-hover/action:opacity-100 p-1 hover:bg-destructive/10 hover:text-destructive rounded transition-opacity"
+                aria-label="Handlung löschen"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              <div className="max-w-[220px] space-y-0.5">
+                <div className="font-medium">Handlung löschen</div>
+                <div className="text-xs text-muted-foreground">Handlung unwiderruflich entfernen</div>
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
     </li>
   );
 }

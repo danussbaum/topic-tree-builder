@@ -225,6 +225,18 @@ const ClientNameInput = ({ value, label, onChange }: ClientNameInputProps) => (
   </span>
 );
 
+/**
+ * Einheitliche Options-/Werkzeugleiste über dem Ansichts-Inhalt. Gleiche graue Box in
+ * allen vier Ansichten (Planung, Umsetzung, Evaluation, Auswertungen). Nicht sticky –
+ * der Client-Header bleibt beim Scrollen sticky, die Toolbar scrollt weg.
+ */
+const ViewToolbar = ({ left, right }: { left?: ReactNode; right?: ReactNode }) => (
+  <div className="flex items-center justify-between p-4 rounded-lg border border-border bg-[#F5F5F6]">
+    <div className="flex items-center gap-4">{left}</div>
+    <div className="flex items-center gap-3">{right}</div>
+  </div>
+);
+
 const hasVisibleConfirmationItems = (
   client: Client,
   selectedDate: string,
@@ -2817,8 +2829,9 @@ const Index = () => {
             ) : (
               <div className="px-6 lg:px-10 py-6 w-full space-y-10">
                 {viewMode === "confirmation" && (
-                  <div className="flex items-center justify-between p-4 rounded-lg border border-border bg-[#F5F5F6]">
-                    <div className="flex items-center gap-4">
+                  <ViewToolbar
+                    left={
+                      <>
                       <div className="flex items-center gap-1 bg-background border border-border rounded-md p-1">
                         <button
                           className={cn(
@@ -2939,8 +2952,10 @@ const Index = () => {
                           </button>
                         </div>
                       )}
-                    </div>
-                    <div className="flex items-center gap-3">
+                      </>
+                    }
+                    right={
+                      <>
                       <div className="flex items-center gap-1">
                         {(DAY_PART_ORDER.filter((p) => p !== "none") as DayPart[]).map((dayPart) => {
                           const Icon = DAY_PART_FILTER_ICONS[dayPart];
@@ -3005,35 +3020,40 @@ const Index = () => {
                         />
                         Bestätigte anzeigen
                       </label>
-                    </div>
-                  </div>
+                      </>
+                    }
+                  />
                 )}
                 {viewMode === "planning" && (
-                  <div className="flex items-center justify-end -mb-[38px]">
-                    <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={showClosedTargets}
-                        onChange={(e) => setShowClosedTargets(e.target.checked)}
-                        className="h-4 w-4 rounded border-border accent-primary"
-                      />
-                      Abgeschlossene Ziele einblenden
-                    </label>
-                  </div>
-                )}
-                {viewMode === "evaluation" && (
-                  <>
-                    <div className="flex items-center justify-end sticky top-0 z-20 py-2 bg-[#F5F5F6]">
+                  <ViewToolbar
+                    right={
                       <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
                         <input
                           type="checkbox"
-                          checked={hideEvaluationAssessed}
-                          onChange={(e) => setHideEvaluationAssessed(e.target.checked)}
+                          checked={showClosedTargets}
+                          onChange={(e) => setShowClosedTargets(e.target.checked)}
                           className="h-4 w-4 rounded border-border accent-primary"
                         />
-                        Beurteilte Ziele ausblenden
+                        Abgeschlossene Ziele einblenden
                       </label>
-                    </div>
+                    }
+                  />
+                )}
+                {viewMode === "evaluation" && (
+                  <>
+                    <ViewToolbar
+                      right={
+                        <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={hideEvaluationAssessed}
+                            onChange={(e) => setHideEvaluationAssessed(e.target.checked)}
+                            className="h-4 w-4 rounded border-border accent-primary"
+                          />
+                          Beurteilte Ziele ausblenden
+                        </label>
+                      }
+                    />
                     {visibleSelectedClients.every((client) =>
                       client.topics.every((topic) => topic.targets.every((tg) => !tg.validTo))
                     ) && (
@@ -3042,37 +3062,48 @@ const Index = () => {
                       </div>
                     )}
                     {visibleSelectedClients.map((client) => {
-                      const allClosedTargets = client.topics.flatMap((topic) =>
-                        topic.targets.filter((tg) => !!tg.validTo).map((tg) => ({ topic, target: tg }))
+                      const disciplineList = availableDisciplines.length > 0 ? availableDisciplines : initialActionPlanDisciplines;
+                      // Geschlossene (und je nach Filter unbeurteilte) Ziele nach Schwerpunkt
+                      // gruppieren – gleiche Client → Schwerpunkt → Ziel-Achse wie in der Planung.
+                      const topicGroups = client.topics
+                        .map((topic) => ({
+                          topic,
+                          targets: topic.targets.filter(
+                            (tg) => !!tg.validTo && (!hideEvaluationAssessed || !tg.assessment),
+                          ),
+                        }))
+                        .filter((group) => group.targets.length > 0);
+                      const hasAnyClosedTarget = client.topics.some((topic) =>
+                        topic.targets.some((tg) => !!tg.validTo),
                       );
-                      const closedTargets = allClosedTargets.filter(
-                        ({ target: tg }) => !hideEvaluationAssessed || !tg.assessment,
-                      );
-                      if (allClosedTargets.length === 0) return null;
+                      if (!hasAnyClosedTarget) return null;
                       const clientName = `${client.firstName} ${client.lastName}`.trim();
                       return (
                         <section key={client.id} className="space-y-6">
-                          <h1 className="text-2xl font-semibold pb-5 border-b border-border sticky top-9 z-10 bg-[#F5F5F6]">
-                            {clientName}
-                          </h1>
-                          {closedTargets.length === 0 ? (
+                          <div className="flex items-center gap-4 pb-5 border-b border-border sticky top-0 z-10 bg-[#F5F5F6]">
+                            <h1 className="text-2xl font-semibold">{clientName}</h1>
+                          </div>
+                          {topicGroups.length === 0 ? (
                             <p className="text-sm text-muted-foreground">
                               Alle abgeschlossenen Ziele wurden bereits beurteilt.
                             </p>
                           ) : (
-                          <div className="space-y-4">
-                            {closedTargets.map(({ topic, target }) => {
-                              const fromLabel = target.validFrom
-                                ? format(new Date(target.validFrom), "dd.MM.yyyy")
-                                : null;
-                              const toLabel = target.validTo
-                                ? format(new Date(target.validTo), "dd.MM.yyyy")
-                                : null;
+                          <div className="space-y-8">
+                            {topicGroups.map(({ topic, targets }) => {
                               const disciplineTitle =
-                                (availableDisciplines.length > 0 ? availableDisciplines : initialActionPlanDisciplines)
-                                  .find((d) => d.id === topic.disciplineId)?.title ??
+                                disciplineList.find((d) => d.id === topic.disciplineId)?.title ??
                                 topic.disciplineId ??
                                 "Ohne Disziplin";
+                              return (
+                                <div key={topic.id} className="space-y-4">
+                                  <div className="flex items-baseline gap-2 flex-wrap">
+                                    <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                                      {topic.title || "Ohne Schwerpunkt"}
+                                    </div>
+                                    <span className="text-[11px] text-muted-foreground/70">{disciplineTitle}</span>
+                                  </div>
+                                  <div className="space-y-4">
+                            {targets.map((target) => {
                               return (
                                 <div
                                   key={target.id}
@@ -3080,31 +3111,8 @@ const Index = () => {
                                 >
                                   <div className="flex items-start justify-between gap-4">
                                     <div className="space-y-1 min-w-0">
-                                      <h2 className="flex items-center gap-1.5 text-base font-semibold leading-snug">
+                                      <h2 className="text-base font-semibold leading-snug">
                                         {target.title || <span className="text-muted-foreground italic font-normal">Ohne Bezeichnung</span>}
-                                        <TooltipProvider delayDuration={150}>
-                                          <Tooltip>
-                                            <TooltipTrigger asChild>
-                                              <span
-                                                tabIndex={0}
-                                                aria-label="Details zu Disziplin und Schwerpunkt anzeigen"
-                                                className="inline-flex h-5 w-5 shrink-0 cursor-help items-center justify-center rounded-full border border-border bg-background text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                                              >
-                                                <Info className="h-3 w-3" aria-hidden="true" />
-                                              </span>
-                                            </TooltipTrigger>
-                                            <TooltipContent side="right" align="start" className="max-w-[280px] space-y-2 p-3 text-xs">
-                                              <div>
-                                                <div className="font-semibold text-foreground">Disziplin</div>
-                                                <div className="mt-0.5 text-muted-foreground">{disciplineTitle}</div>
-                                              </div>
-                                              <div>
-                                                <div className="font-semibold text-foreground">Schwerpunkt</div>
-                                                <div className="mt-0.5 text-muted-foreground">{topic.title}</div>
-                                              </div>
-                                            </TooltipContent>
-                                          </Tooltip>
-                                        </TooltipProvider>
                                       </h2>
                                       {(target.validFrom || target.validTo) && (
                                         <div className="flex items-center gap-2 mt-1">
@@ -3217,18 +3225,17 @@ const Index = () => {
                                           {groups.length} {groups.length === 1 ? "Handlung" : "Handlungen"}
                                         </button>
                                         {expandedEvaluationTargets.has(target.id) && (
-                                          <div className="mt-2 pointer-events-none overflow-x-auto">
+                                          <div className="mt-2 overflow-x-auto">
                                             <ul className="space-y-1 min-w-[900px]">
                                               {groups.map((groupNodes) => (
                                                 <ActionGroupRow
                                                   key={groupNodes[0].groupId}
+                                                  readOnly
                                                   topicId={topic.id}
                                                   targetId={target.id}
                                                   groupNodes={groupNodes}
                                                   targetValidFrom={target.validFrom}
                                                   targetValidTo={target.validTo}
-                                                  onDeleteActionGroup={() => {}}
-                                                  onOpenEditPanel={() => {}}
                                                 />
                                               ))}
                                             </ul>
@@ -3237,6 +3244,10 @@ const Index = () => {
                                       </div>
                                     );
                                   })()}
+                                </div>
+                              );
+                            })}
+                                  </div>
                                 </div>
                               );
                             })}
@@ -3249,8 +3260,9 @@ const Index = () => {
                 )}
                 {viewMode === "auswertungen" && (
                   <div className="space-y-6">
-                    <div className="flex items-center justify-between p-4 rounded-lg border border-border bg-[#F5F5F6]">
-                      <div className="flex items-center gap-4">
+                    <ViewToolbar
+                      left={
+                        <>
                         <div className="text-sm font-medium">
                           {auswertungMode === "category"
                             ? "Auswertung nach Klassifizierung"
@@ -3282,8 +3294,10 @@ const Index = () => {
                             ›
                           </button>
                         </div>
-                      </div>
-                      {auswertungMode === "resultObservation" ? (
+                        </>
+                      }
+                      right={
+                        auswertungMode === "resultObservation" ? (
                         <div className="flex items-center gap-4">
                           <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
                             <input
@@ -3315,7 +3329,7 @@ const Index = () => {
                           Nur mit Differenz
                         </label>
                       )}
-                    </div>
+                    />
                     {auswertungMode === "resultObservation" ? (
                       <EvaluationResultObservationTable
                         entries={resultObservationEntries}
