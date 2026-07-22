@@ -1,8 +1,8 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within, fireEvent } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { AssessmentOutline } from "@/components/assessment/AssessmentOutline";
 import type { ActionPlanDiscipline } from "@/lib/action-plan-disciplines";
-import type { TopicNode } from "@/types/assessment";
+import type { ActionNode, TopicNode } from "@/types/assessment";
 
 const disciplines: ActionPlanDiscipline[] = [
   { id: "discipline-ihp", title: "IHP", authorizedRoleIds: [] },
@@ -33,13 +33,45 @@ const topics: TopicNode[] = [
   },
 ];
 
-const renderPlanningOutline = () =>
+const action = (id: string, groupId: string, title: string): ActionNode => ({
+  id,
+  groupId,
+  title,
+  notes: "",
+  status: "open",
+  done: false,
+});
+
+const topicsWithGoals: TopicNode[] = [
+  {
+    id: "topic-1",
+    title: "Mobilität erhalten",
+    notes: "",
+    disciplineId: "discipline-ihp",
+    targets: [
+      {
+        id: "goal-a",
+        title: "Ziel A",
+        notes: "",
+        actions: [action("act-a1", "grp-a1", "Handlung A1")],
+      },
+      {
+        id: "goal-b",
+        title: "Ziel B",
+        notes: "",
+        actions: [action("act-b1", "grp-b1", "Handlung B1")],
+      },
+    ],
+  },
+];
+
+const renderPlanningOutline = (props?: { topics?: TopicNode[] }) =>
   render(
     <AssessmentOutline
       viewMode="planning"
       selectedDate="2026-05-12"
       onSelectedDateChange={vi.fn()}
-      topics={topics}
+      topics={props?.topics ?? topics}
       disciplines={disciplines}
       onUpdateTopic={vi.fn()}
       onUpdateTarget={vi.fn()}
@@ -48,11 +80,14 @@ const renderPlanningOutline = () =>
       onConfirmAction={vi.fn()}
       onAddTarget={vi.fn()}
       onAddAction={vi.fn()}
+      onUpdateActionGroup={vi.fn()}
       onAddTopic={vi.fn()}
       onUpdateTopicDiscipline={vi.fn()}
       onDeleteTopic={vi.fn()}
       onDeleteTarget={vi.fn()}
+      onReactivateTarget={vi.fn()}
       onDeleteAction={vi.fn()}
+      onDeleteActionGroup={vi.fn()}
     />,
   );
 
@@ -68,5 +103,23 @@ describe("AssessmentOutline planning discipline groups", () => {
     expect(within(ihpSection!).getByDisplayValue("Mobilität erhalten")).toBeInTheDocument();
     expect(within(ihpSection!).getByDisplayValue("Alltag strukturieren")).toBeInTheDocument();
     expect(within(ihpSection!).queryByDisplayValue("Gleichgewicht trainieren")).not.toBeInTheDocument();
+  });
+});
+
+describe("AssessmentOutline planning master-detail", () => {
+  it("zeigt standardmässig die Handlungen des ersten Ziels und blendet die übrigen aus", () => {
+    renderPlanningOutline({ topics: topicsWithGoals });
+
+    expect(screen.getByText("Handlung A1")).toBeInTheDocument();
+    expect(screen.queryByText("Handlung B1")).not.toBeInTheDocument();
+  });
+
+  it("wechselt das Detail beim Klick auf ein anderes Ziel in der Master-Spalte", () => {
+    renderPlanningOutline({ topics: topicsWithGoals });
+
+    fireEvent.click(screen.getByRole("button", { name: /Ziel B/ }));
+
+    expect(screen.getByText("Handlung B1")).toBeInTheDocument();
+    expect(screen.queryByText("Handlung A1")).not.toBeInTheDocument();
   });
 });

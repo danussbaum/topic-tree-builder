@@ -811,6 +811,15 @@ const Index = () => {
   const [pendingActualMinutesOp, setPendingActualMinutesOp] = useState<"gt" | "lt" | "eq">("eq");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [showClosedTargets, setShowClosedTargets] = useState(false);
+  // Eingeklappte Personen-Blöcke in der Planungs-Ansicht (nur Darstellung).
+  const [collapsedPlanningClientIds, setCollapsedPlanningClientIds] = useState<Set<string>>(new Set());
+  const togglePlanningClientCollapsed = (clientId: string) =>
+    setCollapsedPlanningClientIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(clientId)) next.delete(clientId);
+      else next.add(clientId);
+      return next;
+    });
   const [evaluationAssessmentPanel, setEvaluationAssessmentPanel] = useState<{
     clientId: string;
     topicId: string;
@@ -3325,6 +3334,18 @@ const Index = () => {
                   <section key={client.id} className="space-y-6">
                     {/* Client header */}
                     <div className={cn("flex items-center gap-4 pb-5 border-b border-border sticky z-10 bg-[#F5F5F6]", viewMode === "confirmation" ? "top-0 pt-[5px]" : viewMode === "planning" ? "top-0 pb-2" : "top-9 pb-2")}>
+                      {viewMode === "planning" && (
+                        <button
+                          type="button"
+                          onClick={() => togglePlanningClientCollapsed(client.id)}
+                          className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+                          aria-label={collapsedPlanningClientIds.has(client.id) ? "Personen-Block ausklappen" : "Personen-Block einklappen"}
+                        >
+                          {collapsedPlanningClientIds.has(client.id)
+                            ? <ChevronRight className="h-5 w-5" />
+                            : <ChevronDown className="h-5 w-5" />}
+                        </button>
+                      )}
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline gap-0">
                           <ClientNameInput
@@ -3345,6 +3366,38 @@ const Index = () => {
                           />
                         </div>
                       </div>
+                      {viewMode === "planning" && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              className="shrink-0 inline-flex items-center gap-1 text-sm text-primary transition-colors hover:underline"
+                            >
+                              <Plus className="h-4 w-4" />
+                              Schwerpunkt
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent
+                            align="end"
+                            className="min-w-56"
+                            onCloseAutoFocus={(e) => e.preventDefault()}
+                          >
+                            <div className="px-2 py-1.5 text-xs uppercase tracking-widest text-muted-foreground">
+                              Disziplin wählen
+                            </div>
+                            {(availableDisciplines.length > 0 ? availableDisciplines : initialActionPlanDisciplines).map(
+                              (discipline) => (
+                                <DropdownMenuItem
+                                  key={discipline.id}
+                                  onClick={() => addTopic(client.id, discipline.id)}
+                                >
+                                  {discipline.title}
+                                </DropdownMenuItem>
+                              ),
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
                       {viewMode === "confirmation" && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -3385,6 +3438,7 @@ const Index = () => {
                       )}
                     </div>
 
+                    {!(viewMode === "planning" && collapsedPlanningClientIds.has(client.id)) && (
                     <AssessmentOutline
                       viewMode={viewMode}
                       stickyOffset={viewMode === "confirmation" ? 58 : undefined}
@@ -3451,6 +3505,7 @@ const Index = () => {
                         deleteActionGroup(client.id, topicId, targetId, groupId)
                       }
                     />
+                    )}
                     {personUnplannedClientId === client.id && (() => {
                       const current = new Date(`${selectedDate}T00:00:00`);
                       let dateFrom: string;

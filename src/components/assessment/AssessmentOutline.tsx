@@ -77,6 +77,7 @@ import type {
   Weekday,
   MonthlyRecurrencePattern,
   TopicNode,
+  TargetNode,
 } from "@/types/assessment";
 import { DAY_PART_LABEL, DAY_PART_ORDER, DAY_PART_SELECT_OPTIONS } from "@/types/assessment";
 import { DayPartChipSelector, type DayPartEntry } from "@/components/assessment/DayPartChipSelector";
@@ -579,12 +580,17 @@ export function AssessmentOutline({
 
   useEffect(() => {
     if (!focusTopicId) return;
-    const el = topicInputRefs.current.get(focusTopicId);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-      el.focus();
+    // rAF: erst nach dem Schliessen von Popover/Dropdown (Radix gibt sonst den
+    // Fokus an seinen Trigger zurück und überschreibt den Feld-Fokus).
+    const raf = requestAnimationFrame(() => {
+      const el = topicInputRefs.current.get(focusTopicId);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.focus();
+      }
       onFocusHandled?.();
-    }
+    });
+    return () => cancelAnimationFrame(raf);
   }, [focusTopicId]);
 
   const [panelContext, setPanelContext] = useState<{
@@ -600,9 +606,6 @@ export function AssessmentOutline({
   } | null>(null);
   const [isPanelMounted, setIsPanelMounted] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
-  const [newTopicDisciplineId, setNewTopicDisciplineId] = useState(
-    disciplines[0]?.id ?? initialActionPlanDisciplines[0]?.id ?? "",
-  );
   const [dialogTarget, setDialogTarget] = useState<DialogTarget | null>(null);
   const [isConfirmDialogMounted, setIsConfirmDialogMounted] = useState(false);
 
@@ -647,6 +650,37 @@ export function AssessmentOutline({
         topics: groupTopics,
       })),
   ];
+
+  // Master-Detail (Planung): welche Ziele rechts im Detail angezeigt werden.
+  // Klick = Einzelauswahl, Ctrl/Cmd-Klick = mehrere Ziele gleichzeitig.
+  const [selectedGoalIds, setSelectedGoalIds] = useState<string[]>(() => {
+    for (const t of topics) {
+      const first = t.targets.find((tg) => !tg.validTo) ?? t.targets[0];
+      if (first) return [first.id];
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    const valid = new Set<string>();
+    topics.forEach((t) =>
+      t.targets.forEach((tg) => {
+        if (showClosedTargets || !tg.validTo) valid.add(tg.id);
+      }),
+    );
+    setSelectedGoalIds((prev) => {
+      const pruned = prev.filter((id) => valid.has(id));
+      return pruned.length === prev.length ? prev : pruned;
+    });
+  }, [topics, showClosedTargets]);
+
+  const selectGoal = (id: string, ev?: { ctrlKey?: boolean; metaKey?: boolean }) => {
+    const multi = !!ev && (ev.ctrlKey || ev.metaKey);
+    setSelectedGoalIds((prev) => {
+      if (multi) return prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      return prev.length === 1 && prev[0] === id ? [] : [id];
+    });
+  };
 
   useEffect(() => {
     if (!bulkNotDoneMode) {
@@ -1622,93 +1656,137 @@ export function AssessmentOutline({
   if (topics.length === 0) {
     return (
       <div className="border border-dashed border-border rounded-sm p-12 text-center text-muted-foreground">
-        <p className="mb-4">Noch keine Schwerpunkte erfasst.</p>
-        <div className="mx-auto mb-4 max-w-xs text-left">
-          <Label className="mb-1 block text-xs uppercase tracking-widest text-muted-foreground">
-            Disziplin
-          </Label>
-          <Select value={newTopicDisciplineId} onValueChange={setNewTopicDisciplineId}>
-            <SelectTrigger className="bg-background">
-              <SelectValue placeholder="Disziplin auswählen" />
-            </SelectTrigger>
-            <SelectContent>
-              {disciplineOptions.map((discipline) => (
-                <SelectItem key={discipline.id} value={discipline.id}>
-                  {discipline.title}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <button
-          onClick={() => onAddTopic(newTopicDisciplineId)}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-sm text-sm font-medium hover:bg-primary/90"
-        >
-          <Plus className="h-4 w-4" />
-          Ersten Schwerpunkt hinzufügen
-        </button>
+        <p>Noch keine Schwerpunkte erfasst.</p>
       </div>
     );
   }
 
+  // Rechts anzuzeigende Ziele: gewählte IDs, in Baum-Reihenfolge, nur sichtbare (abgeschlossene je nach showClosedTargets).
+  const selectedGoals: Array<{ topic: TopicNode; target: TargetNode }> = [];
+  for (const group of topicDisciplineGroups) {
+    for (const topic of group.topics) {
+      for (const target of topic.targets) {
+        if ((showClosedTargets || !target.validTo) && selectedGoalIds.includes(target.id)) {
+          selectedGoals.push({ topic, target });
+        }
+      }
+    }
+  }
+
   return (
-    <div className="space-y-12">
-      {topicDisciplineGroups.map(({ discipline, topics: groupTopics }) => (
-        <section key={discipline.id} className="space-y-5">
-          <div className="border-b-2 border-border pb-3">
-            <div className="mt-1 flex items-center justify-between gap-3">
-              <h3 className="text-2xl font-semibold">{discipline.title}</h3>
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
+        {/* MASTER: Ziel-Navigation, gruppiert nach Disziplin → Schwerpunkt */}
+        <div className="space-y-8 rounded-xl border border-border bg-white p-4 lg:sticky lg:top-2 lg:max-h-[calc(100vh-9rem)] lg:overflow-y-auto">
+          {topicDisciplineGroups.map(({ discipline, topics: groupTopics }) => (
+            <section key={discipline.id} className="space-y-4">
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  {discipline.title}
+                </h3>
+                <span className="h-px flex-1 bg-border" />
+              </div>
+
+              <div className="space-y-5">
+                {groupTopics.map((topic) => {
+                  const topicReadOnly = topic.targets.some((t) => t.actions.length > 0);
+                  const visibleTargets = topic.targets.filter(
+                    (target) => showClosedTargets || !target.validTo,
+                  );
+                  return (
+                    <div key={topic.id} className="group/topic space-y-1.5">
+                      <div className="flex items-start gap-1">
+                        <input
+                          ref={(el) => {
+                            if (el) topicInputRefs.current.set(topic.id, el);
+                            else topicInputRefs.current.delete(topic.id);
+                          }}
+                          value={topic.title}
+                          onChange={(e) => onUpdateTopic(topic.id, "title", e.target.value)}
+                          readOnly={topicReadOnly}
+                          placeholder="Schwerpunkt…"
+                          className={`min-w-0 flex-1 bg-transparent border-0 px-0 text-base font-semibold outline-none focus:ring-0 placeholder:text-muted-foreground/40 ${topicReadOnly ? "cursor-default text-foreground" : ""}`}
+                        />
+                        <TooltipProvider delayDuration={150}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                onClick={() => onDeleteTopic(topic.id)}
+                                className="shrink-0 rounded p-1 opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover/topic:opacity-100"
+                                aria-label="Schwerpunkt löschen"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              <div className="max-w-[220px] space-y-0.5">
+                                <div className="font-medium">Schwerpunkt löschen</div>
+                                <div className="text-xs text-muted-foreground">Schwerpunkt mit allen Zielen und Handlungen entfernen</div>
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+
+                      <Notes
+                        value={topic.notes}
+                        onChange={(v) => onUpdateTopic(topic.id, "notes", v)}
+                        placeholder="Freitext zum Schwerpunkt…"
+                        borderless
+                        className="-mx-2 w-[calc(100%+1rem)] text-sm text-muted-foreground"
+                      />
+
+                      <ul className="space-y-0.5">
+                        {visibleTargets.map((target) => {
+                          const isOpen = selectedGoalIds.includes(target.id);
+                          return (
+                            <li key={target.id}>
+                              <button
+                                type="button"
+                                onClick={(e) => selectGoal(target.id, e)}
+                                className={cn(
+                                  "flex w-full items-center rounded-md px-2 py-1.5 text-left text-base transition-colors",
+                                  isOpen
+                                    ? "bg-primary/10 font-medium text-primary"
+                                    : "text-muted-foreground hover:bg-muted",
+                                )}
+                              >
+                                <span className="truncate">{target.title || "Ziel…"}</span>
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const id = onAddTarget(topic.id);
+                          if (id) setSelectedGoalIds([id]);
+                        }}
+                        className="inline-flex items-center gap-1 pl-2 text-sm text-muted-foreground transition-colors hover:text-primary"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Ziel
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
+        </div>
+
+        {/* DETAIL: gewählte Ziele mit Handlungen */}
+        <div className="min-w-0 rounded-xl border border-border bg-white p-5">
+          {selectedGoals.length === 0 ? (
+            <div className="flex min-h-[240px] flex-col items-center justify-center gap-2 text-center text-muted-foreground">
+              <div className="text-3xl">◻</div>
+              <div>Ziel links wählen, um Details und Handlungen zu sehen.</div>
             </div>
-          </div>
-
-          <div className="space-y-8 border-l border-primary/20 pl-5">
-            {groupTopics.map((topic) => (
-              <article key={topic.id} className="group/topic space-y-3">
-                <div className="flex items-start gap-3">
-                  <div className="min-w-0 flex-1">
-                    <input
-                      ref={(el) => {
-                        if (el) topicInputRefs.current.set(topic.id, el);
-                        else topicInputRefs.current.delete(topic.id);
-                      }}
-                      value={topic.title}
-                      onChange={(e) => onUpdateTopic(topic.id, "title", e.target.value)}
-                      readOnly={topic.targets.some((t) => t.actions.length > 0)}
-                      placeholder="Schwerpunkt…"
-                      className={`w-full text-2xl font-semibold bg-transparent border-0 outline-none focus:ring-0 px-0 placeholder:text-muted-foreground/40 ${topic.targets.some((t) => t.actions.length > 0) ? "text-foreground cursor-default" : ""}`}
-                    />
-                  </div>
-                  <TooltipProvider delayDuration={150}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          onClick={() => onDeleteTopic(topic.id)}
-                          className="opacity-0 group-hover/topic:opacity-100 p-1.5 hover:bg-destructive/10 hover:text-destructive rounded transition-opacity"
-                          aria-label="Schwerpunkt löschen"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">
-                        <div className="max-w-[220px] space-y-0.5">
-                          <div className="font-medium">Schwerpunkt löschen</div>
-                          <div className="text-xs text-muted-foreground">Schwerpunkt mit allen Zielen und Handlungen entfernen</div>
-                        </div>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-
-                <Notes
-                  value={topic.notes}
-                  onChange={(v) => onUpdateTopic(topic.id, "notes", v)}
-                  placeholder="Freitext zum Schwerpunkt…"
-                  className="mt-1.5 w-1/2"
-                />
-
-                {/* Targets */}
-                <div className="mt-6 space-y-6 pl-6 border-l border-border ml-4">
-                  {topic.targets.filter((target) => showClosedTargets || !target.validTo).map((target) => {
+          ) : (
+            <div className="space-y-10">
+              {selectedGoals.map(({ topic, target }) => {
               const isTargetClosed = !!target.validTo;
               return (
                 <div key={target.id} className="group/target">
@@ -1842,56 +1920,19 @@ export function AssessmentOutline({
                     {!isTargetClosed && (
                       <button
                         onClick={() => openCreatePanel(topic.id, target.id)}
-                        className="mt-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
+                        className="mt-3 inline-flex items-center gap-2 rounded-sm bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
                       >
-                        <Plus className="h-3.5 w-3.5" />
+                        <Plus className="h-4 w-4" />
                         Neue Handlung erfassen
                       </button>
                     )}
                   </div>
                 </div>
               );
-            })}
-
-                  <button
-                    onClick={() => onAddTarget(topic.id)}
-                    className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Ziel hinzufügen
-                  </button>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-      ))}
-
-      <div className="flex flex-col gap-3 border-t border-dashed border-border pt-4 sm:flex-row sm:items-end">
-        <div className="w-full max-w-xs">
-          <Label className="mb-1 block text-xs uppercase tracking-widest text-muted-foreground">
-            Disziplin für neuen Schwerpunkt
-          </Label>
-          <Select value={newTopicDisciplineId} onValueChange={setNewTopicDisciplineId}>
-            <SelectTrigger>
-              <SelectValue placeholder="Disziplin auswählen" />
-            </SelectTrigger>
-            <SelectContent>
-              {disciplineOptions.map((discipline) => (
-                <SelectItem key={discipline.id} value={discipline.id}>
-                  {discipline.title}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+              })}
+            </div>
+          )}
         </div>
-        <button
-          onClick={() => onAddTopic(newTopicDisciplineId)}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-sm text-sm font-medium hover:bg-primary/90"
-        >
-          <Plus className="h-4 w-4" />
-          Neuer Schwerpunkt
-        </button>
       </div>
 
       {isConfirmDialogMounted && dialogTarget && (
@@ -4956,6 +4997,7 @@ function Notes({
   className,
   compact,
   disabled,
+  borderless,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -4963,6 +5005,8 @@ function Notes({
   className?: string;
   compact?: boolean;
   disabled?: boolean;
+  /** Randlos (nur bei Hover/Fokus dezenter Rahmen) — für ruhige Navigations-Spalten. */
+  borderless?: boolean;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
 
@@ -4982,8 +5026,12 @@ function Notes({
       placeholder={placeholder}
       rows={1}
       className={cn(
-        "w-full resize-none bg-white shadow-none leading-relaxed border border-border/50 rounded-md px-2 focus-visible:ring-0 focus-visible:border-primary/50 placeholder:text-muted-foreground/40 transition-colors hover:border-border",
-        compact ? "text-xs min-h-0 py-0.5" : "text-sm min-h-0 py-1 max-h-[4.75rem] overflow-y-auto",
+        "w-full resize-none rounded-md px-2 shadow-none leading-relaxed transition-colors focus-visible:ring-0 focus-visible:border-primary/50 placeholder:text-muted-foreground/40",
+        borderless
+          ? "border border-transparent bg-transparent hover:border-border/60"
+          : "border border-border/50 bg-white hover:border-border",
+        compact ? "text-xs min-h-0 py-0.5" : "text-sm min-h-0 py-1",
+        !borderless && !compact && "max-h-[4.75rem] overflow-y-auto",
         className,
       )}
       onInput={(e) => {
