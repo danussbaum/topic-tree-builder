@@ -8,7 +8,9 @@ import {
   getActionServiceTypeLabel,
   getTemplateLockedActionFields,
   loadActionPlanTemplates,
+  parseTageszeit,
   resolveTemplateDisciplineIds,
+  serializeTageszeit,
   templateMatchesDiscipline,
   normalizeTemplateSelectValue,
 } from "@/lib/action-plan-templates";
@@ -33,8 +35,13 @@ describe("normalizeTemplateSelectValue", () => {
 });
 
 describe("action plan template fields", () => {
-  it("stellt Uhrzeit als neues optionales Vorlagenfeld bereit", () => {
-    expect(buildDefaultTemplateFields().uhrzeit).toBe("");
+  it("codiert die optionale Uhrzeit als Zusatz in der Tageszeit", () => {
+    // Die Uhrzeit ist kein eigenes Vorlagenfeld mehr, sondern steckt im tageszeit-Wert.
+    expect(buildDefaultTemplateFields()).not.toHaveProperty("uhrzeit");
+
+    const serialized = serializeTageszeit([{ dayPart: "afternoon", scheduledTime: "14:00" }]);
+    expect(serialized).toBe("afternoon(14:00)");
+    expect(parseTageszeit(serialized)).toEqual([{ dayPart: "afternoon", scheduledTime: "14:00" }]);
   });
 
   it("stellt Leistungsart als internes Vorlagenfeld ohne Veränderbarkeit bereit", () => {
@@ -57,7 +64,7 @@ describe("action plan template fields", () => {
           beschreibung: false,
         },
       }),
-    ).toEqual(["notes", "category", "serviceType"]);
+    ).toEqual(["notes", "category", "serviceEntries"]);
   });
 
   it("liefert Export-Labels für Leistungsarten", () => {
@@ -66,23 +73,26 @@ describe("action plan template fields", () => {
     expect(getActionServiceTypeLabel()).toBe("");
   });
 
-  it("ergänzt geladene ältere Vorlagen um das Uhrzeit-Feld", () => {
+  it("überführt die Uhrzeit älterer Vorlagen in das Tageszeit-Feld", () => {
     window.localStorage.setItem(
       ACTION_PLAN_TEMPLATES_STORAGE_KEY,
       JSON.stringify([
         {
           id: "tpl-alt",
           name: "Alt",
-          fields: { titel: "Alte Handlung" },
+          fields: { titel: "Alte Handlung", tageszeit: "afternoon", uhrzeit: "14:00" },
           editable: { titel: false },
         },
       ]),
     );
 
-    expect(loadActionPlanTemplates()[0]).toMatchObject({
+    const loaded = loadActionPlanTemplates()[0];
+    // Das separate uhrzeit-Feld wird in tageszeit zusammengeführt und verworfen.
+    expect(loaded.fields).not.toHaveProperty("uhrzeit");
+    expect(loaded).toMatchObject({
       disciplineIds: [],
-      fields: { titel: "Alte Handlung", uhrzeit: "", leistungsart: "none" },
-      editable: { titel: false, uhrzeit: true, leistungsart: false },
+      fields: { titel: "Alte Handlung", tageszeit: "afternoon(14:00)", leistungsart: "none" },
+      editable: { titel: false, leistungsart: false },
     });
   });
 });

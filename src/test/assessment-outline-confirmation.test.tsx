@@ -265,8 +265,7 @@ describe("AssessmentOutline confirmation actions", () => {
             dauer: "25",
             personen: "2",
             kategorie: "b",
-            tageszeit: "morning",
-            uhrzeit: "08:15",
+            tageszeit: "morning(08:15)",
             resultat: "required",
           },
           editable: {
@@ -277,7 +276,6 @@ describe("AssessmentOutline confirmation actions", () => {
             personen: false,
             kategorie: false,
             tageszeit: false,
-            uhrzeit: false,
             resultat: false,
           },
         },
@@ -298,15 +296,17 @@ describe("AssessmentOutline confirmation actions", () => {
 
     expect(within(dialog).getByLabelText("Beschreibung")).toBeDisabled();
     expect(within(dialog).getByLabelText("Hilfsmittel")).toBeDisabled();
-    expect(within(dialog).getByRole("combobox", { name: "Tageszeit" })).toBeDisabled();
-    expect(within(dialog).getByLabelText("Uhrzeit")).toBeDisabled();
+    // Ohne fixe Tageszeit rendert der Dialog den Chip-Selektor; bei gesperrter
+    // Tageszeit sind dessen Chips (inkl. Uhrzeit-Eingaben) deaktiviert.
+    expect(within(dialog).getByRole("button", { name: "Morgen" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "Abend" })).toBeDisabled();
     expect(within(dialog).getByLabelText("Geplante Minuten")).toBeDisabled();
     expect(within(dialog).getByLabelText("Anz. Personen")).toBeDisabled();
     expect(within(dialog).getByRole("combobox", { name: "Klassifizierung" })).toBeDisabled();
     expect(within(dialog).getByRole("combobox", { name: "Resultat" })).toBeDisabled();
   });
 
-  it("deaktiviert alle gesperrten Vorlagenfelder in der Planung", () => {
+  it("deaktiviert alle gesperrten Vorlagenfelder in der Planung", async () => {
     const onUpdateActionField = vi.fn();
     const lockedTopics: TopicNode[] = [
       {
@@ -321,6 +321,7 @@ describe("AssessmentOutline confirmation actions", () => {
             actions: [
               {
                 id: "action-locked-monthly",
+                groupId: "grp-monthly",
                 title: "Gesperrte Vorlage",
                 notes: "Fixe Beschreibung",
                 requiredResources: "Fixes Hilfsmittel",
@@ -351,6 +352,7 @@ describe("AssessmentOutline confirmation actions", () => {
               },
               {
                 id: "action-locked-weekly",
+                groupId: "grp-weekly",
                 title: "Gesperrte Wochentage",
                 notes: "",
                 status: "open",
@@ -366,47 +368,61 @@ describe("AssessmentOutline confirmation actions", () => {
       },
     ];
 
-    render(
-      <AssessmentOutline
-        selectedDate="2026-05-12"
-        onSelectedDateChange={vi.fn()}
-        clientName="Test Klient"
-        topics={lockedTopics}
-        hideConfirmationHeader
-        onUpdateTopic={vi.fn()}
-        onUpdateTarget={vi.fn()}
-        onUpdateAction={vi.fn()}
-        onUpdateActionField={onUpdateActionField}
-        onConfirmAction={vi.fn()}
-        onAddTarget={vi.fn()}
-        onAddAction={vi.fn()}
-        onAddTopic={vi.fn()}
-        onDeleteTopic={vi.fn()}
-        onDeleteTarget={vi.fn()}
-        onDeleteAction={vi.fn()}
-        viewMode="planning"
-      />,
-    );
+    const outlineProps = {
+      selectedDate: "2026-05-12",
+      onSelectedDateChange: vi.fn(),
+      clientName: "Test Klient",
+      topics: lockedTopics,
+      hideConfirmationHeader: true,
+      viewMode: "planning" as const,
+      onUpdateTopic: vi.fn(),
+      onUpdateTarget: vi.fn(),
+      onUpdateAction: vi.fn(),
+      onUpdateActionField,
+      onUpdateActionGroup: vi.fn(),
+      onConfirmAction: vi.fn(),
+      onAddTarget: vi.fn(),
+      onAddAction: vi.fn(),
+      onAddTopic: vi.fn(),
+      onUpdateTopicDiscipline: vi.fn(),
+      onReactivateTarget: vi.fn(),
+      onDeleteTopic: vi.fn(),
+      onDeleteTarget: vi.fn(),
+      onDeleteAction: vi.fn(),
+      onDeleteActionGroup: vi.fn(),
+    };
 
-    const monthlyAction = screen.getByDisplayValue("Gesperrte Vorlage").closest("li");
-    expect(monthlyAction).not.toBeNull();
-    const monthlyScope = within(monthlyAction as HTMLElement);
+    // In der Master-Detail-Planung erscheinen Handlungen als Übersichtszeilen;
+    // bearbeitet (und dabei gemäss Vorlage gesperrt) werden sie im Seitenpanel.
+    const { unmount } = render(<AssessmentOutline {...outlineProps} />);
 
-    expect(monthlyScope.getByDisplayValue("Gesperrte Vorlage")).toHaveAttribute("readonly");
-    expect(monthlyScope.getByPlaceholderText("Beschreibung zur Handlung...")).toBeDisabled();
-    expect(monthlyScope.getByPlaceholderText("Hilfsmittel zur Durchführung...")).toBeDisabled();
-    expect(monthlyScope.getByRole("combobox", { name: "Klassifizierung" })).toBeDisabled();
-    expect(monthlyScope.getByRole("combobox", { name: "Tageszeit" })).toBeDisabled();
-    expect(monthlyScope.getByLabelText("Uhrzeit")).toBeDisabled();
-    expect(monthlyScope.getByDisplayValue("25")).toBeDisabled();
-    expect(monthlyScope.getByDisplayValue("2")).toBeDisabled();
-    expect(monthlyScope.getByRole("combobox", { name: "Resultat" })).toBeDisabled();
-    expect(monthlyScope.getByRole("combobox", { name: "Wiederholung" })).toBeDisabled();
-    expect(monthlyScope.getByRole("combobox", { name: "Monatliche Regel" })).toBeDisabled();
+    const monthlyRow = screen.getByText("Gesperrte Vorlage").closest("li");
+    expect(monthlyRow).not.toBeNull();
+    fireEvent.click(within(monthlyRow as HTMLElement).getByRole("button", { name: "Handlung bearbeiten" }));
 
-    const weeklyAction = screen.getByDisplayValue("Gesperrte Wochentage").closest("li");
-    expect(weeklyAction).not.toBeNull();
-    expect(within(weeklyAction as HTMLElement).getByRole("button", { name: "Mo" })).toBeDisabled();
+    const monthlyPanel = within(await screen.findByRole("dialog"));
+    expect(monthlyPanel.getByDisplayValue("Gesperrte Vorlage")).toBeDisabled();
+    expect(monthlyPanel.getByDisplayValue("Fixe Beschreibung")).toBeDisabled();
+    expect(monthlyPanel.getByDisplayValue("Fixes Hilfsmittel")).toBeDisabled();
+    expect(monthlyPanel.getByDisplayValue("25")).toBeDisabled();
+    expect(monthlyPanel.getByDisplayValue("2")).toBeDisabled();
+    // Tageszeit steckt jetzt im Chip-Selektor — gesperrt heisst: Chips deaktiviert.
+    expect(monthlyPanel.getByRole("button", { name: "Morgen" })).toBeDisabled();
+    // Klassifizierung, Resultat, Wiederholung und Monatsmuster sind Comboboxen.
+    const monthlyComboboxes = monthlyPanel.getAllByRole("combobox");
+    expect(monthlyComboboxes).toHaveLength(4);
+    monthlyComboboxes.forEach((combobox) => expect(combobox).toBeDisabled());
+
+    unmount();
+
+    // Zweite Handlung: nur die Wochentage sind gesperrt.
+    render(<AssessmentOutline {...outlineProps} />);
+    const weeklyRow = screen.getByText("Gesperrte Wochentage").closest("li");
+    expect(weeklyRow).not.toBeNull();
+    fireEvent.click(within(weeklyRow as HTMLElement).getByRole("button", { name: "Handlung bearbeiten" }));
+
+    const weeklyPanel = within(await screen.findByRole("dialog"));
+    expect(weeklyPanel.getByRole("button", { name: "Mo" })).toBeDisabled();
   });
 
   it("opens unplanned template creation without a preselected template or visible title field", async () => {
@@ -472,6 +488,8 @@ describe("AssessmentOutline confirmation actions", () => {
         title: "Morgenroutine",
         templateName: "Morgenroutine",
       }),
+      // Zweites Argument: die im Chip-Selektor gewählten Tageszeit-Einträge.
+      expect.any(Array),
     );
   });
 
@@ -490,16 +508,49 @@ describe("AssessmentOutline confirmation actions", () => {
     fireEvent.change(within(dialog).getByPlaceholderText("Vorlagen suchen..."), { target: { value: "Morg" } });
     fireEvent.click(await within(dialog).findByText("Morgenroutine"));
 
-    fireEvent.click(within(dialog).getByRole("combobox", { name: "Tageszeit" }));
-    fireEvent.click(await screen.findByRole("option", { name: "Abend" }));
+    // Ohne fixe Tageszeit rendert der Dialog den Chip-Selektor: Morgen (aus der
+    // Vorlage) abwählen, Abend manuell wählen.
+    fireEvent.click(within(dialog).getByRole("button", { name: "Morgen" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Abend" }));
     fireEvent.click(within(dialog).getByRole("button", { name: "Bestätigen" }));
 
+    // Die gewählten Tageszeiten kommen als zweites Argument (dayPartEntries).
     expect(onAddUnplannedAction).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: "Morgenroutine",
-        dayPart: "evening",
-      }),
+      expect.objectContaining({ title: "Morgenroutine" }),
+      [{ dayPart: "evening" }],
     );
+  });
+
+  it("füllt das Bis-Datum automatisch mit dem Von-Datum, wenn nur ein Von übergeben wird", async () => {
+    // Regression: ohne dueDate blieb "Bis" leer, wodurch Bestätigen still abbrach.
+    render(
+      <UnplannedActionDialog
+        target={{ dateFrom: "2026-07-08", dayPart: "none" }}
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    const dialog = within(await screen.findByRole("dialog"));
+    // Von und Bis tragen beide das vorgegebene Datum.
+    expect(dialog.getAllByDisplayValue("2026-07-08")).toHaveLength(2);
+  });
+
+  it("hält Bestätigen deaktiviert, solange Von oder Bis fehlt", async () => {
+    render(
+      <UnplannedActionDialog
+        target={{ dayPart: "none" }}
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    const dialog = within(await screen.findByRole("dialog"));
+    // Vorlage wählen, damit nur noch die fehlenden Daten die Bestätigung blockieren.
+    fireEvent.change(dialog.getByPlaceholderText("Vorlagen suchen..."), { target: { value: "Morg" } });
+    fireEvent.click(await dialog.findByText("Morgenroutine"));
+
+    expect(dialog.getByRole("button", { name: "Bestätigen" })).toBeDisabled();
   });
 
   it("keeps a newly created confirmed unplanned action visible while the unconfirmed filter is active", () => {
@@ -639,7 +690,7 @@ describe("AssessmentOutline confirmation actions", () => {
     expect(screen.queryByText("Spontane Begleitung")).not.toBeInTheDocument();
   });
 
-  it("allows deleting a confirmed unplanned action from the confirmation dialog", async () => {
+  it("allows deleting an unconfirmed unplanned action from the confirmation dialog", async () => {
     const onDeleteAction = vi.fn();
 
     render(
@@ -661,22 +712,14 @@ describe("AssessmentOutline confirmation actions", () => {
                 notes: "",
                 actions: [
                   {
-                    id: "unplanned-confirmed",
+                    id: "unplanned-open",
                     title: "Spontane Begleitung",
                     notes: "",
-                    status: "done_as_planned",
-                    done: true,
+                    status: "open",
+                    done: false,
                     validFrom: "2026-05-12",
-                    validTo: "2026-05-12",
                     recurrence: "daily",
                     isUnplanned: true,
-                    confirmations: {
-                      "2026-05-12": {
-                        status: "done_as_planned",
-                        done: true,
-                        actualMinutes: 20,
-                      },
-                    },
                   },
                 ],
               },
@@ -684,7 +727,7 @@ describe("AssessmentOutline confirmation actions", () => {
           },
         ]}
         hideConfirmationHeader
-        filterModel={{ statuses: ["done_as_planned"] }}
+        filterModel={{ statuses: ["open", "postponed"] }}
         onUpdateTopic={vi.fn()}
         onUpdateTarget={vi.fn()}
         onUpdateAction={vi.fn()}
@@ -699,15 +742,16 @@ describe("AssessmentOutline confirmation actions", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Umsetzung bearbeiten" }));
-    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    // Offene Handlung: Dialog über eine Umsetzungs-Variante öffnen.
+    fireEvent.click(screen.getAllByRole("button", { name: "Erledigt wie geplant" })[0]);
+    const dialog = within(await screen.findByRole("dialog"));
 
-    fireEvent.click(screen.getByRole("button", { name: "Löschen" }));
+    fireEvent.click(dialog.getByRole("button", { name: "Löschen" }));
 
     expect(onDeleteAction).toHaveBeenCalledWith(
       "topic-unplanned",
       "target-unplanned",
-      "unplanned-confirmed",
+      "unplanned-open",
     );
   });
 

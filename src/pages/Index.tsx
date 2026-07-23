@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { format } from "date-fns";
 import {
@@ -65,6 +65,7 @@ import {
 } from "@/types/assessment-filter";
 import { cn } from "@/lib/utils";
 import { createSimpleXlsxBlob } from "@/lib/xlsx";
+import { buildUnplannedActionNodes } from "@/lib/unplanned-action";
 import {
   ACTION_SERVICE_TYPE_SELECT_OPTIONS,
   buildDefaultTemplateFields,
@@ -849,7 +850,8 @@ const Index = () => {
   const toggleEvaluationTarget = (targetId: string) =>
     setExpandedEvaluationTargets((prev) => {
       const next = new Set(prev);
-      next.has(targetId) ? next.delete(targetId) : next.add(targetId);
+      if (next.has(targetId)) next.delete(targetId);
+      else next.add(targetId);
       return next;
     });
   const [pendingTargetValidTo, setPendingTargetValidTo] = useState<{
@@ -1318,38 +1320,7 @@ const Index = () => {
   ) => {
     const unplannedTopicTitle = "Ungeplante Handlungen";
     const unplannedTargetTitle = "Direkt in der Umsetzung erfasst";
-    const selectedDayPart = draft.dayPart ?? dayPart;
-
-    // Expand date range: one ActionNode per day, each with its own groupId
-    const dateFrom = (draft.dateFrom && draft.dateFrom !== "") ? draft.dateFrom : dueDate;
-    const dateTo = (draft.dateTo && draft.dateTo !== "") ? draft.dateTo : dateFrom;
-    const dates: string[] = [];
-    for (let d = new Date(`${dateFrom}T00:00:00`); d <= new Date(`${dateTo}T00:00:00`); d.setDate(d.getDate() + 1)) {
-      dates.push(dateToISO(d));
-    }
-    if (dates.length === 0) dates.push(dateFrom || dueDate);
-
-    const newActions: ActionNode[] = dates.map((date) => ({
-      id: uid(),
-      groupId: uid(),
-      title: draft.title,
-      notes: draft.notes,
-      requiredResources: draft.requiredResources,
-      plannedMinutes: draft.plannedMinutes,
-      requiredPersons: draft.requiredPersons,
-      resultRequirement: draft.resultRequirement,
-      dayPart: selectedDayPart === "none" ? undefined : selectedDayPart,
-      scheduledTime: draft.scheduledTime,
-      category: draft.category,
-      serviceEntries: draft.serviceEntries,
-      validFrom: date,
-      validTo: date,
-      recurrence: "daily",
-      isUnplanned: true,
-      templateId: draft.templateId,
-      templateName: draft.templateName,
-      templateLockedFields: draft.templateLockedFields,
-    }));
+    const newActions = buildUnplannedActionNodes(dayPart, draft, dueDate);
 
     const firstActionId = newActions[0]?.id ?? uid();
 
@@ -4314,10 +4285,10 @@ function TargetAssessmentPanel({
     return () => cancelAnimationFrame(frame);
   }, []);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setIsOpen(false);
     setTimeout(onClose, 300);
-  };
+  }, [onClose]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -4326,7 +4297,7 @@ function TargetAssessmentPanel({
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [isOpen]);
+  }, [isOpen, handleClose]);
 
   return (
     <div

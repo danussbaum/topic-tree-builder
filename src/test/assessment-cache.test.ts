@@ -32,6 +32,7 @@ const cachedState: CachedAssessmentState = {
               actions: [
                 {
                   id: "action-1",
+                  groupId: "group-1",
                   title: "Handlung",
                   notes: "",
                   plannedMinutes: 30,

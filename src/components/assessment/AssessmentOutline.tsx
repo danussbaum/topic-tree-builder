@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
@@ -576,7 +576,7 @@ export function AssessmentOutline({
       el.focus();
       onFocusTargetHandled?.();
     }
-  }, [focusTargetId]);
+  }, [focusTargetId, onFocusTargetHandled]);
 
   useEffect(() => {
     if (!focusTopicId) return;
@@ -591,7 +591,7 @@ export function AssessmentOutline({
       onFocusHandled?.();
     });
     return () => cancelAnimationFrame(raf);
-  }, [focusTopicId]);
+  }, [focusTopicId, onFocusHandled]);
 
   const [panelContext, setPanelContext] = useState<{
     mode: "create" | "edit";
@@ -1055,7 +1055,7 @@ export function AssessmentOutline({
                   onClick={() => setBulkNotDoneDialogOpen(true)}
                 >
                   <XCircle className="h-4 w-4" aria-hidden="true" />
-                  Ausgewählte als „Nicht durchgeführt" bestätigen
+                  Ausgewählte als „Nicht durchgeführt“ bestätigen
                 </Button>
               </div>
             </div>
@@ -1102,7 +1102,7 @@ export function AssessmentOutline({
                   onClick={() => setBulkDoneAsPlannedDialogOpen(true)}
                 >
                   <CheckCircle className="h-4 w-4" aria-hidden="true" />
-                  Ausgewählte als „Erledigt wie geplant" bestätigen
+                  Ausgewählte als „Erledigt wie geplant“ bestätigen
                 </Button>
               </div>
             </div>
@@ -2498,31 +2498,6 @@ export function ActionRow({
           </Badge>
         )}
 
-        {false && (
-          <div className="mt-1 space-y-1">
-            <Notes
-              value={action.notes}
-              onChange={(v) =>
-                onUpdateAction(topicId, targetId, action.id, "notes", v)
-              }
-              disabled={isFieldLocked("notes")}
-              placeholder="Beschreibung zur Handlung..."
-              className="text-foreground/70"
-              compact
-            />
-            <Notes
-              value={action.requiredResources ?? ""}
-              onChange={(v) =>
-                onUpdateAction(topicId, targetId, action.id, "requiredResources", v)
-              }
-              disabled={isFieldLocked("requiredResources")}
-              placeholder="Hilfsmittel zur Durchführung..."
-              className="text-foreground/70"
-              compact
-            />
-          </div>
-        )}
-
         {/* Meta fields */}
         {viewMode === "planning" ? (
           <div className="mt-1.5 flex flex-col gap-1 text-xs text-muted-foreground">
@@ -3388,6 +3363,9 @@ export function ActionSidePanel({
       />
       <aside
         ref={asideRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={panelTitle}
         className={`pointer-events-auto flex h-dvh w-full max-w-2xl flex-col bg-[#F5F5F6] transition-transform duration-300 ease-out ${isPanelOpen ? "translate-x-0 shadow-2xl" : "translate-x-full"}`}
         onTransitionEnd={onTransitionEnd}
       >
@@ -3868,7 +3846,7 @@ export function UnplannedActionDialog({
   const [draft, setDraft] = useState<UnplannedActionDraft>(() => buildEmptyUnplannedTemplateDraft(target.dayPart));
   const [dayPartEntries, setDayPartEntries] = useState<DayPartEntry[]>([{ dayPart: "morning" }]);
   const [dateFrom, setDateFrom] = useState<string>(target.dateFrom ?? target.dueDate ?? "");
-  const [dateTo, setDateTo] = useState<string>(target.dueDate ?? "");
+  const [dateTo, setDateTo] = useState<string>(target.dueDate ?? target.dateFrom ?? "");
   const [isPanelVisible, setIsPanelVisible] = useState(false);
   const unplannedAsideRef = useRef<HTMLElement | null>(null);
 
@@ -3878,10 +3856,10 @@ export function UnplannedActionDialog({
     return () => cancelAnimationFrame(id);
   }, []);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setIsPanelVisible(false);
     setTimeout(onClose, 300);
-  };
+  }, [onClose]);
 
   useEffect(() => {
     if (!isPanelVisible) return;
@@ -3894,7 +3872,7 @@ export function UnplannedActionDialog({
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [isPanelVisible]);
+  }, [isPanelVisible, handleClose]);
 
   const clearTemplateSelection = () => {
     setSelectedTemplateId("");
@@ -4050,6 +4028,9 @@ export function UnplannedActionDialog({
     >
       <aside
         ref={unplannedAsideRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Ungeplante Handlung erstellen"
         className={`pointer-events-auto flex h-dvh w-full max-w-2xl flex-col bg-[#F5F5F6] transition-transform duration-300 ease-out ${isPanelVisible ? "translate-x-0 shadow-2xl" : "translate-x-full"}`}
       >
         {/* Header */}
@@ -4421,7 +4402,7 @@ export function UnplannedActionDialog({
               type="button"
               variant="ghost"
               onClick={submit}
-              disabled={(creationMode === "template" && !selectedTemplate) || !!dateRangeError || missingRequiredFields.length > 0}
+              disabled={(creationMode === "template" && !selectedTemplate) || !dateFrom || !dateTo || !!dateRangeError || missingRequiredFields.length > 0}
               className="text-white hover:bg-white/10 hover:text-white"
             >
               Bestätigen
@@ -4500,7 +4481,7 @@ function BulkNotDoneDialog({
         <DialogFooter>
           <Button variant="outline" onClick={handleClose}>Abbrechen</Button>
           <Button variant="destructive" onClick={submit} disabled={!reason.trim() || targets.length === 0}>
-            {targets.length} als „Nicht durchgeführt" bestätigen
+            {targets.length} als „Nicht durchgeführt“ bestätigen
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -4544,7 +4525,7 @@ function BulkDoneAsPlannedDialog({
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Abbrechen</Button>
           <Button variant="default" onClick={onConfirm} disabled={targets.length === 0}>
-            {targets.length} als „Erledigt wie geplant" bestätigen
+            {targets.length} als „Erledigt wie geplant“ bestätigen
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -4608,6 +4589,11 @@ export function ConfirmActionDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target.action.id, target.dueDate]);
 
+  const handleClose = useCallback(() => {
+    setIsPanelVisible(false);
+    setTimeout(onClose, 300);
+  }, [onClose]);
+
   useEffect(() => {
     if (!isPanelVisible) return;
     const handler = (e: MouseEvent) => {
@@ -4619,12 +4605,7 @@ export function ConfirmActionDialog({
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [isPanelVisible]);
-
-  const handleClose = () => {
-    setIsPanelVisible(false);
-    setTimeout(onClose, 300);
-  };
+  }, [isPanelVisible, handleClose]);
 
   const submit = () => {
     if (!target || !mode) return;
@@ -4711,6 +4692,9 @@ export function ConfirmActionDialog({
     >
       <aside
         ref={confirmAsideRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
         className={`pointer-events-auto flex h-dvh w-full max-w-2xl flex-col bg-[#F5F5F6] transition-transform duration-300 ease-out ${isPanelVisible ? "translate-x-0 shadow-2xl" : "translate-x-full"}`}
       >
         {/* Header */}
