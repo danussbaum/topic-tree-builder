@@ -74,6 +74,7 @@ import type {
   ActionCategory,
   ActionServiceType,
   ActionServiceEntry,
+  ConfirmedOptionalService,
   Weekday,
   MonthlyRecurrencePattern,
   TopicNode,
@@ -81,7 +82,7 @@ import type {
 } from "@/types/assessment";
 import { DAY_PART_LABEL, DAY_PART_ORDER, DAY_PART_SELECT_OPTIONS } from "@/types/assessment";
 import { DayPartChipSelector, type DayPartEntry } from "@/components/assessment/DayPartChipSelector";
-import { parseLeistungsarten, parseTageszeit } from "@/lib/action-plan-templates";
+import { parseLeistungsarten, parseOptionalLeistungsarten, parseTageszeit } from "@/lib/action-plan-templates";
 import {
   DEFAULT_ASSESSMENT_FILTER,
   matchesAssessmentFilter,
@@ -99,6 +100,8 @@ import {
   type ActionPlanTemplate,
 } from "@/lib/action-plan-templates";
 import { DEFAULT_LAST_N_DAYS, type ConfirmationPeriod } from "@/lib/assessment-cache";
+import { getRescheduleWindow } from "@/lib/reschedule";
+import { OptionalServiceQuantities } from "@/components/assessment/OptionalServiceQuantities";
 import {
   initialActionPlanDisciplines,
   type ActionPlanDiscipline,
@@ -109,13 +112,19 @@ import {
 } from "@/lib/action-plan-categories";
 
 type ConfirmPayload =
-  | { status: "done_as_planned"; result?: string; observations?: string }
+  | {
+      status: "done_as_planned";
+      result?: string;
+      observations?: string;
+      optionalServices?: ConfirmedOptionalService[];
+    }
   | {
       status: "done_with_deviation";
       actualMinutes?: number;
       reason: string;
       result?: string;
       observations?: string;
+      optionalServices?: ConfirmedOptionalService[];
     }
   | { status: "not_done"; reason: string }
   | { status: "postponed"; postponedToDate?: string; postponedToTime?: string; postponedReason: string }
@@ -150,6 +159,8 @@ interface UnplannedActionDraft {
   scheduledTime?: string;
   category?: ActionCategory;
   serviceEntries?: ActionServiceEntry[];
+  optionalServiceTypes?: ActionServiceType[];
+  optionalServices?: ConfirmedOptionalService[];
   templateId?: string;
   templateName?: string;
   templateLockedFields?: string[];
@@ -174,6 +185,7 @@ type ActionDraftOverrides = Partial<Pick<ActionNode,
   | "recurrenceWeekdays"
   | "recurrenceMonthlyPattern"
   | "serviceEntries"
+  | "optionalServiceTypes"
 >>;
 
 interface ActionDraft {
@@ -187,6 +199,7 @@ interface ActionDraft {
   scheduledTime: string;
   category: string;
   serviceEntries: ActionServiceEntry[];
+  optionalServiceTypes: ActionServiceType[];
   validFrom: string;
   validTo: string;
   recurrence: string;
@@ -206,6 +219,7 @@ function emptyActionDraft(): ActionDraft {
     scheduledTime: "",
     category: "none",
     serviceEntries: [],
+    optionalServiceTypes: [],
     validFrom: "",
     validTo: "",
     recurrence: "none",
@@ -226,6 +240,7 @@ function actionToDraft(action: ActionNode): ActionDraft {
     scheduledTime: action.scheduledTime ?? "",
     category: action.category ?? "none",
     serviceEntries: action.serviceEntries ?? (action.serviceType ? [{ serviceType: action.serviceType }] : []),
+    optionalServiceTypes: action.optionalServiceTypes ?? [],
     validFrom: action.validFrom ?? "",
     validTo: action.validTo ?? "",
     recurrence: action.recurrence ?? "none",
@@ -417,8 +432,8 @@ const CONFIRMATION_MODE_OPTIONS: Array<{
   },
   {
     mode: "postponed",
-    label: "Später machen",
-    description: "Handlung auf ein späteres Datum und/oder eine spätere Uhrzeit verschieben",
+    label: "Neu planen",
+    description: "Handlung auf ein früheres oder späteres Datum und/oder eine andere Uhrzeit verschieben (max. 1 Woche)",
     icon: CalendarClock,
     iconClassName: "text-muted-foreground",
   },
@@ -519,10 +534,10 @@ const buildBulkNotDoneKey = (topicId: string, targetId: string, actionId: string
   `${topicId}::${targetId}::${actionId}::${dueDate}`;
 
 const getPostponedLabel = (date?: string, time?: string) => {
-  if (!date && !time) return "später";
+  if (!date && !time) return "neuen Zeitpunkt";
   const datePart = date ? format(parseISO(date), "dd.MM.yyyy", { locale: de }) : undefined;
   if (datePart && time) return `${datePart}, ${time}`;
-  return datePart ?? time ?? "später";
+  return datePart ?? time ?? "neuen Zeitpunkt";
 };
 
 export function AssessmentOutline({
@@ -731,7 +746,11 @@ export function AssessmentOutline({
     const { topicId, targetId, mode, action, groupActions } = panelContext;
 
     if (mode === "create") {
-      const overrides = { ...draftToOverrides(draft), serviceEntries: draft.serviceEntries.length > 0 ? draft.serviceEntries : undefined };
+      const overrides = {
+        ...draftToOverrides(draft),
+        serviceEntries: draft.serviceEntries.length > 0 ? draft.serviceEntries : undefined,
+        optionalServiceTypes: draft.optionalServiceTypes.length > 0 ? draft.optionalServiceTypes : undefined,
+      };
       onAddAction(topicId, targetId, selectedTemplateIds, overrides, dayPartEntries);
       closePanel();
     } else if (mode === "edit" && action) {
@@ -749,6 +768,7 @@ export function AssessmentOutline({
         recurrenceWeekdays: draft.recurrenceWeekdays.length > 0 ? draft.recurrenceWeekdays : undefined,
         recurrenceMonthlyPattern: draft.recurrenceMonthlyPattern !== "none" ? (draft.recurrenceMonthlyPattern as ActionNode["recurrenceMonthlyPattern"]) : undefined,
         serviceEntries: draft.serviceEntries.length > 0 ? draft.serviceEntries : undefined,
+        optionalServiceTypes: draft.optionalServiceTypes.length > 0 ? draft.optionalServiceTypes : undefined,
         templateId: action.templateId,
         templateName: action.templateName,
         templateLockedFields: action.templateLockedFields,
@@ -933,7 +953,9 @@ export function AssessmentOutline({
     const someVisibleBulkNotDoneSelected = visibleBulkNotDoneKeys.some((key) => selectedBulkNotDoneKeys.has(key));
 
     const bulkDoneAsPlannedTargets: BulkDoneAsPlannedTarget[] = sortedFlatActions
-      .filter(({ action, status }) => canConfirmAction(action) && (status === "open" || status === "postponed"))
+      // Ungeplante Handlungen sind nie "wie geplant" erledigt — sie haben keine geplante Zeit.
+      .filter(({ action, status }) =>
+        canConfirmAction(action) && !action.isUnplanned && (status === "open" || status === "postponed"))
       .map(({ topic, target, action, confirmationDate }) => ({
         key: buildBulkNotDoneKey(topic.id, target.id, action.id, confirmationDate),
         topicId: topic.id,
@@ -1118,7 +1140,9 @@ export function AssessmentOutline({
             const daySelectableKeys = dateGroup.dayPartGroups.flatMap((g) =>
               g.actions
                 .filter(({ action, target, status }) =>
-                  canConfirmAction(action) && !target.validTo && (status === "open" || status === "postponed"))
+                  canConfirmAction(action) && !target.validTo && (status === "open" || status === "postponed") &&
+                  // "Wie geplant" gibt es bei ungeplanten Handlungen nicht.
+                  !(bulkDoneAsPlannedMode && action.isUnplanned))
                 .map(({ topic, target, action, confirmationDate }) =>
                   buildBulkNotDoneKey(topic.id, target.id, action.id, confirmationDate)));
             const selectedDayKeys = isBulkActive
@@ -1172,7 +1196,8 @@ export function AssessmentOutline({
               {dateGroup.dayPartGroups.map((group) => {
                 const groupSelectableKeys = group.actions
                   .filter(({ action, target, status }) =>
-                    canConfirmAction(action) && !target.validTo && (status === "open" || status === "postponed"))
+                    canConfirmAction(action) && !target.validTo && (status === "open" || status === "postponed") &&
+                    !(bulkDoneAsPlannedMode && action.isUnplanned))
                   .map(({ topic, target, action, confirmationDate }) =>
                     buildBulkNotDoneKey(topic.id, target.id, action.id, confirmationDate));
                 const isBulkActive = bulkNotDoneMode || bulkDoneAsPlannedMode;
@@ -1252,7 +1277,8 @@ export function AssessmentOutline({
                           const bulkNotDoneKey = buildBulkNotDoneKey(topic.id, target.id, action.id, confirmationDate);
                           const isBulkNotDoneSelectable = canConfirm && (status === "open" || status === "postponed");
                           const bulkDoneAsPlannedKey = bulkNotDoneKey;
-                          const isBulkDoneAsPlannedSelectable = canConfirm && (status === "open" || status === "postponed");
+                          const isBulkDoneAsPlannedSelectable =
+                            canConfirm && !action.isUnplanned && (status === "open" || status === "postponed");
                           const disciplineTitle =
                             disciplineOptions.find((discipline) => discipline.id === topic.disciplineId)?.title ??
                             topic.disciplineId ??
@@ -1322,7 +1348,18 @@ export function AssessmentOutline({
                                       {CONFIRMATION_MODE_OPTIONS.map((option) => {
                                         const Icon = option.icon;
                                         const isBulkMode = bulkNotDoneMode || bulkDoneAsPlannedMode;
-                                        const isDisabled = !canConfirm || isBulkMode;
+                                        // Gemessen wird am ursprünglichen Termin (confirmationDate), nicht am
+                                        // Verschiebe-Datum der Zeile — sonst liesse sich die Frist durch
+                                        // wiederholtes Verschieben beliebig verlängern.
+                                        const isRescheduleUnavailable =
+                                          option.mode === "postponed" &&
+                                          !getRescheduleWindow(confirmationDate, today).isAvailable;
+                                        // Ungeplante Handlungen haben keine geplante Zeit (intern 0) — sie können
+                                        // deshalb nur "mit Abweichung" erledigt sein, nie "wie geplant".
+                                        const isDoneAsPlannedUnavailable =
+                                          option.mode === "done_as_planned" && !!action.isUnplanned;
+                                        const isDisabled =
+                                          !canConfirm || isBulkMode || isRescheduleUnavailable || isDoneAsPlannedUnavailable;
                                         return (
                                           <Tooltip key={option.mode}>
                                             <TooltipTrigger asChild>
@@ -1346,11 +1383,15 @@ export function AssessmentOutline({
                                                 <div className="text-xs text-muted-foreground">
                                                   {isBulkMode
                                                     ? "Im Mehrfachauswahl-Modus nicht verfügbar"
-                                                    : canConfirm
-                                                      ? option.description
-                                                      : isTargetClosed
-                                                        ? "Ziel abgeschlossen — Bestätigungen gesperrt"
-                                                        : "Keine Umsetzung möglich (zu geringe Berechtigung)"}
+                                                    : isDoneAsPlannedUnavailable
+                                                      ? "Bei einer ungeplanten Handlung nicht möglich — es gibt keine geplante Zeit, also nur «Erledigt mit Abweichung»"
+                                                      : isRescheduleUnavailable
+                                                      ? "Nicht mehr möglich — die Frist von 1 Woche zählt ab dem ursprünglich geplanten Termin, und der liegt länger zurück"
+                                                      : canConfirm
+                                                        ? option.description
+                                                        : isTargetClosed
+                                                          ? "Ziel abgeschlossen — Bestätigungen gesperrt"
+                                                          : "Keine Umsetzung möglich (zu geringe Berechtigung)"}
                                                 </div>
                                               </div>
                                             </TooltipContent>
@@ -3246,7 +3287,7 @@ export function ActionSidePanel({
       .map((v) => weekdayMap[v.trim().toLowerCase()])
       .filter((v): v is Weekday => Boolean(v));
     const parsedDayParts = parseTageszeit(fields.tageszeit);
-    setDraft({
+    setDraft((prev) => ({
       title: template.name,
       notes: fields.beschreibung,
       requiredResources: fields.hilfsmittel || "",
@@ -3257,12 +3298,14 @@ export function ActionSidePanel({
       scheduledTime: parsedDayParts.length > 0 ? (parsedDayParts[0].scheduledTime ?? "") : "",
       category: fields.kategorie !== "none" ? fields.kategorie : "none",
       serviceEntries: parseLeistungsarten(fields.leistungsart),
-      validFrom: "",
-      validTo: "",
+      optionalServiceTypes: parseOptionalLeistungsarten(fields.optionaleLeistungsarten),
+      // Gültigkeit kommt nicht aus der Vorlage: die Vorbelegung aus dem Ziel bleibt erhalten.
+      validFrom: prev.validFrom,
+      validTo: prev.validTo,
       recurrence: fields.wiederholung !== "none" ? fields.wiederholung : "none",
       recurrenceWeekdays,
       recurrenceMonthlyPattern: fields.wiederholungMonatlich !== "none" ? fields.wiederholungMonatlich : "none",
-    });
+    }));
     if (parsedDayParts.length > 0) {
       setDayPartEntries(parsedDayParts);
     } else if (initialDayPart && initialDayPart !== "none") {
@@ -3283,7 +3326,8 @@ export function ActionSidePanel({
     setLockedFields([]);
     setRequiredFields([]);
     setValidationErrors([]);
-    setDraft(emptyActionDraft());
+    // Gültigkeit stammt aus dem Ziel, nicht aus der Vorlage — beim Zurücksetzen erhalten.
+    setDraft((prev) => ({ ...emptyActionDraft(), validFrom: prev.validFrom, validTo: prev.validTo }));
   };
 
   const isLocked = (field: string) => lockedFields.includes(field);
@@ -3898,6 +3942,7 @@ export function UnplannedActionDialog({
       requiredPersons: Number.isFinite(requiredPersons) ? requiredPersons : undefined,
       category: fields.kategorie !== "none" ? (fields.kategorie as ActionCategory) : undefined,
       serviceEntries: parseLeistungsarten(fields.leistungsart),
+      optionalServiceTypes: parseOptionalLeistungsarten(fields.optionaleLeistungsarten),
       dayPart: fallbackDayPart,
       resultRequirement: fields.resultat !== "none" ? (fields.resultat as ActionNode["resultRequirement"]) : undefined,
       templateId: template.id,
@@ -4245,10 +4290,8 @@ export function UnplannedActionDialog({
                 </label>
               </>
             )}
-            <label className="space-y-1.5">
-              <Label>Geplante Minuten</Label>
-              <Input type="number" min={0} step={5} value={draft.plannedMinutes ?? ""} disabled={isDraftFieldLocked("plannedMinutes")} onChange={(e) => updateDraft("plannedMinutes", e.target.value === "" ? undefined : Math.max(0, Number(e.target.value)))} className="bg-background" />
-            </label>
+            {/* Keine geplante Zeit: eine ungeplante Handlung ist per se nicht geplant.
+                Intern gilt 0, damit Auswertungen die Differenz zur tatsächlichen Zeit zeigen. */}
             <label className="space-y-1.5">
               <Label>Anz. Personen</Label>
               <Input type="number" min={1} step={1} value={draft.requiredPersons ?? ""} disabled={isDraftFieldLocked("requiredPersons")} onChange={(e) => updateDraft("requiredPersons", e.target.value === "" ? undefined : Math.max(1, Math.floor(Number(e.target.value))))} className="bg-background" />
@@ -4381,6 +4424,16 @@ export function UnplannedActionDialog({
                 );
               })()}
             </div>
+          </div>
+        )}
+
+        {draft.optionalServiceTypes && draft.optionalServiceTypes.length > 0 && (
+          <div className="px-6 pb-4">
+            <OptionalServiceQuantities
+              serviceTypes={draft.optionalServiceTypes}
+              values={draft.optionalServices ?? []}
+              onChange={(next) => updateDraft("optionalServices", next)}
+            />
           </div>
         )}
 
@@ -4565,8 +4618,17 @@ export function ConfirmActionDialog({
   const [postponedTime, setPostponedTime] = useState<string>(confirmation?.postponedToTime ?? "");
   const [postponedReason, setPostponedReason] = useState<string>(confirmation?.postponedReason ?? "");
   const [postponedError, setPostponedError] = useState<string>("");
+  const [optionalServices, setOptionalServices] = useState<ConfirmedOptionalService[]>(
+    confirmation?.optionalServices ?? target.action.optionalServices ?? [],
+  );
   const [isPanelVisible, setIsPanelVisible] = useState(false);
   const confirmAsideRef = useRef<HTMLElement | null>(null);
+  // Anker für die +/- 1 Woche ist immer der ursprünglich geplante Termin (der Schlüssel im
+  // confirmations-Objekt). Andernfalls liesse sich eine Handlung durch wiederholtes Verschieben
+  // endlos weiter nach hinten schieben.
+  const originalPlannedDate = target.dueDate;
+  const originalPlannedTime = target.action.scheduledTime;
+  const rescheduleWindow = getRescheduleWindow(originalPlannedDate, format(new Date(), "yyyy-MM-dd"));
 
   useEffect(() => {
     const id = requestAnimationFrame(() => setIsPanelVisible(true));
@@ -4586,6 +4648,7 @@ export function ConfirmActionDialog({
     setPostponedTime(conf?.postponedToTime ?? "");
     setPostponedReason(conf?.postponedReason ?? "");
     setPostponedError("");
+    setOptionalServices(conf?.optionalServices ?? target.action.optionalServices ?? []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target.action.id, target.dueDate]);
 
@@ -4619,8 +4682,13 @@ export function ConfirmActionDialog({
       return;
     }
     const obs = observations.trim() ? observations.trim() : undefined;
+    // Nur Einträge mit Anzahl > 0 werden mitgespeichert; leere gelten als "nicht angefallen".
+    const optional = optionalServices.filter((entry) => entry.quantity > 0);
+    const optionalPayload = optional.length > 0 ? optional : undefined;
     if (mode === "done_as_planned") {
-      onConfirm({ status: "done_as_planned", result: res, observations: obs });
+      // Ohne geplante Zeit gibt es kein "wie geplant" — bei ungeplanten Handlungen gesperrt.
+      if (target.action.isUnplanned) return;
+      onConfirm({ status: "done_as_planned", result: res, observations: obs, optionalServices: optionalPayload });
     } else if (mode === "done_with_deviation") {
       const hasPlannedMinutes = target.action.plannedMinutes != null;
       const min = Number(actualMinutes);
@@ -4631,6 +4699,7 @@ export function ConfirmActionDialog({
         reason: reason.trim(),
         result: res,
         observations: obs,
+        optionalServices: optionalPayload,
       });
     } else if (mode === "not_done") {
       if (!reason.trim()) return;
@@ -4647,14 +4716,30 @@ export function ConfirmActionDialog({
         return;
       }
 
-      const plannedDateTime = buildPlannedDateTime(target.dueDate, target.action.scheduledTime);
-      const shiftedDateTime = buildPlannedDateTime(
-        nextDate ?? target.dueDate,
-        nextTime ?? target.action.scheduledTime,
-      );
+      const plannedDateTime = buildPlannedDateTime(originalPlannedDate, originalPlannedTime);
+      const shiftedDate = nextDate ?? originalPlannedDate;
+      const shiftedDateTime = buildPlannedDateTime(shiftedDate, nextTime ?? originalPlannedTime);
 
-      if (shiftedDateTime <= plannedDateTime) {
-        setPostponedError("Die Verschiebung muss später als der bisher geplante Zeitpunkt liegen.");
+      if (!rescheduleWindow.isAvailable) {
+        setPostponedError(
+          "Eine Neuplanung ist nicht mehr möglich: der ursprüngliche Termin liegt mehr als eine Woche zurück.",
+        );
+        return;
+      }
+      if (shiftedDateTime.getTime() === plannedDateTime.getTime()) {
+        setPostponedError("Die Neuplanung muss vom bisher geplanten Zeitpunkt abweichen.");
+        return;
+      }
+      if (shiftedDate < rescheduleWindow.minDate) {
+        setPostponedError(
+          `Das neue Datum darf nicht vor dem ${format(parseISO(rescheduleWindow.minDate), "dd.MM.yyyy", { locale: de })} liegen (nicht in der Vergangenheit, max. 1 Woche früher).`,
+        );
+        return;
+      }
+      if (shiftedDate > rescheduleWindow.maxDate) {
+        setPostponedError(
+          `Das neue Datum darf nicht nach dem ${format(parseISO(rescheduleWindow.maxDate), "dd.MM.yyyy", { locale: de })} liegen (max. 1 Woche später).`,
+        );
         return;
       }
 
@@ -4670,6 +4755,7 @@ export function ConfirmActionDialog({
     setPostponedTime("");
     setPostponedReason("");
     setPostponedError("");
+    setOptionalServices([]);
   };
 
   const planned = target.action.plannedMinutes;
@@ -4816,12 +4902,34 @@ export function ConfirmActionDialog({
           {mode === "postponed" && (
             <div className="space-y-3 pt-2 border-t border-border">
               <div className="text-sm text-muted-foreground">
-                Bisher geplant: {target.dueDate ? format(parseISO(target.dueDate), "dd.MM.yyyy", { locale: de }) : "—"}
-                {target.action.scheduledTime ? `, ${target.action.scheduledTime}` : ""}. Die neue Planung muss später liegen.
+                Ursprünglich geplant:{" "}
+                {originalPlannedDate ? format(parseISO(originalPlannedDate), "dd.MM.yyyy", { locale: de }) : "—"}
+                {originalPlannedTime ? `, ${originalPlannedTime}` : ""}.
+                {confirmation?.postponedToDate && (
+                  <>
+                    {" "}Aktuell verschoben auf{" "}
+                    {format(parseISO(confirmation.postponedToDate), "dd.MM.yyyy", { locale: de })}
+                    {confirmation.postponedToTime ? `, ${confirmation.postponedToTime}` : ""}.
+                  </>
+                )}{" "}
+                {rescheduleWindow.isAvailable ? (
+                  <>
+                    Möglich ist {format(parseISO(rescheduleWindow.minDate), "dd.MM.yyyy", { locale: de })} bis{" "}
+                    {format(parseISO(rescheduleWindow.maxDate), "dd.MM.yyyy", { locale: de })} — max. 1 Woche früher oder
+                    später als der ursprüngliche Termin und nicht in der Vergangenheit.
+                  </>
+                ) : (
+                  <>
+                    Eine Neuplanung ist nicht mehr möglich: der ursprüngliche Termin liegt mehr als eine Woche zurück.
+                  </>
+                )}
               </div>
               <DateField
                 label="Neues Datum"
                 value={postponedDate}
+                disabled={!rescheduleWindow.isAvailable}
+                minDate={rescheduleWindow.minDate}
+                maxDate={rescheduleWindow.maxDate}
                 onChange={(value) => {
                   setPostponedDate(value ?? "");
                   setPostponedError("");
@@ -4832,6 +4940,7 @@ export function ConfirmActionDialog({
                 <Input
                   id="postponed-time"
                   type="time"
+                  disabled={!rescheduleWindow.isAvailable}
                   value={postponedTime}
                   onChange={(event) => {
                     setPostponedTime(event.target.value);
@@ -4845,6 +4954,7 @@ export function ConfirmActionDialog({
                 <Textarea
                   id="postponed-reason"
                   rows={2}
+                  disabled={!rescheduleWindow.isAvailable}
                   value={postponedReason}
                   onChange={(e) => {
                     setPostponedReason(e.target.value);
@@ -4898,6 +5008,15 @@ export function ConfirmActionDialog({
                 className="bg-background"
               />
             </div>
+          )}
+
+          {(mode === "done_as_planned" || mode === "done_with_deviation") && (
+            <OptionalServiceQuantities
+              serviceTypes={target.action.optionalServiceTypes}
+              values={optionalServices}
+              onChange={setOptionalServices}
+              disabled={readOnly}
+            />
           )}
           </div>
         </div>
@@ -4962,10 +5081,14 @@ export function ConfirmActionDialog({
               onClick={submit}
               disabled={
                 !mode ||
+                (mode === "done_as_planned" && !!target.action.isUnplanned) ||
                 (mode === "done_with_deviation" &&
                   ((hasPlannedMinutes && actualMinutes === "") || !reason.trim())) ||
                 (mode === "not_done" && !reason.trim()) ||
-                (mode === "postponed" && ((!postponedDate && !postponedTime) || !postponedReason.trim())) ||
+                (mode === "postponed" &&
+                  (!rescheduleWindow.isAvailable ||
+                    (!postponedDate && !postponedTime) ||
+                    !postponedReason.trim())) ||
                 (showResult && resultRequired && !result.trim())
               }
               className="text-white hover:bg-white/10 hover:text-white"

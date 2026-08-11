@@ -53,6 +53,7 @@ import type {
   ActionServiceType,
   ActionServiceEntry,
   Client,
+  ConfirmedOptionalService,
   DayPart,
   TopicNode,
   Weekday,
@@ -75,6 +76,7 @@ import {
   isTemplateLockedActionField,
   loadActionPlanTemplates,
   parseLeistungsarten,
+  parseOptionalLeistungsarten,
   parseTageszeit,
 } from "@/lib/action-plan-templates";
 import {
@@ -392,6 +394,7 @@ const CONFIRMATION_EXPORT_HEADERS = [
   "Uhrzeit",
   "Klassifizierung",
   "Leistungsarten",
+  "Optionale Leistungen",
   "Minuten geplant",
   "Minuten tatsächlich",
 ];
@@ -603,14 +606,8 @@ const buildEvaluation = (
   };
 };
 
-const HANDLUNG_DIMENSION: EvalDimension = {
-  keyOf: (entry) => entry.action.title || "Ohne Titel",
-  labelOf: (entry) => entry.action.title || "Ohne Titel",
-  sort: (nodes) => nodes.slice().sort((a, b) => a.label.localeCompare(b.label)),
-};
-
-type AuswertungMode = "category" | "client" | "action" | "resultObservation";
-type AuswertungTreeMode = "category" | "client" | "action";
+type AuswertungMode = "category" | "client" | "resultObservation";
+type AuswertungTreeMode = "category" | "client";
 
 /** Effektives Datum/Uhrzeit einer Handlung: bei Verschiebung gilt der neue Termin. */
 const getEffectiveDateTime = (entry: EvaluationActionEntry) => {
@@ -634,11 +631,6 @@ const EVALUATION_CONFIG: Record<AuswertungTreeMode, { dimensions: EvalDimension[
     dimensions: [CLIENT_DIMENSION, CATEGORY_DIMENSION, DAY_DIMENSION],
     expandLeaves: true,
     columnLabel: "Klient/in / Klassifizierung / Tag / Handlung",
-  },
-  action: {
-    dimensions: [HANDLUNG_DIMENSION, DAY_DIMENSION, CLIENT_DIMENSION],
-    expandLeaves: false,
-    columnLabel: "Handlung / Tag / Klient/in",
   },
 };
 
@@ -1206,6 +1198,9 @@ const Index = () => {
       const parsedTemplateEntries = parseLeistungsarten(fields.leistungsart);
       const templateServiceEntries: ActionServiceEntry[] | undefined =
         template && parsedTemplateEntries.length > 0 ? parsedTemplateEntries : undefined;
+      const parsedOptionalServiceTypes = parseOptionalLeistungsarten(fields.optionaleLeistungsarten);
+      const templateOptionalServiceTypes =
+        template && parsedOptionalServiceTypes.length > 0 ? parsedOptionalServiceTypes : undefined;
       const recurrenceWeekdays = fields.wiederholungWochentage
         .split(",")
         .map((value) => weekdayMap[value.trim().toLowerCase()])
@@ -1231,6 +1226,7 @@ const Index = () => {
         requiredPersons: Number.isFinite(requiredPersons) ? requiredPersons : undefined,
         category: fields.kategorie !== "none" ? (fields.kategorie as ActionNode["category"]) : undefined,
         serviceEntries: templateServiceEntries ?? overrides?.serviceEntries,
+        optionalServiceTypes: templateOptionalServiceTypes ?? overrides?.optionalServiceTypes,
         resultRequirement: fields.resultat !== "none"
           ? (fields.resultat as ActionNode["resultRequirement"])
           : undefined,
@@ -1310,6 +1306,8 @@ const Index = () => {
       scheduledTime?: string;
       category?: ActionNode["category"];
       serviceEntries?: ActionServiceEntry[];
+      optionalServiceTypes?: ActionServiceType[];
+      optionalServices?: ConfirmedOptionalService[];
       templateId?: string;
       templateName?: string;
       templateLockedFields?: string[];
@@ -1698,8 +1696,20 @@ const Index = () => {
     targetId: string,
     actionId: string,
     payload:
-      | { status: "done_as_planned"; result?: string; observations?: string }
-      | { status: "done_with_deviation"; actualMinutes?: number; reason: string; result?: string; observations?: string }
+      | {
+          status: "done_as_planned";
+          result?: string;
+          observations?: string;
+          optionalServices?: ConfirmedOptionalService[];
+        }
+      | {
+          status: "done_with_deviation";
+          actualMinutes?: number;
+          reason: string;
+          result?: string;
+          observations?: string;
+          optionalServices?: ConfirmedOptionalService[];
+        }
       | { status: "not_done"; reason: string }
       | { status: "postponed"; postponedToDate?: string; postponedToTime?: string; postponedReason: string }
       | { status: "open" },
@@ -1756,6 +1766,7 @@ const Index = () => {
                             actualMinutes: a.plannedMinutes,
                             result: payload.result,
                             observations: payload.observations,
+                            optionalServices: payload.optionalServices,
                             ...postponementAudit,
                             ...auditTrail,
                           };
@@ -1768,6 +1779,7 @@ const Index = () => {
                             reason: payload.reason,
                             result: payload.result,
                             observations: payload.observations,
+                            optionalServices: payload.optionalServices,
                             ...postponementAudit,
                             ...auditTrail,
                           };
@@ -2104,6 +2116,11 @@ const Index = () => {
         const label = ACTION_SERVICE_TYPE_SELECT_OPTIONS.find((o) => o.value === e.serviceType)?.label ?? e.serviceType;
         return e.maxMinutes != null ? `${label} (max. ${e.maxMinutes} Min.)` : label;
       }).join(" | "),
+      // "2 × Bezeichnung" statt "Bezeichnung (2)" — Leistungsartnamen enthalten teils selbst
+      // Klammern ("Elektrodenset (4)"), da war die Anzahl nicht mehr zu erkennen.
+      "Optionale Leistungen": (confirmation?.optionalServices ?? action.optionalServices ?? [])
+        .map((entry) => `${entry.quantity} × ${getActionServiceTypeLabel(entry.serviceType)}`)
+        .join(" | "),
       "Minuten geplant": action.plannedMinutes ?? "",
       "Minuten tatsächlich": confirmation?.actualMinutes ?? "",
     };
@@ -2339,14 +2356,6 @@ const Index = () => {
                   }}
                 >
                   Nach Klientin
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    setAuswertungMode("action");
-                    setViewMode("auswertungen");
-                  }}
-                >
-                  Nach Handlung
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => {
@@ -3239,9 +3248,7 @@ const Index = () => {
                             ? "Auswertung nach Klassifizierung"
                             : auswertungMode === "client"
                               ? "Auswertung nach Klientin"
-                              : auswertungMode === "action"
-                                ? "Auswertung nach Handlung"
-                                : "Auswertung nach Resultat und Beobachtung"}
+                              : "Auswertung nach Resultat und Beobachtung"}
                         </div>
                         <div className="flex items-center gap-1 bg-background border border-border rounded-md p-1">
                           <button

@@ -14,7 +14,8 @@ export type TemplateFieldKey =
   | "wiederholung"
   | "wiederholungWochentage"
   | "wiederholungMonatlich"
-  | "leistungsart";
+  | "leistungsart"
+  | "optionaleLeistungsarten";
 
 export interface ActionPlanTemplate {
   id: string;
@@ -38,6 +39,7 @@ const TEMPLATE_FIELD_TO_ACTION_FIELD: Record<TemplateFieldKey, keyof ActionNode>
   wiederholungWochentage: "recurrenceWeekdays",
   wiederholungMonatlich: "recurrenceMonthlyPattern",
   leistungsart: "serviceEntries",
+  optionaleLeistungsarten: "optionalServiceTypes",
 };
 
 /**
@@ -51,7 +53,31 @@ export const serializeLeistungsarten = (entries: ActionServiceEntry[]): string =
     .join("|");
 };
 
-const VALID_SERVICE_TYPES = new Set<ActionServiceType>(["spitex-klv-a", "spitex-klv-b", "spitex-klv-c"]);
+const VALID_SERVICE_TYPES = new Set<ActionServiceType>([
+  "spitex-klv-a",
+  "spitex-klv-b",
+  "spitex-klv-c",
+  "material-tape-1m",
+  "material-elektrodenset-4",
+  "zuschlag-physio",
+]);
+
+/** Optionale Leistungsarten führen nur den Typ — die Anzahl entsteht erst beim Bestätigen. */
+export const serializeOptionalLeistungsarten = (serviceTypes: ActionServiceType[]): string =>
+  serviceTypes.join("|");
+
+export const parseOptionalLeistungsarten = (value: string): ActionServiceType[] => {
+  if (!value || value === "none") return [];
+  const seen = new Set<ActionServiceType>();
+  return value
+    .split("|")
+    .map((part) => part.trim() as ActionServiceType)
+    .filter((serviceType) => {
+      if (!VALID_SERVICE_TYPES.has(serviceType) || seen.has(serviceType)) return false;
+      seen.add(serviceType);
+      return true;
+    });
+};
 
 /**
  * Parses the pipe-separated template field value into ActionServiceEntry[].
@@ -107,6 +133,9 @@ export const ACTION_SERVICE_TYPE_SELECT_OPTIONS: TemplateSelectOption[] = [
   { value: "spitex-klv-a", label: "Spitex, KLV a" },
   { value: "spitex-klv-b", label: "Spitex, KLV b" },
   { value: "spitex-klv-c", label: "Spitex, KLV c" },
+  { value: "material-tape-1m", label: "Verbrauchsmaterial Tape 1m" },
+  { value: "material-elektrodenset-4", label: "Verbrauchsmaterial Elektrodenset (4)" },
+  { value: "zuschlag-physio", label: "Zuschlag Physio" },
 ];
 
 export const getActionServiceTypeLabel = (value?: string) => {
@@ -204,6 +233,7 @@ export const buildDefaultTemplateFields = (): Record<TemplateFieldKey, string> =
   wiederholungWochentage: "",
   wiederholungMonatlich: "none",
   leistungsart: "none",
+  optionaleLeistungsarten: "",
 });
 
 export const buildDefaultTemplateEditable = (value = true): Record<TemplateFieldKey, boolean> => ({
@@ -219,6 +249,7 @@ export const buildDefaultTemplateEditable = (value = true): Record<TemplateField
   wiederholungWochentage: value,
   wiederholungMonatlich: value,
   leistungsart: false,
+  optionaleLeistungsarten: false,
 });
 
 export const buildDefaultTemplateRequired = (): Record<TemplateFieldKey, boolean> => ({
@@ -234,6 +265,7 @@ export const buildDefaultTemplateRequired = (): Record<TemplateFieldKey, boolean
   wiederholungWochentage: false,
   wiederholungMonatlich: false,
   leistungsart: false,
+  optionaleLeistungsarten: false,
 });
 
 export const initialTemplates: ActionPlanTemplate[] = [
@@ -254,6 +286,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "mon,tue,wed,thu,fri",
       leistungsart: "",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: true,
@@ -268,6 +301,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -282,6 +316,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -301,6 +336,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -315,6 +351,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -329,6 +366,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -348,6 +386,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -362,6 +401,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -376,6 +416,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -395,6 +436,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -409,6 +451,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -423,6 +466,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -442,6 +486,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -456,6 +501,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -470,6 +516,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -489,6 +536,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -503,6 +551,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -517,6 +566,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -536,6 +586,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -550,6 +601,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -564,6 +616,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -583,6 +636,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -597,6 +651,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -611,6 +666,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -630,6 +686,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -644,6 +701,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -658,6 +716,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -677,6 +736,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -691,6 +751,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -705,6 +766,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -724,6 +786,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -738,6 +801,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -752,6 +816,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -771,6 +836,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -785,6 +851,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -799,6 +866,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -818,6 +886,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -832,6 +901,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -846,6 +916,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -865,6 +936,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -879,6 +951,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -893,6 +966,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -912,6 +986,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -926,6 +1001,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -940,6 +1016,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -959,6 +1036,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -973,6 +1051,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -987,6 +1066,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -1006,6 +1086,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -1020,6 +1101,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -1034,6 +1116,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -1053,6 +1136,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -1067,6 +1151,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -1081,6 +1166,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -1100,6 +1186,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -1114,6 +1201,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -1128,6 +1216,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -1147,6 +1236,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -1161,6 +1251,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -1175,6 +1266,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -1194,6 +1286,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -1208,6 +1301,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -1222,6 +1316,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -1241,6 +1336,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -1255,6 +1351,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -1269,6 +1366,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -1288,6 +1386,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -1302,6 +1401,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -1316,6 +1416,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -1335,6 +1436,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -1349,6 +1451,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -1363,6 +1466,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -1382,6 +1486,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -1396,6 +1501,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -1410,6 +1516,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -1429,6 +1536,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -1443,6 +1551,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -1457,6 +1566,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -1476,6 +1586,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -1490,6 +1601,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -1504,6 +1616,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -1523,6 +1636,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -1537,6 +1651,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -1551,6 +1666,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -1570,6 +1686,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -1584,6 +1701,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -1598,6 +1716,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -1617,6 +1736,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -1631,6 +1751,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -1645,6 +1766,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -1664,6 +1786,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -1678,6 +1801,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -1692,6 +1816,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -1711,6 +1836,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -1725,6 +1851,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -1739,6 +1866,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -1758,6 +1886,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -1772,6 +1901,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -1786,6 +1916,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -1805,6 +1936,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -1819,6 +1951,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -1833,6 +1966,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -1852,6 +1986,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -1866,6 +2001,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -1880,6 +2016,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -1899,6 +2036,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -1913,6 +2051,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -1927,6 +2066,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -1946,6 +2086,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -1960,6 +2101,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -1974,6 +2116,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -1993,6 +2136,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -2007,6 +2151,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -2021,6 +2166,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -2040,6 +2186,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -2054,6 +2201,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -2068,6 +2216,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -2087,6 +2236,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -2101,6 +2251,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -2115,6 +2266,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -2134,6 +2286,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -2148,6 +2301,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -2162,6 +2316,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -2181,6 +2336,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -2195,6 +2351,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -2209,6 +2366,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -2228,6 +2386,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -2242,6 +2401,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -2256,6 +2416,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -2275,6 +2436,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -2289,6 +2451,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -2303,6 +2466,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -2322,6 +2486,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -2336,6 +2501,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -2350,6 +2516,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -2369,6 +2536,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -2383,6 +2551,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -2397,6 +2566,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -2416,6 +2586,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -2430,6 +2601,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -2444,6 +2616,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -2463,6 +2636,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -2477,6 +2651,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -2491,6 +2666,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -2510,6 +2686,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -2524,6 +2701,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -2538,6 +2716,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -2557,6 +2736,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -2571,6 +2751,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -2585,6 +2766,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -2604,6 +2786,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -2618,6 +2801,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -2632,6 +2816,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -2651,6 +2836,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -2665,6 +2851,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -2679,6 +2866,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -2698,6 +2886,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -2712,6 +2901,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -2726,6 +2916,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -2745,6 +2936,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -2759,6 +2951,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -2773,6 +2966,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -2792,6 +2986,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -2806,6 +3001,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -2820,6 +3016,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -2839,6 +3036,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -2853,6 +3051,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -2867,6 +3066,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -2886,6 +3086,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -2900,6 +3101,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -2914,6 +3116,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -2933,6 +3136,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -2947,6 +3151,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -2961,6 +3166,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -2980,6 +3186,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -2994,6 +3201,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -3008,6 +3216,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -3027,6 +3236,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -3041,6 +3251,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -3055,6 +3266,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -3074,6 +3286,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -3088,6 +3301,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -3102,6 +3316,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -3121,6 +3336,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -3135,6 +3351,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -3149,6 +3366,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -3168,6 +3386,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -3182,6 +3401,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -3196,6 +3416,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -3215,6 +3436,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -3229,6 +3451,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -3243,6 +3466,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -3262,6 +3486,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -3276,6 +3501,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -3290,6 +3516,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -3309,6 +3536,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -3323,6 +3551,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -3337,6 +3566,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -3356,6 +3586,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -3370,6 +3601,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -3384,6 +3616,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -3403,6 +3636,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -3417,6 +3651,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -3431,6 +3666,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -3450,6 +3686,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -3464,6 +3701,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -3478,6 +3716,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -3497,6 +3736,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -3511,6 +3751,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -3525,6 +3766,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -3544,6 +3786,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -3558,6 +3801,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -3572,6 +3816,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -3591,6 +3836,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -3605,6 +3851,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -3619,6 +3866,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -3638,6 +3886,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -3652,6 +3901,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -3666,6 +3916,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -3685,6 +3936,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -3699,6 +3951,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -3713,6 +3966,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -3732,6 +3986,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -3746,6 +4001,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -3760,6 +4016,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -3779,6 +4036,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -3793,6 +4051,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -3807,6 +4066,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -3826,6 +4086,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -3840,6 +4101,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -3854,6 +4116,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -3873,6 +4136,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -3887,6 +4151,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -3901,6 +4166,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -3920,6 +4186,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -3934,6 +4201,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -3948,6 +4216,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -3967,6 +4236,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -3981,6 +4251,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -3995,6 +4266,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -4014,6 +4286,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -4028,6 +4301,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -4042,6 +4316,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -4061,6 +4336,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -4075,6 +4351,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -4089,6 +4366,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -4108,6 +4386,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -4122,6 +4401,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -4136,6 +4416,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -4155,6 +4436,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -4169,6 +4451,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -4183,6 +4466,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -4202,6 +4486,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -4216,6 +4501,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -4230,6 +4516,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -4249,6 +4536,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -4263,6 +4551,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -4277,6 +4566,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -4296,6 +4586,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -4310,6 +4601,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -4324,6 +4616,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -4343,6 +4636,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-a",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -4357,6 +4651,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -4371,6 +4666,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -4390,6 +4686,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-a",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -4404,6 +4701,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -4418,6 +4716,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -4437,6 +4736,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -4451,6 +4751,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -4465,6 +4766,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -4484,6 +4786,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-a",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -4498,6 +4801,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -4512,6 +4816,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -4531,6 +4836,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -4545,6 +4851,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -4559,6 +4866,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -4578,6 +4886,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-a",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -4592,6 +4901,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -4606,6 +4916,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -4625,6 +4936,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-a",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -4639,6 +4951,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -4653,6 +4966,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -4672,6 +4986,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-a",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -4686,6 +5001,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -4700,6 +5016,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -4719,6 +5036,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -4733,6 +5051,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -4747,6 +5066,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -4766,6 +5086,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -4780,6 +5101,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -4794,6 +5116,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -4813,6 +5136,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-a",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -4827,6 +5151,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -4841,6 +5166,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -4860,6 +5186,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -4874,6 +5201,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -4888,6 +5216,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -4907,6 +5236,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -4921,6 +5251,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -4935,6 +5266,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -4954,6 +5286,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -4968,6 +5301,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -4982,6 +5316,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -5001,6 +5336,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-a",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -5015,6 +5351,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -5029,6 +5366,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -5048,6 +5386,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -5062,6 +5401,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -5076,6 +5416,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -5095,6 +5436,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -5109,6 +5451,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -5123,6 +5466,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -5142,6 +5486,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -5156,6 +5501,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -5170,6 +5516,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -5189,6 +5536,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -5203,6 +5551,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -5217,6 +5566,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -5236,6 +5586,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -5250,6 +5601,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -5264,6 +5616,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -5283,6 +5636,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -5297,6 +5651,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -5311,6 +5666,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -5330,6 +5686,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -5344,6 +5701,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -5358,6 +5716,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -5377,6 +5736,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -5391,6 +5751,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -5405,6 +5766,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -5424,6 +5786,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -5438,6 +5801,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -5452,6 +5816,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -5471,6 +5836,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -5485,6 +5851,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -5499,6 +5866,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -5518,6 +5886,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -5532,6 +5901,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -5546,6 +5916,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -5565,6 +5936,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-a",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -5579,6 +5951,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -5593,6 +5966,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -5612,6 +5986,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -5626,6 +6001,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -5640,6 +6016,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -5659,6 +6036,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-b",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -5673,6 +6051,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -5687,6 +6066,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -5706,6 +6086,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "spitex-klv-c",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -5720,6 +6101,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -5734,6 +6116,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -5753,6 +6136,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -5767,6 +6151,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -5781,6 +6166,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -5800,6 +6186,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -5814,6 +6201,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -5828,6 +6216,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -5847,6 +6236,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -5861,6 +6251,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -5875,6 +6266,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -5894,6 +6286,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -5908,6 +6301,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -5922,6 +6316,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -5941,6 +6336,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -5955,6 +6351,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -5969,6 +6366,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -5988,6 +6386,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -6002,6 +6401,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -6016,6 +6416,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -6035,6 +6436,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -6049,6 +6451,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -6063,6 +6466,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -6082,6 +6486,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -6096,6 +6501,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -6110,6 +6516,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -6129,6 +6536,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -6143,6 +6551,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -6157,6 +6566,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -6176,6 +6586,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -6190,6 +6601,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -6204,6 +6616,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -6223,6 +6636,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -6237,6 +6651,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -6251,6 +6666,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -6270,6 +6686,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -6284,6 +6701,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -6298,6 +6716,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -6317,6 +6736,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -6331,6 +6751,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -6345,6 +6766,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -6364,6 +6786,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -6378,6 +6801,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -6392,6 +6816,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -6411,6 +6836,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -6425,6 +6851,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -6439,6 +6866,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -6458,6 +6886,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -6472,6 +6901,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -6486,6 +6916,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -6505,6 +6936,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -6519,6 +6951,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -6533,6 +6966,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -6552,6 +6986,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -6566,6 +7001,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -6580,6 +7016,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -6599,6 +7036,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -6613,6 +7051,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -6627,6 +7066,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -6646,6 +7086,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -6660,6 +7101,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -6674,6 +7116,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -6693,6 +7136,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -6707,6 +7151,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -6721,6 +7166,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -6740,6 +7186,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -6754,6 +7201,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -6768,6 +7216,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -6787,6 +7236,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -6801,6 +7251,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -6815,6 +7266,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -6834,6 +7286,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -6848,6 +7301,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -6862,6 +7316,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -6881,6 +7336,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -6895,6 +7351,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -6909,6 +7366,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -6928,6 +7386,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -6942,6 +7401,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -6956,6 +7416,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -6975,6 +7436,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -6989,6 +7451,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -7003,6 +7466,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -7022,6 +7486,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -7036,6 +7501,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -7050,6 +7516,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -7069,6 +7536,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -7083,6 +7551,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -7097,6 +7566,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -7116,6 +7586,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -7130,6 +7601,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -7144,6 +7616,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -7163,6 +7636,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -7177,6 +7651,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -7191,6 +7666,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -7210,6 +7686,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -7224,6 +7701,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -7238,6 +7716,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -7257,6 +7736,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -7271,6 +7751,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -7285,6 +7766,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -7304,6 +7786,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -7318,6 +7801,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -7332,6 +7816,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   },
   {
@@ -7351,6 +7836,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungMonatlich: "none",
       wiederholungWochentage: "",
       leistungsart: "none",
+      optionaleLeistungsarten: "",
     },
     editable: {
       titel: false,
@@ -7365,6 +7851,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: true,
       wiederholungMonatlich: true,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
     required: {
       titel: false,
@@ -7379,6 +7866,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       wiederholungWochentage: false,
       wiederholungMonatlich: false,
       leistungsart: false,
+      optionaleLeistungsarten: false,
     },
   }
 ];

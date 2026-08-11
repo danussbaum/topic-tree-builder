@@ -55,6 +55,18 @@ describe("buildUnplannedActionNodes", () => {
     expect(nodes[0].validFrom).toBe("2026-07-15");
   });
 
+  it("setzt die geplante Zeit fix auf 0, auch wenn der Draft eine Dauer mitbringt", () => {
+    // Eine ungeplante Handlung ist per Definition nicht geplant. 0 statt undefined,
+    // damit die Auswertung die Differenz zur tatsächlichen Zeit ausweisen kann.
+    const nodes = buildUnplannedActionNodes(
+      "morning",
+      baseDraft({ plannedMinutes: 45, dateFrom: "2026-07-08", dateTo: "2026-07-09" }),
+      "2026-07-08",
+    );
+    expect(nodes).toHaveLength(2);
+    nodes.forEach((node) => expect(node.plannedMinutes).toBe(0));
+  });
+
   it("übernimmt Vorlagen-Metadaten (Name, gesperrte Felder) in jede Handlung", () => {
     const nodes = buildUnplannedActionNodes(
       "morning",

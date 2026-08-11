@@ -7,11 +7,27 @@ export type ActionStatus =
 
 export type DayPart = "morning" | "noon" | "afternoon" | "evening" | "night";
 export type ActionCategory = "a" | "b" | "c";
-export type ActionServiceType = "spitex-klv-a" | "spitex-klv-b" | "spitex-klv-c";
+export type ActionServiceType =
+  | "spitex-klv-a"
+  | "spitex-klv-b"
+  | "spitex-klv-c"
+  | "material-tape-1m"
+  | "material-elektrodenset-4"
+  | "zuschlag-physio";
 
 export interface ActionServiceEntry {
   serviceType: ActionServiceType;
   maxMinutes?: number;
+}
+
+/**
+ * Optionale Leistungsart, die bei der Umsetzung mit einer Anzahl erfasst wurde —
+ * für unerwartete Zusatzaufwände (Material, Zuschläge). Die Vorlage gibt nur vor,
+ * welche Typen erfassbar sind; die Anzahl entsteht beim Bestätigen.
+ */
+export interface ConfirmedOptionalService {
+  serviceType: ActionServiceType;
+  quantity: number;
 }
 export type ResultRequirement = "none" | "optional" | "required";
 export type NumericComparisonOperator = "gt" | "lt" | "eq";
@@ -52,6 +68,8 @@ export interface ActionConfirmation {
   /** Snapshot der Leistungsart zum Zeitpunkt der Umsetzung */
   serviceType?: ActionServiceType;
   actualMinutes?: number;
+  /** Bei der Umsetzung erfasste optionale Leistungen (nur Einträge mit Anzahl > 0) */
+  optionalServices?: ConfirmedOptionalService[];
   reason?: string;
   result?: string;
   observations?: string;
@@ -95,6 +113,10 @@ export interface ActionNode {
   serviceType?: ActionServiceType;
   /** Mehrere Leistungsarten mit optionaler Max-Minuten-Angabe */
   serviceEntries?: ActionServiceEntry[];
+  /** Leistungsarten, die bei der Umsetzung optional mit einer Anzahl erfasst werden können */
+  optionalServiceTypes?: ActionServiceType[];
+  /** Bereits erfasste optionale Leistungen (bei ungeplanten Handlungen direkt bei der Erfassung) */
+  optionalServices?: ConfirmedOptionalService[];
   /** Gültig ab (ISO Datum, zwingend bei erfasster Handlung) */
   validFrom?: string;
   /** Gültig bis (ISO Datum, optional) */

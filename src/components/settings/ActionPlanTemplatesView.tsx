@@ -31,11 +31,14 @@ import {
   parseTageszeit,
   parseLeistungsarten,
   serializeLeistungsarten,
+  parseOptionalLeistungsarten,
+  serializeOptionalLeistungsarten,
   resolveTemplateDisciplineIds,
   saveActionPlanTemplates,
   serializeTageszeit,
 } from "@/lib/action-plan-templates";
 import { Trash2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   DayPartChipSelector,
   type DayPartEntry,
@@ -62,12 +65,13 @@ type TemplateFieldKey =
   | "wiederholung"
   | "wiederholungWochentage"
   | "wiederholungMonatlich"
-  | "leistungsart";
+  | "leistungsart"
+  | "optionaleLeistungsarten";
 
 interface TemplateFieldMeta {
   key: TemplateFieldKey;
   label: string;
-  type: "text" | "textarea" | "select" | "time" | "dayparts" | "leistungsarten";
+  type: "text" | "textarea" | "select" | "time" | "dayparts" | "leistungsarten" | "optionaleLeistungsarten";
   options?: Array<{ value: string; label: string }>;
   editable?: boolean;
 }
@@ -137,6 +141,12 @@ const templateFieldMeta: TemplateFieldMeta[] = [
     key: "leistungsart",
     label: "Leistungsarten",
     type: "leistungsarten",
+    editable: false,
+  },
+  {
+    key: "optionaleLeistungsarten",
+    label: "Optionale Leistungsarten",
+    type: "optionaleLeistungsarten",
     editable: false,
   },
 ];
@@ -311,8 +321,14 @@ export const ActionPlanTemplatesView = forwardRef<
           errors.push(`${field.label}: ungültiger Wert "${rawValue}"`);
         }
 
-        if (field.key === "leistungsart" && value && value !== "none") {
-          const validTypes = new Set(["spitex-klv-a", "spitex-klv-b", "spitex-klv-c"]);
+        if (
+          (field.key === "leistungsart" || field.key === "optionaleLeistungsarten") &&
+          value &&
+          value !== "none"
+        ) {
+          const validTypes = new Set(
+            ACTION_SERVICE_TYPE_SELECT_OPTIONS.filter((o) => o.value !== "none").map((o) => o.value),
+          );
           const entries = value.split("|").map((p) => p.trim()).filter(Boolean);
           const invalidTypes = entries
             .map((p) => p.split(":")[0].trim())
@@ -872,6 +888,63 @@ export const ActionPlanTemplatesView = forwardRef<
                               setLeistungsartenAddError(false);
                               setEntries([...entries, { serviceType: nextType.value as ActionServiceType }]);
                             }} className="flex items-center gap-1 text-xs text-primary hover:underline">+ Leistungsart hinzufügen</button>;
+                          })()}
+                        </div>
+                      );
+                    })() : field.type === "optionaleLeistungsarten" ? (() => {
+                      const selected = parseOptionalLeistungsarten(draftFields[field.key]);
+                      const setSelected = (next: ActionServiceType[]) =>
+                        setDraftFields((prev) => ({ ...prev, [field.key]: serializeOptionalLeistungsarten(next) }));
+                      const availableOptions = ACTION_SERVICE_TYPE_SELECT_OPTIONS.filter((o) => o.value !== "none");
+                      return (
+                        <div className="space-y-2">
+                          {selected.map((serviceType, idx) => {
+                            const usedTypes = new Set(selected.filter((_, i) => i !== idx));
+                            return (
+                              <div key={serviceType} className="flex items-center gap-1.5">
+                                <Select
+                                  value={serviceType}
+                                  onValueChange={(v) =>
+                                    setSelected(selected.map((s, i) => (i === idx ? (v as ActionServiceType) : s)))
+                                  }
+                                >
+                                  <SelectTrigger className="flex-1 min-w-0"><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    {availableOptions
+                                      .filter((o) => !usedTypes.has(o.value as ActionServiceType))
+                                      .map((o) => (
+                                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                                      ))}
+                                  </SelectContent>
+                                </Select>
+                                <button
+                                  type="button"
+                                  onClick={() => setSelected(selected.filter((_, i) => i !== idx))}
+                                  className="shrink-0 inline-flex h-8 w-8 items-center justify-center rounded border border-border bg-background hover:bg-destructive/10 hover:text-destructive"
+                                  aria-label="Entfernen"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            );
+                          })}
+                          {(() => {
+                            const usedTypes = new Set(selected);
+                            const nextType = availableOptions.find((o) => !usedTypes.has(o.value as ActionServiceType));
+                            if (!nextType) return null;
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => setSelected([...selected, nextType.value as ActionServiceType])}
+                                className={cn(
+                                  "flex items-center gap-1 text-xs text-primary hover:underline",
+                                  // Ohne Einträge ist der Link das erste Element — gleiche Höhe wie das Label.
+                                  selected.length === 0 && "pt-2",
+                                )}
+                              >
+                                + Optionale Leistungsart hinzufügen
+                              </button>
+                            );
                           })()}
                         </div>
                       );

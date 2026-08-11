@@ -8,6 +8,8 @@ import {
   getActionServiceTypeLabel,
   getTemplateLockedActionFields,
   loadActionPlanTemplates,
+  parseOptionalLeistungsarten,
+  serializeOptionalLeistungsarten,
   parseTageszeit,
   resolveTemplateDisciplineIds,
   serializeTageszeit,
@@ -52,6 +54,30 @@ describe("action plan template fields", () => {
       { value: "spitex-klv-a", label: "Spitex, KLV a" },
       { value: "spitex-klv-b", label: "Spitex, KLV b" },
       { value: "spitex-klv-c", label: "Spitex, KLV c" },
+      { value: "material-tape-1m", label: "Verbrauchsmaterial Tape 1m" },
+      { value: "material-elektrodenset-4", label: "Verbrauchsmaterial Elektrodenset (4)" },
+      { value: "zuschlag-physio", label: "Zuschlag Physio" },
+    ]);
+  });
+
+  it("führt optionale Leistungsarten als eigenes, nicht veränderbares Vorlagenfeld", () => {
+    expect(buildDefaultTemplateFields().optionaleLeistungsarten).toBe("");
+    expect(buildDefaultTemplateEditable(true).optionaleLeistungsarten).toBe(false);
+  });
+
+  it("serialisiert optionale Leistungsarten ohne Anzahl und verwirft Unbekanntes", () => {
+    expect(serializeOptionalLeistungsarten(["material-tape-1m", "zuschlag-physio"])).toBe(
+      "material-tape-1m|zuschlag-physio",
+    );
+    expect(parseOptionalLeistungsarten("material-tape-1m|zuschlag-physio")).toEqual([
+      "material-tape-1m",
+      "zuschlag-physio",
+    ]);
+    // Leerwerte, Duplikate und unbekannte Typen fallen weg.
+    expect(parseOptionalLeistungsarten("")).toEqual([]);
+    expect(parseOptionalLeistungsarten("none")).toEqual([]);
+    expect(parseOptionalLeistungsarten("material-tape-1m|material-tape-1m|quatsch")).toEqual([
+      "material-tape-1m",
     ]);
   });
 
@@ -64,7 +90,7 @@ describe("action plan template fields", () => {
           beschreibung: false,
         },
       }),
-    ).toEqual(["notes", "category", "serviceEntries"]);
+    ).toEqual(["notes", "category", "serviceEntries", "optionalServiceTypes"]);
   });
 
   it("liefert Export-Labels für Leistungsarten", () => {

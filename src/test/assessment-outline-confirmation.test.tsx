@@ -300,7 +300,6 @@ describe("AssessmentOutline confirmation actions", () => {
     // Tageszeit sind dessen Chips (inkl. Uhrzeit-Eingaben) deaktiviert.
     expect(within(dialog).getByRole("button", { name: "Morgen" })).toBeDisabled();
     expect(within(dialog).getByRole("button", { name: "Abend" })).toBeDisabled();
-    expect(within(dialog).getByLabelText("Geplante Minuten")).toBeDisabled();
     expect(within(dialog).getByLabelText("Anz. Personen")).toBeDisabled();
     expect(within(dialog).getByRole("combobox", { name: "Klassifizierung" })).toBeDisabled();
     expect(within(dialog).getByRole("combobox", { name: "Resultat" })).toBeDisabled();
@@ -742,8 +741,9 @@ describe("AssessmentOutline confirmation actions", () => {
       />,
     );
 
-    // Offene Handlung: Dialog über eine Umsetzungs-Variante öffnen.
-    fireEvent.click(screen.getAllByRole("button", { name: "Erledigt wie geplant" })[0]);
+    // Offene Handlung: Dialog über eine Umsetzungs-Variante öffnen. Bei einer ungeplanten
+    // Handlung ist "Erledigt wie geplant" gesperrt (keine geplante Zeit), daher die Abweichung.
+    fireEvent.click(screen.getAllByRole("button", { name: "Erledigt mit Abweichung" })[0]);
     const dialog = within(await screen.findByRole("dialog"));
 
     fireEvent.click(dialog.getByRole("button", { name: "Löschen" }));

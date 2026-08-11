@@ -1,4 +1,10 @@
-import type { ActionNode, ActionServiceEntry, DayPart } from "@/types/assessment";
+import type {
+  ActionNode,
+  ActionServiceEntry,
+  ActionServiceType,
+  ConfirmedOptionalService,
+  DayPart,
+} from "@/types/assessment";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -19,6 +25,8 @@ export interface UnplannedActionDraft {
   scheduledTime?: string;
   category?: ActionNode["category"];
   serviceEntries?: ActionServiceEntry[];
+  optionalServiceTypes?: ActionServiceType[];
+  optionalServices?: ConfirmedOptionalService[];
   templateId?: string;
   templateName?: string;
   templateLockedFields?: string[];
@@ -57,13 +65,17 @@ export const buildUnplannedActionNodes = (
     title: draft.title,
     notes: draft.notes,
     requiredResources: draft.requiredResources,
-    plannedMinutes: draft.plannedMinutes,
+    // Ungeplante Handlungen haben keine geplante Zeit. Fix 0, damit die Auswertung die
+    // Differenz zur tatsächlich erfassten Zeit ausweisen kann.
+    plannedMinutes: 0,
     requiredPersons: draft.requiredPersons,
     resultRequirement: draft.resultRequirement,
     dayPart: selectedDayPart === "none" ? undefined : selectedDayPart,
     scheduledTime: draft.scheduledTime,
     category: draft.category,
     serviceEntries: draft.serviceEntries,
+    optionalServiceTypes: draft.optionalServiceTypes,
+    optionalServices: draft.optionalServices,
     validFrom: date,
     validTo: date,
     recurrence: "daily",
