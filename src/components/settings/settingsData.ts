@@ -35,6 +35,8 @@ export interface SettingsCategory {
   title: string;
   icon: LucideIcon;
   links: SettingsLink[];
+  /** Prototyp-Markierung: der ganze Bereich ist umrandet statt der einzelnen Links. */
+  highlightWholeCard?: boolean;
 }
 
 /**
@@ -90,9 +92,11 @@ export const settingsCategories: SettingsCategory[] = [
     id: "handlungsplanung",
     title: "Handlungen",
     icon: Target,
+    highlightWholeCard: true,
     links: [
       { label: "Disziplinen", implemented: true },
       { label: "Handlungsvorlagen", implemented: true },
+      { label: "Hilfsmittel", implemented: true },
     ],
   },
 

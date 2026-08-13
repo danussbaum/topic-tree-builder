@@ -45,6 +45,15 @@ import {
 } from "@/components/assessment/DayPartChipSelector";
 import { loadActionPlanDisciplines } from "@/lib/action-plan-disciplines";
 import { DisciplineMultiSelect } from "@/components/settings/DisciplineMultiSelect";
+import { ResourceMultiSelect } from "@/components/settings/ResourceMultiSelect";
+import {
+  getResourceNames,
+  getResourcesForDisciplines,
+  loadActionPlanResources,
+  parseResourceIds,
+  resolveResourceIdsByName,
+  serializeResourceIds,
+} from "@/lib/action-plan-resources";
 
 type TemplateSortKey = "name" | "kategorie" | "leistungsart";
 
@@ -71,7 +80,7 @@ type TemplateFieldKey =
 interface TemplateFieldMeta {
   key: TemplateFieldKey;
   label: string;
-  type: "text" | "textarea" | "select" | "time" | "dayparts" | "leistungsarten" | "optionaleLeistungsarten";
+  type: "text" | "textarea" | "select" | "time" | "dayparts" | "leistungsarten" | "optionaleLeistungsarten" | "hilfsmittel";
   options?: Array<{ value: string; label: string }>;
   editable?: boolean;
 }
@@ -79,7 +88,7 @@ interface TemplateFieldMeta {
 const templateFieldMeta: TemplateFieldMeta[] = [
   { key: "titel", label: "Titel", type: "text" },
   { key: "beschreibung", label: "Beschreibung", type: "textarea" },
-  { key: "hilfsmittel", label: "Hilfsmittel", type: "textarea" },
+  { key: "hilfsmittel", label: "Hilfsmittel", type: "hilfsmittel" },
   { key: "dauer", label: "Geplante Dauer (Min.)", type: "text" },
   { key: "personen", label: "Anz. Personen", type: "text" },
   {
@@ -191,6 +200,7 @@ export const ActionPlanTemplatesView = forwardRef<
     direction: "asc",
   });
   const disciplineOptions = loadActionPlanDisciplines();
+  const resourceOptions = loadActionPlanResources();
 
   const allowedByField = useMemo(() => {
     const map = new Map<TemplateFieldKey, Set<string>>();
@@ -335,6 +345,20 @@ export const ActionPlanTemplatesView = forwardRef<
             .filter((t) => !validTypes.has(t));
           if (invalidTypes.length > 0) {
             errors.push(`${field.label}: ungültige Leistungsart(en) "${invalidTypes.join(", ")}"`);
+          }
+        }
+
+        // Hilfsmittel stehen im CSV als Namen — beim Import zurück auf IDs abbilden.
+        if (field.key === "hilfsmittel") {
+          const { resourceIds, invalidEntries } = resolveResourceIdsByName(
+            rawValue,
+            resourceOptions,
+          );
+          nextFields[field.key] = serializeResourceIds(resourceIds);
+          if (invalidEntries.length > 0) {
+            errors.push(
+              `${field.label}: unbekannte Hilfsmittel ${invalidEntries.join(", ")}`,
+            );
           }
         }
 
@@ -544,6 +568,18 @@ export const ActionPlanTemplatesView = forwardRef<
     closePanel();
   };
 
+  // Hilfsmittel werden im CSV lesbar als Namen geführt, nicht als IDs.
+  const templateFieldCsvValue = (
+    template: ActionPlanTemplate,
+    fieldKey: TemplateFieldKey,
+  ) =>
+    fieldKey === "hilfsmittel"
+      ? getResourceNames(
+          parseResourceIds(template.fields.hilfsmittel ?? ""),
+          resourceOptions,
+        ).join(", ")
+      : (template.fields[fieldKey] ?? "");
+
   const exportTemplatesCsv = () => {
     const headers = [
       "Name",
@@ -563,9 +599,9 @@ export const ActionPlanTemplatesView = forwardRef<
       ).join(", "),
       ...templateFieldMeta.flatMap((field) =>
         field.editable === false
-          ? [template.fields[field.key] ?? ""]
+          ? [templateFieldCsvValue(template, field.key)]
           : [
-              template.fields[field.key] ?? "",
+              templateFieldCsvValue(template, field.key),
               template.editable[field.key] ? "Ja" : "Nein",
               template.editable[field.key] && template.required[field.key] ? "Ja" : "Nein",
             ],
@@ -736,7 +772,21 @@ export const ActionPlanTemplatesView = forwardRef<
                   }
 
                   const control =
-                    field.type === "textarea" ? (
+                    field.type === "hilfsmittel" ? (
+                      <ResourceMultiSelect
+                        options={getResourcesForDisciplines(
+                          resourceOptions,
+                          draftDisciplineIds,
+                        )}
+                        value={parseResourceIds(draftFields[field.key])}
+                        onChange={(resourceIds) =>
+                          setDraftFields((prev) => ({
+                            ...prev,
+                            [field.key]: serializeResourceIds(resourceIds),
+                          }))
+                        }
+                      />
+                    ) : field.type === "textarea" ? (
                       <Textarea
                         value={draftFields[field.key]}
                         onChange={(event) =>

@@ -15,6 +15,10 @@ import {
   type ActionPlanDisciplinesHandle,
 } from "@/components/settings/ActionPlanDisciplinesView";
 import {
+  ActionPlanResourcesView,
+  type ActionPlanResourcesHandle,
+} from "@/components/settings/ActionPlanResourcesView";
+import {
   SettingsRibbon,
   type SettingsRibbonAction,
 } from "@/components/settings/SettingsRibbon";
@@ -26,15 +30,29 @@ const Settings = () => {
   const [showActionPlanTemplates, setShowActionPlanTemplates] = useState(false);
   const [showActionPlanDisciplines, setShowActionPlanDisciplines] =
     useState(false);
+  const [showActionPlanResources, setShowActionPlanResources] = useState(false);
   const templatesRef = useRef<ActionPlanTemplatesHandle | null>(null);
   const disciplinesRef = useRef<ActionPlanDisciplinesHandle | null>(null);
+  const resourcesRef = useRef<ActionPlanResourcesHandle | null>(null);
   const [templateSearchQuery, setTemplateSearchQuery] = useState("");
   const [disciplineSearchQuery, setDisciplineSearchQuery] = useState("");
+  const [resourceSearchQuery, setResourceSearchQuery] = useState("");
 
   const handleBackToSettings = () => {
     setShowPermissionLevels(false);
     setShowActionPlanTemplates(false);
     setShowActionPlanDisciplines(false);
+    setShowActionPlanResources(false);
+  };
+
+  /** Nur eine Unterseite ist offen — Auswahl setzt die übrigen zurück. */
+  const openSubPage = (
+    page: "permissions" | "templates" | "disciplines" | "resources",
+  ) => {
+    setShowPermissionLevels(page === "permissions");
+    setShowActionPlanTemplates(page === "templates");
+    setShowActionPlanDisciplines(page === "disciplines");
+    setShowActionPlanResources(page === "resources");
   };
 
   const ribbonActions: SettingsRibbonAction[] = [
@@ -45,32 +63,46 @@ const Settings = () => {
       onClick: handleBackToSettings,
       dividerAfter: true,
     },
-    ...(showActionPlanTemplates || showActionPlanDisciplines
+    ...(showActionPlanTemplates ||
+    showActionPlanDisciplines ||
+    showActionPlanResources
       ? [
           {
-            key: showActionPlanDisciplines ? "new-discipline" : "new-template",
+            key: showActionPlanDisciplines
+              ? "new-discipline"
+              : showActionPlanResources
+                ? "new-resource"
+                : "new-template",
             label: "Neu",
             icon: CirclePlus,
             onClick: () =>
               showActionPlanDisciplines
                 ? disciplinesRef.current?.openCreate()
-                : templatesRef.current?.openCreate(),
+                : showActionPlanResources
+                  ? resourcesRef.current?.openCreate()
+                  : templatesRef.current?.openCreate(),
           } satisfies SettingsRibbonAction,
         ]
       : []),
-    ...(showActionPlanTemplates
+    ...(showActionPlanTemplates || showActionPlanResources
       ? [
           {
-            key: "import-templates",
+            key: "import-csv",
             label: "Import",
             icon: CsvImportIcon,
-            onClick: () => templatesRef.current?.openImport(),
+            onClick: () =>
+              showActionPlanResources
+                ? resourcesRef.current?.openImport()
+                : templatesRef.current?.openImport(),
           } satisfies SettingsRibbonAction,
           {
-            key: "export-templates",
+            key: "export-csv",
             label: "Export",
             icon: CsvIcon,
-            onClick: () => templatesRef.current?.exportCsv(),
+            onClick: () =>
+              showActionPlanResources
+                ? resourcesRef.current?.exportCsv()
+                : templatesRef.current?.exportCsv(),
           } satisfies SettingsRibbonAction,
         ]
       : []),
@@ -82,25 +114,33 @@ const Settings = () => {
       ? "Handlungsvorlagen"
       : showActionPlanDisciplines
         ? "Disziplinen"
-        : null;
+        : showActionPlanResources
+          ? "Hilfsmittel"
+          : null;
 
   const searchQuery = showActionPlanTemplates
     ? templateSearchQuery
     : showActionPlanDisciplines
       ? disciplineSearchQuery
-      : "";
+      : showActionPlanResources
+        ? resourceSearchQuery
+        : "";
 
   const setSearchQuery = showActionPlanTemplates
     ? setTemplateSearchQuery
     : showActionPlanDisciplines
       ? setDisciplineSearchQuery
-      : null;
+      : showActionPlanResources
+        ? setResourceSearchQuery
+        : null;
 
   const searchPlaceholder = showActionPlanTemplates
     ? "Handlungsvorlagen suchen"
     : showActionPlanDisciplines
       ? "Disziplinen suchen"
-      : "";
+      : showActionPlanResources
+        ? "Hilfsmittel suchen"
+        : "";
 
   const ribbonSearch = setSearchQuery ? (
     <div className="relative w-[min(24rem,calc(100vw-2rem))]">
@@ -130,9 +170,7 @@ const Settings = () => {
         activeId={activeGroup}
         onSelect={(id) => {
           setActiveGroup(id);
-          setShowPermissionLevels(false);
-          setShowActionPlanTemplates(false);
-          setShowActionPlanDisciplines(false);
+          handleBackToSettings();
         }}
       />
 
@@ -161,6 +199,11 @@ const Settings = () => {
                   ref={templatesRef}
                   searchQuery={templateSearchQuery}
                 />
+              ) : showActionPlanResources ? (
+                <ActionPlanResourcesView
+                  ref={resourcesRef}
+                  searchQuery={resourceSearchQuery}
+                />
               ) : (
                 <ActionPlanDisciplinesView
                   ref={disciplinesRef}
@@ -177,22 +220,19 @@ const Settings = () => {
                 onLinkClick={(catId, label) => {
                   setActiveGroup(catId);
                   if (catId === "sicherheit" && label === "Klassifizierungen") {
-                    setShowPermissionLevels(true);
-                    setShowActionPlanTemplates(false);
-                    setShowActionPlanDisciplines(false);
+                    openSubPage("permissions");
                   }
                   if (
                     catId === "handlungsplanung" &&
                     label === "Handlungsvorlagen"
                   ) {
-                    setShowActionPlanTemplates(true);
-                    setShowPermissionLevels(false);
-                    setShowActionPlanDisciplines(false);
+                    openSubPage("templates");
                   }
                   if (catId === "handlungsplanung" && label === "Disziplinen") {
-                    setShowActionPlanDisciplines(true);
-                    setShowPermissionLevels(false);
-                    setShowActionPlanTemplates(false);
+                    openSubPage("disciplines");
+                  }
+                  if (catId === "handlungsplanung" && label === "Hilfsmittel") {
+                    openSubPage("resources");
                   }
                 }}
               />

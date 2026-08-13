@@ -261,7 +261,7 @@ describe("AssessmentOutline confirmation actions", () => {
           fields: {
             ...buildDefaultTemplateFields(),
             beschreibung: "Fixe Beschreibung",
-            hilfsmittel: "Fixes Hilfsmittel",
+            hilfsmittel: "resource-rutschbrett",
             dauer: "25",
             personen: "2",
             kategorie: "b",
@@ -295,7 +295,7 @@ describe("AssessmentOutline confirmation actions", () => {
     fireEvent.click(await within(dialog).findByText("Kategorie gesperrt"));
 
     expect(within(dialog).getByLabelText("Beschreibung")).toBeDisabled();
-    expect(within(dialog).getByLabelText("Hilfsmittel")).toBeDisabled();
+    expect(within(dialog).getByPlaceholderText("Hilfsmittel suchen...")).toBeDisabled();
     // Ohne fixe Tageszeit rendert der Dialog den Chip-Selektor; bei gesperrter
     // Tageszeit sind dessen Chips (inkl. Uhrzeit-Eingaben) deaktiviert.
     expect(within(dialog).getByRole("button", { name: "Morgen" })).toBeDisabled();
@@ -323,7 +323,7 @@ describe("AssessmentOutline confirmation actions", () => {
                 groupId: "grp-monthly",
                 title: "Gesperrte Vorlage",
                 notes: "Fixe Beschreibung",
-                requiredResources: "Fixes Hilfsmittel",
+                resourceIds: ["resource-rutschbrett"],
                 status: "open",
                 done: false,
                 validFrom: "2026-05-01",
@@ -338,7 +338,7 @@ describe("AssessmentOutline confirmation actions", () => {
                 templateLockedFields: [
                   "title",
                   "notes",
-                  "requiredResources",
+                  "resourceIds",
                   "category",
                   "dayPart",
                   "scheduledTime",
@@ -395,6 +395,8 @@ describe("AssessmentOutline confirmation actions", () => {
     // bearbeitet (und dabei gemäss Vorlage gesperrt) werden sie im Seitenpanel.
     const { unmount } = render(<AssessmentOutline {...outlineProps} />);
 
+    fireEvent.click(screen.getByRole("button", { name: "Schwerpunkt" }));
+
     const monthlyRow = screen.getByText("Gesperrte Vorlage").closest("li");
     expect(monthlyRow).not.toBeNull();
     fireEvent.click(within(monthlyRow as HTMLElement).getByRole("button", { name: "Handlung bearbeiten" }));
@@ -402,7 +404,7 @@ describe("AssessmentOutline confirmation actions", () => {
     const monthlyPanel = within(await screen.findByRole("dialog"));
     expect(monthlyPanel.getByDisplayValue("Gesperrte Vorlage")).toBeDisabled();
     expect(monthlyPanel.getByDisplayValue("Fixe Beschreibung")).toBeDisabled();
-    expect(monthlyPanel.getByDisplayValue("Fixes Hilfsmittel")).toBeDisabled();
+    expect(monthlyPanel.getByPlaceholderText("Hilfsmittel suchen...")).toBeDisabled();
     expect(monthlyPanel.getByDisplayValue("25")).toBeDisabled();
     expect(monthlyPanel.getByDisplayValue("2")).toBeDisabled();
     // Tageszeit steckt jetzt im Chip-Selektor — gesperrt heisst: Chips deaktiviert.
@@ -416,6 +418,7 @@ describe("AssessmentOutline confirmation actions", () => {
 
     // Zweite Handlung: nur die Wochentage sind gesperrt.
     render(<AssessmentOutline {...outlineProps} />);
+    fireEvent.click(screen.getByRole("button", { name: "Schwerpunkt" }));
     const weeklyRow = screen.getByText("Gesperrte Wochentage").closest("li");
     expect(weeklyRow).not.toBeNull();
     fireEvent.click(within(weeklyRow as HTMLElement).getByRole("button", { name: "Handlung bearbeiten" }));

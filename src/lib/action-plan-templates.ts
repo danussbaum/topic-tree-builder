@@ -29,7 +29,7 @@ export interface ActionPlanTemplate {
 const TEMPLATE_FIELD_TO_ACTION_FIELD: Record<TemplateFieldKey, keyof ActionNode> = {
   titel: "title",
   beschreibung: "notes",
-  hilfsmittel: "requiredResources",
+  hilfsmittel: "resourceIds",
   dauer: "plannedMinutes",
   personen: "requiredPersons",
   kategorie: "category",
@@ -276,7 +276,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
     fields: {
       titel: "Tagesstart begleiten",
       beschreibung: "Begleitung bei der Morgenhygiene und Planung des Tagesablaufs.",
-      hilfsmittel: "Pflegeutensilien bereitstellen.",
+      hilfsmittel: "",
       dauer: "20",
       personen: "1",
       kategorie: "a",
@@ -326,7 +326,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
     fields: {
       titel: "10101 Ganzwäsche bettlägerige Klientin",
       beschreibung: "",
-      hilfsmittel: "",
+      hilfsmittel: "resource-waschschuessel|resource-einmalwaschlappen|resource-einmalhandschuhe",
       dauer: "40",
       personen: "1",
       kategorie: "c",
@@ -376,7 +376,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
     fields: {
       titel: "10102 Ganzwäsche in Bad, Dusche oder am Lavabo",
       beschreibung: "",
-      hilfsmittel: "",
+      hilfsmittel: "resource-duschstuhl|resource-duschrollstuhl|resource-einmalwaschlappen",
       dauer: "40",
       personen: "1",
       kategorie: "c",
@@ -676,7 +676,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
     fields: {
       titel: "10108 Nägel schneiden Finger",
       beschreibung: "",
-      hilfsmittel: "",
+      hilfsmittel: "resource-nagelset",
       dauer: "15",
       personen: "1",
       kategorie: "c",
@@ -726,7 +726,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
     fields: {
       titel: "10109 Nägel schneiden Zehen",
       beschreibung: "",
-      hilfsmittel: "",
+      hilfsmittel: "resource-nagelset",
       dauer: "15",
       personen: "1",
       kategorie: "c",
@@ -826,7 +826,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
     fields: {
       titel: "10112 Zahnpflege",
       beschreibung: "",
-      hilfsmittel: "",
+      hilfsmittel: "resource-zahnpflegeset",
       dauer: "5",
       personen: "1",
       kategorie: "c",
@@ -976,7 +976,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
     fields: {
       titel: "10115 Kompressionsstrümpfe/-verband",
       beschreibung: "",
-      hilfsmittel: "",
+      hilfsmittel: "resource-kompressionsstruempfe|resource-anziehhilfe",
       dauer: "10",
       personen: "1",
       kategorie: "c",
@@ -1076,7 +1076,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
     fields: {
       titel: "10202 Inhalation vorbereiten",
       beschreibung: "",
-      hilfsmittel: "",
+      hilfsmittel: "resource-inhalationsgeraet",
       dauer: "5",
       personen: "1",
       kategorie: "b",
@@ -1126,7 +1126,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
     fields: {
       titel: "10203 Inhalationen mit konstanter Präsenz",
       beschreibung: "",
-      hilfsmittel: "",
+      hilfsmittel: "resource-inhalationsgeraet",
       dauer: "15",
       personen: "1",
       kategorie: "b",
@@ -1176,7 +1176,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
     fields: {
       titel: "10204 O2 -Verabreichung",
       beschreibung: "",
-      hilfsmittel: "",
+      hilfsmittel: "resource-sauerstoffkonzentrator",
       dauer: "9",
       personen: "1",
       kategorie: "b",
@@ -1226,7 +1226,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
     fields: {
       titel: "10205 Absaugen",
       beschreibung: "",
-      hilfsmittel: "",
+      hilfsmittel: "resource-absauggeraet|resource-einmalhandschuhe",
       dauer: "15",
       personen: "1",
       kategorie: "b",
@@ -1326,7 +1326,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
     fields: {
       titel: "10207 Luftbefeuchter",
       beschreibung: "",
-      hilfsmittel: "",
+      hilfsmittel: "resource-luftbefeuchter",
       dauer: "9",
       personen: "1",
       kategorie: "none",
@@ -1676,7 +1676,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
     fields: {
       titel: "10401 Schüssel/Topf/Steckbecken",
       beschreibung: "",
-      hilfsmittel: "",
+      hilfsmittel: "resource-steckbecken|resource-einmalhandschuhe",
       dauer: "8",
       personen: "1",
       kategorie: "c",
@@ -1726,7 +1726,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
     fields: {
       titel: "10402 Urinflasche",
       beschreibung: "",
-      hilfsmittel: "",
+      hilfsmittel: "resource-urinflasche|resource-einmalhandschuhe",
       dauer: "5",
       personen: "1",
       kategorie: "c",
@@ -1926,7 +1926,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
     fields: {
       titel: "10406 Pflege/Überwachung Blasenkatheter",
       beschreibung: "",
-      hilfsmittel: "",
+      hilfsmittel: "resource-katheterset|resource-einmalhandschuhe",
       dauer: "5",
       personen: "1",
       kategorie: "b",
@@ -1976,7 +1976,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
     fields: {
       titel: "10407 Blasenkatheter legen, Dauer/Einmal",
       beschreibung: "",
-      hilfsmittel: "",
+      hilfsmittel: "resource-katheterset|resource-einmalhandschuhe|resource-desinfektionsmittel",
       dauer: "30",
       personen: "1",
       kategorie: "b",
@@ -2376,7 +2376,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
     fields: {
       titel: "10415 Pflege von Stoma",
       beschreibung: "",
-      hilfsmittel: "",
+      hilfsmittel: "resource-stomamaterial|resource-einmalhandschuhe",
       dauer: "15",
       personen: "1",
       kategorie: "b",
@@ -2626,7 +2626,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
     fields: {
       titel: "10501 Lagerung der Klientin im Bett",
       beschreibung: "",
-      hilfsmittel: "",
+      hilfsmittel: "resource-lagerungskissen|resource-rutschtuch|resource-kinaesthetik-block",
       dauer: "8",
       personen: "1",
       kategorie: "c",
@@ -2676,7 +2676,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
     fields: {
       titel: "10502 Lagerung der Klientin im Bett inkl. Bett machen / Bettwäsche wechseln",
       beschreibung: "",
-      hilfsmittel: "",
+      hilfsmittel: "resource-lagerungskissen|resource-rutschtuch|resource-antidekubitus-matratze",
       dauer: "15",
       personen: "1",
       kategorie: "c",
@@ -2726,7 +2726,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
     fields: {
       titel: "10503 Aufstehen oder Hinlegen mit Hilfe",
       beschreibung: "",
-      hilfsmittel: "",
+      hilfsmittel: "resource-rutschbrett|resource-rutschtuch|resource-drehscheibe|resource-kinaesthetik-block|resource-bettgalgen",
       dauer: "5",
       personen: "1",
       kategorie: "c",
@@ -2776,7 +2776,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
     fields: {
       titel: "10504 Aufstehen oder Hinlegen mit Lift oder 2 Personen",
       beschreibung: "",
-      hilfsmittel: "",
+      hilfsmittel: "resource-patientenlifter|resource-rutschtuch|resource-drehscheibe",
       dauer: "10",
       personen: "1",
       kategorie: "c",
@@ -2826,7 +2826,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
     fields: {
       titel: "10505 Hilfe beim Gehen",
       beschreibung: "",
-      hilfsmittel: "",
+      hilfsmittel: "resource-rollator|resource-gehstock",
       dauer: "8",
       personen: "1",
       kategorie: "c",
@@ -2926,7 +2926,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
     fields: {
       titel: "10507 Gehbegleitung ausserhalb Haus",
       beschreibung: "",
-      hilfsmittel: "",
+      hilfsmittel: "resource-rollator|resource-elektrorollstuhl",
       dauer: "20",
       personen: "1",
       kategorie: "none",
@@ -3726,7 +3726,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
     fields: {
       titel: "10616 Massnahmen zur Dekubitusprophylaxe",
       beschreibung: "",
-      hilfsmittel: "",
+      hilfsmittel: "resource-antidekubitus-matratze|resource-lagerungskissen",
       dauer: "20",
       personen: "1",
       kategorie: "c",
@@ -3876,7 +3876,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
     fields: {
       titel: "10701 Kleiner Verband",
       beschreibung: "",
-      hilfsmittel: "",
+      hilfsmittel: "resource-verbandmaterial-klein|resource-wundauflage-steril|resource-kompressen|resource-einmalhandschuhe|resource-desinfektionsmittel",
       dauer: "15",
       personen: "1",
       kategorie: "b",
@@ -3926,7 +3926,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
     fields: {
       titel: "10702 Mittlerer Verband",
       beschreibung: "",
-      hilfsmittel: "",
+      hilfsmittel: "resource-verbandmaterial-mittel|resource-wundauflage-steril|resource-kompressen|resource-fixierbinde|resource-einmalhandschuhe|resource-desinfektionsmittel",
       dauer: "24",
       personen: "1",
       kategorie: "b",
@@ -3976,7 +3976,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
     fields: {
       titel: "10703 Grosser Verband",
       beschreibung: "",
-      hilfsmittel: "",
+      hilfsmittel: "resource-verbandmaterial-gross|resource-wundauflage-steril|resource-kompressen|resource-fixierbinde|resource-einmalhandschuhe|resource-desinfektionsmittel",
       dauer: "40",
       personen: "1",
       kategorie: "b",

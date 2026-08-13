@@ -38,6 +38,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { groupUnplannedActions } from "@/lib/unplanned-action";
+import {
+  formatActionResources,
+  getActionPlanResources,
+  parseResourceIds,
+} from "@/lib/action-plan-resources";
+import { ResourceMultiSelect } from "@/components/settings/ResourceMultiSelect";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -152,6 +159,7 @@ interface UnplannedActionDraft {
   title: string;
   notes: string;
   requiredResources?: string;
+  resourceIds?: string[];
   plannedMinutes?: number;
   requiredPersons?: number;
   resultRequirement?: ActionNode["resultRequirement"];
@@ -173,6 +181,7 @@ type ActionDraftOverrides = Partial<Pick<ActionNode,
   | "title"
   | "notes"
   | "requiredResources"
+  | "resourceIds"
   | "plannedMinutes"
   | "requiredPersons"
   | "resultRequirement"
@@ -192,6 +201,7 @@ interface ActionDraft {
   title: string;
   notes: string;
   requiredResources: string;
+  resourceIds: string[];
   plannedMinutes: string;
   requiredPersons: string;
   resultRequirement: string;
@@ -212,6 +222,7 @@ function emptyActionDraft(): ActionDraft {
     title: "",
     notes: "",
     requiredResources: "",
+    resourceIds: [],
     plannedMinutes: "",
     requiredPersons: "",
     resultRequirement: "none",
@@ -233,6 +244,7 @@ function actionToDraft(action: ActionNode): ActionDraft {
     title: action.title,
     notes: action.notes,
     requiredResources: action.requiredResources ?? "",
+    resourceIds: action.resourceIds ?? [],
     plannedMinutes: action.plannedMinutes != null ? String(action.plannedMinutes) : "",
     requiredPersons: action.requiredPersons != null ? String(action.requiredPersons) : "",
     resultRequirement: action.resultRequirement ?? "none",
@@ -258,6 +270,7 @@ function draftToOverrides(draft: ActionDraft): ActionDraftOverrides {
     title: draft.title,
     notes: draft.notes,
     requiredResources: draft.requiredResources || undefined,
+    resourceIds: draft.resourceIds.length > 0 ? draft.resourceIds : undefined,
     plannedMinutes: draft.plannedMinutes !== "" ? Math.max(0, Number(draft.plannedMinutes)) : undefined,
     requiredPersons: draft.requiredPersons !== "" ? Math.max(1, Math.floor(Number(draft.requiredPersons))) : undefined,
     resultRequirement: draft.resultRequirement !== "none" ? (draft.resultRequirement as ActionNode["resultRequirement"]) : undefined,
@@ -585,6 +598,8 @@ export function AssessmentOutline({
 
   useEffect(() => {
     if (!focusTargetId) return;
+    // Neu angelegtes Ziel direkt im Umbenennen-Modus öffnen — sonst gibt es kein Feld.
+    setEditingTargetTitleId(focusTargetId);
     const el = targetInputRefs.current.get(focusTargetId);
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -595,6 +610,9 @@ export function AssessmentOutline({
 
   useEffect(() => {
     if (!focusTopicId) return;
+    // Ein neu angelegter Schwerpunkt geht direkt in den Umbenennen-Modus, sonst
+    // gäbe es kein Eingabefeld, das den Fokus übernehmen könnte.
+    setEditingTopicId(focusTopicId);
     // rAF: erst nach dem Schliessen von Popover/Dropdown (Radix gibt sonst den
     // Fokus an seinen Trigger zurück und überschreibt den Feld-Fokus).
     const raf = requestAnimationFrame(() => {
@@ -666,35 +684,66 @@ export function AssessmentOutline({
       })),
   ];
 
-  // Master-Detail (Planung): welche Ziele rechts im Detail angezeigt werden.
-  // Klick = Einzelauswahl, Ctrl/Cmd-Klick = mehrere Ziele gleichzeitig.
-  const [selectedGoalIds, setSelectedGoalIds] = useState<string[]>(() => {
-    for (const t of topics) {
-      const first = t.targets.find((tg) => !tg.validTo) ?? t.targets[0];
-      if (first) return [first.id];
-    }
-    return [];
-  });
+  // Master-Detail (Planung): Auswahl auf Ebene Schwerpunkt — rechts erscheinen
+  // immer alle Ziele des gewählten Schwerpunkts samt Handlungen. Die Ziele links
+  // sind Sprungmarken in dieses Detail.
+  // Pro Person ist disziplin-übergreifend höchstens ein Schwerpunkt gewählt.
+  // Start: nichts gewählt.
+  const resourceCatalog = getActionPlanResources();
+  const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
+  const [editingTopicId, setEditingTopicId] = useState<string | null>(null);
+  const [editingTopicNotesId, setEditingTopicNotesId] = useState<string | null>(null);
+  const [editingTargetTitleId, setEditingTargetTitleId] = useState<string | null>(null);
+  const [editingTargetNotesId, setEditingTargetNotesId] = useState<string | null>(null);
+  const goalDetailRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   useEffect(() => {
-    const valid = new Set<string>();
-    topics.forEach((t) =>
-      t.targets.forEach((tg) => {
-        if (showClosedTargets || !tg.validTo) valid.add(tg.id);
-      }),
-    );
-    setSelectedGoalIds((prev) => {
-      const pruned = prev.filter((id) => valid.has(id));
-      return pruned.length === prev.length ? prev : pruned;
-    });
-  }, [topics, showClosedTargets]);
+    setSelectedTopicId((prev) => (prev && topics.some((t) => t.id === prev) ? prev : null));
+  }, [topics]);
 
-  const selectGoal = (id: string, ev?: { ctrlKey?: boolean; metaKey?: boolean }) => {
-    const multi = !!ev && (ev.ctrlKey || ev.metaKey);
-    setSelectedGoalIds((prev) => {
-      if (multi) return prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
-      return prev.length === 1 && prev[0] === id ? [] : [id];
-    });
+  const toggleTopic = (topicId: string) =>
+    setSelectedTopicId((prev) => (prev === topicId ? null : topicId));
+
+  const selectTopic = (topicId: string) => setSelectedTopicId(topicId);
+
+  const masterColumnRef = useRef<HTMLDivElement | null>(null);
+  const disciplineSectionRefs = useRef<Map<string, HTMLElement>>(new Map());
+  const topicBlockRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  // Beim Anwählen eines Schwerpunkts die Personen-Zeile an den oberen Rand scrollen,
+  // damit die gewählte Disziplin-Box und die Ziele rechts zusammen im Blick sind.
+  useEffect(() => {
+    if (!selectedTopicId) return;
+    const clientBlock = masterColumnRef.current?.closest("[data-client-block]");
+    clientBlock?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [selectedTopicId]);
+
+  // Das Detail beginnt auf der Höhe des gewählten Schwerpunkts.
+  // Nur im zweispaltigen Layout — einspaltig entstünde sonst eine Leerfläche.
+  const [detailOffset, setDetailOffset] = useState(0);
+  useLayoutEffect(() => {
+    const applyOffset = () => {
+      const topicBlock = selectedTopicId ? topicBlockRefs.current.get(selectedTopicId) : undefined;
+      const master = masterColumnRef.current;
+      const isTwoColumn = typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches;
+      if (!topicBlock || !master || !isTwoColumn) {
+        setDetailOffset(0);
+        return;
+      }
+      setDetailOffset(
+        Math.max(0, topicBlock.getBoundingClientRect().top - master.getBoundingClientRect().top),
+      );
+    };
+    applyOffset();
+    window.addEventListener("resize", applyOffset);
+    return () => window.removeEventListener("resize", applyOffset);
+  }, [selectedTopicId, topics]);
+
+  const selectGoal = (topicId: string, targetId: string) => {
+    selectTopic(topicId);
+    // Bereits sichtbares Ziel direkt anspringen; bei Schwerpunkt-Wechsel rendert
+    // das Detail erst danach — dann übernimmt der Wechsel selbst die Position.
+    goalDetailRefs.current.get(targetId)?.scrollIntoView({ block: "start", behavior: "smooth" });
   };
 
   useEffect(() => {
@@ -758,6 +807,7 @@ export function AssessmentOutline({
         title: draft.title,
         notes: draft.notes,
         requiredResources: draft.requiredResources || undefined,
+        resourceIds: draft.resourceIds.length > 0 ? draft.resourceIds : undefined,
         plannedMinutes: draft.plannedMinutes !== "" ? Math.max(0, Number(draft.plannedMinutes)) : undefined,
         requiredPersons: draft.requiredPersons !== "" ? Math.max(1, Math.floor(Number(draft.requiredPersons))) : undefined,
         category: draft.category !== "none" ? (draft.category as ActionCategory) : undefined,
@@ -928,6 +978,15 @@ export function AssessmentOutline({
       const rightDayPartIndex = DAY_PART_ORDER.indexOf((right.action.dayPart ?? "none") as DayPart | "none");
       if (leftDayPartIndex !== rightDayPartIndex) {
         return leftDayPartIndex - rightDayPartIndex;
+      }
+
+      // Innerhalb der Tageszeit zuerst nach Uhrzeit, Handlungen ohne Uhrzeit danach.
+      const leftTime = left.action.scheduledTime?.trim() ?? "";
+      const rightTime = right.action.scheduledTime?.trim() ?? "";
+      if (leftTime !== rightTime) {
+        if (!leftTime) return 1;
+        if (!rightTime) return -1;
+        return leftTime.localeCompare(rightTime);
       }
 
       return left.action.title.localeCompare(right.action.title, "de", { sensitivity: "base" });
@@ -1511,9 +1570,9 @@ export function AssessmentOutline({
                                     <span className="font-medium">Beschreibung:</span> {action.notes}
                                   </div>
                                 )}
-                                {action.requiredResources?.trim() && (
+                                {formatActionResources(action, resourceCatalog) && (
                                   <div className="mt-1 text-xs text-foreground/70 line-clamp-2 whitespace-pre-wrap break-words">
-                                    <span className="font-medium">Hilfsmittel:</span> {action.requiredResources}
+                                    <span className="font-medium">Hilfsmittel:</span> {formatActionResources(action, resourceCatalog)}
                                   </div>
                                 )}
                                 {!canConfirm && (
@@ -1703,14 +1762,15 @@ export function AssessmentOutline({
   }
 
   // Rechts anzuzeigende Ziele: gewählte IDs, in Baum-Reihenfolge, nur sichtbare (abgeschlossene je nach showClosedTargets).
-  const selectedGoals: Array<{ topic: TopicNode; target: TargetNode }> = [];
+  // Gewählter Schwerpunkt (max. einer) mit seinen sichtbaren Zielen.
+  const selectedTopicBlocks: Array<{ topic: TopicNode; targets: TargetNode[] }> = [];
   for (const group of topicDisciplineGroups) {
     for (const topic of group.topics) {
-      for (const target of topic.targets) {
-        if ((showClosedTargets || !target.validTo) && selectedGoalIds.includes(target.id)) {
-          selectedGoals.push({ topic, target });
-        }
-      }
+      if (topic.id !== selectedTopicId) continue;
+      selectedTopicBlocks.push({
+        topic,
+        targets: topic.targets.filter((target) => showClosedTargets || !target.validTo),
+      });
     }
   }
 
@@ -1718,36 +1778,105 @@ export function AssessmentOutline({
     <div className="space-y-6">
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
         {/* MASTER: Ziel-Navigation, gruppiert nach Disziplin → Schwerpunkt */}
-        <div className="space-y-8 rounded-xl border border-border bg-white p-4 lg:sticky lg:top-2 lg:max-h-[calc(100vh-9rem)] lg:overflow-y-auto">
+        <div ref={masterColumnRef} className="space-y-3 lg:sticky lg:top-2 lg:max-h-[calc(100vh-9rem)] lg:overflow-y-auto">
+          {/* Jede Disziplin in eigener Box: die frühere Trennung per Haarlinie war zu
+              wenig prägnant und führte zu Einträgen in der falschen Disziplin. */}
           {topicDisciplineGroups.map(({ discipline, topics: groupTopics }) => (
-            <section key={discipline.id} className="space-y-4">
-              <div className="flex items-center gap-2">
-                <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            <section
+              key={discipline.id}
+              ref={(el) => {
+                if (el) disciplineSectionRefs.current.set(discipline.id, el);
+                else disciplineSectionRefs.current.delete(discipline.id);
+              }}
+              className="scroll-mt-2 overflow-hidden rounded-xl border border-border bg-white"
+            >
+              <div
+                className={cn(
+                  "border-b border-border bg-muted/60 px-4 py-2.5 transition-opacity",
+                  // Disziplin ohne den gewählten Schwerpunkt tritt zurück.
+                  selectedTopicId &&
+                    !groupTopics.some((t) => t.id === selectedTopicId) &&
+                    "opacity-50",
+                )}
+              >
+                <h3 className="text-sm font-semibold tracking-wide text-foreground">
                   {discipline.title}
                 </h3>
-                <span className="h-px flex-1 bg-border" />
               </div>
 
-              <div className="space-y-5">
+              <div className="space-y-5 p-4">
                 {groupTopics.map((topic) => {
                   const topicReadOnly = topic.targets.some((t) => t.actions.length > 0);
                   const visibleTargets = topic.targets.filter(
                     (target) => showClosedTargets || !target.validTo,
                   );
+                  const isTopicSelected = topic.id === selectedTopicId;
                   return (
-                    <div key={topic.id} className="group/topic space-y-1.5">
+                    <div
+                      key={topic.id}
+                      ref={(el) => {
+                        if (el) topicBlockRefs.current.set(topic.id, el);
+                        else topicBlockRefs.current.delete(topic.id);
+                      }}
+                      className={cn(
+                        "group/topic space-y-1.5 rounded-md px-2 py-1.5 transition-colors",
+                        isTopicSelected
+                          ? "bg-primary/5 ring-1 ring-primary/30"
+                          : "hover:bg-muted/60",
+                        // Ist ein Schwerpunkt gewählt, treten die übrigen zurück.
+                        selectedTopicId && !isTopicSelected && "opacity-50 hover:opacity-100",
+                      )}
+                    >
                       <div className="flex items-start gap-1">
-                        <input
-                          ref={(el) => {
-                            if (el) topicInputRefs.current.set(topic.id, el);
-                            else topicInputRefs.current.delete(topic.id);
-                          }}
-                          value={topic.title}
-                          onChange={(e) => onUpdateTopic(topic.id, "title", e.target.value)}
-                          readOnly={topicReadOnly}
-                          placeholder="Schwerpunkt…"
-                          className={`min-w-0 flex-1 bg-transparent border-0 px-0 text-base font-semibold outline-none focus:ring-0 placeholder:text-muted-foreground/40 ${topicReadOnly ? "cursor-default text-foreground" : ""}`}
-                        />
+                        {/* Titelzeile ist das Auswahl-Element; umbenannt wird über den Stift. */}
+                        {editingTopicId === topic.id && !topicReadOnly ? (
+                          <input
+                            ref={(el) => {
+                              if (el) topicInputRefs.current.set(topic.id, el);
+                              else topicInputRefs.current.delete(topic.id);
+                            }}
+                            value={topic.title}
+                            autoFocus
+                            onChange={(e) => onUpdateTopic(topic.id, "title", e.target.value)}
+                            onBlur={() => setEditingTopicId(null)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === "Escape") setEditingTopicId(null);
+                            }}
+                            placeholder="Schwerpunkt…"
+                            className="min-w-0 flex-1 bg-transparent border-0 px-0 text-base font-semibold outline-none focus:ring-0 placeholder:text-muted-foreground/40"
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => toggleTopic(topic.id)}
+                            className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                          >
+                            <span className={cn("min-w-0 flex-1 truncate text-base font-semibold", !topic.title && "text-muted-foreground/40")}>
+                              {topic.title || "Schwerpunkt…"}
+                            </span>
+                          </button>
+                        )}
+                        {!topicReadOnly && editingTopicId !== topic.id && (
+                          <TooltipProvider delayDuration={150}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button
+                                  onClick={() => setEditingTopicId(topic.id)}
+                                  className="shrink-0 rounded p-1 opacity-0 transition-opacity hover:bg-secondary group-hover/topic:opacity-100"
+                                  aria-label="Schwerpunkt umbenennen"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">
+                                <div className="max-w-[220px] space-y-0.5">
+                                  <div className="font-medium">Schwerpunkt umbenennen</div>
+                                  <div className="text-xs text-muted-foreground">Titel des Schwerpunkts anpassen</div>
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
                         <TooltipProvider delayDuration={150}>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -1769,26 +1898,31 @@ export function AssessmentOutline({
                         </TooltipProvider>
                       </div>
 
-                      <Notes
+                      <InlineEditable
                         value={topic.notes}
                         onChange={(v) => onUpdateTopic(topic.id, "notes", v)}
                         placeholder="Freitext zum Schwerpunkt…"
-                        borderless
-                        className="-mx-2 w-[calc(100%+1rem)] text-sm text-muted-foreground"
+                        multiline
+                        isEditing={editingTopicNotesId === topic.id}
+                        onStartEdit={() => setEditingTopicNotesId(topic.id)}
+                        onStopEdit={() => setEditingTopicNotesId(null)}
+                        editLabel="Freitext bearbeiten"
+                        editHint="Freitext zum Schwerpunkt anpassen"
+                        textClassName="text-sm text-muted-foreground"
+                        hoverGroupClassName="group-hover/topic:opacity-100"
                       />
 
                       <ul className="space-y-0.5">
                         {visibleTargets.map((target) => {
-                          const isOpen = selectedGoalIds.includes(target.id);
                           return (
                             <li key={target.id}>
                               <button
                                 type="button"
-                                onClick={(e) => selectGoal(target.id, e)}
+                                onClick={() => selectGoal(topic.id, target.id)}
                                 className={cn(
                                   "flex w-full items-center rounded-md px-2 py-1.5 text-left text-base transition-colors",
-                                  isOpen
-                                    ? "bg-primary/10 font-medium text-primary"
+                                  isTopicSelected
+                                    ? "font-medium text-foreground hover:bg-primary/10"
                                     : "text-muted-foreground hover:bg-muted",
                                 )}
                               >
@@ -1802,8 +1936,8 @@ export function AssessmentOutline({
                       <button
                         type="button"
                         onClick={() => {
-                          const id = onAddTarget(topic.id);
-                          if (id) setSelectedGoalIds([id]);
+                          onAddTarget(topic.id);
+                          selectTopic(topic.id);
                         }}
                         className="inline-flex items-center gap-1 pl-2 text-sm text-muted-foreground transition-colors hover:text-primary"
                       >
@@ -1818,19 +1952,39 @@ export function AssessmentOutline({
           ))}
         </div>
 
-        {/* DETAIL: gewählte Ziele mit Handlungen */}
-        <div className="min-w-0 rounded-xl border border-border bg-white p-5">
-          {selectedGoals.length === 0 ? (
+        {/* DETAIL: alle Ziele der gewählten Schwerpunkte mit ihren Handlungen */}
+        <div className="min-w-0 rounded-xl border border-border bg-white p-5" style={{ marginTop: detailOffset }}>
+          {selectedTopicBlocks.length === 0 ? (
             <div className="flex min-h-[240px] flex-col items-center justify-center gap-2 text-center text-muted-foreground">
               <div className="text-3xl">◻</div>
-              <div>Ziel links wählen, um Details und Handlungen zu sehen.</div>
+              <div>Schwerpunkt links wählen, um Ziele und Handlungen zu sehen.</div>
             </div>
           ) : (
             <div className="space-y-10">
-              {selectedGoals.map(({ topic, target }) => {
+              {selectedTopicBlocks.map(({ topic, targets: selectedTargets }) => (
+                <div key={topic.id} className="space-y-10">
+                  <div className="border-b border-border pb-3">
+                    <div className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">
+                      {disciplineById.get(getTopicDisciplineId(topic))?.title ?? "Schwerpunkt"}
+                    </div>
+                    <div className="text-base font-semibold">{topic.title || "Schwerpunkt…"}</div>
+                  </div>
+                  {selectedTargets.length === 0 && (
+                    <div className="text-sm text-muted-foreground">
+                      Für diesen Schwerpunkt ist noch kein Ziel erfasst.
+                    </div>
+                  )}
+                  {selectedTargets.map((target) => {
               const isTargetClosed = !!target.validTo;
               return (
-                <div key={target.id} className="group/target">
+                <div
+                  key={target.id}
+                  ref={(el) => {
+                    if (el) goalDetailRefs.current.set(target.id, el);
+                    else goalDetailRefs.current.delete(target.id);
+                  }}
+                  className="group/target scroll-mt-4"
+                >
                   <div className="flex items-start gap-3">
                     <div className="flex-1 min-w-0">
                       {isTargetClosed && (
@@ -1840,18 +1994,22 @@ export function AssessmentOutline({
                           </span>
                         </div>
                       )}
-                      <input
-                        ref={(el) => {
+                      <InlineEditable
+                        value={target.title}
+                        onChange={(v) => onUpdateTarget(topic.id, target.id, "title", v)}
+                        placeholder="Ziel…"
+                        isEditing={editingTargetTitleId === target.id}
+                        onStartEdit={() => setEditingTargetTitleId(target.id)}
+                        onStopEdit={() => setEditingTargetTitleId(null)}
+                        editLabel="Ziel umbenennen"
+                        editHint="Titel des Ziels anpassen"
+                        readOnly={isTargetClosed}
+                        textClassName="text-lg font-medium"
+                        hoverGroupClassName="group-hover/target:opacity-100"
+                        inputRef={(el) => {
                           if (el) targetInputRefs.current.set(target.id, el);
                           else targetInputRefs.current.delete(target.id);
                         }}
-                        value={target.title}
-                        readOnly={isTargetClosed}
-                        onChange={(e) =>
-                          isTargetClosed ? undefined : onUpdateTarget(topic.id, target.id, "title", e.target.value)
-                        }
-                        placeholder="Ziel…"
-                        className="w-full text-lg font-medium bg-transparent border-0 outline-none focus:ring-0 px-0 placeholder:text-muted-foreground/40 read-only:cursor-default"
                       />
                       <div className="flex items-center gap-3 mt-1.5">
                         <DateField
@@ -1914,17 +2072,28 @@ export function AssessmentOutline({
                   </div>
 
                   <div className={cn("pl-6", isTargetClosed && "pointer-events-none opacity-60")}>
-                    <Notes
-                      value={target.notes}
-                      onChange={(v) => onUpdateTarget(topic.id, target.id, "notes", v)}
-                      placeholder="Freitext zum Ziel…"
-                      className="mt-2 -ml-6 w-1/2"
-                    />
+                    <div className="mt-2 -ml-6 w-1/2">
+                      <InlineEditable
+                        value={target.notes}
+                        onChange={(v) => onUpdateTarget(topic.id, target.id, "notes", v)}
+                        placeholder="Freitext zum Ziel…"
+                        multiline
+                        isEditing={editingTargetNotesId === target.id}
+                        onStartEdit={() => setEditingTargetNotesId(target.id)}
+                        onStopEdit={() => setEditingTargetNotesId(null)}
+                        editLabel="Freitext bearbeiten"
+                        editHint="Freitext zum Ziel anpassen"
+                        readOnly={isTargetClosed}
+                        textClassName="text-sm"
+                        hoverGroupClassName="group-hover/target:opacity-100"
+                      />
+                    </div>
 
                     <div className="mt-3 space-y-1">
                       {(() => {
                         const plannedActions = target.actions.filter((a) => !a.isUnplanned);
-                        if (plannedActions.length === 0) return null;
+                        const unplannedActions = target.actions.filter((a) => a.isUnplanned);
+                        if (plannedActions.length === 0 && unplannedActions.length === 0) return null;
 
                         const groupMap = new Map<string, ActionNode[]>();
                         for (const action of plannedActions) {
@@ -1940,21 +2109,40 @@ export function AssessmentOutline({
                           return aMin - bMin;
                         });
 
-                        return groups.map((groupNodes) => {
-                          const representative = groupNodes[0];
-                          return (
-                            <ActionGroupRow
-                              key={representative.groupId}
-                              topicId={topic.id}
-                              targetId={target.id}
-                              groupNodes={groupNodes}
-                              targetValidFrom={target.validFrom}
-                              targetValidTo={target.validTo}
-                              onDeleteActionGroup={onDeleteActionGroup}
-                              onOpenEditPanel={() => openEditPanel(topic.id, target.id, representative)}
-                            />
-                          );
-                        });
+                        // Ungeplante Handlungen sind in der Planung nur informativ — sie werden
+                        // in der Umsetzung erfasst und darum unten und nur lesend angezeigt.
+                        const unplannedGroups = groupUnplannedActions(unplannedActions);
+
+                        return (
+                          <>
+                            {groups.map((groupNodes) => {
+                              const representative = groupNodes[0];
+                              return (
+                                <ActionGroupRow
+                                  key={representative.groupId}
+                                  topicId={topic.id}
+                                  targetId={target.id}
+                                  groupNodes={groupNodes}
+                                  targetValidFrom={target.validFrom}
+                                  targetValidTo={target.validTo}
+                                  onDeleteActionGroup={onDeleteActionGroup}
+                                  onOpenEditPanel={() => openEditPanel(topic.id, target.id, representative)}
+                                />
+                              );
+                            })}
+                            {unplannedGroups.map((groupNodes) => (
+                              <ActionGroupRow
+                                key={groupNodes[0].id}
+                                readOnly
+                                topicId={topic.id}
+                                targetId={target.id}
+                                groupNodes={groupNodes}
+                                targetValidFrom={target.validFrom}
+                                targetValidTo={target.validTo}
+                              />
+                            ))}
+                          </>
+                        );
                       })()}
                     </div>
 
@@ -1970,7 +2158,9 @@ export function AssessmentOutline({
                   </div>
                 </div>
               );
-              })}
+                  })}
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -2120,6 +2310,7 @@ export function ActionGroupRow({
   // Nur-Ansicht (z.B. Evaluation): keine Bearbeiten-/Löschen-Aktionen anbieten.
   readOnly?: boolean;
 }) {
+  const resourceCatalog = getActionPlanResources();
   const representative = groupNodes[0];
   const sortedNodes = [...groupNodes].sort(
     (a, b) => DAY_PART_ORDER.indexOf(a.dayPart ?? "none") - DAY_PART_ORDER.indexOf(b.dayPart ?? "none"),
@@ -2127,17 +2318,27 @@ export function ActionGroupRow({
 
   const isLocked = Object.values(groupNodes).some((a) => Object.keys(a.confirmations ?? {}).length > 0);
   const hasConfirmations = isLocked;
+  const isUnplanned = !!representative.isUnplanned;
+  // Ungeplante Handlungen liegen als eine Node pro Tag vor — das Datum der Zeile
+  // ergibt sich daher aus dem gesamten Zeitraum der Gruppe.
+  const rangeFrom = groupNodes.map((n) => n.validFrom).filter(Boolean).sort()[0];
+  const rangeTo = groupNodes.map((n) => n.validTo ?? n.validFrom).filter(Boolean).sort().at(-1);
 
   return (
     <li className={cn(
       "group/action flex items-start gap-3 rounded px-3 py-2.5 border transition-colors",
-      "border-border bg-white hover:border-primary/40",
+      isUnplanned ? "border-amber-200 bg-amber-50/60" : "border-border bg-white hover:border-primary/40",
     )}>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 min-w-0">
           <span className={cn("text-base font-medium truncate", !representative.title && "text-muted-foreground/40")}>
             {representative.title || "Handlung…"}
           </span>
+          {isUnplanned && (
+            <Badge variant="outline" className="shrink-0 border-amber-300 bg-amber-50 text-[10px] text-amber-800">
+              Ungeplant
+            </Badge>
+          )}
           {hasConfirmations && (
             <TooltipProvider delayDuration={150}>
               <Tooltip>
@@ -2158,7 +2359,7 @@ export function ActionGroupRow({
           className="mt-1.5 text-sm text-muted-foreground"
           style={{ display: "grid", gridTemplateColumns: "320px 1px 320px 1px 180px 1px 1fr", columnGap: "8px", rowGap: "5px" }}
         >
-          {(representative.notes || representative.requiredResources || sortedNodes.length > 0) && (
+          {(representative.notes || formatActionResources(representative, resourceCatalog) || sortedNodes.length > 0) && (
             <>
               <TooltipProvider delayDuration={300}>
                 <Tooltip>
@@ -2172,9 +2373,9 @@ export function ActionGroupRow({
               <TooltipProvider delayDuration={300}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <span className="self-center truncate cursor-default">{representative.requiredResources}</span>
+                    <span className="self-center truncate cursor-default">{formatActionResources(representative, resourceCatalog)}</span>
                   </TooltipTrigger>
-                  {representative.requiredResources && <TooltipContent side="top" className="max-w-xs whitespace-pre-wrap">{representative.requiredResources}</TooltipContent>}
+                  {formatActionResources(representative, resourceCatalog) && <TooltipContent side="top" className="max-w-xs whitespace-pre-wrap">{formatActionResources(representative, resourceCatalog)}</TooltipContent>}
                 </Tooltip>
               </TooltipProvider>
               <span className="self-center h-3 bg-border" />
@@ -2202,16 +2403,20 @@ export function ActionGroupRow({
             </>
           )}
           <span className="tabular-nums self-center">
-            {representative.plannedMinutes != null ? `${representative.plannedMinutes} Min` : <span className="opacity-40 italic">Keine Minuten</span>}
+            {isUnplanned
+              ? <span className="opacity-40 italic">Keine geplante Zeit</span>
+              : representative.plannedMinutes != null ? `${representative.plannedMinutes} Min` : <span className="opacity-40 italic">Keine Minuten</span>}
           </span>
           <span className="self-center h-3 bg-border" />
           <span className="self-center truncate">
-            {representative.recurrence === "daily" ? "Täglich" : representative.recurrence === "weekly" ? "Wöchentlich" : representative.recurrence === "monthly" ? "Monatlich" : <span className="opacity-40 italic">Keine Wiederholung</span>}
+            {isUnplanned
+              ? <span className="opacity-40 italic">In der Umsetzung erfasst</span>
+              : representative.recurrence === "daily" ? "Täglich" : representative.recurrence === "weekly" ? "Wöchentlich" : representative.recurrence === "monthly" ? "Monatlich" : <span className="opacity-40 italic">Keine Wiederholung</span>}
           </span>
           <span className="self-center h-3 bg-border" />
           <span className="tabular-nums self-center">
-            {representative.validFrom
-              ? <>{representative.validFrom.split("-").reverse().join(".")}{representative.validTo ? ` – ${representative.validTo.split("-").reverse().join(".")}` : ""}</>
+            {rangeFrom
+              ? <>{rangeFrom.split("-").reverse().join(".")}{rangeTo && rangeTo !== rangeFrom ? ` – ${rangeTo.split("-").reverse().join(".")}` : ""}</>
               : <span className="opacity-40 italic">Kein Gültig ab</span>}
           </span>
           <span className="self-center h-3 bg-border" />
@@ -2301,6 +2506,7 @@ export function ActionRow({
     isLocked || isTemplateLockedActionField(action, field);
   const isConfirmationRestricted =
     viewMode === "confirmation" && !canConfirmAction(action);
+  const resourceCatalog = getActionPlanResources();
   const weeklyDaysMissing =
     action.recurrence === "weekly" && (action.recurrenceWeekdays?.length ?? 0) === 0;
   const monthlyPatternMissing =
@@ -2367,13 +2573,13 @@ export function ActionRow({
               </Badge>
             )}
           </div>
-          {(action.notes || action.requiredResources) && (
+          {(action.notes || formatActionResources(action, resourceCatalog)) && (
             <div className="mt-1.5 flex flex-col gap-0.5 text-sm text-muted-foreground">
               {action.notes && (
                 <span><span className="font-medium text-foreground">Beschreibung:</span> {action.notes}</span>
               )}
-              {action.requiredResources && (
-                <span><span className="font-medium text-foreground">Hilfsmittel:</span> {action.requiredResources}</span>
+              {formatActionResources(action, resourceCatalog) && (
+                <span><span className="font-medium text-foreground">Hilfsmittel:</span> {formatActionResources(action, resourceCatalog)}</span>
               )}
             </div>
           )}
@@ -3034,10 +3240,10 @@ export function ActionRow({
           </div>
         )}
 
-        {viewMode === "confirmation" && action.requiredResources?.trim() && (
+        {viewMode === "confirmation" && formatActionResources(action, resourceCatalog) && (
           <div className="mt-1 text-xs text-foreground/70 whitespace-pre-wrap">
             <span className="font-medium">Hilfsmittel:</span>{" "}
-            {action.requiredResources}
+            {formatActionResources(action, resourceCatalog)}
           </div>
         )}
         {isConfirmationRestricted && (
@@ -3208,6 +3414,7 @@ export function ActionSidePanel({
   /** Nur-Lese-Ansicht (z.B. in Auswertungen): identische Optik, keine Bearbeitung. */
   readOnly?: boolean;
 }) {
+  const resourceOptions = getActionPlanResources();
   const [draft, setDraft] = useState<ActionDraft>(() => {
     if (action) return actionToDraft(action);
     const base = emptyActionDraft();
@@ -3290,7 +3497,9 @@ export function ActionSidePanel({
     setDraft((prev) => ({
       title: template.name,
       notes: fields.beschreibung,
-      requiredResources: fields.hilfsmittel || "",
+      // Hilfsmittel kommen als Katalog-IDs aus der Vorlage; der Freitext bleibt frei.
+      requiredResources: "",
+      resourceIds: parseResourceIds(fields.hilfsmittel),
       plannedMinutes: fields.dauer !== "0" && fields.dauer ? fields.dauer : "",
       requiredPersons: fields.personen !== "0" && fields.personen ? fields.personen : "",
       resultRequirement: fields.resultat !== "none" ? fields.resultat : "none",
@@ -3338,7 +3547,7 @@ export function ActionSidePanel({
     switch (field) {
       case "title": return draft.title.trim() !== "";
       case "notes": return draft.notes.trim() !== "";
-      case "requiredResources": return draft.requiredResources.trim() !== "";
+      case "resourceIds": return draft.resourceIds.length > 0 || draft.requiredResources.trim() !== "";
       case "plannedMinutes": return draft.plannedMinutes !== "" && Number(draft.plannedMinutes) > 0;
       case "requiredPersons": return draft.requiredPersons !== "" && Number(draft.requiredPersons) > 0;
       case "category": return draft.category !== "none";
@@ -3538,15 +3747,23 @@ export function ActionSidePanel({
               />
             </ActionField>
 
-            <ActionField label="Hilfsmittel" fieldKey="requiredResources">
-              <Textarea
-                value={draft.requiredResources}
-                disabled={isLocked("requiredResources")}
-                onChange={(e) => { setDraft((p) => ({ ...p, requiredResources: e.target.value })); setValidationErrors((prev) => prev.filter((f) => f !== "requiredResources")); }}
-                placeholder="Hilfsmittel zur Durchführung…"
-                rows={2}
-                className={cn("bg-background", hasError("requiredResources") && "border-destructive")}
-              />
+            <ActionField label="Hilfsmittel" fieldKey="resourceIds">
+              <div className="space-y-2">
+                <ResourceMultiSelect
+                  options={resourceOptions}
+                  value={draft.resourceIds}
+                  disabled={isLocked("resourceIds")}
+                  onChange={(resourceIds) => { setDraft((p) => ({ ...p, resourceIds })); setValidationErrors((prev) => prev.filter((f) => f !== "resourceIds")); }}
+                />
+                <Textarea
+                  value={draft.requiredResources}
+                  disabled={isLocked("resourceIds")}
+                  onChange={(e) => { setDraft((p) => ({ ...p, requiredResources: e.target.value })); }}
+                  placeholder="Weitere Hilfsmittel (Freitext)…"
+                  rows={2}
+                  className="bg-background"
+                />
+              </div>
             </ActionField>
 
             <ActionField label="Leistungsarten" fieldKey="serviceEntries">
@@ -3887,6 +4104,7 @@ export function UnplannedActionDialog({
   const [isTemplateDropdownOpen, setTemplateDropdownOpen] = useState(false);
   const [activeTemplateIndex, setActiveTemplateIndex] = useState(0);
   const templateInputRef = useRef<HTMLInputElement | null>(null);
+  const resourceOptions = getActionPlanResources();
   const [draft, setDraft] = useState<UnplannedActionDraft>(() => buildEmptyUnplannedTemplateDraft(target.dayPart));
   const [dayPartEntries, setDayPartEntries] = useState<DayPartEntry[]>([{ dayPart: "morning" }]);
   const [dateFrom, setDateFrom] = useState<string>(target.dateFrom ?? target.dueDate ?? "");
@@ -3937,7 +4155,8 @@ export function UnplannedActionDialog({
     setDraft({
       title: template.name,
       notes: fields.beschreibung,
-      requiredResources: fields.hilfsmittel || undefined,
+      requiredResources: undefined,
+      resourceIds: parseResourceIds(fields.hilfsmittel),
       plannedMinutes: Number.isFinite(plannedMinutes) ? plannedMinutes : undefined,
       requiredPersons: Number.isFinite(requiredPersons) ? requiredPersons : undefined,
       category: fields.kategorie !== "none" ? (fields.kategorie as ActionCategory) : undefined,
@@ -4024,7 +4243,7 @@ export function UnplannedActionDialog({
     switch (field) {
       case "title": return !draft.title.trim();
       case "notes": return !draft.notes.trim();
-      case "requiredResources": return !draft.requiredResources?.trim();
+      case "resourceIds": return (draft.resourceIds?.length ?? 0) === 0 && !draft.requiredResources?.trim();
       case "plannedMinutes": return draft.plannedMinutes === undefined || draft.plannedMinutes === null;
       case "requiredPersons": return draft.requiredPersons === undefined || draft.requiredPersons === null;
       case "category": return !draft.category || draft.category === "none";
@@ -4258,10 +4477,23 @@ export function UnplannedActionDialog({
               <Label>Beschreibung</Label>
               <Textarea rows={2} value={draft.notes} disabled={isDraftFieldLocked("notes")} onChange={(e) => updateDraft("notes", e.target.value)} className="bg-background" />
             </label>
-            <label className="space-y-1.5 sm:col-span-2">
+            <div className="space-y-1.5 sm:col-span-2">
               <Label>Hilfsmittel</Label>
-              <Textarea rows={2} value={draft.requiredResources ?? ""} disabled={isDraftFieldLocked("requiredResources")} onChange={(e) => updateDraft("requiredResources", e.target.value || undefined)} className="bg-background" />
-            </label>
+              <ResourceMultiSelect
+                options={resourceOptions}
+                value={draft.resourceIds ?? []}
+                disabled={isDraftFieldLocked("resourceIds")}
+                onChange={(resourceIds) => updateDraft("resourceIds", resourceIds)}
+              />
+              <Textarea
+                rows={2}
+                value={draft.requiredResources ?? ""}
+                disabled={isDraftFieldLocked("resourceIds")}
+                onChange={(e) => updateDraft("requiredResources", e.target.value || undefined)}
+                placeholder="Weitere Hilfsmittel (Freitext)…"
+                className="bg-background"
+              />
+            </div>
             {useChipSelector ? (
               <div className="space-y-1.5 sm:col-span-2">
                 <Label>Tageszeit</Label>
@@ -4758,11 +4990,12 @@ export function ConfirmActionDialog({
     setOptionalServices([]);
   };
 
+  const resourceCatalog = getActionPlanResources();
   const planned = target.action.plannedMinutes;
   const hasPlannedMinutes = planned != null;
   const requiredPersons = target.action.requiredPersons;
   const description = target.action.notes.trim();
-  const requiredResources = target.action.requiredResources?.trim();
+  const requiredResources = formatActionResources(target.action, resourceCatalog);
   const resultRequirement = target.action.resultRequirement ?? "none";
   const showResult =
     resultRequirement !== "none" &&
@@ -5104,6 +5337,107 @@ export function ConfirmActionDialog({
   );
 }
 
+/**
+ * Anzeige-Text mit Stift zum Bearbeiten — in der Planung sind Titel und Freitexte
+ * keine Dauer-Eingabefelder, damit Auswahl und Bearbeiten sich nicht in die Quere kommen.
+ */
+function InlineEditable({
+  value,
+  placeholder,
+  onChange,
+  multiline = false,
+  isEditing,
+  onStartEdit,
+  onStopEdit,
+  editLabel,
+  editHint,
+  readOnly = false,
+  textClassName,
+  hoverGroupClassName,
+  inputRef,
+}: {
+  value: string;
+  placeholder: string;
+  onChange: (v: string) => void;
+  multiline?: boolean;
+  isEditing: boolean;
+  onStartEdit: () => void;
+  onStopEdit: () => void;
+  editLabel: string;
+  editHint: string;
+  readOnly?: boolean;
+  textClassName?: string;
+  /** z.B. "group-hover/topic:opacity-100" — bestimmt, wann der Stift erscheint. */
+  hoverGroupClassName: string;
+  inputRef?: (el: HTMLInputElement | null) => void;
+}) {
+  if (isEditing && !readOnly) {
+    return multiline ? (
+      <div onBlur={onStopEdit}>
+        <Notes value={value} onChange={onChange} placeholder={placeholder} autoFocus borderless className="-mx-2 w-[calc(100%+1rem)]" />
+      </div>
+    ) : (
+      <input
+        ref={inputRef}
+        value={value}
+        autoFocus
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={onStopEdit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === "Escape") onStopEdit();
+        }}
+        placeholder={placeholder}
+        className={cn(
+          "w-full min-w-0 border-0 bg-transparent px-0 outline-none focus:ring-0 placeholder:text-muted-foreground/40",
+          textClassName,
+        )}
+      />
+    );
+  }
+
+  return (
+    <div className="flex items-start gap-1">
+      <span
+        className={cn(
+          "min-w-0 flex-1 whitespace-pre-wrap",
+          textClassName,
+          !value && "text-muted-foreground/40",
+        )}
+      >
+        {value || placeholder}
+      </span>
+      {!readOnly && (
+        <TooltipProvider delayDuration={150}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onStartEdit();
+                }}
+                className={cn(
+                  "shrink-0 rounded p-1 opacity-0 transition-opacity hover:bg-secondary",
+                  hoverGroupClassName,
+                )}
+                aria-label={editLabel}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              <div className="max-w-[220px] space-y-0.5">
+                <div className="font-medium">{editLabel}</div>
+                <div className="text-xs text-muted-foreground">{editHint}</div>
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
+    </div>
+  );
+}
+
 function Notes({
   value,
   onChange,
@@ -5112,6 +5446,7 @@ function Notes({
   compact,
   disabled,
   borderless,
+  autoFocus,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -5121,6 +5456,7 @@ function Notes({
   disabled?: boolean;
   /** Randlos (nur bei Hover/Fokus dezenter Rahmen) — für ruhige Navigations-Spalten. */
   borderless?: boolean;
+  autoFocus?: boolean;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
 
@@ -5136,6 +5472,7 @@ function Notes({
       ref={ref}
       value={value}
       disabled={disabled}
+      autoFocus={autoFocus}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       rows={1}

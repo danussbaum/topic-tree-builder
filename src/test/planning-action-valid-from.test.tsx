@@ -47,6 +47,7 @@ const openNewActionPanel = async () => {
     />,
   );
 
+  fireEvent.click(screen.getByRole("button", { name: /Mobilität erhalten/ }));
   fireEvent.click(screen.getByRole("button", { name: /Neue Handlung erfassen/ }));
   return within(await screen.findByRole("dialog"));
 };
@@ -69,7 +70,9 @@ describe("Gültig ab bei neuer geplanter Handlung", () => {
     // Die Vorlage überschreibt Titel & Co. (Titelfeld + Vorlagenfeld tragen den Namen),
     // das Datum bleibt stehen.
     expect(panel.getAllByDisplayValue("Morgenroutine").length).toBeGreaterThan(0);
-    expect(panel.getByDisplayValue("Pflegeutensilien bereitstellen.")).toBeInTheDocument();
+    expect(
+      panel.getByDisplayValue("Begleitung bei der Morgenhygiene und Planung des Tagesablaufs."),
+    ).toBeInTheDocument();
     expect(panel.getAllByDisplayValue("01.06.2026").length).toBeGreaterThan(0);
   });
 

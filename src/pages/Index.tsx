@@ -67,6 +67,7 @@ import {
 import { cn } from "@/lib/utils";
 import { createSimpleXlsxBlob } from "@/lib/xlsx";
 import { buildUnplannedActionNodes } from "@/lib/unplanned-action";
+import { formatActionResources, getActionPlanResources } from "@/lib/action-plan-resources";
 import {
   ACTION_SERVICE_TYPE_SELECT_OPTIONS,
   buildDefaultTemplateFields,
@@ -712,6 +713,203 @@ const weekValueToDate = (weekValue: string) => {
   return dateToISO(weekStart);
 };
 
+const SPITEX_SEED_START = "2026-08-01";
+
+/**
+ * Beispielplanung Inhouse-Spitex: Handlungen entsprechen den vorgeseedeten
+ * Handlungsarten samt deren Hilfsmitteln und starten alle am selben Datum.
+ */
+const buildInhouseSpitexSeedTopics = (): TopicNode[] => {
+  const action = (
+    title: string,
+    fields: Partial<ActionNode> & { dayPart: DayPart; plannedMinutes: number },
+  ): ActionNode => ({
+    id: uid(),
+    groupId: uid(),
+    title,
+    notes: "",
+    requiredPersons: 1,
+    validFrom: SPITEX_SEED_START,
+    recurrence: "daily",
+    status: "open",
+    done: false,
+    templateName: title,
+    ...fields,
+  });
+
+  return [
+    {
+      id: uid(),
+      title: "Körperpflege und Selbstständigkeit",
+      disciplineId: "discipline-inhouse-spitex",
+      notes:
+        "Erhalt der Selbstständigkeit bei der täglichen Körperpflege mit so wenig Unterstützung wie nötig.",
+      targets: [
+        {
+          id: uid(),
+          title: "Morgendliche Körperpflege selbstständig bewältigen",
+          notes:
+            "Herr Bachmann führt die Körperpflege mit Anleitung und Hilfsmitteln weitgehend selbst durch.",
+          validFrom: SPITEX_SEED_START,
+          actions: [
+            action("10102 Ganzwäsche in Bad, Dusche oder am Lavabo", {
+              dayPart: "morning",
+              scheduledTime: "07:30",
+              plannedMinutes: 40,
+              category: "c",
+              serviceEntries: [{ serviceType: "spitex-klv-c" }],
+              resourceIds: [
+                "resource-duschstuhl",
+                "resource-duschrollstuhl",
+                "resource-einmalwaschlappen",
+              ],
+            }),
+            action("10112 Zahnpflege", {
+              dayPart: "morning",
+              scheduledTime: "08:15",
+              plannedMinutes: 5,
+              category: "c",
+              serviceEntries: [{ serviceType: "spitex-klv-c" }],
+              resourceIds: ["resource-zahnpflegeset"],
+            }),
+            action("10115 Kompressionsstrümpfe/-verband", {
+              dayPart: "morning",
+              scheduledTime: "08:30",
+              plannedMinutes: 10,
+              category: "b",
+              serviceEntries: [{ serviceType: "spitex-klv-b" }],
+              resourceIds: ["resource-kompressionsstruempfe", "resource-anziehhilfe"],
+            }),
+          ],
+        },
+        {
+          id: uid(),
+          title: "Nagel- und Hautpflege regelmässig sicherstellen",
+          notes: "Kontrolle und Pflege alle zwei Wochen, Hautzustand wird dokumentiert.",
+          validFrom: SPITEX_SEED_START,
+          actions: [
+            action("10109 Nägel schneiden Zehen", {
+              dayPart: "afternoon",
+              scheduledTime: "14:00",
+              plannedMinutes: 15,
+              category: "c",
+              recurrence: "monthly",
+              recurrenceMonthlyPattern: "first_monday",
+              resultRequirement: "optional",
+              serviceEntries: [{ serviceType: "spitex-klv-c" }],
+              resourceIds: ["resource-nagelset"],
+            }),
+          ],
+        },
+      ],
+    },
+    {
+      id: uid(),
+      title: "Mobilität und Transfer",
+      disciplineId: "discipline-inhouse-spitex",
+      notes:
+        "Sichere Transfers und tägliche Gehstrecken erhalten, Sturzrisiko möglichst tief halten.",
+      targets: [
+        {
+          id: uid(),
+          title: "Transfers sicher und ohne Sturz durchführen",
+          notes: "Transfer erfolgt kinästhetisch angeleitet mit den vereinbarten Hilfsmitteln.",
+          validFrom: SPITEX_SEED_START,
+          actions: [
+            action("10503 Aufstehen oder Hinlegen mit Hilfe", {
+              dayPart: "morning",
+              scheduledTime: "07:15",
+              plannedMinutes: 15,
+              category: "c",
+              serviceEntries: [{ serviceType: "spitex-klv-c" }],
+              resourceIds: [
+                "resource-rutschbrett",
+                "resource-rutschtuch",
+                "resource-drehscheibe",
+                "resource-bettgalgen",
+              ],
+            }),
+            action("10501 Lagerung der Klientin im Bett", {
+              dayPart: "night",
+              scheduledTime: "22:00",
+              plannedMinutes: 10,
+              category: "c",
+              serviceEntries: [{ serviceType: "spitex-klv-c" }],
+              resourceIds: [
+                "resource-lagerungskissen",
+                "resource-rutschtuch",
+                "resource-antidekubitus-matratze",
+              ],
+            }),
+          ],
+        },
+        {
+          id: uid(),
+          title: "Täglich mindestens 200 Meter gehen",
+          notes: "Gehtraining im Flur, bei gutem Wetter im Garten.",
+          validFrom: SPITEX_SEED_START,
+          actions: [
+            action("10505 Hilfe beim Gehen", {
+              dayPart: "afternoon",
+              scheduledTime: "15:30",
+              plannedMinutes: 20,
+              category: "b",
+              recurrence: "weekly",
+              recurrenceWeekdays: ["monday", "wednesday", "friday"],
+              resultRequirement: "required",
+              serviceEntries: [{ serviceType: "spitex-klv-b" }],
+              resourceIds: ["resource-rollator", "resource-gehstock"],
+            }),
+          ],
+        },
+      ],
+    },
+    {
+      id: uid(),
+      title: "Wundversorgung Unterschenkel",
+      disciplineId: "discipline-inhouse-spitex",
+      notes: "Versorgung des Ulcus am rechten Unterschenkel bis zur Abheilung.",
+      targets: [
+        {
+          id: uid(),
+          title: "Wunde heilt reizlos ab",
+          notes: "Wundgrösse und Exsudat werden bei jedem Verbandwechsel dokumentiert.",
+          validFrom: SPITEX_SEED_START,
+          actions: [
+            action("10702 Mittlerer Verband", {
+              dayPart: "morning",
+              scheduledTime: "09:00",
+              plannedMinutes: 20,
+              category: "b",
+              recurrence: "weekly",
+              recurrenceWeekdays: ["monday", "thursday"],
+              resultRequirement: "required",
+              serviceEntries: [{ serviceType: "spitex-klv-b" }],
+              optionalServiceTypes: ["material-tape-1m"],
+              resourceIds: [
+                "resource-verbandmaterial-mittel",
+                "resource-wundauflage-steril",
+                "resource-kompressen",
+                "resource-fixierbinde",
+                "resource-einmalhandschuhe",
+                "resource-desinfektionsmittel",
+              ],
+            }),
+            action("10801 Gesundheitskontrolle (Vitalparameter)", {
+              dayPart: "morning",
+              scheduledTime: "09:30",
+              plannedMinutes: 10,
+              category: "b",
+              resultRequirement: "required",
+              serviceEntries: [{ serviceType: "spitex-klv-b" }],
+            }),
+          ],
+        },
+      ],
+    },
+  ];
+};
+
 const seedClients: Client[] = [
   {
     id: uid(),
@@ -778,6 +976,7 @@ const seedClients: Client[] = [
           },
         ],
       },
+      ...buildInhouseSpitexSeedTopics(),
     ],
   },
   { id: uid(), firstName: "Sara", lastName: "Keller", topics: [] },
@@ -1300,6 +1499,7 @@ const Index = () => {
       title: string;
       notes: string;
       requiredResources?: string;
+      resourceIds?: string[];
       plannedMinutes?: number;
       requiredPersons?: number;
       resultRequirement?: ActionNode["resultRequirement"];
@@ -2086,7 +2286,7 @@ const Index = () => {
       Handlung: action.title,
       "Planungsart": action.isUnplanned ? "Ungeplant" : "Geplant",
       Beschreibung: action.notes,
-      Hilfsmittel: action.requiredResources ?? "",
+      Hilfsmittel: formatActionResources(action, getActionPlanResources()),
       Status:
         status === "done_as_planned"
           ? "Durchgeführt"
@@ -3323,7 +3523,7 @@ const Index = () => {
                   </div>
                 )}
                 {(viewMode === "planning" || viewMode === "confirmation") && visibleSelectedClients.map((client) => (
-                  <section key={client.id} className="space-y-6">
+                  <section key={client.id} data-client-block className="scroll-mt-2 space-y-6">
                     {/* Client header */}
                     <div className={cn("flex items-center gap-4 pb-5 border-b border-border sticky z-10 bg-[#F5F5F6]", viewMode === "confirmation" ? "top-0 pt-[5px]" : viewMode === "planning" ? "top-0 pb-2" : "top-9 pb-2")}>
                       {viewMode === "planning" && (

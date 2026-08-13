@@ -95,8 +95,10 @@ export interface ActionNode {
   groupId: string;
   title: string;
   notes: string;
-  /** Hilfsmittel fuer die Durchfuehrung */
+  /** Hilfsmittel fuer die Durchfuehrung: Freitext-Ergaenzung zu resourceIds */
   requiredResources?: string;
+  /** Gewaehlte Hilfsmittel aus dem Katalog (action-plan-resources) */
+  resourceIds?: string[];
   /** Geplante Zeit in Minuten */
   plannedMinutes?: number;
   /** Benoetigte Personen fuer die Durchfuehrung */
