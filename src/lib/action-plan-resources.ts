@@ -187,6 +187,12 @@ export const formatActionResources = (
   return [...names, ...(freeText ? [freeText] : [])].join(", ");
 };
 
+/** Hilfsmittel einer Handlungsvorlage, in der Reihenfolge des Katalogs. */
+export const getResourcesByIds = (
+  resources: ActionPlanResource[],
+  resourceIds: string[],
+): ActionPlanResource[] => resources.filter((resource) => resourceIds.includes(resource.id));
+
 /** Hilfsmittel, die zu den Disziplinen einer Vorlage passen (leere Zuordnung = überall). */
 export const getResourcesForDisciplines = (
   resources: ActionPlanResource[],

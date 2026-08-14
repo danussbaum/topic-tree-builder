@@ -42,6 +42,8 @@ import { groupUnplannedActions } from "@/lib/unplanned-action";
 import {
   formatActionResources,
   getActionPlanResources,
+  getResourcesByIds,
+  getResourcesForDisciplines,
   parseResourceIds,
 } from "@/lib/action-plan-resources";
 import { ResourceMultiSelect } from "@/components/settings/ResourceMultiSelect";
@@ -3414,7 +3416,16 @@ export function ActionSidePanel({
   /** Nur-Lese-Ansicht (z.B. in Auswertungen): identische Optik, keine Bearbeitung. */
   readOnly?: boolean;
 }) {
-  const resourceOptions = getActionPlanResources();
+  const resourceCatalog = getActionPlanResources();
+  // Mit Vorlage sind nur deren Hilfsmittel wählbar, ohne Vorlage die der Disziplin des Themas.
+  const [templateResourceIds, setTemplateResourceIds] = useState<string[] | null>(() => {
+    if (!action?.templateId) return null;
+    const template = loadActionPlanTemplates().find((t) => t.id === action.templateId);
+    return template ? parseResourceIds(template.fields.hilfsmittel) : null;
+  });
+  const resourceOptions = templateResourceIds
+    ? getResourcesByIds(resourceCatalog, templateResourceIds)
+    : getResourcesForDisciplines(resourceCatalog, topicDisciplineId ? [topicDisciplineId] : []);
   const [draft, setDraft] = useState<ActionDraft>(() => {
     if (action) return actionToDraft(action);
     const base = emptyActionDraft();
@@ -3526,12 +3537,14 @@ export function ActionSidePanel({
     setRequiredFields(getTemplateRequiredActionFields(template));
     setValidationErrors([]);
     setSelectedTemplateId(templateId);
+    setTemplateResourceIds(parseResourceIds(fields.hilfsmittel));
     setTemplateQuery("");
     setDropdownOpen(false);
   };
 
   const clearTemplate = () => {
     setSelectedTemplateId("");
+    setTemplateResourceIds(null);
     setLockedFields([]);
     setRequiredFields([]);
     setValidationErrors([]);
@@ -4104,7 +4117,7 @@ export function UnplannedActionDialog({
   const [isTemplateDropdownOpen, setTemplateDropdownOpen] = useState(false);
   const [activeTemplateIndex, setActiveTemplateIndex] = useState(0);
   const templateInputRef = useRef<HTMLInputElement | null>(null);
-  const resourceOptions = getActionPlanResources();
+  const resourceCatalog = getActionPlanResources();
   const [draft, setDraft] = useState<UnplannedActionDraft>(() => buildEmptyUnplannedTemplateDraft(target.dayPart));
   const [dayPartEntries, setDayPartEntries] = useState<DayPartEntry[]>([{ dayPart: "morning" }]);
   const [dateFrom, setDateFrom] = useState<string>(target.dateFrom ?? target.dueDate ?? "");
@@ -4173,6 +4186,10 @@ export function UnplannedActionDialog({
 
 
   const selectedTemplate = templates.find((template) => template.id === selectedTemplateId);
+  // Mit Vorlage sind nur deren Hilfsmittel wählbar; ohne Vorlage fehlt hier ein Disziplin-Kontext.
+  const resourceOptions = selectedTemplate
+    ? getResourcesByIds(resourceCatalog, parseResourceIds(selectedTemplate.fields.hilfsmittel))
+    : resourceCatalog;
   const templateFilterQuery = templateQuery.toLocaleLowerCase("de");
   const hasTemplateFilterInput = templateFilterQuery.length >= 3;
   const filteredTemplates = hasTemplateFilterInput
