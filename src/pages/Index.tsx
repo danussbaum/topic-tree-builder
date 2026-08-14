@@ -72,6 +72,12 @@ import {
 } from "@/types/assessment-filter";
 import { cn } from "@/lib/utils";
 import { createSimpleXlsxBlob } from "@/lib/xlsx";
+import {
+  buildPlanningExportRows,
+  PLANNING_EXPORT_DATE_HEADERS,
+  PLANNING_EXPORT_HEADERS,
+  PLANNING_EXPORT_NUMBER_HEADERS,
+} from "@/lib/planning-export";
 import { buildUnplannedActionNodes } from "@/lib/unplanned-action";
 import { buildOnDemandOccurrence } from "@/lib/on-demand-action";
 import type { OnDemandActionSelection } from "@/components/assessment/OnDemandActionDialog";
@@ -2199,21 +2205,30 @@ const Index = () => {
     };
   };
 
-  const downloadConfirmationXlsx = (
-    records: Record<string, string | number>[],
-    sheetName: string,
-    filename: string,
-    headers: string[] = CONFIRMATION_EXPORT_HEADERS,
-  ) => {
+  const downloadRecordsXlsx = ({
+    records,
+    sheetName,
+    filename,
+    headers,
+    dateHeaders,
+    numberHeaders,
+  }: {
+    records: Record<string, string | number>[];
+    sheetName: string;
+    filename: string;
+    headers: readonly string[];
+    dateHeaders: ReadonlySet<string>;
+    numberHeaders: ReadonlySet<string>;
+  }) => {
     const blob = createSimpleXlsxBlob({
       sheetName,
-      headers,
+      headers: [...headers],
       rows: records.map((row) =>
         headers.map((header) => {
           const value = row[header] ?? "";
           if (value === "") return "";
-          if (CONFIRMATION_EXPORT_DATE_HEADERS.has(header)) return { type: "date" as const, value: String(value) };
-          if (CONFIRMATION_EXPORT_NUMBER_HEADERS.has(header)) return { type: "number" as const, value };
+          if (dateHeaders.has(header)) return { type: "date" as const, value: String(value) };
+          if (numberHeaders.has(header)) return { type: "number" as const, value };
           return value;
         }),
       ),
@@ -2226,6 +2241,37 @@ const Index = () => {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  };
+
+  const downloadConfirmationXlsx = (
+    records: Record<string, string | number>[],
+    sheetName: string,
+    filename: string,
+    headers: string[] = CONFIRMATION_EXPORT_HEADERS,
+  ) =>
+    downloadRecordsXlsx({
+      records,
+      sheetName,
+      filename,
+      headers,
+      dateHeaders: CONFIRMATION_EXPORT_DATE_HEADERS,
+      numberHeaders: CONFIRMATION_EXPORT_NUMBER_HEADERS,
+    });
+
+  const exportPlanningExcel = () => {
+    if (viewMode !== "planning") return;
+
+    downloadRecordsXlsx({
+      records: buildPlanningExportRows(selectedClients, {
+        disciplines: availableDisciplines.length > 0 ? availableDisciplines : initialActionPlanDisciplines,
+        resources: getActionPlanResources(),
+      }),
+      sheetName: "Planung",
+      filename: `planung_${selectedDate}.xlsx`,
+      headers: PLANNING_EXPORT_HEADERS,
+      dateHeaders: PLANNING_EXPORT_DATE_HEADERS,
+      numberHeaders: PLANNING_EXPORT_NUMBER_HEADERS,
+    });
   };
 
   const exportConfirmationExcel = () => {
@@ -2473,21 +2519,25 @@ const Index = () => {
               icon={ExcelIcon}
               label="Export"
               onClick={
-                viewMode === "evaluation"
-                  ? exportEvaluationXlsx
-                  : viewMode === "auswertungen"
-                    ? exportAuswertungExcel
-                    : exportConfirmationExcel
+                viewMode === "planning"
+                  ? exportPlanningExcel
+                  : viewMode === "evaluation"
+                    ? exportEvaluationXlsx
+                    : viewMode === "auswertungen"
+                      ? exportAuswertungExcel
+                      : exportConfirmationExcel
               }
-              disabled={viewMode === "planning"}
+              disabled={selectedClients.length === 0}
               title={
-                viewMode === "evaluation"
-                  ? "Evaluationsdaten als XLSX exportieren"
-                  : viewMode === "auswertungen"
-                    ? "Handlungen der Auswertung als XLSX exportieren"
-                    : viewMode === "confirmation"
-                      ? "Umsetzungsdaten als XLSX exportieren"
-                      : "Export ist nur in der Umsetzungs-, Auswertungs- oder Evaluationsansicht verfügbar"
+                selectedClients.length === 0
+                  ? "Export benötigt mindestens eine angewählte Klient/in"
+                  : viewMode === "planning"
+                    ? "Planungsdaten als XLSX exportieren"
+                    : viewMode === "evaluation"
+                      ? "Evaluationsdaten als XLSX exportieren"
+                      : viewMode === "auswertungen"
+                        ? "Handlungen der Auswertung als XLSX exportieren"
+                        : "Umsetzungsdaten als XLSX exportieren"
               }
             />
             </div>
