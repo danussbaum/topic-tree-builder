@@ -32,6 +32,8 @@ import {
   Moon,
   LayoutGrid,
 } from "lucide-react";
+import { rollsToNextDay, shiftISODate } from "@/lib/day-part-rollover";
+import { buildInhouseSpitexSeedTopics } from "@/lib/inhouse-spitex-seed";
 import { ClientSidebar, ClientSidebarTrigger } from "@/components/assessment/ClientSidebar";
 import { ModuleNav } from "@/components/ModuleNav";
 import { RibbonButton, RibbonDivider } from "@/components/ribbon/Ribbon";
@@ -260,9 +262,18 @@ const getDueDatesInPeriod = (
 ) => {
   if (!action.recurrence) return [];
 
+  // Nacht-Handlungen vor 12:00 gehören zur Nacht des Vortages: Wiederholung und
+  // Gültigkeit werden auf dem Planungstag geprüft, fällig sind sie am Folgetag.
+  const rollover = rollsToNextDay(action) ? 1 : 0;
+  const isDue = (dueDate: string) => {
+    const planDate = rollover ? shiftISODate(dueDate, -rollover) : dueDate;
+    if (action.validFrom && planDate < action.validFrom) return false;
+    if (action.validTo && planDate > action.validTo) return false;
+    return isRecurringOnDate(action, new Date(`${planDate}T00:00:00`));
+  };
+
   if (period === "day") {
-    const selected = new Date(`${selectedDate}T00:00:00`);
-    return isRecurringOnDate(action, selected) ? [selectedDate] : [];
+    return isDue(selectedDate) ? [selectedDate] : [];
   }
 
   const { start, end } = getPeriodRange(selectedDate, period, lastNDays);
@@ -272,11 +283,7 @@ const getDueDatesInPeriod = (
 
   while (current <= endDate) {
     const day = dateToISO(current);
-    if (
-      (!action.validFrom || day >= action.validFrom) &&
-      (!action.validTo || day <= action.validTo) &&
-      isRecurringOnDate(action, current)
-    ) {
+    if (isDue(day)) {
       dueDates.push(day);
     }
     current.setDate(current.getDate() + 1);
@@ -307,8 +314,10 @@ const getVisibleConfirmationRows = (
   client.topics.forEach((topic) => {
     topic.targets.forEach((target) => {
       target.actions.forEach((action) => {
-        if (action.validFrom && action.validFrom > end) return;
-        if (action.validTo && action.validTo < start) return;
+        // Verschobene Nacht-Einträge sind einen Tag nach ihrem Planungstag fällig.
+        const rolloverDays = rollsToNextDay(action) ? 1 : 0;
+        if (action.validFrom && shiftISODate(action.validFrom, rolloverDays) > end) return;
+        if (action.validTo && shiftISODate(action.validTo, rolloverDays) < start) return;
 
         const dueDates = getDueDatesInPeriod(action, selectedDate, period, lastNDays);
         dueDates.forEach((dueDate) => {
@@ -713,202 +722,6 @@ const weekValueToDate = (weekValue: string) => {
   return dateToISO(weekStart);
 };
 
-const SPITEX_SEED_START = "2026-08-01";
-
-/**
- * Beispielplanung Inhouse-Spitex: Handlungen entsprechen den vorgeseedeten
- * Handlungsarten samt deren Hilfsmitteln und starten alle am selben Datum.
- */
-const buildInhouseSpitexSeedTopics = (): TopicNode[] => {
-  const action = (
-    title: string,
-    fields: Partial<ActionNode> & { dayPart: DayPart; plannedMinutes: number },
-  ): ActionNode => ({
-    id: uid(),
-    groupId: uid(),
-    title,
-    notes: "",
-    requiredPersons: 1,
-    validFrom: SPITEX_SEED_START,
-    recurrence: "daily",
-    status: "open",
-    done: false,
-    templateName: title,
-    ...fields,
-  });
-
-  return [
-    {
-      id: uid(),
-      title: "Körperpflege und Selbstständigkeit",
-      disciplineId: "discipline-inhouse-spitex",
-      notes:
-        "Erhalt der Selbstständigkeit bei der täglichen Körperpflege mit so wenig Unterstützung wie nötig.",
-      targets: [
-        {
-          id: uid(),
-          title: "Morgendliche Körperpflege selbstständig bewältigen",
-          notes:
-            "Herr Bachmann führt die Körperpflege mit Anleitung und Hilfsmitteln weitgehend selbst durch.",
-          validFrom: SPITEX_SEED_START,
-          actions: [
-            action("10102 Ganzwäsche in Bad, Dusche oder am Lavabo", {
-              dayPart: "morning",
-              scheduledTime: "07:30",
-              plannedMinutes: 40,
-              category: "c",
-              serviceEntries: [{ serviceType: "spitex-klv-c" }],
-              resourceIds: [
-                "resource-duschstuhl",
-                "resource-duschrollstuhl",
-                "resource-einmalwaschlappen",
-              ],
-            }),
-            action("10112 Zahnpflege", {
-              dayPart: "morning",
-              scheduledTime: "08:15",
-              plannedMinutes: 5,
-              category: "c",
-              serviceEntries: [{ serviceType: "spitex-klv-c" }],
-              resourceIds: ["resource-zahnpflegeset"],
-            }),
-            action("10115 Kompressionsstrümpfe/-verband", {
-              dayPart: "morning",
-              scheduledTime: "08:30",
-              plannedMinutes: 10,
-              category: "b",
-              serviceEntries: [{ serviceType: "spitex-klv-b" }],
-              resourceIds: ["resource-kompressionsstruempfe", "resource-anziehhilfe"],
-            }),
-          ],
-        },
-        {
-          id: uid(),
-          title: "Nagel- und Hautpflege regelmässig sicherstellen",
-          notes: "Kontrolle und Pflege alle zwei Wochen, Hautzustand wird dokumentiert.",
-          validFrom: SPITEX_SEED_START,
-          actions: [
-            action("10109 Nägel schneiden Zehen", {
-              dayPart: "afternoon",
-              scheduledTime: "14:00",
-              plannedMinutes: 15,
-              category: "c",
-              recurrence: "monthly",
-              recurrenceMonthlyPattern: "first_monday",
-              resultRequirement: "optional",
-              serviceEntries: [{ serviceType: "spitex-klv-c" }],
-              resourceIds: ["resource-nagelset"],
-            }),
-          ],
-        },
-      ],
-    },
-    {
-      id: uid(),
-      title: "Mobilität und Transfer",
-      disciplineId: "discipline-inhouse-spitex",
-      notes:
-        "Sichere Transfers und tägliche Gehstrecken erhalten, Sturzrisiko möglichst tief halten.",
-      targets: [
-        {
-          id: uid(),
-          title: "Transfers sicher und ohne Sturz durchführen",
-          notes: "Transfer erfolgt kinästhetisch angeleitet mit den vereinbarten Hilfsmitteln.",
-          validFrom: SPITEX_SEED_START,
-          actions: [
-            action("10503 Aufstehen oder Hinlegen mit Hilfe", {
-              dayPart: "morning",
-              scheduledTime: "07:15",
-              plannedMinutes: 15,
-              category: "c",
-              serviceEntries: [{ serviceType: "spitex-klv-c" }],
-              resourceIds: [
-                "resource-rutschbrett",
-                "resource-rutschtuch",
-                "resource-drehscheibe",
-                "resource-bettgalgen",
-              ],
-            }),
-            action("10501 Lagerung der Klientin im Bett", {
-              dayPart: "night",
-              scheduledTime: "22:00",
-              plannedMinutes: 10,
-              category: "c",
-              serviceEntries: [{ serviceType: "spitex-klv-c" }],
-              resourceIds: [
-                "resource-lagerungskissen",
-                "resource-rutschtuch",
-                "resource-antidekubitus-matratze",
-              ],
-            }),
-          ],
-        },
-        {
-          id: uid(),
-          title: "Täglich mindestens 200 Meter gehen",
-          notes: "Gehtraining im Flur, bei gutem Wetter im Garten.",
-          validFrom: SPITEX_SEED_START,
-          actions: [
-            action("10505 Hilfe beim Gehen", {
-              dayPart: "afternoon",
-              scheduledTime: "15:30",
-              plannedMinutes: 20,
-              category: "b",
-              recurrence: "weekly",
-              recurrenceWeekdays: ["monday", "wednesday", "friday"],
-              resultRequirement: "required",
-              serviceEntries: [{ serviceType: "spitex-klv-b" }],
-              resourceIds: ["resource-rollator", "resource-gehstock"],
-            }),
-          ],
-        },
-      ],
-    },
-    {
-      id: uid(),
-      title: "Wundversorgung Unterschenkel",
-      disciplineId: "discipline-inhouse-spitex",
-      notes: "Versorgung des Ulcus am rechten Unterschenkel bis zur Abheilung.",
-      targets: [
-        {
-          id: uid(),
-          title: "Wunde heilt reizlos ab",
-          notes: "Wundgrösse und Exsudat werden bei jedem Verbandwechsel dokumentiert.",
-          validFrom: SPITEX_SEED_START,
-          actions: [
-            action("10702 Mittlerer Verband", {
-              dayPart: "morning",
-              scheduledTime: "09:00",
-              plannedMinutes: 20,
-              category: "b",
-              recurrence: "weekly",
-              recurrenceWeekdays: ["monday", "thursday"],
-              resultRequirement: "required",
-              serviceEntries: [{ serviceType: "spitex-klv-b" }],
-              optionalServiceTypes: ["material-tape-1m"],
-              resourceIds: [
-                "resource-verbandmaterial-mittel",
-                "resource-wundauflage-steril",
-                "resource-kompressen",
-                "resource-fixierbinde",
-                "resource-einmalhandschuhe",
-                "resource-desinfektionsmittel",
-              ],
-            }),
-            action("10801 Gesundheitskontrolle (Vitalparameter)", {
-              dayPart: "morning",
-              scheduledTime: "09:30",
-              plannedMinutes: 10,
-              category: "b",
-              resultRequirement: "required",
-              serviceEntries: [{ serviceType: "spitex-klv-b" }],
-            }),
-          ],
-        },
-      ],
-    },
-  ];
-};
 
 const seedClients: Client[] = [
   {

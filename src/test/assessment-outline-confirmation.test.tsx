@@ -519,7 +519,7 @@ describe("AssessmentOutline confirmation actions", () => {
     // Die gewählten Tageszeiten kommen als zweites Argument (dayPartEntries).
     expect(onAddUnplannedAction).toHaveBeenCalledWith(
       expect.objectContaining({ title: "Morgenroutine" }),
-      [{ dayPart: "evening" }],
+      [expect.objectContaining({ dayPart: "evening" })],
     );
   });
 
@@ -758,4 +758,104 @@ describe("AssessmentOutline confirmation actions", () => {
     );
   });
 
+});
+
+describe("Rollover von Nacht-Handlungen", () => {
+  const nightTopics: TopicNode[] = [
+    {
+      id: "topic-1",
+      title: "Schwerpunkt",
+      notes: "",
+      targets: [
+        {
+          id: "target-1",
+          title: "Ziel",
+          notes: "",
+          actions: [
+            {
+              id: "act-2200",
+              groupId: "grp-night",
+              title: "Umlagern 22 Uhr",
+              notes: "",
+              status: "open",
+              done: false,
+              validFrom: "2026-08-01",
+              validTo: "2026-08-01",
+              recurrence: "daily",
+              dayPart: "night",
+              scheduledTime: "22:00",
+            },
+            {
+              id: "act-0100",
+              groupId: "grp-night",
+              title: "Umlagern 1 Uhr",
+              notes: "",
+              status: "open",
+              done: false,
+              validFrom: "2026-08-01",
+              validTo: "2026-08-01",
+              recurrence: "daily",
+              dayPart: "night",
+              scheduledTime: "01:00",
+            },
+            {
+              id: "act-morning-0100",
+              groupId: "grp-morning",
+              title: "Frühdienst 1 Uhr",
+              notes: "",
+              status: "open",
+              done: false,
+              validFrom: "2026-08-01",
+              validTo: "2026-08-01",
+              recurrence: "daily",
+              dayPart: "morning",
+              scheduledTime: "01:00",
+            },
+          ],
+        },
+      ],
+    },
+  ];
+
+  const renderDay = (selectedDate: string) =>
+    render(
+      <AssessmentOutline
+        viewMode="confirmation"
+        selectedDate={selectedDate}
+        onSelectedDateChange={vi.fn()}
+        confirmationPeriod="day"
+        clientName="Test Klient"
+        topics={nightTopics}
+        hideConfirmationHeader
+        filterModel={{ statuses: ["open", "postponed"] }}
+        onUpdateTopic={vi.fn()}
+        onUpdateTarget={vi.fn()}
+        onUpdateAction={vi.fn()}
+        onUpdateActionField={vi.fn()}
+        onConfirmAction={vi.fn()}
+        onAddTarget={vi.fn()}
+        onAddAction={vi.fn()}
+        onAddTopic={vi.fn()}
+        onDeleteTopic={vi.fn()}
+        onDeleteTarget={vi.fn()}
+        onDeleteAction={vi.fn()}
+      />,
+    );
+
+  it("zeigt am Planungstag nur die Handlungen ohne Rollover", () => {
+    renderDay("2026-08-01");
+
+    expect(screen.getByText("Umlagern 22 Uhr")).toBeInTheDocument();
+    // Morgen(01:00) rollt nicht — die Tageszeit Nacht ist ausschlaggebend.
+    expect(screen.getByText("Frühdienst 1 Uhr")).toBeInTheDocument();
+    expect(screen.queryByText("Umlagern 1 Uhr")).not.toBeInTheDocument();
+  });
+
+  it("zeigt Nacht(01:00) am Folgetag, auch über 'gültig bis' hinaus", () => {
+    renderDay("2026-08-02");
+
+    expect(screen.getByText("Umlagern 1 Uhr")).toBeInTheDocument();
+    expect(screen.queryByText("Umlagern 22 Uhr")).not.toBeInTheDocument();
+    expect(screen.queryByText("Frühdienst 1 Uhr")).not.toBeInTheDocument();
+  });
 });

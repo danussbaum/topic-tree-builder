@@ -39,10 +39,8 @@ import {
 } from "@/lib/action-plan-templates";
 import { Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  DayPartChipSelector,
-  type DayPartEntry,
-} from "@/components/assessment/DayPartChipSelector";
+import { DayPartChipSelector } from "@/components/assessment/DayPartChipSelector";
+import { withPositionalIds, type DayPartEntry } from "@/lib/day-part-entries";
 import { loadActionPlanDisciplines } from "@/lib/action-plan-disciplines";
 import { DisciplineMultiSelect } from "@/components/settings/DisciplineMultiSelect";
 import { ResourceMultiSelect } from "@/components/settings/ResourceMultiSelect";
@@ -820,7 +818,7 @@ export const ActionPlanTemplatesView = forwardRef<
                       </Select>
                     ) : field.type === "dayparts" ? (
                       <DayPartChipSelector
-                        value={parseTageszeit(draftFields[field.key])}
+                        value={withPositionalIds(parseTageszeit(draftFields[field.key]))}
                         onChange={(entries: DayPartEntry[]) =>
                           setDraftFields((prev) => ({
                             ...prev,

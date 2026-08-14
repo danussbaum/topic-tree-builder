@@ -86,3 +86,97 @@ describe("Umsetzung: Sortierung innerhalb der Tageszeit", () => {
     }
   });
 });
+
+describe("Einordnung verschobener Nacht-Handlungen", () => {
+  const nightTopics: TopicNode[] = [
+    {
+      id: "topic-1",
+      title: "Schwerpunkt",
+      notes: "",
+      targets: [
+        {
+          id: "target-1",
+          title: "Ziel",
+          notes: "",
+          actions: [
+            {
+              id: "act-2200",
+              groupId: "grp-night",
+              title: "Umlagern spaet",
+              notes: "",
+              status: "open",
+              done: false,
+              validFrom: "2026-08-01",
+              recurrence: "daily",
+              dayPart: "night",
+              scheduledTime: "22:00",
+            },
+            {
+              id: "act-0100",
+              groupId: "grp-night",
+              title: "Umlagern frueh",
+              notes: "",
+              status: "open",
+              done: false,
+              validFrom: "2026-08-01",
+              recurrence: "daily",
+              dayPart: "night",
+              scheduledTime: "01:00",
+            },
+            {
+              id: "act-morning",
+              groupId: "grp-morning",
+              title: "Koerperpflege",
+              notes: "",
+              status: "open",
+              done: false,
+              validFrom: "2026-08-01",
+              recurrence: "daily",
+              dayPart: "morning",
+              scheduledTime: "07:30",
+            },
+          ],
+        },
+      ],
+    },
+  ];
+
+  it("zeigt die Vornacht vor dem Morgen und die eigene Nacht danach", () => {
+    render(
+      <AssessmentOutline
+        viewMode="confirmation"
+        selectedDate="2026-08-02"
+        onSelectedDateChange={vi.fn()}
+        confirmationPeriod="day"
+        clientName="Test Klient"
+        topics={nightTopics}
+        hideConfirmationHeader
+        filterModel={{ statuses: ["open", "postponed"] }}
+        onUpdateTopic={vi.fn()}
+        onUpdateTarget={vi.fn()}
+        onUpdateAction={vi.fn()}
+        onUpdateActionField={vi.fn()}
+        onConfirmAction={vi.fn()}
+        onAddTarget={vi.fn()}
+        onAddAction={vi.fn()}
+        onAddTopic={vi.fn()}
+        onDeleteTopic={vi.fn()}
+        onDeleteTarget={vi.fn()}
+        onDeleteAction={vi.fn()}
+      />,
+    );
+
+    const order = screen
+      .getAllByText(/^(Nacht \(Vornacht\)|Morgen|Nacht|Umlagern frueh|Umlagern spaet|Koerperpflege)$/)
+      .map((el) => el.textContent);
+
+    expect(order).toEqual([
+      "Nacht (Vornacht)",
+      "Umlagern frueh",
+      "Morgen",
+      "Koerperpflege",
+      "Nacht",
+      "Umlagern spaet",
+    ]);
+  });
+});
