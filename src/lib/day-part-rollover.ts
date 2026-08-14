@@ -6,7 +6,7 @@ import type { DayPart } from "@/types/assessment";
  * geplant, ist die Durchführung am 02.08. um 01:00 fällig. "Morgen (01:00)"
  * bleibt dagegen am Planungstag.
  */
-const ROLLOVER_CUTOFF = "12:00";
+export const ROLLOVER_CUTOFF = "12:00";
 
 export const rollsToNextDay = (
   action: { dayPart?: DayPart; scheduledTime?: string },

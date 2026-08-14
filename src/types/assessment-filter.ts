@@ -29,7 +29,7 @@ export interface AssessmentFilterModel {
   persons?: PersonsFilter;
   result?: "none" | "with_result";
   disciplineIds?: string[];
-  unplanned?: "planned" | "unplanned";
+  unplanned?: "planned" | "unplanned" | "on_demand";
   actionTitleSearch?: string;
   showClosedTargets?: boolean;
 }
@@ -116,8 +116,11 @@ export const matchesAssessmentFilter = (
   if (filter.result === "none" && confirmation?.result) return false;
   if (filter.result === "with_result" && !confirmation?.result) return false;
 
-  if (filter.unplanned === "planned" && action.isUnplanned) return false;
+  // "planned" meint den regulär wiederkehrenden Plan — Bedarfs-Durchführungen sind
+  // geplant, aber als eigene Planungsart ausweisbar.
+  if (filter.unplanned === "planned" && (action.isUnplanned || action.isOnDemandOccurrence)) return false;
   if (filter.unplanned === "unplanned" && !action.isUnplanned) return false;
+  if (filter.unplanned === "on_demand" && !action.isOnDemandOccurrence) return false;
 
   if (filter.actionTitleSearch?.trim()) {
     const search = filter.actionTitleSearch.trim().toLowerCase();

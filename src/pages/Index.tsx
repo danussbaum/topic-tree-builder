@@ -69,6 +69,9 @@ import {
 import { cn } from "@/lib/utils";
 import { createSimpleXlsxBlob } from "@/lib/xlsx";
 import { buildUnplannedActionNodes } from "@/lib/unplanned-action";
+import { buildOnDemandOccurrence } from "@/lib/on-demand-action";
+import type { OnDemandActionSelection } from "@/components/assessment/OnDemandActionDialog";
+import { OnDemandActionDialog } from "@/components/assessment/OnDemandActionDialog";
 import { formatActionResources, getActionPlanResources } from "@/lib/action-plan-resources";
 import {
   ACTION_SERVICE_TYPE_SELECT_OPTIONS,
@@ -172,6 +175,8 @@ const isTargetVisibleInPlanning = (target: TopicNode["targets"][number], today: 
 };
 
 const isRecurringOnDate = (action: ActionNode, date: Date) => {
+  // Nach Bedarf: nie automatisch fällig (siehe lib/on-demand-action.ts).
+  if (action.recurrence === "on_demand") return false;
   if (action.recurrence === "daily") return true;
 
   if (action.recurrence === "weekly") {
@@ -324,7 +329,8 @@ const getVisibleConfirmationRows = (
           const confirmation = action.confirmations?.[dueDate];
           if (confirmation?.postponedToDate) return;
           const status = confirmation?.status || "open";
-          const forceShowTransientUnplanned = action.isUnplanned && transientUnplannedActionIds.has(action.id);
+          const forceShowTransientUnplanned =
+            (action.isUnplanned || action.isOnDemandOccurrence) && transientUnplannedActionIds.has(action.id);
           if (!forceShowTransientUnplanned && !matchesAssessmentFilter({ action, status, confirmation, disciplineId: topic.disciplineId }, filterModel)) return;
           rows.push({ dueDate, topic, target, action, confirmationDate: dueDate, status });
         });
@@ -332,7 +338,8 @@ const getVisibleConfirmationRows = (
         Object.entries(action.confirmations ?? {}).forEach(([confirmationDate, confirmation]) => {
           if (!confirmation.postponedToDate) return;
           if (confirmation.postponedToDate < start || confirmation.postponedToDate > end) return;
-          const forceShowTransientUnplanned = action.isUnplanned && transientUnplannedActionIds.has(action.id);
+          const forceShowTransientUnplanned =
+            (action.isUnplanned || action.isOnDemandOccurrence) && transientUnplannedActionIds.has(action.id);
           if (!forceShowTransientUnplanned && !matchesAssessmentFilter({ action, status: confirmation.status, confirmation, disciplineId: topic.disciplineId }, filterModel)) return;
           rows.push({
             dueDate: confirmation.postponedToDate,
@@ -868,6 +875,7 @@ const Index = () => {
   const [bulkNotDoneClientIds, setBulkNotDoneClientIds] = useState<Set<string>>(new Set());
   const [bulkDoneAsPlannedClientIds, setBulkDoneAsPlannedClientIds] = useState<Set<string>>(new Set());
   const [personUnplannedClientId, setPersonUnplannedClientId] = useState<string | null>(null);
+  const [personOnDemandClientId, setPersonOnDemandClientId] = useState<string | null>(null);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
   const filterButtonRef = useRef<HTMLDivElement | null>(null);
   const [filterMenuLeft, setFilterMenuLeft] = useState(0);
@@ -1303,6 +1311,37 @@ const Index = () => {
     );
   };
 
+
+  /**
+   * Fügt eine im Plan hinterlegte Nach-Bedarf-Handlung als Durchführung für einen Tag
+   * zum bestehenden Plan hinzu — im selben Schwerpunkt/Ziel wie die Plan-Handlung.
+   */
+  const addOnDemandAction = (clientId: string, selection: OnDemandActionSelection) => {
+    const occurrence = buildOnDemandOccurrence(
+      selection.action,
+      selection.date,
+      selection.dayPart,
+      selection.scheduledTime,
+    );
+
+    updateClientTopicsFor(clientId, (topics) =>
+      topics.map((topic) =>
+        topic.id !== selection.topicId
+          ? topic
+          : {
+              ...topic,
+              targets: topic.targets.map((target) =>
+                target.id !== selection.targetId
+                  ? target
+                  : { ...target, actions: [...target.actions, occurrence] },
+              ),
+            },
+      ),
+    );
+
+    setTransientUnplannedActionIds((prev) => new Set(prev).add(occurrence.id));
+    return occurrence.id;
+  };
 
   const addUnplannedAction = (
     clientId: string,
@@ -2097,7 +2136,11 @@ const Index = () => {
       Schwerpunkt: topic.title,
       Ziel: target.title,
       Handlung: action.title,
-      "Planungsart": action.isUnplanned ? "Ungeplant" : "Geplant",
+      "Planungsart": action.isUnplanned
+        ? "Ungeplant"
+        : action.isOnDemandOccurrence
+          ? "Nach Bedarf"
+          : "Geplant",
       Beschreibung: action.notes,
       Hilfsmittel: formatActionResources(action, getActionPlanResources()),
       Status:
@@ -2682,6 +2725,7 @@ const Index = () => {
                           <SelectItem value="all">Alle Handlungen</SelectItem>
                           <SelectItem value="planned">Nur geplante Handlungen</SelectItem>
                           <SelectItem value="unplanned">Nur ungeplante Handlungen</SelectItem>
+                          <SelectItem value="on_demand">Nur Handlungen nach Bedarf</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -3192,7 +3236,10 @@ const Index = () => {
                                     </div>
                                   )}
                                   {(() => {
-                                    const plannedActions = target.actions.filter((a) => !a.isUnplanned);
+                                    // Bedarfs-Durchführungen sind Umsetzungs-Daten, keine eigene Plan-Handlung.
+                                    const plannedActions = target.actions.filter(
+                                      (a) => !a.isUnplanned && !a.isOnDemandOccurrence,
+                                    );
                                     if (plannedActions.length === 0) return null;
                                     const groupMap = new Map<string, typeof plannedActions>();
                                     for (const action of plannedActions) {
@@ -3417,6 +3464,9 @@ const Index = () => {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="min-w-64">
+                            <DropdownMenuItem onClick={() => setPersonOnDemandClientId(client.id)}>
+                              Handlung nach Bedarf erstellen
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => setPersonUnplannedClientId(client.id)}>
                               Ungeplante Handlung erstellen
                             </DropdownMenuItem>
@@ -3496,6 +3546,7 @@ const Index = () => {
                       onAddUnplannedAction={(dueDate, dayPart, draft) =>
                         addUnplannedAction(client.id, dueDate, dayPart, draft)
                       }
+                      onAddOnDemandAction={(selection) => addOnDemandAction(client.id, selection)}
                       onDeleteTopic={(topicId) => deleteTopic(client.id, topicId)}
                       onDeleteTarget={(topicId, targetId) =>
                         deleteTarget(client.id, topicId, targetId)
@@ -3510,6 +3561,19 @@ const Index = () => {
                         deleteActionGroup(client.id, topicId, targetId, groupId)
                       }
                     />
+                    )}
+                    {personOnDemandClientId === client.id && (
+                      <OnDemandActionDialog
+                        key={`${client.id}-on-demand`}
+                        topics={client.topics}
+                        date={selectedDate}
+                        clientName={`${client.firstName} ${client.lastName}`.trim()}
+                        onClose={() => setPersonOnDemandClientId(null)}
+                        onConfirm={(selection) => {
+                          addOnDemandAction(client.id, selection);
+                          setPersonOnDemandClientId(null);
+                        }}
+                      />
                     )}
                     {personUnplannedClientId === client.id && (() => {
                       const current = new Date(`${selectedDate}T00:00:00`);

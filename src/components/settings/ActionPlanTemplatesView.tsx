@@ -24,6 +24,7 @@ import {
   buildDefaultTemplateFields as buildDefaultFields,
   buildDefaultTemplateRequired as buildDefaultRequired,
   getTemplateDisciplineLabels,
+  getTemplateValidationIssues,
   type ActionPlanTemplate,
   loadActionPlanTemplates,
   normalizeTemplateDisciplineIds,
@@ -81,10 +82,15 @@ interface TemplateFieldMeta {
   type: "text" | "textarea" | "select" | "time" | "dayparts" | "leistungsarten" | "optionaleLeistungsarten" | "hilfsmittel";
   options?: Array<{ value: string; label: string }>;
   editable?: boolean;
+  /**
+   * false = das Feld kann nicht als "zwingend" markiert werden, weil es ohnehin
+   * immer Pflicht ist (Wiederholung: ohne sie erscheint keine Handlung in der Umsetzung).
+   */
+  requirable?: boolean;
 }
 
 const templateFieldMeta: TemplateFieldMeta[] = [
-  { key: "titel", label: "Titel", type: "text" },
+  { key: "titel", label: "Titel", type: "text", requirable: false },
   { key: "beschreibung", label: "Beschreibung", type: "textarea" },
   { key: "hilfsmittel", label: "Hilfsmittel", type: "hilfsmittel" },
   { key: "dauer", label: "Geplante Dauer (Min.)", type: "text" },
@@ -119,16 +125,19 @@ const templateFieldMeta: TemplateFieldMeta[] = [
     key: "wiederholung",
     label: "Wiederholung",
     type: "select",
+    requirable: false,
     options: [
       { value: "daily", label: "Täglich" },
       { value: "weekly", label: "Wöchentlich" },
       { value: "monthly", label: "Monatlich" },
+      { value: "on_demand", label: "Nach Bedarf" },
     ],
   },
   {
     key: "wiederholungMonatlich",
     label: "Monatliche Regel",
     type: "select",
+    requirable: false,
     options: [
       { value: "none", label: "Keine Angabe" },
       { value: "first_day", label: "Erster Tag" },
@@ -143,6 +152,7 @@ const templateFieldMeta: TemplateFieldMeta[] = [
     key: "wiederholungWochentage",
     label: "Wochentage",
     type: "text",
+    requirable: false,
   },
   {
     key: "leistungsart",
@@ -188,6 +198,7 @@ export const ActionPlanTemplatesView = forwardRef<
     useState<Record<TemplateFieldKey, string>>(buildDefaultFields);
   const [leistungsartenAddError, setLeistungsartenAddError] = useState(false);
   const [leistungsartenSaveError, setLeistungsartenSaveError] = useState(false);
+  const [templateSaveErrors, setTemplateSaveErrors] = useState<string[]>([]);
   const [draftEditable, setDraftEditable] =
     useState<Record<TemplateFieldKey, boolean>>(buildDefaultEditable);
   const [draftRequired, setDraftRequired] =
@@ -281,6 +292,10 @@ export const ActionPlanTemplatesView = forwardRef<
     const hasUhrzeitColumn = headerRow.some(
       (h) => h.trim().toLocaleLowerCase("de") === "uhrzeit",
     );
+    const headerHasColumn = (label: string) =>
+      headerRow.some(
+        (h) => h.trim().toLocaleLowerCase("de") === label.toLocaleLowerCase("de"),
+      );
     const dataRows = rows.slice(1);
     const rowErrors: string[] = [];
     const validRows: ActionPlanTemplate[] = [];
@@ -289,7 +304,6 @@ export const ActionPlanTemplatesView = forwardRef<
       const rowNumber = rowIndex + 2;
       const errors: string[] = [];
       const name = row[0]?.trim() ?? "";
-      if (!name) errors.push("Name fehlt");
 
       const nextFields = buildDefaultFields();
       const nextEditable = buildDefaultEditable(true);
@@ -319,9 +333,13 @@ export const ActionPlanTemplatesView = forwardRef<
         const editableValue =
           field.editable === false ? "Nein" : (row[columnIndex] ?? "");
         if (field.editable !== false) columnIndex += 1;
-        const requiredValue =
-          field.editable === false ? "Nein" : (row[columnIndex] ?? "");
-        if (field.editable !== false) columnIndex += 1;
+        // Ältere Exporte führen auch für die Wiederholungsfelder eine "zwingend"-Spalte.
+        // Sie wird noch eingelesen, damit die Spaltenzählung stimmt, aber ignoriert.
+        const hasRequiredColumn =
+          field.editable !== false &&
+          (field.requirable !== false || headerHasColumn(`${field.label} zwingend`));
+        const requiredValue = hasRequiredColumn ? (row[columnIndex] ?? "") : "Nein";
+        if (hasRequiredColumn) columnIndex += 1;
         nextFields[field.key] = value;
 
         const allowed = allowedByField.get(field.key);
@@ -401,6 +419,16 @@ export const ActionPlanTemplatesView = forwardRef<
         if (field.editable === false) {
           nextEditable[field.key] = false;
           nextRequired[field.key] = false;
+        } else if (field.requirable === false) {
+          const editable = normalizeEditable(editableValue);
+          if (editable === null) {
+            errors.push(
+              `${field.label} veränderbar: ungültiger Wert "${editableValue}" (erlaubt: Ja/Nein)`,
+            );
+          } else {
+            nextEditable[field.key] = editable;
+          }
+          nextRequired[field.key] = false;
         } else {
           const editable = normalizeEditable(editableValue);
           if (editable === null) {
@@ -420,6 +448,12 @@ export const ActionPlanTemplatesView = forwardRef<
           }
         }
       });
+
+      // Name, Bezeichnung und Wiederholung sind zwingend — sonst entstünden
+      // Handlungen ohne Bezeichnung oder solche, die nie in der Umsetzung erscheinen.
+      getTemplateValidationIssues(name, nextFields, nextEditable).forEach((issue) =>
+        errors.push(issue),
+      );
 
       if (errors.length > 0) {
         rowErrors.push(`Zeile ${rowNumber}: ${errors.join("; ")}`);
@@ -525,12 +559,15 @@ export const ActionPlanTemplatesView = forwardRef<
       return;
     }
     setLeistungsartenSaveError(false);
+    const issues = getTemplateValidationIssues(draftName, draftFields, draftEditable);
+    setTemplateSaveErrors(issues);
+    if (issues.length > 0) return;
     if (isCreating) {
       setTemplates((prev) => [
         ...prev,
         {
           id: `tpl-${Date.now()}`,
-          name: draftName.trim() || "Neue Handlungsvorlage",
+          name: draftName.trim(),
           disciplineIds: draftDisciplineIds,
           fields: draftFields,
           editable: draftEditable,
@@ -546,7 +583,7 @@ export const ActionPlanTemplatesView = forwardRef<
         entry.id === selectedTemplate.id
           ? {
               ...entry,
-              name: draftName.trim() || entry.name,
+              name: draftName.trim(),
               disciplineIds: draftDisciplineIds,
               fields: draftFields,
               editable: draftEditable,
@@ -585,7 +622,9 @@ export const ActionPlanTemplatesView = forwardRef<
       ...templateFieldMeta.flatMap((field) =>
         field.editable === false
           ? [field.label]
-          : [field.label, `${field.label} veränderbar`, `${field.label} zwingend`],
+          : field.requirable === false
+            ? [field.label, `${field.label} veränderbar`]
+            : [field.label, `${field.label} veränderbar`, `${field.label} zwingend`],
       ),
     ];
 
@@ -598,11 +637,13 @@ export const ActionPlanTemplatesView = forwardRef<
       ...templateFieldMeta.flatMap((field) =>
         field.editable === false
           ? [templateFieldCsvValue(template, field.key)]
-          : [
-              templateFieldCsvValue(template, field.key),
-              template.editable[field.key] ? "Ja" : "Nein",
-              template.editable[field.key] && template.required[field.key] ? "Ja" : "Nein",
-            ],
+          : field.requirable === false
+            ? [templateFieldCsvValue(template, field.key), template.editable[field.key] ? "Ja" : "Nein"]
+            : [
+                templateFieldCsvValue(template, field.key),
+                template.editable[field.key] ? "Ja" : "Nein",
+                template.editable[field.key] && template.required[field.key] ? "Ja" : "Nein",
+              ],
       ),
     ]);
 
@@ -736,7 +777,16 @@ export const ActionPlanTemplatesView = forwardRef<
                 </label>
                 <Input
                   value={draftName}
-                  onChange={(event) => setDraftName(event.target.value)}
+                  onChange={(event) => {
+                    setDraftName(event.target.value);
+                    setTemplateSaveErrors((prev) =>
+                      prev.filter((message) => !message.startsWith("Handlungsvorlagenname")),
+                    );
+                  }}
+                  className={cn(
+                    templateSaveErrors.some((message) => message.startsWith("Handlungsvorlagenname")) &&
+                      "border-destructive",
+                  )}
                 />
                 <span className="pt-2 text-xs text-muted-foreground">
                   immer editierbar
@@ -1051,7 +1101,7 @@ export const ActionPlanTemplatesView = forwardRef<
                             />
                             veränderbar
                           </label>
-                          {draftEditable[field.key] && (
+                          {field.requirable !== false && draftEditable[field.key] && (
                             <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
                               <Checkbox
                                 checked={draftRequired[field.key]}
@@ -1095,6 +1145,9 @@ export const ActionPlanTemplatesView = forwardRef<
                 )}
               </div>
               <div className="flex flex-col items-end gap-1">
+                {templateSaveErrors.map((message) => (
+                  <p key={message} className="text-xs text-primary-foreground/80">{message}</p>
+                ))}
                 {leistungsartenSaveError && (
                   <p className="text-xs text-primary-foreground/80">Alle ausser der letzten Leistungsart brauchen eine Max. Zeit — die letzte darf keine haben.</p>
                 )}

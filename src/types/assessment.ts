@@ -31,7 +31,12 @@ export interface ConfirmedOptionalService {
 }
 export type ResultRequirement = "none" | "optional" | "required";
 export type NumericComparisonOperator = "gt" | "lt" | "eq";
-export type RecurrenceType = "daily" | "weekly" | "monthly";
+/**
+ * "on_demand" (Nach Bedarf) ist eine geplante Handlung ohne zwingende Wiederholung:
+ * Sie wird nie automatisch fällig, sondern in der Umsetzung bei Bedarf für einen
+ * einzelnen Tag zum Plan hinzugefügt (siehe lib/on-demand-action.ts).
+ */
+export type RecurrenceType = "daily" | "weekly" | "monthly" | "on_demand";
 export type MonthlyRecurrencePattern =
   | "first_day"
   | "first_monday"
@@ -141,6 +146,14 @@ export interface ActionNode {
   observations?: string;
   /** Kennzeichnet eine direkt in der Umsetzungsmaske erfasste, ungeplante Handlung */
   isUnplanned?: boolean;
+  /**
+   * Kennzeichnet eine in der Umsetzung erzeugte Durchführung einer Nach-Bedarf-Handlung.
+   * Sie gilt als geplant (hat geplante Zeit) und erscheint darum nur in der Umsetzung,
+   * nicht als eigene Zeile in der Planung.
+   */
+  isOnDemandOccurrence?: boolean;
+  /** ID der Nach-Bedarf-Handlung im Plan, aus der diese Durchführung entstand */
+  onDemandSourceActionId?: string;
   templateId?: string;
   templateName?: string;
   templateLockedFields?: string[];

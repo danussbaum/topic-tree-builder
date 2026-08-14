@@ -86,11 +86,23 @@ import type {
   ConfirmedOptionalService,
   Weekday,
   MonthlyRecurrencePattern,
+  RecurrenceType,
   TopicNode,
   TargetNode,
 } from "@/types/assessment";
 import { DAY_PART_LABEL, DAY_PART_ORDER, DAY_PART_SELECT_OPTIONS } from "@/types/assessment";
 import { DayPartChipSelector } from "@/components/assessment/DayPartChipSelector";
+import { DAY_PART_ICONS } from "@/components/assessment/day-part-icons";
+import {
+  OnDemandActionDialog,
+  type OnDemandActionSelection,
+} from "@/components/assessment/OnDemandActionDialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   newDayPartEntryId,
   sortDayPartEntries,
@@ -103,6 +115,7 @@ import {
   formatScheduledTime,
   rollsToNextDay,
   shiftISODate,
+  ROLLOVER_CUTOFF as NIGHT_ROLLOVER_CUTOFF,
   type ConfirmationDayPartKey,
 } from "@/lib/day-part-rollover";
 import { parseLeistungsarten, parseOptionalLeistungsarten, parseTageszeit } from "@/lib/action-plan-templates";
@@ -124,6 +137,12 @@ import {
 } from "@/lib/action-plan-templates";
 import { DEFAULT_LAST_N_DAYS, type ConfirmationPeriod } from "@/lib/assessment-cache";
 import { getRescheduleWindow } from "@/lib/reschedule";
+import {
+  SCHEDULE_FIELD_MESSAGE,
+  getScheduleIssues,
+  type ActionSchedule,
+  type ScheduleField,
+} from "@/lib/action-schedule";
 import { OptionalServiceQuantities } from "@/components/assessment/OptionalServiceQuantities";
 import {
   initialActionPlanDisciplines,
@@ -305,6 +324,18 @@ function draftToOverrides(draft: ActionDraft): ActionDraftOverrides {
   };
 }
 
+function draftToSchedule(draft: ActionDraft): ActionSchedule {
+  return {
+    validFrom: draft.validFrom || undefined,
+    validTo: draft.validTo || undefined,
+    recurrence: draft.recurrence !== "none" ? (draft.recurrence as ActionNode["recurrence"]) : undefined,
+    recurrenceWeekdays: draft.recurrenceWeekdays,
+    recurrenceMonthlyPattern: draft.recurrenceMonthlyPattern !== "none"
+      ? (draft.recurrenceMonthlyPattern as MonthlyRecurrencePattern)
+      : undefined,
+  };
+}
+
 interface Props {
   viewMode: "planning" | "confirmation";
   stickyOffset?: number;
@@ -375,6 +406,7 @@ interface Props {
     dayPart: DayPart | "none",
     draft: UnplannedActionDraft,
   ) => string | void;
+  onAddOnDemandAction?: (selection: OnDemandActionSelection) => void;
   onAddTopic: (disciplineId?: string) => string;
   focusTopicId?: string | null;
   onFocusHandled?: () => void;
@@ -416,14 +448,6 @@ interface BulkDoneAsPlannedTarget {
   dueDate: string;
   actionTitle: string;
 }
-
-const DAY_PART_ICONS: Record<DayPart, typeof Sunrise> = {
-  morning: Sunrise,
-  noon: Utensils,
-  afternoon: Sun,
-  evening: Sunset,
-  night: Moon,
-};
 
 const CATEGORY_LABEL: Record<ActionCategory, string> = {
   a: "KLV A",
@@ -483,6 +507,27 @@ const WEEKDAY_OPTIONS: Array<{ value: Weekday; label: string; dayIndex: number }
   { value: "sunday", label: "So", dayIndex: 0 },
 ];
 
+const RECURRENCE_OPTIONS: Array<{ value: RecurrenceType; label: string }> = [
+  { value: "daily", label: "Täglich" },
+  { value: "weekly", label: "Wöchentlich" },
+  { value: "monthly", label: "Monatlich" },
+  { value: "on_demand", label: "Nach Bedarf" },
+];
+
+/**
+ * Der Vornacht-Abschnitt eines Tages zeigt die Nacht des Vortags. Eine dort erfasste
+ * Handlung gehört darum auf den Vortag und braucht eine Uhrzeit vor 12:00 — nur dann
+ * rollt sie kalendarisch in diesen Abschnitt zurück (siehe day-part-rollover).
+ */
+const previousNightTarget = (displayedDate: string) => ({
+  dueDate: shiftISODate(displayedDate, -1),
+  dayPart: "night" as const,
+  nightRollover: true,
+});
+
+const recurrenceLabel = (recurrence?: RecurrenceType) =>
+  RECURRENCE_OPTIONS.find((option) => option.value === recurrence)?.label ?? null;
+
 const MONTHLY_PATTERN_OPTIONS: Array<{ value: MonthlyRecurrencePattern; label: string }> = [
   { value: "first_day", label: "Erster Tag im Monat" },
   { value: "first_monday", label: "Erster Montag im Monat" },
@@ -491,6 +536,9 @@ const MONTHLY_PATTERN_OPTIONS: Array<{ value: MonthlyRecurrencePattern; label: s
 ];
 
 const isRecurringOnDate = (action: ActionNode, date: Date) => {
+  // Nach Bedarf: nie automatisch fällig — die Durchführung wird in der Umsetzung
+  // als eigene Node mit recurrence "daily" für einen einzelnen Tag erzeugt.
+  if (action.recurrence === "on_demand") return false;
   if (action.recurrence === "daily") return true;
 
   if (action.recurrence === "weekly") {
@@ -597,6 +645,7 @@ export function AssessmentOutline({
   onAddAction,
   onUpdateActionGroup,
   onAddUnplannedAction,
+  onAddOnDemandAction,
   onAddTopic,
   focusTopicId,
   onFocusHandled,
@@ -669,7 +718,16 @@ export function AssessmentOutline({
   const [bulkNotDoneDialogOpen, setBulkNotDoneDialogOpen] = useState(false);
   const [selectedBulkDoneAsPlannedKeys, setSelectedBulkDoneAsPlannedKeys] = useState<Set<string>>(new Set());
   const [bulkDoneAsPlannedDialogOpen, setBulkDoneAsPlannedDialogOpen] = useState(false);
-  const [unplannedDialogTarget, setUnplannedDialogTarget] = useState<{ dueDate?: string; dayPart: DayPart | "none" } | null>(null);
+  const [unplannedDialogTarget, setUnplannedDialogTarget] = useState<{
+    dueDate?: string;
+    dayPart: DayPart | "none";
+    nightRollover?: boolean;
+  } | null>(null);
+  const [onDemandDialogTarget, setOnDemandDialogTarget] = useState<{
+    dueDate: string;
+    dayPart: DayPart | "none";
+    nightRollover?: boolean;
+  } | null>(null);
   const today = format(new Date(), "yyyy-MM-dd");
   const disciplineOptions = disciplines.length > 0 ? disciplines : initialActionPlanDisciplines;
   const getTopicDisciplineId = (topic: TopicNode) =>
@@ -740,7 +798,7 @@ export function AssessmentOutline({
     const applyOffset = () => {
       const topicBlock = selectedTopicId ? topicBlockRefs.current.get(selectedTopicId) : undefined;
       const master = masterColumnRef.current;
-      const isTwoColumn = typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches;
+      const isTwoColumn = typeof window !== "undefined" && window.matchMedia("(min-width: 768px)").matches;
       if (!topicBlock || !master || !isTwoColumn) {
         setDetailOffset(0);
         return;
@@ -968,7 +1026,8 @@ export function AssessmentOutline({
             const confirmation = action.confirmations?.[dueDate];
             if (confirmation?.postponedToDate) return;
             const status = getStatusForDate(action, dueDate);
-            const forceShowTransientUnplanned = action.isUnplanned && transientUnplannedActionIds.has(action.id);
+            const forceShowTransientUnplanned =
+              (action.isUnplanned || action.isOnDemandOccurrence) && transientUnplannedActionIds.has(action.id);
             if (!forceShowTransientUnplanned && !matchesAssessmentFilter({ action, status, confirmation, disciplineId: topic.disciplineId }, filterModel)) return;
             flatActions.push({ topic, target: { id: target.id, title: target.title, notes: target.notes, validTo: target.validTo }, action, dueDate, confirmationDate: dueDate, status });
           });
@@ -978,7 +1037,8 @@ export function AssessmentOutline({
             if (confirmation.postponedToDate < periodRange.start || confirmation.postponedToDate > periodRange.end) {
               return;
             }
-            const forceShowTransientUnplanned = action.isUnplanned && transientUnplannedActionIds.has(action.id);
+            const forceShowTransientUnplanned =
+              (action.isUnplanned || action.isOnDemandOccurrence) && transientUnplannedActionIds.has(action.id);
             if (!forceShowTransientUnplanned && !matchesAssessmentFilter({ action, status: confirmation.status, confirmation, disciplineId: topic.disciplineId }, filterModel)) return;
             flatActions.push({
               topic,
@@ -1322,12 +1382,17 @@ export function AssessmentOutline({
                     part={group.key}
                     stickyTop={stickyOffset !== undefined ? stickyOffset + 46 : undefined}
                     onCreateUnplanned={onAddUnplannedAction ? () =>
-                      setUnplannedDialogTarget({
-                        dueDate: dateGroup.dueDate,
-                        // Ungeplante Handlungen werden für den offenen Tag erfasst; im
-                        // Vornacht-Abschnitt ist die Tageszeit schlicht "Nacht".
-                        dayPart: group.key === "night_prev" ? "night" : group.key,
-                      }) : undefined}
+                      setUnplannedDialogTarget(
+                        group.key === "night_prev"
+                          ? { ...previousNightTarget(dateGroup.dueDate) }
+                          : { dueDate: dateGroup.dueDate, dayPart: group.key },
+                      ) : undefined}
+                    onCreateOnDemand={onAddOnDemandAction ? () =>
+                      setOnDemandDialogTarget(
+                        group.key === "night_prev"
+                          ? previousNightTarget(dateGroup.dueDate)
+                          : { dueDate: dateGroup.dueDate, dayPart: group.key },
+                      ) : undefined}
                     groupSelectState={groupSelectState}
                     onGroupSelectAll={onGroupSelectAll}
                   />
@@ -1488,14 +1553,14 @@ export function AssessmentOutline({
                                           </Tooltip>
                                         );
                                       })}
-                                      {action.isUnplanned && (
+                                      {(action.isUnplanned || action.isOnDemandOccurrence) && (
                                         <Tooltip>
                                           <TooltipTrigger asChild>
                                             <button
                                               type="button"
                                               onClick={() => onDeleteAction(topic.id, target.id, action.id)}
                                               disabled={bulkNotDoneMode || bulkDoneAsPlannedMode}
-                                              aria-label="Ungeplante Handlung löschen"
+                                              aria-label={action.isUnplanned ? "Ungeplante Handlung löschen" : "Bedarfs-Handlung löschen"}
                                               className={cn("pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive", (bulkNotDoneMode || bulkDoneAsPlannedMode) && "cursor-not-allowed opacity-50 hover:bg-background hover:border-border hover:text-foreground")}
                                             >
                                               <Trash2 className="h-4 w-4" />
@@ -1503,7 +1568,9 @@ export function AssessmentOutline({
                                           </TooltipTrigger>
                                           <TooltipContent side="top" align="center">
                                             <div className="max-w-[220px] space-y-0.5">
-                                              <div className="font-medium">Ungeplante Handlung löschen</div>
+                                              <div className="font-medium">
+                                                {action.isUnplanned ? "Ungeplante Handlung löschen" : "Bedarfs-Handlung löschen"}
+                                              </div>
                                               <div className="text-xs text-muted-foreground">Handlung wird unwiderruflich entfernt</div>
                                             </div>
                                           </TooltipContent>
@@ -1550,6 +1617,11 @@ export function AssessmentOutline({
                                   {action.isUnplanned && (
                                     <Badge variant="outline" className="ml-2 border-amber-300 bg-amber-50 align-middle text-[10px] text-amber-800">
                                       Ungeplant
+                                    </Badge>
+                                  )}
+                                  {action.isOnDemandOccurrence && (
+                                    <Badge variant="outline" className="ml-2 align-middle text-[10px]">
+                                      Nach Bedarf
                                     </Badge>
                                   )}
                                   <TooltipProvider delayDuration={150}>
@@ -1722,17 +1794,33 @@ export function AssessmentOutline({
               );
               closeConfirmDialog();
             }}
-            onDelete={dialogTarget.action.isUnplanned && dialogTarget.action.status === "open" ? () => {
+            onDelete={(dialogTarget.action.isUnplanned || dialogTarget.action.isOnDemandOccurrence) && dialogTarget.action.status === "open" ? () => {
               onDeleteAction(dialogTarget.topicId, dialogTarget.targetId, dialogTarget.action.id);
               closeConfirmDialog();
             } : undefined}
             clientName={clientName}
           />
         )}
+        {onDemandDialogTarget && onAddOnDemandAction && (
+          <OnDemandActionDialog
+            topics={topics}
+            date={onDemandDialogTarget.dueDate}
+            fixedDayPart={onDemandDialogTarget.dayPart}
+            nightRollover={onDemandDialogTarget.nightRollover}
+            dateLocked
+            clientName={clientName}
+            onClose={() => setOnDemandDialogTarget(null)}
+            onConfirm={(selection) => {
+              onAddOnDemandAction(selection);
+              setOnDemandDialogTarget(null);
+            }}
+          />
+        )}
         {unplannedDialogTarget && (
           <UnplannedActionDialog
             target={unplannedDialogTarget}
             fixedDayPart={unplannedDialogTarget.dayPart}
+            nightRollover={unplannedDialogTarget.nightRollover}
             onClose={() => setUnplannedDialogTarget(null)}
             onConfirm={(draft) => {
               if (!onAddUnplannedAction) return;
@@ -1807,9 +1895,9 @@ export function AssessmentOutline({
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-[300px_minmax(0,1fr)]">
         {/* MASTER: Ziel-Navigation, gruppiert nach Disziplin → Schwerpunkt */}
-        <div ref={masterColumnRef} className="space-y-3 lg:sticky lg:top-2 lg:max-h-[calc(100vh-9rem)] lg:overflow-y-auto">
+        <div ref={masterColumnRef} className="space-y-3 md:sticky md:top-2 md:max-h-[calc(100vh-9rem)] md:overflow-y-auto">
           {/* Jede Disziplin in eigener Box: die frühere Trennung per Haarlinie war zu
               wenig prägnant und führte zu Einträgen in der falschen Disziplin. */}
           {topicDisciplineGroups.map(({ discipline, topics: groupTopics }) => (
@@ -1993,13 +2081,9 @@ export function AssessmentOutline({
           ) : (
             <div className="space-y-10">
               {selectedTopicBlocks.map(({ topic, targets: selectedTargets }) => (
-                <div key={topic.id} className="space-y-10">
-                  <div className="border-b border-border pb-3">
-                    <div className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">
-                      {disciplineById.get(getTopicDisciplineId(topic))?.title ?? "Schwerpunkt"}
-                    </div>
-                    <div className="text-base font-semibold">{topic.title || "Schwerpunkt…"}</div>
-                  </div>
+                <div key={topic.id}>
+                  {/* Kein Schwerpunkt-Kopf: die Auswahl steht links in der Navigation. */}
+                  <div className="space-y-10">
                   {selectedTargets.length === 0 && (
                     <div className="text-sm text-muted-foreground">
                       Für diesen Schwerpunkt ist noch kein Ziel erfasst.
@@ -2103,7 +2187,7 @@ export function AssessmentOutline({
                   </div>
 
                   <div className={cn("pl-6", isTargetClosed && "pointer-events-none opacity-60")}>
-                    <div className="mt-2 -ml-6 w-1/2">
+                    <div className="mt-2 -ml-6">
                       <InlineEditable
                         value={target.notes}
                         onChange={(v) => onUpdateTarget(topic.id, target.id, "notes", v)}
@@ -2122,7 +2206,9 @@ export function AssessmentOutline({
 
                     <div className="mt-3 space-y-1">
                       {(() => {
-                        const plannedActions = target.actions.filter((a) => !a.isUnplanned);
+                        // Bedarfs-Durchführungen entstehen erst in der Umsetzung; in der Planung
+                        // steht nur die Nach-Bedarf-Handlung selbst.
+                        const plannedActions = target.actions.filter((a) => !a.isUnplanned && !a.isOnDemandOccurrence);
                         const unplannedActions = target.actions.filter((a) => a.isUnplanned);
                         if (plannedActions.length === 0 && unplannedActions.length === 0) return null;
 
@@ -2190,6 +2276,7 @@ export function AssessmentOutline({
                 </div>
               );
                   })}
+                  </div>
                 </div>
               ))}
             </div>
@@ -2242,6 +2329,7 @@ function DayPartHeader({
   part,
   stickyTop,
   onCreateUnplanned,
+  onCreateOnDemand,
   onAdd,
   groupSelectState,
   onGroupSelectAll,
@@ -2249,6 +2337,7 @@ function DayPartHeader({
   part: ConfirmationDayPartKey;
   stickyTop?: number;
   onCreateUnplanned?: () => void;
+  onCreateOnDemand?: () => void;
   onAdd?: () => void;
   groupSelectState?: "all" | "some" | "none";
   onGroupSelectAll?: (checked: boolean) => void;
@@ -2278,10 +2367,38 @@ function DayPartHeader({
     </TooltipProvider>
   );
 
+  // In der Umsetzung führt das (+) zu einem Menü, weil dort zwei Erfassungsarten
+  // zur Auswahl stehen: nach Bedarf (aus dem Plan) und ungeplant.
+  const createMenu = onCreateUnplanned ? (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 rounded-full text-muted-foreground hover:text-primary"
+          aria-label="Handlung erfassen"
+        >
+          <Plus className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-64 normal-case tracking-normal font-normal">
+        {onCreateOnDemand && (
+          <DropdownMenuItem onClick={onCreateOnDemand}>
+            Handlung nach Bedarf erstellen
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem onClick={onCreateUnplanned}>
+          Ungeplante Handlung erstellen
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  ) : null;
+
   const menu = (
     <>
       {onAdd && addButton(onAdd, "Handlung hinzufügen", "Handlung hinzufügen", "Neue geplante Handlung für diese Tageszeit erfassen")}
-      {onCreateUnplanned && addButton(onCreateUnplanned, "Ungeplante Handlung erstellen", "Ungeplante Handlung erstellen", "Neue Handlung ausserhalb des Plans erfassen")}
+      {createMenu}
     </>
   );
 
@@ -2391,7 +2508,15 @@ export function ActionGroupRow({
 
         <div
           className="mt-1.5 text-sm text-muted-foreground"
-          style={{ display: "grid", gridTemplateColumns: "320px 1px 320px 1px 180px 1px 1fr", columnGap: "8px", rowGap: "5px" }}
+          // Anteilige statt fixer Spalten: die Karte wird sonst auf schmalen
+          // Bildschirmen breiter als ihr Container.
+          style={{
+            display: "grid",
+            gridTemplateColumns:
+              "minmax(0, 320fr) 1px minmax(0, 320fr) 1px minmax(0, 180fr) 1px minmax(0, 180fr)",
+            columnGap: "8px",
+            rowGap: "5px",
+          }}
         >
           {(representative.notes || formatActionResources(representative, resourceCatalog) || sortedNodes.length > 0) && (
             <>
@@ -2440,7 +2565,7 @@ export function ActionGroupRow({
               </div>
             </>
           )}
-          <span className="tabular-nums self-center">
+          <span className="tabular-nums self-center truncate">
             {isUnplanned
               ? <span className="opacity-40 italic">Keine geplante Zeit</span>
               : representative.plannedMinutes != null ? `${representative.plannedMinutes} Min` : <span className="opacity-40 italic">Keine Minuten</span>}
@@ -2449,16 +2574,16 @@ export function ActionGroupRow({
           <span className="self-center truncate">
             {isUnplanned
               ? <span className="opacity-40 italic">In der Umsetzung erfasst</span>
-              : representative.recurrence === "daily" ? "Täglich" : representative.recurrence === "weekly" ? "Wöchentlich" : representative.recurrence === "monthly" ? "Monatlich" : <span className="opacity-40 italic">Keine Wiederholung</span>}
+              : recurrenceLabel(representative.recurrence) ?? <span className="opacity-40 italic">Keine Wiederholung</span>}
           </span>
           <span className="self-center h-3 bg-border" />
-          <span className="tabular-nums self-center">
+          <span className="tabular-nums self-center truncate">
             {rangeFrom
               ? <>{rangeFrom.split("-").reverse().join(".")}{rangeTo && rangeTo !== rangeFrom ? ` – ${rangeTo.split("-").reverse().join(".")}` : ""}</>
               : <span className="opacity-40 italic">Kein Gültig ab</span>}
           </span>
           <span className="self-center h-3 bg-border" />
-          <span className="self-center">
+          <span className="self-center truncate">
             {representative.category
               ? <span className="rounded bg-secondary px-1 font-medium">{CATEGORY_LABEL[representative.category]}</span>
               : <span className="opacity-40 italic">Keine Klassifizierung</span>}
@@ -2571,6 +2696,8 @@ export function ActionRow({
     const normalized = WEEKDAY_OPTIONS
       .map((item) => item.value)
       .filter((day) => next.has(day));
+    // Ohne Wochentag wäre die Handlung nie fällig und verschwände aus der Umsetzung.
+    if (normalized.length === 0) return;
     onUpdateActionField(topicId, targetId, action.id, "recurrenceWeekdays", normalized);
   };
 
@@ -2582,13 +2709,7 @@ export function ActionRow({
   }, [weekdayDragState]);
 
   if (viewMode === "planning") {
-    const recurrenceTypeLabel = action.recurrence === "daily"
-      ? "Täglich"
-      : action.recurrence === "weekly"
-        ? "Wöchentlich"
-        : action.recurrence === "monthly"
-          ? "Monatlich"
-          : null;
+    const recurrenceTypeLabel = recurrenceLabel(action.recurrence);
     const weekdaysLabel = action.recurrence === "weekly"
       ? (action.recurrenceWeekdays ?? []).map((d) => WEEKDAY_OPTIONS.find((o) => o.value === d)?.label ?? "").filter(Boolean).join(" · ") || null
       : action.recurrence === "monthly"
@@ -2623,7 +2744,13 @@ export function ActionRow({
           )}
           <div
             className="mt-1.5 text-sm text-muted-foreground"
-            style={{ display: "grid", gridTemplateColumns: "140px 1px 100px 1px 130px 1px 180px 1px 1fr", columnGap: "8px", rowGap: "4px" }}
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "minmax(0, 140fr) 1px minmax(0, 100fr) 1px minmax(0, 130fr) 1px minmax(0, 180fr) 1px minmax(0, 180fr)",
+              columnGap: "8px",
+              rowGap: "4px",
+            }}
           >
             {/* Zeile 1: Tageszeit | Uhrzeit | Minuten | Personen | Klassifizierung */}
             <span className="inline-flex items-center gap-1 overflow-hidden self-center">
@@ -2930,9 +3057,11 @@ export function ActionRow({
               value={action.validFrom}
               minDate={targetValidFrom}
               maxDate={targetValidTo}
-              onChange={(v) =>
-                onUpdateActionField(topicId, targetId, action.id, "validFrom", v)
-              }
+              onChange={(v) => {
+                // Leeres Gültig ab würde die Handlung aus der Umsetzung entfernen.
+                if (!v) return;
+                onUpdateActionField(topicId, targetId, action.id, "validFrom", v);
+              }}
               className="w-full"
             />
             <DateField
@@ -2956,24 +3085,33 @@ export function ActionRow({
               <Select
                 value={action.recurrence ?? "none"}
                 disabled={isFieldLocked("recurrence")}
-                onValueChange={(v) =>
-                  onUpdateActionField(
-                    topicId,
-                    targetId,
-                    action.id,
-                    "recurrence",
-                    v === "none" ? undefined : v,
-                  )
-                }
+                onValueChange={(v) => {
+                  onUpdateActionField(topicId, targetId, action.id, "recurrence", v);
+                  // Direkt gültige Vorbelegung, damit die Handlung beim Wechsel nicht
+                  // vorübergehend aus der Umsetzung fällt.
+                  if (v === "weekly" && (action.recurrenceWeekdays?.length ?? 0) === 0) {
+                    onUpdateActionField(
+                      topicId,
+                      targetId,
+                      action.id,
+                      "recurrenceWeekdays",
+                      WEEKDAY_OPTIONS.map((option) => option.value),
+                    );
+                  }
+                  if (v === "monthly" && !action.recurrenceMonthlyPattern) {
+                    onUpdateActionField(topicId, targetId, action.id, "recurrenceMonthlyPattern", "first_day");
+                  }
+                }}
               >
                 <SelectTrigger aria-label="Wiederholung" className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0 focus-visible:ring-0">
                   <SelectValue placeholder="Wählen…" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Keine Angabe</SelectItem>
-                  <SelectItem value="daily">Täglich</SelectItem>
-                  <SelectItem value="weekly">Wöchentlich</SelectItem>
-                  <SelectItem value="monthly">Monatlich</SelectItem>
+                  {RECURRENCE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -3015,6 +3153,7 @@ export function ActionRow({
                           const next = isSelected
                             ? (action.recurrenceWeekdays ?? []).filter((value) => value !== weekday.value)
                             : [...(action.recurrenceWeekdays ?? []), weekday.value];
+                          if (next.length === 0) return;
                           onUpdateActionField(topicId, targetId, action.id, "recurrenceWeekdays", next);
                         }}
                         className={cn(
@@ -3041,20 +3180,13 @@ export function ActionRow({
                   value={action.recurrenceMonthlyPattern ?? "none"}
                   disabled={isFieldLocked("recurrenceMonthlyPattern")}
                   onValueChange={(v) =>
-                    onUpdateActionField(
-                      topicId,
-                      targetId,
-                      action.id,
-                      "recurrenceMonthlyPattern",
-                      v === "none" ? undefined : v,
-                    )
+                    onUpdateActionField(topicId, targetId, action.id, "recurrenceMonthlyPattern", v)
                   }
                 >
                   <SelectTrigger aria-label="Monatliche Regel" className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0 focus-visible:ring-0">
                     <SelectValue placeholder="Wählen…" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Keine Angabe</SelectItem>
                     {MONTHLY_PATTERN_OPTIONS.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
                         {option.label}
@@ -3227,9 +3359,11 @@ export function ActionRow({
               value={action.validFrom}
               minDate={targetValidFrom}
               maxDate={targetValidTo}
-              onChange={(v) =>
-                onUpdateActionField(topicId, targetId, action.id, "validFrom", v)
-              }
+              onChange={(v) => {
+                // Leeres Gültig ab würde die Handlung aus der Umsetzung entfernen.
+                if (!v) return;
+                onUpdateActionField(topicId, targetId, action.id, "validFrom", v);
+              }}
             />
             <DateField
               label="Gültig bis"
@@ -3601,6 +3735,7 @@ export function ActionSidePanel({
   const isLocked = (field: string) => lockedFields.includes(field);
   const isRequired = (field: string) => requiredFields.includes(field);
   const hasError = (field: string) => validationErrors.includes(field);
+  const scheduleIssues = getScheduleIssues(draftToSchedule(draft));
 
   const isDraftFieldFilled = (field: string): boolean => {
     switch (field) {
@@ -3627,6 +3762,12 @@ export function ActionSidePanel({
       return;
     }
     const errors = requiredFields.filter((f) => !isDraftFieldFilled(f));
+    // Bezeichnung und Zeitplan sind unabhängig von der Vorlage Pflicht — sonst
+    // entstünde eine Handlung ohne Namen oder eine, die in der Umsetzung nie erscheint.
+    if (!isDraftFieldFilled("title") && !errors.includes("title")) errors.push("title");
+    scheduleIssues.forEach((field) => {
+      if (!errors.includes(field)) errors.push(field);
+    });
     if (draft.serviceEntries.length >= 2) {
       const allButLast = draft.serviceEntries.slice(0, -1);
       const last = draft.serviceEntries[draft.serviceEntries.length - 1];
@@ -3802,6 +3943,9 @@ export function ActionSidePanel({
                 placeholder="Handlung…"
                 className={cn("bg-background", hasError("title") && "border-destructive")}
               />
+              {hasError("title") && (
+                <p className="mt-1 text-xs text-destructive">Eine Bezeichnung ist zwingend.</p>
+              )}
             </ActionField>
 
             <ActionField label="Beschreibung" fieldKey="notes">
@@ -4050,12 +4194,13 @@ export function ActionSidePanel({
                   disabled={isLocked("recurrence")}
                   onValueChange={(v) => { setDraft((p) => ({ ...p, recurrence: v, recurrenceWeekdays: [], recurrenceMonthlyPattern: "none" })); setValidationErrors((prev) => prev.filter((f) => f !== "recurrence")); }}
                 >
-                  <SelectTrigger className={cn("bg-background", hasError("recurrence") && "border-destructive")}><SelectValue placeholder="Keine Angabe" /></SelectTrigger>
+                  <SelectTrigger className={cn("bg-background", hasError("recurrence") && "border-destructive")}><SelectValue placeholder="Wählen…" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Keine Angabe</SelectItem>
-                    <SelectItem value="daily">Täglich</SelectItem>
-                    <SelectItem value="weekly">Wöchentlich</SelectItem>
-                    <SelectItem value="monthly">Monatlich</SelectItem>
+                    {RECURRENCE_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </ActionField>
@@ -4098,7 +4243,6 @@ export function ActionSidePanel({
                   >
                     <SelectTrigger className={cn("bg-background", hasError("recurrenceMonthlyPattern") && "border-destructive")}><SelectValue placeholder="Wählen…" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Keine Angabe</SelectItem>
                       {MONTHLY_PATTERN_OPTIONS.map((o) => (
                         <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                       ))}
@@ -4106,6 +4250,13 @@ export function ActionSidePanel({
                   </Select>
                 </ActionField>
               )}
+              {(["validFrom", "validTo", "recurrence", "recurrenceWeekdays", "recurrenceMonthlyPattern"] as ScheduleField[])
+                .filter((field) => hasError(field) && scheduleIssues.includes(field))
+                .map((field) => (
+                  <p key={field} className="col-span-2 text-xs text-destructive">
+                    {SCHEDULE_FIELD_MESSAGE[field]}
+                  </p>
+                ))}
             </div>
           </div>
         </div>
@@ -4159,12 +4310,18 @@ const buildEmptyUnplannedTemplateDraft = (dayPart?: DayPart | "none"): Unplanned
 export function UnplannedActionDialog({
   target,
   fixedDayPart,
+  nightRollover = false,
   onClose,
   onConfirm,
   clientName,
 }: {
   target: { dueDate?: string; dateFrom?: string; dayPart: DayPart | "none" };
   fixedDayPart?: DayPart | "none";
+  /**
+   * Erfassung im Vornacht-Abschnitt: das Datum ist der Vortag, und die Uhrzeit ist
+   * zwingend vor 12:00 — nur dann erscheint die Handlung wieder dort.
+   */
+  nightRollover?: boolean;
   onClose: () => void;
   onConfirm: (draft: UnplannedActionDraft, dayPartEntries?: DayPartEntry[]) => void;
   clientName?: string;
@@ -4348,6 +4505,12 @@ export function UnplannedActionDialog({
     && (entries.slice(0, -1).some((e) => e.maxMinutes === undefined) || entries[entries.length - 1]?.maxMinutes != null);
   const [serviceEntriesAddError, setServiceEntriesAddError] = useState(false);
 
+  // Ohne Uhrzeit vor 12:00 landet die Handlung in der Nacht des gewählten Tages statt im
+  // Vornacht-Abschnitt des Folgetages. Die Meldung erscheint erst beim Bestätigen.
+  const nightTimeMissing =
+    nightRollover && (!draft.scheduledTime || draft.scheduledTime >= NIGHT_ROLLOVER_CUTOFF);
+  const [showNightTimeError, setShowNightTimeError] = useState(false);
+
   const submit = () => {
     const title = draft.title.trim() || (creationMode === "scratch" ? "Ungeplante Handlung" : "");
     if (!title) return;
@@ -4355,6 +4518,10 @@ export function UnplannedActionDialog({
     if (dateRangeError) return;
     if (missingRequiredFields.length > 0) return;
     if (serviceEntriesError) return;
+    if (nightTimeMissing) {
+      setShowNightTimeError(true);
+      return;
+    }
     const finalDraft: UnplannedActionDraft = {
       ...draft,
       title,
@@ -4597,10 +4764,28 @@ export function UnplannedActionDialog({
                     </SelectContent>
                   </Select>
                 </div>
-                <label className="space-y-1.5">
-                  <Label>Uhrzeit</Label>
-                  <Input type="time" value={draft.scheduledTime ?? ""} disabled={isDraftFieldLocked("scheduledTime")} onChange={(e) => updateDraft("scheduledTime", e.target.value || undefined)} className="bg-background" />
-                </label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="unplanned-scheduled-time">Uhrzeit</Label>
+                  <Input
+                    id="unplanned-scheduled-time"
+                    type="time"
+                    value={draft.scheduledTime ?? ""}
+                    disabled={isDraftFieldLocked("scheduledTime")}
+                    max={nightRollover ? "11:59" : undefined}
+                    onChange={(e) => {
+                      const value = e.target.value || undefined;
+                      updateDraft("scheduledTime", value);
+                      if (value && value < NIGHT_ROLLOVER_CUTOFF) setShowNightTimeError(false);
+                    }}
+                    className={cn("bg-background", showNightTimeError && "border-destructive")}
+                  />
+                  {showNightTimeError && (
+                    <p className="text-xs text-destructive">
+                      Zwingend zwischen 00:00 und 11:59 — sonst wird die Handlung nicht der
+                      Vornacht zugeordnet.
+                    </p>
+                  )}
+                </div>
               </>
             )}
             {/* Keine geplante Zeit: eine ungeplante Handlung ist per se nicht geplant.
@@ -5378,7 +5563,7 @@ export function ConfirmActionDialog({
                 <RotateCcw className="h-4 w-4" />
                 Zurücksetzen
               </Button>
-            ) : target.action.isUnplanned && onDelete ? (
+            ) : onDelete ? (
               <Button
                 type="button"
                 variant="ghost"
