@@ -11,10 +11,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DatePickerInput } from "@/components/ui/date-picker-input";
-import { DAY_PART_SELECT_OPTIONS } from "@/types/assessment";
-import type { ActionNode, DayPart, TopicNode } from "@/types/assessment";
+import type { ActionNode, TopicNode } from "@/types/assessment";
 import { collectOnDemandCandidates } from "@/lib/on-demand-action";
-import { ROLLOVER_CUTOFF, shiftISODate } from "@/lib/day-part-rollover";
+import { previousDayDayPart, shiftISODate } from "@/lib/day-part-rollover";
+import { getDayParts } from "@/lib/day-parts";
 import { cn } from "@/lib/utils";
 
 const formatDate = (isoDate: string) => isoDate.split("-").reverse().join(".");
@@ -24,9 +24,13 @@ export interface OnDemandActionSelection {
   targetId: string;
   action: ActionNode;
   date: string;
-  dayPart: DayPart | "none";
+  /** Tageszeit-ID oder "none" — im Uhrzeit-Modus immer "none". */
+  dayPart: string | "none";
   scheduledTime?: string;
 }
+
+/** Wert im Zeitangabe-Select, der den Uhrzeit-Modus wählt. */
+const TIME_MODE_VALUE = "__time";
 
 /**
  * Auswahl von im Plan hinterlegten Nach-Bedarf-Handlungen, die in der Umsetzung für
@@ -45,21 +49,29 @@ export function OnDemandActionDialog({
 }: {
   topics: TopicNode[];
   date: string;
-  fixedDayPart?: DayPart | "none";
+  fixedDayPart?: string | "none";
   /** Aus dem (+)-Menü einer Tageszeit: Tag und Tageszeit sind durch den Kontext gesetzt. */
   dateLocked?: boolean;
   /**
-   * Erfassung im Vornacht-Abschnitt: `date` ist der Vortag, und die Uhrzeit ist
-   * zwingend vor 12:00 — nur dann erscheint die Durchführung wieder dort.
+   * Erfassung im Vortags-Abschnitt: `date` ist der Vortag, und die Uhrzeit muss im
+   * Teil nach Mitternacht liegen — nur dann erscheint die Durchführung wieder dort.
    */
   nightRollover?: boolean;
   clientName?: string;
   onClose: () => void;
   onConfirm: (selection: OnDemandActionSelection) => void;
 }) {
+  const dayParts = getDayParts();
+  /** Uhrzeit-Grenze des Vortags-Abschnitts: das "bis" der über-Mitternacht-Tageszeit. */
+  const rolloverLimit = previousDayDayPart(dayParts)?.to;
+
   const [date, setDate] = useState(initialDate);
   const [selectedActionId, setSelectedActionId] = useState<string | null>(null);
-  const [dayPart, setDayPart] = useState<DayPart | "none">(fixedDayPart ?? "none");
+  // Strikte Trennung: entweder eine Tageszeit oder eine Uhrzeit, nie beides.
+  const [dayPart, setDayPart] = useState<string | "none">(
+    nightRollover ? "none" : fixedDayPart ?? "none",
+  );
+  const [useTime, setUseTime] = useState(nightRollover);
   const [scheduledTime, setScheduledTime] = useState("");
   const [isPanelVisible, setIsPanelVisible] = useState(false);
   const asideRef = useRef<HTMLElement | null>(null);
@@ -104,23 +116,26 @@ export function OnDemandActionDialog({
   const selectAction = (actionId: string) => {
     setSelectedActionId(actionId);
     const entry = candidateById.get(actionId);
-    if (!fixedDayPart || fixedDayPart === "none") {
-      // Ohne Kontext-Tageszeit gibt die Handlung aus dem Plan die Vorbelegung vor.
-      setDayPart(entry?.action.dayPart ?? "none");
-      setScheduledTime(entry?.action.scheduledTime ?? "");
+    if (nightRollover) {
+      // Im Vortags-Abschnitt nur übernehmen, was auch dorthin zurückrollt.
+      const planned = entry?.action.scheduledTime ?? "";
+      setScheduledTime(planned && rolloverLimit && planned < rolloverLimit ? planned : "");
       return;
     }
-    // Im Vornacht-Abschnitt nur übernehmen, was auch dorthin zurückrollt.
-    if (nightRollover) {
-      const planned = entry?.action.scheduledTime ?? "";
-      setScheduledTime(planned && planned < ROLLOVER_CUTOFF ? planned : "");
+    if (!fixedDayPart || fixedDayPart === "none") {
+      // Ohne Kontext-Tageszeit gibt die Handlung aus dem Plan die Vorbelegung vor.
+      const plannedTime = entry?.action.scheduledTime ?? "";
+      setUseTime(!!plannedTime);
+      setScheduledTime(plannedTime);
+      setDayPart(plannedTime ? "none" : entry?.action.dayPart ?? "none");
     }
   };
 
-  // Ohne Uhrzeit vor 12:00 landet die Durchführung in der Nacht des gewählten Tages
-  // statt im Vornacht-Abschnitt des Folgetages. Die Meldung erscheint erst beim
-  // Bestätigen — vorher wäre sie ein Fehler, der noch nicht passiert ist.
-  const nightTimeMissing = nightRollover && (!scheduledTime || scheduledTime >= ROLLOVER_CUTOFF);
+  // Ohne Uhrzeit im Teil nach Mitternacht landet die Durchführung in der Nacht des
+  // gewählten Tages statt im Vortags-Abschnitt des Folgetages. Die Meldung erscheint
+  // erst beim Bestätigen — vorher wäre sie ein Fehler, der noch nicht passiert ist.
+  const nightTimeMissing =
+    nightRollover && (!scheduledTime || !rolloverLimit || scheduledTime >= rolloverLimit);
   const [showNightTimeError, setShowNightTimeError] = useState(false);
 
   const submit = () => {
@@ -134,8 +149,8 @@ export function OnDemandActionDialog({
       targetId: selected.targetId,
       action: selected.action,
       date,
-      dayPart,
-      scheduledTime: dayPart === "none" ? undefined : scheduledTime || undefined,
+      dayPart: useTime ? "none" : dayPart,
+      scheduledTime: useTime ? scheduledTime || undefined : undefined,
     });
   };
 
@@ -224,46 +239,58 @@ export function OnDemandActionDialog({
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label>Tageszeit</Label>
+              <Label>Zeitangabe</Label>
               <Select
-                value={dayPart}
-                disabled={!!fixedDayPart && fixedDayPart !== "none"}
-                onValueChange={(value) => setDayPart(value as DayPart | "none")}
+                value={useTime ? TIME_MODE_VALUE : dayPart}
+                disabled={nightRollover || (!!fixedDayPart && fixedDayPart !== "none")}
+                onValueChange={(value) => {
+                  if (value === TIME_MODE_VALUE) {
+                    setUseTime(true);
+                    setDayPart("none");
+                    return;
+                  }
+                  setUseTime(false);
+                  setScheduledTime("");
+                  setDayPart(value);
+                }}
               >
-                <SelectTrigger className="bg-background" aria-label="Tageszeit">
+                <SelectTrigger className="bg-background" aria-label="Zeitangabe">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {DAY_PART_SELECT_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
+                  <SelectItem value="none">Ohne Zeitangabe</SelectItem>
+                  {dayParts.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.title}
                     </SelectItem>
                   ))}
+                  <SelectItem value={TIME_MODE_VALUE}>Uhrzeit</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="on-demand-time">{nightRollover ? "Uhrzeit" : "Uhrzeit (optional)"}</Label>
-              <Input
-                id="on-demand-time"
-                type="time"
-                value={scheduledTime}
-                disabled={dayPart === "none"}
-                max={nightRollover ? "11:59" : undefined}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setScheduledTime(value);
-                  if (value && value < ROLLOVER_CUTOFF) setShowNightTimeError(false);
-                }}
-                className={cn("bg-background", showNightTimeError && "border-destructive")}
-              />
-              {showNightTimeError && (
-                <p className="text-xs text-destructive">
-                  Zwingend zwischen 00:00 und 11:59 — sonst wird die Handlung nicht der Vornacht
-                  zugeordnet.
-                </p>
-              )}
-            </div>
+            {useTime && (
+              <div className="space-y-1.5">
+                <Label htmlFor="on-demand-time">Uhrzeit</Label>
+                <Input
+                  id="on-demand-time"
+                  type="time"
+                  value={scheduledTime}
+                  max={nightRollover ? rolloverLimit : undefined}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setScheduledTime(value);
+                    if (value && rolloverLimit && value < rolloverLimit) setShowNightTimeError(false);
+                  }}
+                  className={cn("bg-background", showNightTimeError && "border-destructive")}
+                />
+                {showNightTimeError && (
+                  <p className="text-xs text-destructive">
+                    Zwingend zwischen 00:00 und {rolloverLimit} — sonst wird die Handlung nicht dem
+                    Vortag zugeordnet.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

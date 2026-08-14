@@ -1,6 +1,13 @@
 ﻿import { APPLICATION_BROWSER_STORAGE_KEYS } from "@/lib/application-storage";
 import type { ActionPlanDiscipline } from "@/lib/action-plan-disciplines";
-import type { ActionNode, ActionServiceEntry, ActionServiceType, DayPart } from "@/types/assessment";
+import type { ActionNode, ActionServiceEntry, ActionServiceType } from "@/types/assessment";
+import {
+  findDayPartById,
+  findDayPartByTitle,
+  getDayParts,
+  LEGACY_DAY_PART_IDS,
+  type DayPartDefinition,
+} from "@/lib/day-parts";
 
 export type TemplateFieldKey =
   | "titel"
@@ -334,7 +341,7 @@ export const initialTemplates: ActionPlanTemplate[] = [
       dauer: "20",
       personen: "1",
       kategorie: "a",
-      tageszeit: "morning(07:30)",
+      tageszeit: "07:30",
       resultat: "required",
       wiederholung: "daily",
       wiederholungMonatlich: "none",
@@ -7926,28 +7933,71 @@ export const initialTemplates: ActionPlanTemplate[] = [
 ];
 
 
-export function parseTageszeit(value: string): Array<{ dayPart: DayPart | "none"; scheduledTime?: string }> {
+export interface TemplateScheduleEntry {
+  dayPart?: string;
+  scheduledTime?: string;
+}
+
+/** Uhrzeit-Eintrag im Vorlagen-Feld, z. B. "07:30". */
+const TEMPLATE_TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/**
+ * Alte Kombiform "morning(07:30)" aus der Zeit, in der eine Tageszeit eine optionale
+ * Uhrzeit tragen konnte. Wird nur noch gelesen: die Uhrzeit gewinnt, die Tageszeit
+ * entfällt — dieselbe Regel wie bei der Migration bestehender Handlungen.
+ */
+const LEGACY_COMBINED_PATTERN = /^([a-z]+)\((\d{2}:\d{2})\)$/;
+
+/**
+ * Das Vorlagen-Feld codiert genau einen Modus: "none", eine Liste von
+ * Tageszeit-Titeln ("Morgen,Abend") oder eine Liste von Uhrzeiten ("07:30,11:00").
+ * Titel und nicht IDs, damit der Wert im CSV lesbar und tippbar bleibt.
+ */
+export function parseTageszeit(
+  value: string,
+  dayParts: DayPartDefinition[] = getDayParts(),
+): TemplateScheduleEntry[] {
   if (!value) return [];
-  return value
+
+  const parts = value
     .split(",")
     .map((entry) => entry.trim())
     .filter(Boolean)
-    .flatMap((entry) => {
-      if (entry === "none") return [{ dayPart: "none" as const }];
-      const match = entry.match(/^([a-z]+)(?:\((\d{2}:\d{2})\))?$/);
-      if (!match) return [];
-      const dayPart = match[1] as DayPart;
-      const validDayParts: DayPart[] = ["morning", "noon", "afternoon", "evening", "night"];
-      if (!validDayParts.includes(dayPart)) return [];
-      return [{ dayPart, scheduledTime: match[2] || undefined }];
-    });
+    .filter((entry) => entry !== "none");
+
+  const legacyTimes = parts
+    .map((entry) => entry.match(LEGACY_COMBINED_PATTERN)?.[2])
+    .filter((time): time is string => !!time);
+  if (legacyTimes.length > 0) {
+    return legacyTimes.map((scheduledTime) => ({ scheduledTime }));
+  }
+
+  const times = parts.filter((entry) => TEMPLATE_TIME_PATTERN.test(entry));
+  if (times.length > 0) {
+    return times.map((scheduledTime) => ({ scheduledTime }));
+  }
+
+  return parts.flatMap((entry) => {
+    const dayPart =
+      findDayPartByTitle(entry, dayParts) ??
+      findDayPartById(LEGACY_DAY_PART_IDS[entry] ?? entry, dayParts);
+    return dayPart ? [{ dayPart: dayPart.id }] : [];
+  });
 }
 
-export function serializeTageszeit(entries: Array<{ dayPart: DayPart | "none"; scheduledTime?: string }>): string {
-  if (entries.length === 0) return "none";
-  return entries
-    .map(({ dayPart, scheduledTime }) => (dayPart !== "none" && scheduledTime) ? `${dayPart}(${scheduledTime})` : dayPart)
-    .join(",");
+export function serializeTageszeit(
+  entries: TemplateScheduleEntry[],
+  dayParts: DayPartDefinition[] = getDayParts(),
+): string {
+  const times = entries
+    .map((entry) => entry.scheduledTime?.trim())
+    .filter((time): time is string => !!time);
+  if (times.length > 0) return times.join(",");
+
+  const titles = entries
+    .map((entry) => findDayPartById(entry.dayPart, dayParts)?.title)
+    .filter((title): title is string => !!title);
+  return titles.length > 0 ? titles.join(",") : "none";
 }
 
 const migrateTemplateFields = (fields: Record<string, string>): Record<TemplateFieldKey, string> => {
@@ -7978,7 +8028,13 @@ export const loadActionPlanTemplates = (): ActionPlanTemplate[] => {
         : [],
       fields: migrateTemplateFields(template.fields ?? {}),
       editable: { ...buildDefaultTemplateEditable(true), ...(template.editable ?? {}) },
-      required: { ...buildDefaultTemplateRequired(), ...(template.required ?? {}) },
+      required: {
+        ...buildDefaultTemplateRequired(),
+        ...(template.required ?? {}),
+        // Die Zeitangabe hat immer einen Wert ("Ohne Zeitangabe" als Vorgabe), darum
+        // ist "zwingend" hier wirkungslos und nicht mehr einstellbar.
+        tageszeit: false,
+      },
     }));
   } catch {
     return initialTemplates;

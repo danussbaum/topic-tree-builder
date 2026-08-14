@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { format } from "date-fns";
 import {
@@ -32,7 +32,13 @@ import {
   Moon,
   LayoutGrid,
 } from "lucide-react";
-import { rollsToNextDay, shiftISODate } from "@/lib/day-part-rollover";
+import {
+  effectiveDayPart,
+  rollsToNextDay,
+  scheduleSortKey,
+  shiftISODate,
+} from "@/lib/day-part-rollover";
+import { getDayParts } from "@/lib/day-parts";
 import { buildInhouseSpitexSeedTopics } from "@/lib/inhouse-spitex-seed";
 import { ClientSidebar, ClientSidebarTrigger } from "@/components/assessment/ClientSidebar";
 import { ModuleNav } from "@/components/ModuleNav";
@@ -56,11 +62,9 @@ import type {
   ActionServiceEntry,
   Client,
   ConfirmedOptionalService,
-  DayPart,
   TopicNode,
   Weekday,
 } from "@/types/assessment";
-import { DAY_PART_LABEL, DAY_PART_ORDER } from "@/types/assessment";
 import {
   matchesAssessmentFilter,
   type AssessmentFilterModel,
@@ -131,13 +135,6 @@ const OPERATOR_OPTIONS: Array<{ value: NumericComparison["op"]; label: ">" | "<"
 const COMPACT_FILTER_INPUT_CLASS = "h-8 px-2 text-xs";
 const COMPACT_FILTER_SELECT_CLASS = "h-8 px-2 text-xs";
 
-const DAY_PART_FILTER_ICONS: Record<DayPart, typeof Sunrise> = {
-  morning: Sunrise,
-  noon: Utensils,
-  afternoon: Sun,
-  evening: Sunset,
-  night: Moon,
-};
 
 const INITIAL_CONFIRMATION_FILTER: AssessmentFilterModel = {
   statuses: ["open", "postponed"],
@@ -1066,7 +1063,7 @@ const Index = () => {
     });
   };
 
-  const toggleDraftDayPart = (dayPart: DayPart) => {
+  const toggleDraftDayPart = (dayPart: string) => {
     updateDraftFilter((prev) => {
       const selected = prev.dayParts ?? [];
       const dayParts = selected.includes(dayPart)
@@ -1196,7 +1193,7 @@ const Index = () => {
     targetId: string,
     templateIds: string[],
     overrides?: Partial<ActionNode>,
-    panelDayPartEntries?: Array<{ dayPart?: DayPart | "none"; scheduledTime?: string }>,
+    panelDayPartEntries?: Array<{ dayPart?: string; scheduledTime?: string }>,
   ) => {
     const templates = loadActionPlanTemplates().filter((template) => templateIds.includes(template.id));
     const weekdayMap: Record<string, Weekday> = {
@@ -1226,15 +1223,16 @@ const Index = () => {
         .map((value) => weekdayMap[value.trim().toLowerCase()])
         .filter((value): value is Weekday => Boolean(value));
 
-      const tageszeitEntries = panelDayPartEntries !== undefined
-        ? panelDayPartEntries.map(({ dayPart, scheduledTime }) => ({
-            dayPart: (dayPart && dayPart !== "none") ? (dayPart as DayPart) : undefined,
-            scheduledTime: (dayPart && dayPart !== "none") ? scheduledTime : undefined,
-          }))
-        : parseTageszeit(fields.tageszeit).map(({ dayPart, scheduledTime }) => ({
-            dayPart: dayPart === "none" ? undefined : dayPart,
-            scheduledTime: dayPart === "none" ? undefined : scheduledTime,
-          }));
+      // Strikte Trennung: ein Eintrag trägt entweder eine Tageszeit oder eine Uhrzeit.
+      const toScheduleEntry = ({ dayPart, scheduledTime }: { dayPart?: string; scheduledTime?: string }) =>
+        scheduledTime?.trim()
+          ? { dayPart: undefined, scheduledTime }
+          : { dayPart: dayPart && dayPart !== "none" ? dayPart : undefined, scheduledTime: undefined };
+
+      const tageszeitEntries = (panelDayPartEntries !== undefined
+        ? panelDayPartEntries
+        : parseTageszeit(fields.tageszeit)
+      ).map(toScheduleEntry);
       const groupId = uid();
 
       const baseAction: Omit<ActionNode, "id" | "dayPart" | "scheduledTime"> = {
@@ -1346,7 +1344,7 @@ const Index = () => {
   const addUnplannedAction = (
     clientId: string,
     dueDate: string,
-    dayPart: DayPart | "none",
+    dayPart: string,
     draft: {
       title: string;
       notes: string;
@@ -1363,7 +1361,7 @@ const Index = () => {
       templateId?: string;
       templateName?: string;
       templateLockedFields?: string[];
-      dayPart?: DayPart | "none";
+      dayPart?: string;
       dateFrom?: string;
       dateTo?: string;
     },
@@ -1643,6 +1641,15 @@ const Index = () => {
         if (target?.validTo && value > target.validTo) return currentAction;
       }
 
+      // Strikte Trennung: Tageszeit und Uhrzeit schliessen sich aus — wird das eine
+      // gesetzt, fällt das andere weg.
+      if (field === "dayPart" && value) {
+        return { ...currentAction, dayPart: value as string, scheduledTime: undefined };
+      }
+      if (field === "scheduledTime" && value) {
+        return { ...currentAction, scheduledTime: value as string, dayPart: undefined };
+      }
+
       return { ...currentAction, [field]: value };
     })();
 
@@ -1692,7 +1699,7 @@ const Index = () => {
     targetId: string,
     groupId: string,
     sharedFields: Partial<Omit<ActionNode, "id" | "groupId" | "dayPart" | "scheduledTime" | "confirmations" | "isUnplanned">>,
-    dayPartEntries: Array<{ dayPart?: import("@/types/assessment").DayPart; scheduledTime?: string; existingActionId?: string }>,
+    dayPartEntries: Array<{ dayPart?: string; scheduledTime?: string; existingActionId?: string }>,
   ) => {
     updateClientTopicsFor(clientId, (topics) =>
       topics.map((t) => {
@@ -1798,6 +1805,11 @@ const Index = () => {
 
                         const nextConfirmations = { ...(a.confirmations || {}) };
 
+                        // Die Tageszeit wird im Uhrzeit-Modus laufend aus der Konfiguration
+                        // abgeleitet — beim Bestätigen wird sie darum festgehalten, damit
+                        // Historie und Auswertungen von späteren Änderungen unabhängig sind.
+                        const dayPartSnapshot = effectiveDayPart(a);
+
                         const existing = nextConfirmations[date];
                         const postponementAudit = existing
                           ? {
@@ -1814,6 +1826,7 @@ const Index = () => {
                           nextConfirmations[date] = {
                             status: "done_as_planned",
                             serviceType: a.serviceType,
+                            dayPartSnapshot,
                             done: true,
                             actualMinutes: a.plannedMinutes,
                             result: payload.result,
@@ -1826,6 +1839,7 @@ const Index = () => {
                           nextConfirmations[date] = {
                             status: "done_with_deviation",
                             serviceType: a.serviceType,
+                            dayPartSnapshot,
                             done: true,
                             actualMinutes: payload.actualMinutes,
                             reason: payload.reason,
@@ -1838,6 +1852,7 @@ const Index = () => {
                         } else if (payload.status === "not_done") {
                           nextConfirmations[date] = {
                             status: "not_done",
+                            dayPartSnapshot,
                             done: true,
                             reason: payload.reason,
                             ...postponementAudit,
@@ -2165,7 +2180,9 @@ const Index = () => {
       Timestamp: confirmation?.confirmedAt ?? "",
       "Gültig ab": action.validFrom ?? "",
       "Gültig bis": action.validTo ?? "",
-      "Tageszeit": action.dayPart ? DAY_PART_LABEL[action.dayPart] : "ohne",
+      // Bei bestätigten Durchführungen gilt der Snapshot, sonst die abgeleitete
+      // Tageszeit — der Export zeigt damit dieselbe Zuordnung wie die Umsetzung.
+      "Tageszeit": (confirmation?.dayPartSnapshot ?? effectiveDayPart(action))?.title ?? "ohne",
       "Uhrzeit": action.scheduledTime ?? "",
       Klassifizierung: action.category ? `KLV ${action.category.toUpperCase()}` : "",
       Leistungsarten: (action.serviceEntries ?? []).map((e) => {
@@ -2689,18 +2706,18 @@ const Index = () => {
                     <div className="space-y-1">
                       <div className="text-xs font-medium">Tageszeit</div>
                       <div className="max-h-24 space-y-0.5 overflow-y-auto rounded-md border border-border bg-background p-1">
-                        {(DAY_PART_ORDER.filter((p) => p !== "none") as DayPart[]).map((dayPart) => (
+                        {getDayParts().map((dayPart) => (
                           <label
-                            key={dayPart}
+                            key={dayPart.id}
                             className="flex cursor-pointer items-center gap-1.5 rounded px-1.5 py-0.5 text-xs leading-tight hover:bg-secondary/50"
                           >
                             <input
                               type="checkbox"
-                              checked={(draftFilter.dayParts ?? []).includes(dayPart)}
-                              onChange={() => toggleDraftDayPart(dayPart)}
+                              checked={(draftFilter.dayParts ?? []).includes(dayPart.id)}
+                              onChange={() => toggleDraftDayPart(dayPart.id)}
                               className="h-3.5 w-3.5 rounded border-border accent-primary"
                             />
-                            <span>{DAY_PART_LABEL[dayPart]}</span>
+                            <span>{dayPart.title}</span>
                           </label>
                         ))}
                       </div>
@@ -2994,23 +3011,22 @@ const Index = () => {
                     right={
                       <>
                       <div className="flex items-center gap-1">
-                        {(DAY_PART_ORDER.filter((p) => p !== "none") as DayPart[]).map((dayPart) => {
-                          const Icon = DAY_PART_FILTER_ICONS[dayPart];
-                          const isActive = (confirmationFilter.dayParts ?? []).includes(dayPart);
+                        {getDayParts().map((dayPart) => {
+                          const isActive = (confirmationFilter.dayParts ?? []).includes(dayPart.id);
                           return (
                             <button
-                              key={dayPart}
+                              key={dayPart.id}
                               type="button"
                               onClick={() =>
                                 setConfirmationFilter((prev) => {
                                   const selected = prev.dayParts ?? [];
-                                  const dayParts = selected.includes(dayPart)
-                                    ? selected.filter((d) => d !== dayPart)
-                                    : [...selected, dayPart];
+                                  const dayParts = selected.includes(dayPart.id)
+                                    ? selected.filter((d) => d !== dayPart.id)
+                                    : [...selected, dayPart.id];
                                   return { ...prev, dayParts: dayParts.length > 0 ? dayParts : undefined };
                                 })
                               }
-                              title={DAY_PART_LABEL[dayPart]}
+                              title={`${dayPart.from} – ${dayPart.to}`}
                               className={cn(
                                 "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium transition-colors",
                                 isActive
@@ -3018,8 +3034,7 @@ const Index = () => {
                                   : "border-border bg-background text-muted-foreground hover:border-primary/40 hover:bg-secondary/60",
                               )}
                             >
-                              <Icon className="h-3 w-3" />
-                              {DAY_PART_LABEL[dayPart]}
+                              {dayPart.title}
                             </button>
                           );
                         })}
@@ -3248,9 +3263,9 @@ const Index = () => {
                                       groupMap.set(action.groupId, existing);
                                     }
                                     const groups = Array.from(groupMap.values()).sort((a, b) => {
-                                      const aMin = Math.min(...a.map((n) => DAY_PART_ORDER.indexOf(n.dayPart ?? "none")));
-                                      const bMin = Math.min(...b.map((n) => DAY_PART_ORDER.indexOf(n.dayPart ?? "none")));
-                                      return aMin - bMin;
+                                      const aMin = a.map((n) => scheduleSortKey(n)).sort()[0] ?? "";
+                                      const bMin = b.map((n) => scheduleSortKey(n)).sort()[0] ?? "";
+                                      return aMin.localeCompare(bMin);
                                     });
                                     return (
                                       <div className="border-t border-border pt-3">
@@ -3604,12 +3619,13 @@ const Index = () => {
                             if (dayPartEntries !== undefined && dayPartEntries.length === 0) {
                               addUnplannedAction(client.id, draft.dateFrom ?? "", "none", { ...draft, scheduledTime: undefined });
                             } else {
-                              const entries = dayPartEntries && dayPartEntries.length > 0
-                                ? dayPartEntries
-                                : [{ dayPart: (draft.dayPart && draft.dayPart !== "none" ? draft.dayPart : "morning") as DayPart, scheduledTime: draft.scheduledTime }];
-                              entries.forEach(({ dayPart, scheduledTime }) =>
-                                addUnplannedAction(client.id, draft.dateFrom ?? "", dayPart, { ...draft, scheduledTime }),
-                              );
+                              const entries: Array<{ dayPart?: string; scheduledTime?: string }> =
+                                dayPartEntries && dayPartEntries.length > 0
+                                  ? dayPartEntries
+                                  : [{ dayPart: draft.dayPart, scheduledTime: draft.scheduledTime }];
+                              entries.forEach(({ dayPart, scheduledTime }) => {
+                                addUnplannedAction(client.id, draft.dateFrom ?? "", dayPart ?? "none", { ...draft, scheduledTime });
+                              });
                             }
                             setPersonUnplannedClientId(null);
                           }}

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { DAY_PART_SELECT_OPTIONS } from "@/types/assessment";
+import { DAY_PART_SEED_IDS } from "@/lib/day-parts";
 import {
   ACTION_PLAN_TEMPLATES_STORAGE_KEY,
   ACTION_SERVICE_TYPE_SELECT_OPTIONS,
@@ -22,13 +22,14 @@ afterEach(() => {
 });
 
 describe("normalizeTemplateSelectValue", () => {
-  it("normalisiert importierte Tageszeit-Labels auf gespeicherte Werte", () => {
-    expect(normalizeTemplateSelectValue("Nachmittag", DAY_PART_SELECT_OPTIONS)).toBe("afternoon");
-    expect(normalizeTemplateSelectValue(" nachmittag ", DAY_PART_SELECT_OPTIONS)).toBe("afternoon");
+  it("normalisiert importierte Labels auf gespeicherte Werte", () => {
+    const options = [{ value: "a", label: "KLV A" }, { value: "b", label: "KLV B" }];
+    expect(normalizeTemplateSelectValue("KLV B", options)).toBe("b");
+    expect(normalizeTemplateSelectValue(" klv b ", options)).toBe("b");
   });
 
-  it("behält bereits exportierte Tageszeit-Werte bei", () => {
-    expect(normalizeTemplateSelectValue("afternoon", DAY_PART_SELECT_OPTIONS)).toBe("afternoon");
+  it("behält bereits exportierte Werte bei", () => {
+    expect(normalizeTemplateSelectValue("b", [{ value: "b", label: "KLV B" }])).toBe("b");
   });
 
   it("normalisiert leere Select-Importe auf den internen Leerwert", () => {
@@ -37,13 +38,17 @@ describe("normalizeTemplateSelectValue", () => {
 });
 
 describe("action plan template fields", () => {
-  it("codiert die optionale Uhrzeit als Zusatz in der Tageszeit", () => {
-    // Die Uhrzeit ist kein eigenes Vorlagenfeld mehr, sondern steckt im tageszeit-Wert.
+  it("codiert die Zeitangabe als einzelnen Modus im tageszeit-Feld", () => {
+    // Die Uhrzeit ist kein eigenes Vorlagenfeld, sondern steckt im tageszeit-Wert.
     expect(buildDefaultTemplateFields()).not.toHaveProperty("uhrzeit");
 
-    const serialized = serializeTageszeit([{ dayPart: "afternoon", scheduledTime: "14:00" }]);
-    expect(serialized).toBe("afternoon(14:00)");
-    expect(parseTageszeit(serialized)).toEqual([{ dayPart: "afternoon", scheduledTime: "14:00" }]);
+    // Uhrzeit-Modus: nur Uhrzeiten, keine Tageszeit.
+    expect(serializeTageszeit([{ scheduledTime: "14:00" }])).toBe("14:00");
+    expect(parseTageszeit("14:00")).toEqual([{ scheduledTime: "14:00" }]);
+
+    // Tageszeit-Modus: Titel, damit der Wert im CSV lesbar bleibt.
+    expect(serializeTageszeit([{ dayPart: DAY_PART_SEED_IDS.afternoon }])).toBe("Nachmittag");
+    expect(parseTageszeit("Nachmittag")).toEqual([{ dayPart: DAY_PART_SEED_IDS.afternoon }]);
   });
 
   it("stellt Leistungsart als internes Vorlagenfeld ohne Veränderbarkeit bereit", () => {

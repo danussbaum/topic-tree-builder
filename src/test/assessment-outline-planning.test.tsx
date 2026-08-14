@@ -1,4 +1,4 @@
-import { render, screen, within, fireEvent } from "@testing-library/react";
+﻿import { render, screen, within, fireEvent } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { AssessmentOutline } from "@/components/assessment/AssessmentOutline";
 import type { ActionPlanDiscipline } from "@/lib/action-plan-disciplines";
@@ -223,14 +223,12 @@ describe("Mehrfache Durchführungen pro Tageszeit", () => {
   const nightGroup: ActionNode[] = [
     {
       ...action("act-n1", "grp-night", "Umlagern"),
-      dayPart: "night",
       scheduledTime: "22:00",
       recurrence: "daily",
       validFrom: "2026-08-01",
     },
     {
       ...action("act-n2", "grp-night", "Umlagern"),
-      dayPart: "night",
       scheduledTime: "01:00",
       recurrence: "daily",
       validFrom: "2026-08-01",
@@ -285,8 +283,8 @@ describe("Mehrfache Durchführungen pro Tageszeit", () => {
   it("zeigt jede Uhrzeit der Gruppe als eigene Zeile mit Rollover-Hinweis", () => {
     renderWithGroup();
 
-    expect(screen.getByLabelText("Uhrzeit Nacht 1")).toHaveValue("01:00");
-    expect(screen.getByLabelText("Uhrzeit Nacht 2")).toHaveValue("22:00");
+    expect(screen.getByLabelText("Uhrzeit 1")).toHaveValue("01:00");
+    expect(screen.getByLabelText("Uhrzeit 2")).toHaveValue("22:00");
     // 01:00 ist am Folgetag fällig, 22:00 am Planungstag.
     expect(screen.getAllByText("(+1 Tag)")).toHaveLength(1);
   });
@@ -294,32 +292,32 @@ describe("Mehrfache Durchführungen pro Tageszeit", () => {
   it("legt über den Plus-Button eine weitere Durchführung an", () => {
     const onUpdateActionGroup = renderWithGroup();
 
-    fireEvent.click(screen.getByRole("button", { name: "Weitere Uhrzeit Nacht" }));
-    fireEvent.change(screen.getByLabelText("Uhrzeit Nacht 3"), { target: { value: "04:00" } });
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Uhrzeit" }));
+    fireEvent.change(screen.getByLabelText("Uhrzeit 3"), { target: { value: "04:00" } });
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     expect(onUpdateActionGroup).toHaveBeenCalledTimes(1);
     const entries = onUpdateActionGroup.mock.calls[0][4];
     expect(entries).toEqual([
-      { dayPart: "night", scheduledTime: "01:00", existingActionId: "act-n2" },
-      { dayPart: "night", scheduledTime: "04:00", existingActionId: undefined },
-      { dayPart: "night", scheduledTime: "22:00", existingActionId: "act-n1" },
+      { dayPart: undefined, scheduledTime: "01:00", existingActionId: "act-n2" },
+      { dayPart: undefined, scheduledTime: "04:00", existingActionId: undefined },
+      { dayPart: undefined, scheduledTime: "22:00", existingActionId: "act-n1" },
     ]);
   });
 
   it("setzt den Fokus auf das neue Uhrzeit-Feld", () => {
     renderWithGroup();
 
-    fireEvent.click(screen.getByRole("button", { name: "Weitere Uhrzeit Nacht" }));
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Uhrzeit" }));
 
-    expect(screen.getByLabelText("Uhrzeit Nacht 3")).toHaveFocus();
+    expect(screen.getByLabelText("Uhrzeit 3")).toHaveFocus();
   });
 
   it("verweigert das Speichern bei doppelter Uhrzeit in derselben Tageszeit", () => {
     const onUpdateActionGroup = renderWithGroup();
 
-    fireEvent.click(screen.getByRole("button", { name: "Weitere Uhrzeit Nacht" }));
-    fireEvent.change(screen.getByLabelText("Uhrzeit Nacht 3"), { target: { value: "22:00" } });
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Uhrzeit" }));
+    fireEvent.change(screen.getByLabelText("Uhrzeit 3"), { target: { value: "22:00" } });
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     expect(onUpdateActionGroup).not.toHaveBeenCalled();
@@ -332,7 +330,7 @@ describe("Mehrfache Durchführungen pro Tageszeit", () => {
     const onUpdateActionGroup = renderWithGroup();
 
     // 01:00 ist die erste Zeile und hat eine Bestätigung.
-    fireEvent.click(screen.getByRole("button", { name: "Uhrzeit Nacht 1 entfernen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Uhrzeit 1 entfernen" }));
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     expect(onUpdateActionGroup).not.toHaveBeenCalled();

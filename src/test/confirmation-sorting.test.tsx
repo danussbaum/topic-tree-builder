@@ -2,17 +2,19 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { AssessmentOutline } from "@/components/assessment/AssessmentOutline";
 import type { ActionNode, TopicNode } from "@/types/assessment";
+import { DAY_PART_SEED_IDS } from "@/lib/day-parts";
 
 const action = (
   title: string,
   dayPart: ActionNode["dayPart"],
   scheduledTime?: string,
 ): ActionNode => ({
+  // Strikte Trennung: mit Uhrzeit wird die Tageszeit abgeleitet, nicht gesetzt.
   id: `action-${title}`,
   groupId: `grp-${title}`,
   title,
   notes: "",
-  dayPart,
+  dayPart: scheduledTime ? undefined : dayPart,
   scheduledTime,
   plannedMinutes: 10,
   validFrom: "2026-05-01",
@@ -32,11 +34,11 @@ const topics: TopicNode[] = [
         title: "Ziel",
         notes: "",
         actions: [
-          action("Zweite ohne Uhrzeit", "morning"),
-          action("Spät am Morgen", "morning", "09:45"),
-          action("Erste ohne Uhrzeit", "morning"),
-          action("Früh am Morgen", "morning", "07:05"),
-          action("Am Nachmittag", "afternoon", "14:00"),
+          action("Zweite ohne Uhrzeit", DAY_PART_SEED_IDS.morning),
+          action("Spät am Morgen", undefined, "09:45"),
+          action("Erste ohne Uhrzeit", DAY_PART_SEED_IDS.morning),
+          action("Früh am Morgen", undefined, "07:05"),
+          action("Am Nachmittag", undefined, "14:00"),
         ],
       },
     ],
@@ -108,7 +110,6 @@ describe("Einordnung verschobener Nacht-Handlungen", () => {
               done: false,
               validFrom: "2026-08-01",
               recurrence: "daily",
-              dayPart: "night",
               scheduledTime: "22:00",
             },
             {
@@ -120,7 +121,6 @@ describe("Einordnung verschobener Nacht-Handlungen", () => {
               done: false,
               validFrom: "2026-08-01",
               recurrence: "daily",
-              dayPart: "night",
               scheduledTime: "01:00",
             },
             {
@@ -132,7 +132,6 @@ describe("Einordnung verschobener Nacht-Handlungen", () => {
               done: false,
               validFrom: "2026-08-01",
               recurrence: "daily",
-              dayPart: "morning",
               scheduledTime: "07:30",
             },
           ],
@@ -141,7 +140,7 @@ describe("Einordnung verschobener Nacht-Handlungen", () => {
     },
   ];
 
-  it("zeigt die Vornacht vor dem Morgen und die eigene Nacht danach", () => {
+  it("zeigt den Vortags-Abschnitt vor dem Morgen und die eigene Nacht danach", () => {
     render(
       <AssessmentOutline
         viewMode="confirmation"
@@ -167,11 +166,11 @@ describe("Einordnung verschobener Nacht-Handlungen", () => {
     );
 
     const order = screen
-      .getAllByText(/^(Nacht \(Vornacht\)|Morgen|Nacht|Umlagern frueh|Umlagern spaet|Koerperpflege)$/)
+      .getAllByText(/^(Nacht \(Vortag\)|Morgen|Nacht|Umlagern frueh|Umlagern spaet|Koerperpflege)$/)
       .map((el) => el.textContent);
 
     expect(order).toEqual([
-      "Nacht (Vornacht)",
+      "Nacht (Vortag)",
       "Umlagern frueh",
       "Morgen",
       "Koerperpflege",

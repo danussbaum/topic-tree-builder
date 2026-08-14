@@ -1,4 +1,5 @@
-import type { ActionNode, DayPart, TopicNode } from "@/types/assessment";
+import type { ActionNode, TopicNode } from "@/types/assessment";
+import { DAY_PART_SEED_IDS } from "@/lib/day-parts";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -7,11 +8,15 @@ const SPITEX_SEED_START = "2026-08-01";
 /**
  * Beispielplanung Inhouse-Spitex: Handlungen entsprechen den vorgeseedeten
  * Handlungsarten samt deren Hilfsmitteln und starten alle am selben Datum.
+ *
+ * Bewusst gemischt: die meisten Handlungen sind im Uhrzeit-Modus erfasst (ihre
+ * Tageszeit wird abgeleitet), zwei im Tageszeit-Modus ohne Uhrzeit — genau der
+ * Fall, für den die Umsetzung die konfigurierten Tageszeiten braucht.
  */
 export const buildInhouseSpitexSeedTopics = (): TopicNode[] => {
   const action = (
     title: string,
-    fields: Partial<ActionNode> & { dayPart: DayPart; plannedMinutes: number },
+    fields: Partial<ActionNode> & { plannedMinutes: number },
   ): ActionNode => ({
     id: uid(),
     groupId: uid(),
@@ -32,12 +37,12 @@ export const buildInhouseSpitexSeedTopics = (): TopicNode[] => {
    */
   const repeatedAction = (
     title: string,
-    times: Array<{ dayPart: DayPart; scheduledTime: string }>,
+    times: string[],
     fields: Partial<ActionNode> & { plannedMinutes: number },
   ): ActionNode[] => {
     const groupId = uid();
-    return times.map(({ dayPart, scheduledTime }) => ({
-      ...action(title, { ...fields, dayPart, scheduledTime }),
+    return times.map((scheduledTime) => ({
+      ...action(title, { ...fields, scheduledTime }),
       groupId,
     }));
   };
@@ -58,7 +63,6 @@ export const buildInhouseSpitexSeedTopics = (): TopicNode[] => {
           validFrom: SPITEX_SEED_START,
           actions: [
             action("10102 Ganzwäsche in Bad, Dusche oder am Lavabo", {
-              dayPart: "morning",
               scheduledTime: "07:30",
               plannedMinutes: 40,
               category: "c",
@@ -70,7 +74,6 @@ export const buildInhouseSpitexSeedTopics = (): TopicNode[] => {
               ],
             }),
             action("10112 Zahnpflege", {
-              dayPart: "morning",
               scheduledTime: "08:15",
               plannedMinutes: 5,
               category: "c",
@@ -78,12 +81,21 @@ export const buildInhouseSpitexSeedTopics = (): TopicNode[] => {
               resourceIds: ["resource-zahnpflegeset"],
             }),
             action("10115 Kompressionsstrümpfe/-verband", {
-              dayPart: "morning",
               scheduledTime: "08:30",
               plannedMinutes: 10,
               category: "b",
               serviceEntries: [{ serviceType: "spitex-klv-b" }],
               resourceIds: ["resource-kompressionsstruempfe", "resource-anziehhilfe"],
+            }),
+            // Nach Bedarf: Die Tochter übernimmt die Kompressionsstrümpfe an Wochenenden
+            // und wird dafür angeleitet, wenn sie da ist.
+            action("10909 Pflegeanleitung/Beratung Klientin oder Angehörige", {
+              dayPart: DAY_PART_SEED_IDS.afternoon,
+              plannedMinutes: 15,
+              category: "a",
+              recurrence: "on_demand",
+              resultRequirement: "required",
+              serviceEntries: [{ serviceType: "spitex-klv-a" }],
             }),
           ],
         },
@@ -94,8 +106,8 @@ export const buildInhouseSpitexSeedTopics = (): TopicNode[] => {
           validFrom: SPITEX_SEED_START,
           actions: [
             action("10109 Nägel schneiden Zehen", {
-              dayPart: "afternoon",
-              scheduledTime: "14:00",
+              // Tageszeit-Modus: findet irgendwann am Nachmittag statt, ohne fixe Uhrzeit.
+              dayPart: DAY_PART_SEED_IDS.afternoon,
               plannedMinutes: 15,
               category: "c",
               recurrence: "monthly",
@@ -124,7 +136,6 @@ export const buildInhouseSpitexSeedTopics = (): TopicNode[] => {
           validFrom: SPITEX_SEED_START,
           actions: [
             action("10503 Aufstehen oder Hinlegen mit Hilfe", {
-              dayPart: "morning",
               scheduledTime: "07:15",
               plannedMinutes: 15,
               category: "c",
@@ -140,11 +151,7 @@ export const buildInhouseSpitexSeedTopics = (): TopicNode[] => {
             // sind laut Rollover-Regel am Folgetag fällig, 22:00 am Planungstag.
             ...repeatedAction(
               "10501 Lagerung der Klientin im Bett",
-              [
-                { dayPart: "night", scheduledTime: "22:00" },
-                { dayPart: "night", scheduledTime: "01:00" },
-                { dayPart: "night", scheduledTime: "04:00" },
-              ],
+              ["22:00", "01:00", "04:00"],
               {
                 plannedMinutes: 10,
                 category: "c",
@@ -156,6 +163,15 @@ export const buildInhouseSpitexSeedTopics = (): TopicNode[] => {
                 ],
               },
             ),
+            // Nach Bedarf ohne Zeitangabe: kann zu jeder Tages- und Nachtzeit anfallen.
+            // Bei Unsicherheit wird der Toilettengang begleitet statt allein gewagt.
+            action("10419 Begleitung bei Toilettengang", {
+              plannedMinutes: 10,
+              category: "c",
+              recurrence: "on_demand",
+              serviceEntries: [{ serviceType: "spitex-klv-c" }],
+              resourceIds: ["resource-rollator", "resource-rutschbrett"],
+            }),
           ],
         },
         {
@@ -165,8 +181,7 @@ export const buildInhouseSpitexSeedTopics = (): TopicNode[] => {
           validFrom: SPITEX_SEED_START,
           actions: [
             action("10505 Hilfe beim Gehen", {
-              dayPart: "afternoon",
-              scheduledTime: "15:30",
+              dayPart: DAY_PART_SEED_IDS.afternoon,
               plannedMinutes: 20,
               category: "b",
               recurrence: "weekly",
@@ -192,7 +207,6 @@ export const buildInhouseSpitexSeedTopics = (): TopicNode[] => {
           validFrom: SPITEX_SEED_START,
           actions: [
             action("10702 Mittlerer Verband", {
-              dayPart: "morning",
               scheduledTime: "09:00",
               plannedMinutes: 20,
               category: "b",
@@ -211,11 +225,35 @@ export const buildInhouseSpitexSeedTopics = (): TopicNode[] => {
               ],
             }),
             action("10801 Gesundheitskontrolle (Vitalparameter)", {
-              dayPart: "morning",
               scheduledTime: "09:30",
               plannedMinutes: 10,
               category: "b",
               resultRequirement: "required",
+              serviceEntries: [{ serviceType: "spitex-klv-b" }],
+            }),
+            // Nach Bedarf: Zwischenverbandwechsel, wenn der Verband vor dem nächsten
+            // geplanten Termin durchnässt oder verrutscht ist.
+            action("10701 Kleiner Verband", {
+              plannedMinutes: 15,
+              category: "b",
+              recurrence: "on_demand",
+              resultRequirement: "required",
+              serviceEntries: [{ serviceType: "spitex-klv-b" }],
+              optionalServiceTypes: ["material-tape-1m"],
+              resourceIds: [
+                "resource-verbandmaterial-klein",
+                "resource-wundauflage-steril",
+                "resource-kompressen",
+                "resource-einmalhandschuhe",
+                "resource-desinfektionsmittel",
+              ],
+            }),
+            // Nach Bedarf: Schmerzreserve, in der Regel vor dem Verbandwechsel.
+            action("10603 Medikamentenverabreichung", {
+              plannedMinutes: 10,
+              category: "b",
+              recurrence: "on_demand",
+              resultRequirement: "optional",
               serviceEntries: [{ serviceType: "spitex-klv-b" }],
             }),
           ],

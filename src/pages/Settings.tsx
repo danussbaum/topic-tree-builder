@@ -19,6 +19,10 @@ import {
   type ActionPlanResourcesHandle,
 } from "@/components/settings/ActionPlanResourcesView";
 import {
+  ActionPlanDayPartsView,
+  type ActionPlanDayPartsHandle,
+} from "@/components/settings/ActionPlanDayPartsView";
+import {
   SettingsRibbon,
   type SettingsRibbonAction,
 } from "@/components/settings/SettingsRibbon";
@@ -31,28 +35,33 @@ const Settings = () => {
   const [showActionPlanDisciplines, setShowActionPlanDisciplines] =
     useState(false);
   const [showActionPlanResources, setShowActionPlanResources] = useState(false);
+  const [showActionPlanDayParts, setShowActionPlanDayParts] = useState(false);
   const templatesRef = useRef<ActionPlanTemplatesHandle | null>(null);
   const disciplinesRef = useRef<ActionPlanDisciplinesHandle | null>(null);
   const resourcesRef = useRef<ActionPlanResourcesHandle | null>(null);
+  const dayPartsRef = useRef<ActionPlanDayPartsHandle | null>(null);
   const [templateSearchQuery, setTemplateSearchQuery] = useState("");
   const [disciplineSearchQuery, setDisciplineSearchQuery] = useState("");
   const [resourceSearchQuery, setResourceSearchQuery] = useState("");
+  const [dayPartSearchQuery, setDayPartSearchQuery] = useState("");
 
   const handleBackToSettings = () => {
     setShowPermissionLevels(false);
     setShowActionPlanTemplates(false);
     setShowActionPlanDisciplines(false);
     setShowActionPlanResources(false);
+    setShowActionPlanDayParts(false);
   };
 
   /** Nur eine Unterseite ist offen — Auswahl setzt die übrigen zurück. */
   const openSubPage = (
-    page: "permissions" | "templates" | "disciplines" | "resources",
+    page: "permissions" | "templates" | "disciplines" | "resources" | "dayParts",
   ) => {
     setShowPermissionLevels(page === "permissions");
     setShowActionPlanTemplates(page === "templates");
     setShowActionPlanDisciplines(page === "disciplines");
     setShowActionPlanResources(page === "resources");
+    setShowActionPlanDayParts(page === "dayParts");
   };
 
   const ribbonActions: SettingsRibbonAction[] = [
@@ -65,14 +74,17 @@ const Settings = () => {
     },
     ...(showActionPlanTemplates ||
     showActionPlanDisciplines ||
-    showActionPlanResources
+    showActionPlanResources ||
+    showActionPlanDayParts
       ? [
           {
             key: showActionPlanDisciplines
               ? "new-discipline"
               : showActionPlanResources
                 ? "new-resource"
-                : "new-template",
+                : showActionPlanDayParts
+                  ? "new-day-part"
+                  : "new-template",
             label: "Neu",
             icon: CirclePlus,
             onClick: () =>
@@ -80,7 +92,9 @@ const Settings = () => {
                 ? disciplinesRef.current?.openCreate()
                 : showActionPlanResources
                   ? resourcesRef.current?.openCreate()
-                  : templatesRef.current?.openCreate(),
+                  : showActionPlanDayParts
+                    ? dayPartsRef.current?.openCreate()
+                    : templatesRef.current?.openCreate(),
           } satisfies SettingsRibbonAction,
         ]
       : []),
@@ -116,7 +130,9 @@ const Settings = () => {
         ? "Disziplinen"
         : showActionPlanResources
           ? "Hilfsmittel"
-          : null;
+          : showActionPlanDayParts
+            ? "Tageszeiten"
+            : null;
 
   const searchQuery = showActionPlanTemplates
     ? templateSearchQuery
@@ -124,7 +140,9 @@ const Settings = () => {
       ? disciplineSearchQuery
       : showActionPlanResources
         ? resourceSearchQuery
-        : "";
+        : showActionPlanDayParts
+          ? dayPartSearchQuery
+          : "";
 
   const setSearchQuery = showActionPlanTemplates
     ? setTemplateSearchQuery
@@ -132,7 +150,9 @@ const Settings = () => {
       ? setDisciplineSearchQuery
       : showActionPlanResources
         ? setResourceSearchQuery
-        : null;
+        : showActionPlanDayParts
+          ? setDayPartSearchQuery
+          : null;
 
   const searchPlaceholder = showActionPlanTemplates
     ? "Handlungsvorlagen suchen"
@@ -140,7 +160,9 @@ const Settings = () => {
       ? "Disziplinen suchen"
       : showActionPlanResources
         ? "Hilfsmittel suchen"
-        : "";
+        : showActionPlanDayParts
+          ? "Tageszeiten suchen"
+          : "";
 
   const ribbonSearch = setSearchQuery ? (
     <div className="relative w-[min(24rem,calc(100vw-2rem))]">
@@ -204,6 +226,11 @@ const Settings = () => {
                   ref={resourcesRef}
                   searchQuery={resourceSearchQuery}
                 />
+              ) : showActionPlanDayParts ? (
+                <ActionPlanDayPartsView
+                  ref={dayPartsRef}
+                  searchQuery={dayPartSearchQuery}
+                />
               ) : (
                 <ActionPlanDisciplinesView
                   ref={disciplinesRef}
@@ -233,6 +260,9 @@ const Settings = () => {
                   }
                   if (catId === "handlungsplanung" && label === "Hilfsmittel") {
                     openSubPage("resources");
+                  }
+                  if (catId === "handlungsplanung" && label === "Tageszeiten") {
+                    openSubPage("dayParts");
                   }
                 }}
               />

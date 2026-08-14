@@ -5,6 +5,7 @@ import {
   saveCachedAssessmentState,
   type CachedAssessmentState,
 } from "@/lib/assessment-cache";
+import { DAY_PART_SEED_IDS } from "@/lib/day-parts";
 
 const fallbackFilter = { statuses: ["open" as const] };
 
@@ -134,4 +135,87 @@ describe("assessment browser cache", () => {
     });
   });
 
+  describe("Migration der Zeitangaben", () => {
+    const withActions = (actions: Array<Record<string, unknown>>) => ({
+      ...cachedState,
+      clients: [
+        {
+          id: "client-1",
+          firstName: "Test",
+          lastName: "Person",
+          topics: [
+            {
+              id: "topic-1",
+              title: "Schwerpunkt",
+              disciplineId: "discipline-inhouse-spitex",
+              notes: "",
+              targets: [{ id: "target-1", title: "Ziel", notes: "", actions }],
+            },
+          ],
+        },
+      ],
+    });
+
+    const loadActions = () =>
+      loadCachedAssessmentState("2026-01-01", fallbackFilter)!.clients[0].topics[0].targets[0]
+        .actions;
+
+    it("überführt Tageszeit plus Uhrzeit in den Uhrzeit-Modus", () => {
+      window.localStorage.setItem(
+        ASSESSMENT_CACHE_KEY,
+        JSON.stringify(
+          withActions([
+            {
+              id: "a1",
+              groupId: "g1",
+              title: "Umlagern",
+              notes: "",
+              status: "open",
+              done: false,
+              dayPart: "night",
+              scheduledTime: "01:00",
+            },
+          ]),
+        ),
+      );
+
+      expect(loadActions()[0]).toMatchObject({ dayPart: undefined, scheduledTime: "01:00" });
+    });
+
+    it("bildet alte Tageszeit-Schlüssel ohne Uhrzeit auf die Tageszeit-ID ab", () => {
+      window.localStorage.setItem(
+        ASSESSMENT_CACHE_KEY,
+        JSON.stringify(
+          withActions([
+            {
+              id: "a2",
+              groupId: "g2",
+              title: "Nachmittagsspaziergang",
+              notes: "",
+              status: "open",
+              done: false,
+              dayPart: "afternoon",
+            },
+          ]),
+        ),
+      );
+
+      expect(loadActions()[0]).toMatchObject({ dayPart: DAY_PART_SEED_IDS.afternoon });
+    });
+
+    it("lässt Handlungen ohne Zeitangabe unverändert", () => {
+      window.localStorage.setItem(
+        ASSESSMENT_CACHE_KEY,
+        JSON.stringify(
+          withActions([
+            { id: "a3", groupId: "g3", title: "Gespräch", notes: "", status: "open", done: false },
+          ]),
+        ),
+      );
+
+      const action = loadActions()[0];
+      expect(action.dayPart).toBeUndefined();
+      expect(action.scheduledTime).toBeUndefined();
+    });
+  });
 });

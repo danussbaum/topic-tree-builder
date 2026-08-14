@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { ActionServiceEntry, ActionServiceType, DayPart } from "@/types/assessment";
+import type { ActionServiceEntry, ActionServiceType } from "@/types/assessment";
 import {
   ACTION_SERVICE_TYPE_SELECT_OPTIONS,
   buildDefaultTemplateEditable as buildDefaultEditable,
@@ -41,7 +41,12 @@ import {
 import { Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DayPartChipSelector } from "@/components/assessment/DayPartChipSelector";
-import { withPositionalIds, type DayPartEntry } from "@/lib/day-part-entries";
+import {
+  scheduleEntriesError,
+  scheduleModeOf,
+  withPositionalIds,
+  type DayPartEntry,
+} from "@/lib/day-part-entries";
 import { loadActionPlanDisciplines } from "@/lib/action-plan-disciplines";
 import { DisciplineMultiSelect } from "@/components/settings/DisciplineMultiSelect";
 import { ResourceMultiSelect } from "@/components/settings/ResourceMultiSelect";
@@ -54,7 +59,7 @@ import {
   serializeResourceIds,
 } from "@/lib/action-plan-resources";
 
-type TemplateSortKey = "name" | "kategorie" | "leistungsart";
+type TemplateSortKey = "name" | "kategorie" | "leistungsart" | "wiederholung";
 
 interface TemplateSortState {
   key: TemplateSortKey;
@@ -110,6 +115,9 @@ const templateFieldMeta: TemplateFieldMeta[] = [
     key: "tageszeit",
     label: "Tageszeit",
     type: "dayparts",
+    // Es ist immer ein Modus gewählt ("Ohne Zeitangabe" als Vorgabe) und keine
+    // Auswahl ist nicht möglich — "zwingend" hätte darum keine Wirkung.
+    requirable: false,
   },
   {
     key: "resultat",
@@ -196,6 +204,12 @@ export const ActionPlanTemplatesView = forwardRef<
   const [importErrors, setImportErrors] = useState<string[]>([]);
   const [draftFields, setDraftFields] =
     useState<Record<TemplateFieldKey, string>>(buildDefaultFields);
+  /**
+   * Die Zeitangabe wird als eigener Zustand geführt und nicht bei jedem Rendern aus
+   * dem Vorlagen-String abgeleitet: Eine neu angelegte, noch leere Uhrzeit lässt sich
+   * im String nicht abbilden und verschwände sonst sofort wieder.
+   */
+  const [draftDayPartEntries, setDraftDayPartEntries] = useState<DayPartEntry[]>([]);
   const [leistungsartenAddError, setLeistungsartenAddError] = useState(false);
   const [leistungsartenSaveError, setLeistungsartenSaveError] = useState(false);
   const [templateSaveErrors, setTemplateSaveErrors] = useState<string[]>([]);
@@ -519,7 +533,9 @@ export const ActionPlanTemplatesView = forwardRef<
     setSelectedTemplateId(null);
     setDraftName("Neue Handlungsvorlage");
     setDraftDisciplineIds([]);
-    setDraftFields(buildDefaultFields());
+    const fields = buildDefaultFields();
+    setDraftFields(fields);
+    setDraftDayPartEntries(withPositionalIds(parseTageszeit(fields.tageszeit)));
     setDraftEditable(buildDefaultEditable(true));
     setDraftRequired(buildDefaultRequired());
     setIsPanelMounted(true);
@@ -535,6 +551,7 @@ export const ActionPlanTemplatesView = forwardRef<
       normalizeTemplateDisciplineIds(template.disciplineIds, disciplineOptions),
     );
     setDraftFields({ ...template.fields });
+    setDraftDayPartEntries(withPositionalIds(parseTageszeit(template.fields.tageszeit)));
     setDraftEditable({ ...template.editable });
     setDraftRequired({ ...buildDefaultRequired(), ...template.required });
     setIsPanelMounted(true);
@@ -560,6 +577,12 @@ export const ActionPlanTemplatesView = forwardRef<
     }
     setLeistungsartenSaveError(false);
     const issues = getTemplateValidationIssues(draftName, draftFields, draftEditable);
+    // Eine angelegte, aber leere Uhrzeit darf nicht still als "ohne Zeitangabe" landen.
+    const scheduleIssue = scheduleEntriesError(
+      draftDayPartEntries,
+      scheduleModeOf(draftDayPartEntries),
+    );
+    if (scheduleIssue) issues.push(`Tageszeit: ${scheduleIssue}`);
     setTemplateSaveErrors(issues);
     if (issues.length > 0) return;
     if (isCreating) {
@@ -717,6 +740,9 @@ export const ActionPlanTemplatesView = forwardRef<
               <th className="w-44 px-4 py-2 text-left text-xs font-semibold text-foreground">
                 {renderSortableHeader("leistungsart", "Leistungsart")}
               </th>
+              <th className="w-32 px-4 py-2 text-left text-xs font-semibold text-foreground">
+                {renderSortableHeader("wiederholung", "Wiederholung")}
+              </th>
             </tr>
           </thead>
           <tbody className="bg-background">
@@ -743,6 +769,9 @@ export const ActionPlanTemplatesView = forwardRef<
                     const label = ACTION_SERVICE_TYPE_SELECT_OPTIONS.find((o) => o.value === e.serviceType)?.label ?? e.serviceType;
                     return e.maxMinutes != null ? `${label} (max. ${e.maxMinutes} Min.)` : label;
                   }).join(" | ") || "–"}
+                </td>
+                <td className="px-4 py-2 text-[13px] text-muted-foreground">
+                  {getFieldOptionLabel("wiederholung", entry.fields.wiederholung) || "–"}
                 </td>
               </tr>
             ))}
@@ -868,13 +897,14 @@ export const ActionPlanTemplatesView = forwardRef<
                       </Select>
                     ) : field.type === "dayparts" ? (
                       <DayPartChipSelector
-                        value={withPositionalIds(parseTageszeit(draftFields[field.key]))}
-                        onChange={(entries: DayPartEntry[]) =>
+                        value={draftDayPartEntries}
+                        onChange={(entries: DayPartEntry[]) => {
+                          setDraftDayPartEntries(entries);
                           setDraftFields((prev) => ({
                             ...prev,
                             [field.key]: serializeTageszeit(entries),
-                          }))
-                        }
+                          }));
+                        }}
                       />
                     ) : field.type === "time" ? (
                       <Input
@@ -1104,6 +1134,7 @@ export const ActionPlanTemplatesView = forwardRef<
                           {field.requirable !== false && draftEditable[field.key] && (
                             <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
                               <Checkbox
+                                aria-label={`${field.label} zwingend`}
                                 checked={draftRequired[field.key]}
                                 onCheckedChange={(checked) =>
                                   setDraftRequired((prev) => ({

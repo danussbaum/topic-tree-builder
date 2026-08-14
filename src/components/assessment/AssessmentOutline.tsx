@@ -79,7 +79,6 @@ import {
 import type {
   ActionNode,
   ActionStatus,
-  DayPart,
   ActionCategory,
   ActionServiceType,
   ActionServiceEntry,
@@ -90,9 +89,7 @@ import type {
   TopicNode,
   TargetNode,
 } from "@/types/assessment";
-import { DAY_PART_LABEL, DAY_PART_ORDER, DAY_PART_SELECT_OPTIONS } from "@/types/assessment";
 import { DayPartChipSelector } from "@/components/assessment/DayPartChipSelector";
-import { DAY_PART_ICONS } from "@/components/assessment/day-part-icons";
 import {
   OnDemandActionDialog,
   type OnDemandActionSelection,
@@ -105,19 +102,27 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   newDayPartEntryId,
+  scheduleEntriesError,
+  scheduleModeOf,
   sortDayPartEntries,
   type DayPartEntry,
-  type DayPartOrNone,
 } from "@/lib/day-part-entries";
 import {
-  CONFIRMATION_DAY_PART_ORDER,
   confirmationDayPartKey,
+  confirmationDayPartOrder,
+  dayPartSectionLabel,
+  effectiveDayPart,
   formatScheduledTime,
+  isPreviousDayKey,
+  NO_DAY_PART_KEY,
+  previousDayDayPart,
+  previousDayKey,
   rollsToNextDay,
+  scheduleSortKey,
   shiftISODate,
-  ROLLOVER_CUTOFF as NIGHT_ROLLOVER_CUTOFF,
   type ConfirmationDayPartKey,
 } from "@/lib/day-part-rollover";
+import { getDayParts, resolveDayPart } from "@/lib/day-parts";
 import { parseLeistungsarten, parseOptionalLeistungsarten, parseTageszeit } from "@/lib/action-plan-templates";
 import {
   DEFAULT_ASSESSMENT_FILTER,
@@ -198,7 +203,7 @@ interface UnplannedActionDraft {
   plannedMinutes?: number;
   requiredPersons?: number;
   resultRequirement?: ActionNode["resultRequirement"];
-  dayPart?: DayPart | "none";
+  dayPart?: string;
   scheduledTime?: string;
   category?: ActionCategory;
   serviceEntries?: ActionServiceEntry[];
@@ -309,7 +314,9 @@ function draftToOverrides(draft: ActionDraft): ActionDraftOverrides {
     plannedMinutes: draft.plannedMinutes !== "" ? Math.max(0, Number(draft.plannedMinutes)) : undefined,
     requiredPersons: draft.requiredPersons !== "" ? Math.max(1, Math.floor(Number(draft.requiredPersons))) : undefined,
     resultRequirement: draft.resultRequirement !== "none" ? (draft.resultRequirement as ActionNode["resultRequirement"]) : undefined,
-    dayPart: draft.dayPart !== "none" ? (draft.dayPart as DayPart) : undefined,
+    // Strikte Trennung: mit Uhrzeit wird die Tageszeit abgeleitet, nicht gespeichert.
+    dayPart:
+      draft.scheduledTime || draft.dayPart === "none" ? undefined : draft.dayPart,
     scheduledTime: draft.scheduledTime || undefined,
     category: draft.category !== "none" ? (draft.category as ActionCategory) : undefined,
     validFrom: draft.validFrom || undefined,
@@ -399,11 +406,11 @@ interface Props {
     targetId: string,
     groupId: string,
     sharedFields: Partial<Omit<ActionNode, "id" | "groupId" | "dayPart" | "scheduledTime" | "confirmations" | "isUnplanned">>,
-    dayPartEntries: Array<{ dayPart?: DayPart; scheduledTime?: string; existingActionId?: string }>,
+    dayPartEntries: Array<{ dayPart?: string; scheduledTime?: string; existingActionId?: string }>,
   ) => void;
   onAddUnplannedAction?: (
     dueDate: string,
-    dayPart: DayPart | "none",
+    dayPart: string,
     draft: UnplannedActionDraft,
   ) => string | void;
   onAddOnDemandAction?: (selection: OnDemandActionSelection) => void;
@@ -515,13 +522,21 @@ const RECURRENCE_OPTIONS: Array<{ value: RecurrenceType; label: string }> = [
 ];
 
 /**
- * Der Vornacht-Abschnitt eines Tages zeigt die Nacht des Vortags. Eine dort erfasste
- * Handlung gehört darum auf den Vortag und braucht eine Uhrzeit vor 12:00 — nur dann
- * rollt sie kalendarisch in diesen Abschnitt zurück (siehe day-part-rollover).
+ * Der Vortags-Abschnitt eines Tages zeigt die über Mitternacht laufende Tageszeit des
+ * Vortags. Eine dort erfasste Handlung gehört darum auf den Vortag und braucht eine
+ * Uhrzeit im Teil nach Mitternacht — nur dann rollt sie kalendarisch in diesen
+ * Abschnitt zurück (siehe day-part-rollover).
  */
+/**
+ * Ohne Signal aus der Handlungsart oder dem (+)-Kontext wird nichts vorbelegt: die
+ * Handlung startet im Modus "Ohne Zeitangabe". Eine geratene Tageszeit würde sonst
+ * der Handlungsart widersprechen, die bewusst keine Zeitangabe vorgibt.
+ */
+const defaultDayPartEntries = (): DayPartEntry[] => [];
+
 const previousNightTarget = (displayedDate: string) => ({
   dueDate: shiftISODate(displayedDate, -1),
-  dayPart: "night" as const,
+  dayPart: previousDayDayPart()?.id ?? NO_DAY_PART_KEY,
   nightRollover: true,
 });
 
@@ -577,12 +592,16 @@ const isRecurringOnDate = (action: ActionNode, date: Date) => {
 };
 
 function groupFlatActionsByDayPart<T extends { action: ActionNode }>(items: T[]) {
+  const order = confirmationDayPartOrder();
   const groups = new Map<ConfirmationDayPartKey, T[]>();
-  for (const key of CONFIRMATION_DAY_PART_ORDER) groups.set(key, []);
+  for (const key of order) groups.set(key, []);
   for (const item of items) {
-    groups.get(confirmationDayPartKey(item.action))!.push(item);
+    const key = confirmationDayPartKey(item.action);
+    // Eine unbekannte Tageszeit (z. B. aus gelöschten Stammdaten) darf die Zeile
+    // nicht verschwinden lassen — sie landet im Abschnitt ohne Zeitangabe.
+    groups.get(groups.has(key) ? key : NO_DAY_PART_KEY)!.push(item);
   }
-  return CONFIRMATION_DAY_PART_ORDER
+  return order
     .map((key) => ({ key, actions: groups.get(key)! }))
     .filter((group) => group.actions.length > 0);
 }
@@ -699,7 +718,7 @@ export function AssessmentOutline({
     targetValidTo?: string;
     action?: ActionNode;
     groupActions?: ActionNode[];
-    initialDayPart?: DayPart | "none";
+    initialDayPart?: string;
   } | null>(null);
   const [isPanelMounted, setIsPanelMounted] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
@@ -720,12 +739,12 @@ export function AssessmentOutline({
   const [bulkDoneAsPlannedDialogOpen, setBulkDoneAsPlannedDialogOpen] = useState(false);
   const [unplannedDialogTarget, setUnplannedDialogTarget] = useState<{
     dueDate?: string;
-    dayPart: DayPart | "none";
+    dayPart: string;
     nightRollover?: boolean;
   } | null>(null);
   const [onDemandDialogTarget, setOnDemandDialogTarget] = useState<{
     dueDate: string;
-    dayPart: DayPart | "none";
+    dayPart: string;
     nightRollover?: boolean;
   } | null>(null);
   const today = format(new Date(), "yyyy-MM-dd");
@@ -833,7 +852,7 @@ export function AssessmentOutline({
     }
   }, [bulkDoneAsPlannedMode]);
 
-  const openCreatePanel = (topicId: string, targetId: string, initialDayPart?: DayPart | "none") => {
+  const openCreatePanel = (topicId: string, targetId: string, initialDayPart?: string) => {
     const topic = topics.find((t) => t.id === topicId);
     const topicDisciplineId = topic ? getTopicDisciplineId(topic) : undefined;
     const target = topic?.targets.find((tg) => tg.id === targetId);
@@ -902,13 +921,15 @@ export function AssessmentOutline({
       // liessen sich mehrere Durchführungen derselben Tageszeit nicht unterscheiden.
       const entries: Parameters<typeof onUpdateActionGroup>[4] = sortDayPartEntries(dayPartEntries).map(
         ({ id, dayPart, scheduledTime }) => {
-          const actionDayPart = dayPart === "none" ? undefined : dayPart;
           const existing = groupActions?.find((a) => a.id === id);
-          return {
-            dayPart: actionDayPart,
-            scheduledTime: actionDayPart !== undefined ? scheduledTime : undefined,
-            existingActionId: existing?.id,
-          };
+          // Strikte Trennung: ein Eintrag trägt entweder eine Uhrzeit oder eine Tageszeit.
+          return scheduledTime?.trim()
+            ? { dayPart: undefined, scheduledTime, existingActionId: existing?.id }
+            : {
+                dayPart: dayPart && dayPart !== "none" ? dayPart : undefined,
+                scheduledTime: undefined,
+                existingActionId: existing?.id,
+              };
         },
       );
 
@@ -1060,8 +1081,9 @@ export function AssessmentOutline({
 
       // Verschobene Nacht-Einträge (01:00, 04:00) sind chronologisch die ersten des
       // Tages und stehen darum vor dem Morgen — 22:00 dagegen weiterhin am Schluss.
-      const leftDayPartIndex = CONFIRMATION_DAY_PART_ORDER.indexOf(confirmationDayPartKey(left.action));
-      const rightDayPartIndex = CONFIRMATION_DAY_PART_ORDER.indexOf(confirmationDayPartKey(right.action));
+      const dayPartOrder = confirmationDayPartOrder();
+      const leftDayPartIndex = dayPartOrder.indexOf(confirmationDayPartKey(left.action));
+      const rightDayPartIndex = dayPartOrder.indexOf(confirmationDayPartKey(right.action));
       if (leftDayPartIndex !== rightDayPartIndex) {
         return leftDayPartIndex - rightDayPartIndex;
       }
@@ -1383,13 +1405,13 @@ export function AssessmentOutline({
                     stickyTop={stickyOffset !== undefined ? stickyOffset + 46 : undefined}
                     onCreateUnplanned={onAddUnplannedAction ? () =>
                       setUnplannedDialogTarget(
-                        group.key === "night_prev"
+                        isPreviousDayKey(group.key)
                           ? { ...previousNightTarget(dateGroup.dueDate) }
                           : { dueDate: dateGroup.dueDate, dayPart: group.key },
                       ) : undefined}
                     onCreateOnDemand={onAddOnDemandAction ? () =>
                       setOnDemandDialogTarget(
-                        group.key === "night_prev"
+                        isPreviousDayKey(group.key)
                           ? previousNightTarget(dateGroup.dueDate)
                           : { dueDate: dateGroup.dueDate, dayPart: group.key },
                       ) : undefined}
@@ -2221,9 +2243,9 @@ export function AssessmentOutline({
                         }
 
                         const groups = Array.from(groupMap.values()).sort((a, b) => {
-                          const aMin = Math.min(...a.map((n) => DAY_PART_ORDER.indexOf(n.dayPart ?? "none")));
-                          const bMin = Math.min(...b.map((n) => DAY_PART_ORDER.indexOf(n.dayPart ?? "none")));
-                          return aMin - bMin;
+                          const aMin = a.map((n) => scheduleSortKey(n)).sort()[0] ?? "";
+                          const bMin = b.map((n) => scheduleSortKey(n)).sort()[0] ?? "";
+                          return aMin.localeCompare(bMin);
                         });
 
                         // Ungeplante Handlungen sind in der Planung nur informativ — sie werden
@@ -2426,15 +2448,10 @@ function DayPartHeader({
       </div>
     );
   }
-  // Der Vornacht-Abschnitt sammelt die Nacht-Einträge, die vom Vortag hierher
-  // verschoben wurden — er trägt darum dieselbe Ikone, aber einen eigenen Titel.
-  const isPreviousNight = part === "night_prev";
-  const Icon = DAY_PART_ICONS[isPreviousNight ? "night" : part];
   return (
     <div className={cn("flex items-center gap-2 text-[10px] uppercase tracking-widest font-semibold text-accent", stickyProps.className)} style={stickyProps.style}>
       {groupCheckbox}
-      <Icon className="h-3.5 w-3.5" />
-      <span>{isPreviousNight ? "Nacht (Vornacht)" : DAY_PART_LABEL[part]}</span>
+      <span>{dayPartSectionLabel(part)}</span>
       <span className="h-px flex-1 bg-border" />
       {menu}
     </div>
@@ -2463,8 +2480,8 @@ export function ActionGroupRow({
 }) {
   const resourceCatalog = getActionPlanResources();
   const representative = groupNodes[0];
-  const sortedNodes = [...groupNodes].sort(
-    (a, b) => DAY_PART_ORDER.indexOf(a.dayPart ?? "none") - DAY_PART_ORDER.indexOf(b.dayPart ?? "none"),
+  const sortedNodes = [...groupNodes].sort((a, b) =>
+    scheduleSortKey(a).localeCompare(scheduleSortKey(b)),
   );
 
   const isLocked = Object.values(groupNodes).some((a) => Object.keys(a.confirmations ?? {}).length > 0);
@@ -2540,8 +2557,10 @@ export function ActionGroupRow({
               <span className="self-center h-3 bg-border" />
               <div className="flex flex-wrap items-center gap-1" style={{ gridColumn: "5 / -1" }}>
                 {sortedNodes.map((node) => {
-                  const dp = node.dayPart;
-                  if (!dp) {
+                  // Im Uhrzeit-Modus wird die Tageszeit abgeleitet und nur als Kontext
+                  // zur Uhrzeit gezeigt; ohne jede Zeitangabe steht "ohne".
+                  const dayPart = effectiveDayPart(node);
+                  if (!dayPart) {
                     return (
                       <span key={node.id} className="inline-flex items-center gap-1 rounded bg-secondary px-1 font-medium text-muted-foreground">
                         <Minus className="h-3 w-3" />
@@ -2549,11 +2568,9 @@ export function ActionGroupRow({
                       </span>
                     );
                   }
-                  const Icon = DAY_PART_ICONS[dp];
                   return (
                     <span key={node.id} className="inline-flex items-center gap-1 rounded bg-secondary px-1 font-medium text-muted-foreground">
-                      <Icon className="h-3 w-3" />
-                      {DAY_PART_LABEL[dp]}
+                      {dayPart.title}
                       {node.scheduledTime && (
                         <span className="tabular-nums" title={rollsToNextDay(node) ? "Wird am Folgetag durchgeführt" : undefined}>
                           {formatScheduledTime(node)}
@@ -2754,9 +2771,12 @@ export function ActionRow({
           >
             {/* Zeile 1: Tageszeit | Uhrzeit | Minuten | Personen | Klassifizierung */}
             <span className="inline-flex items-center gap-1 overflow-hidden self-center">
-              {action.dayPart
-                ? <>{(() => { const Icon = DAY_PART_ICONS[action.dayPart]; return <Icon className="h-3.5 w-3.5 shrink-0" />; })()}<span className="truncate">{DAY_PART_LABEL[action.dayPart]}</span></>
-                : <span className="opacity-40 italic">Keine Tageszeit</span>}
+              {(() => {
+                const dayPart = effectiveDayPart(action);
+                return dayPart
+                  ? <span className="truncate">{dayPart.title}</span>
+                  : <span className="opacity-40 italic">Keine Tageszeit</span>;
+              })()}
             </span>
             <span className="self-center h-3 bg-border" />
             <span className="tabular-nums self-center">
@@ -2936,9 +2956,10 @@ export function ActionRow({
                   <SelectValue placeholder="Keine Angabe" />
                 </SelectTrigger>
                 <SelectContent>
-                  {DAY_PART_SELECT_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
+                  <SelectItem value="none">Keine Angabe</SelectItem>
+                  {getDayParts().map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.title}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -3244,9 +3265,10 @@ export function ActionRow({
                 <SelectValue placeholder="Tageszeit" />
               </SelectTrigger>
               <SelectContent>
-                {DAY_PART_SELECT_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
+                <SelectItem value="none">Keine Angabe</SelectItem>
+                {getDayParts().map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.title}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -3581,7 +3603,7 @@ export function ActionSidePanel({
   topicDisciplineId?: string;
   targetValidFrom?: string;
   targetValidTo?: string;
-  initialDayPart?: DayPart | "none";
+  initialDayPart?: string;
   isPanelOpen: boolean;
   onClose: () => void;
   onSave: (draft: ActionDraft, selectedTemplateIds: string[], dayPartEntries: DayPartEntry[]) => void;
@@ -3616,7 +3638,7 @@ export function ActionSidePanel({
       return sortDayPartEntries(
         groupActions.map((a) => ({
           id: a.id,
-          dayPart: (a.dayPart ?? "none") as DayPartOrNone,
+          dayPart: a.dayPart,
           scheduledTime: a.scheduledTime,
         })),
       );
@@ -3624,7 +3646,7 @@ export function ActionSidePanel({
     if (initialDayPart && initialDayPart !== "none") {
       return [{ id: newDayPartEntryId(), dayPart: initialDayPart }];
     }
-    return [{ id: newDayPartEntryId(), dayPart: "morning" as DayPart }];
+    return defaultDayPartEntries();
   });
   const [lockedFields, setLockedFields] = useState<string[]>(() => action?.templateLockedFields ?? []);
   const [requiredFields, setRequiredFields] = useState<string[]>(() => action?.templateRequiredFields ?? []);
@@ -3711,7 +3733,7 @@ export function ActionSidePanel({
     } else if (initialDayPart && initialDayPart !== "none") {
       setDayPartEntries([{ id: newDayPartEntryId(), dayPart: initialDayPart }]);
     } else {
-      setDayPartEntries([{ id: newDayPartEntryId(), dayPart: "morning" }]);
+      setDayPartEntries(defaultDayPartEntries());
     }
     setLockedFields(getTemplateLockedActionFields(template));
     setRequiredFields(getTemplateRequiredActionFields(template));
@@ -3779,15 +3801,10 @@ export function ActionSidePanel({
     if (draft.validFrom && targetValidTo && draft.validFrom > targetValidTo) errors.push("validFrom");
     if (draft.validTo && targetValidFrom && draft.validTo < targetValidFrom) errors.push("validTo");
     if (draft.validTo && targetValidTo && draft.validTo > targetValidTo) errors.push("validTo");
-    // Mehrfache Durchführungen pro Tageszeit sind nur über die Uhrzeit unterscheidbar.
-    for (const dayPart of new Set(dayPartEntries.map((e) => e.dayPart))) {
-      if (dayPart === "none") continue;
-      const times = dayPartEntries.filter((e) => e.dayPart === dayPart).map((e) => e.scheduledTime?.trim() ?? "");
-      if (times.length < 2) continue;
-      if (times.some((t) => t === "") || new Set(times).size !== times.length) {
-        errors.push("dayPart");
-        break;
-      }
+    // Im gewählten Modus muss mindestens ein Eintrag erfasst sein, und dieselbe
+    // Tageszeit bzw. Uhrzeit darf nicht doppelt vorkommen.
+    if (scheduleEntriesError(dayPartEntries, scheduleModeOf(dayPartEntries))) {
+      errors.push("dayPart");
     }
     if (errors.length > 0) {
       setValidationErrors(errors);
@@ -4297,7 +4314,7 @@ export function ActionSidePanel({
   );
 }
 
-const buildEmptyUnplannedTemplateDraft = (dayPart?: DayPart | "none"): UnplannedActionDraft => {
+const buildEmptyUnplannedTemplateDraft = (dayPart?: string): UnplannedActionDraft => {
   const defaultFields = buildDefaultTemplateFields();
   return {
     title: "",
@@ -4315,8 +4332,8 @@ export function UnplannedActionDialog({
   onConfirm,
   clientName,
 }: {
-  target: { dueDate?: string; dateFrom?: string; dayPart: DayPart | "none" };
-  fixedDayPart?: DayPart | "none";
+  target: { dueDate?: string; dateFrom?: string; dayPart: string };
+  fixedDayPart?: string;
   /**
    * Erfassung im Vornacht-Abschnitt: das Datum ist der Vortag, und die Uhrzeit ist
    * zwingend vor 12:00 — nur dann erscheint die Handlung wieder dort.
@@ -4336,9 +4353,9 @@ export function UnplannedActionDialog({
   const templateInputRef = useRef<HTMLInputElement | null>(null);
   const resourceCatalog = getActionPlanResources();
   const [draft, setDraft] = useState<UnplannedActionDraft>(() => buildEmptyUnplannedTemplateDraft(target.dayPart));
-  const [dayPartEntries, setDayPartEntries] = useState<DayPartEntry[]>([
-    { id: newDayPartEntryId(), dayPart: "morning" },
-  ]);
+  const [dayPartEntries, setDayPartEntries] = useState<DayPartEntry[]>(() =>
+    defaultDayPartEntries(),
+  );
   const [dateFrom, setDateFrom] = useState<string>(target.dateFrom ?? target.dueDate ?? "");
   const [dateTo, setDateTo] = useState<string>(target.dueDate ?? target.dateFrom ?? "");
   const [isPanelVisible, setIsPanelVisible] = useState(false);
@@ -4373,18 +4390,24 @@ export function UnplannedActionDialog({
     setTemplateQuery("");
     setTemplateDropdownOpen(false);
     setDraft(buildEmptyUnplannedTemplateDraft(target?.dayPart));
-    if (useChipSelector) setDayPartEntries([{ id: newDayPartEntryId(), dayPart: "morning" }]);
+    if (useChipSelector) setDayPartEntries(defaultDayPartEntries());
   };
 
-  const applyTemplate = (templateId: string, fallbackDayPart: DayPart | "none") => {
+  const applyTemplate = (templateId: string, fallbackDayPart: string) => {
     const template = templates.find((entry) => entry.id === templateId);
     if (!template) return;
     const fields = template.fields;
     const plannedMinutes = Number(fields.dauer);
     const requiredPersons = Number(fields.personen);
     const parsedEntries = parseTageszeit(fields.tageszeit);
-    if (useChipSelector && parsedEntries.length > 0) {
-      setDayPartEntries(parsedEntries.map((e) => ({ ...e, id: newDayPartEntryId() })));
+    if (useChipSelector) {
+      // Auch eine Handlungsart ohne Zeitangabe wird übernommen — sonst bliebe eine
+      // vorher gewählte Tageszeit stehen und widerspräche der Handlungsart.
+      setDayPartEntries(
+        parsedEntries.length > 0
+          ? parsedEntries.map((e) => ({ ...e, id: newDayPartEntryId() }))
+          : [],
+      );
     }
     setDraft({
       title: template.name,
@@ -4466,7 +4489,10 @@ export function UnplannedActionDialog({
   };
 
   const selectedDayPart = draft.dayPart ?? target.dayPart ?? "none";
-  const selectedDayPartLabel = selectedDayPart === "none" ? "ohne" : DAY_PART_LABEL[selectedDayPart];
+  const selectedDayPartLabel =
+    selectedDayPart === "none"
+      ? "ohne"
+      : getDayParts().find((entry) => entry.id === selectedDayPart)?.title ?? "ohne";
 
   const dateRangeError = (() => {
     if (!dateFrom || !dateTo) return null;
@@ -4505,10 +4531,12 @@ export function UnplannedActionDialog({
     && (entries.slice(0, -1).some((e) => e.maxMinutes === undefined) || entries[entries.length - 1]?.maxMinutes != null);
   const [serviceEntriesAddError, setServiceEntriesAddError] = useState(false);
 
-  // Ohne Uhrzeit vor 12:00 landet die Handlung in der Nacht des gewählten Tages statt im
-  // Vornacht-Abschnitt des Folgetages. Die Meldung erscheint erst beim Bestätigen.
+  // Ohne Uhrzeit im Teil nach Mitternacht landet die Handlung in der Nacht des gewählten
+  // Tages statt im Vortags-Abschnitt des Folgetages. Die Meldung erscheint erst beim
+  // Bestätigen.
+  const rolloverLimit = previousDayDayPart()?.to;
   const nightTimeMissing =
-    nightRollover && (!draft.scheduledTime || draft.scheduledTime >= NIGHT_ROLLOVER_CUTOFF);
+    nightRollover && (!draft.scheduledTime || !rolloverLimit || draft.scheduledTime >= rolloverLimit);
   const [showNightTimeError, setShowNightTimeError] = useState(false);
 
   const submit = () => {
@@ -4754,15 +4782,13 @@ export function UnplannedActionDialog({
             ) : (
               <>
                 <div className="space-y-1.5">
-                  <Label>Tageszeit</Label>
-                  <Select value={draft.dayPart ?? "none"} disabled={isDraftFieldLocked("dayPart")} onValueChange={(value) => updateDraft("dayPart", value as DayPart | "none")}>
-                    <SelectTrigger aria-label="Tageszeit" className="bg-background"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {DAY_PART_SELECT_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label>Zeitangabe</Label>
+                  <div
+                    className="flex h-10 items-center rounded-md border border-input bg-secondary/40 px-3 text-sm"
+                    aria-label="Zeitangabe"
+                  >
+                    {nightRollover ? "Uhrzeit" : selectedDayPartLabel}
+                  </div>
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="unplanned-scheduled-time">Uhrzeit</Label>
@@ -4770,19 +4796,19 @@ export function UnplannedActionDialog({
                     id="unplanned-scheduled-time"
                     type="time"
                     value={draft.scheduledTime ?? ""}
-                    disabled={isDraftFieldLocked("scheduledTime")}
-                    max={nightRollover ? "11:59" : undefined}
+                    disabled={isDraftFieldLocked("scheduledTime") || !nightRollover}
+                    max={nightRollover ? rolloverLimit : undefined}
                     onChange={(e) => {
                       const value = e.target.value || undefined;
                       updateDraft("scheduledTime", value);
-                      if (value && value < NIGHT_ROLLOVER_CUTOFF) setShowNightTimeError(false);
+                      if (value && rolloverLimit && value < rolloverLimit) setShowNightTimeError(false);
                     }}
                     className={cn("bg-background", showNightTimeError && "border-destructive")}
                   />
                   {showNightTimeError && (
                     <p className="text-xs text-destructive">
-                      Zwingend zwischen 00:00 und 11:59 — sonst wird die Handlung nicht der
-                      Vornacht zugeordnet.
+                      Zwingend zwischen 00:00 und {rolloverLimit} — sonst wird die Handlung nicht
+                      dem Vortag zugeordnet.
                     </p>
                   )}
                 </div>

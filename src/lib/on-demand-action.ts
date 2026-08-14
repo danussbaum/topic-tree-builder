@@ -1,4 +1,4 @@
-import type { ActionNode, DayPart, TopicNode } from "@/types/assessment";
+import type { ActionNode, TopicNode } from "@/types/assessment";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -52,13 +52,14 @@ export const collectOnDemandCandidates = (
 export const buildOnDemandOccurrence = (
   source: ActionNode,
   date: string,
-  dayPart: DayPart | "none",
+  dayPart: string | "none",
   scheduledTime?: string,
 ): ActionNode => ({
   ...source,
   id: uid(),
   groupId: uid(),
-  dayPart: dayPart === "none" ? undefined : dayPart,
+  // Strikte Trennung: mit Uhrzeit wird die Tageszeit abgeleitet, nicht gespeichert.
+  dayPart: scheduledTime?.trim() || dayPart === "none" ? undefined : dayPart,
   scheduledTime,
   validFrom: date,
   validTo: date,

@@ -3,8 +3,9 @@ import type {
   ActionConfirmation,
   ActionNode,
   ActionStatus,
-  DayPart,
 } from "@/types/assessment";
+import { effectiveDayPart } from "@/lib/day-part-rollover";
+import { getDayParts, type DayPartDefinition } from "@/lib/day-parts";
 
 export type NumericComparison = {
   op: "gt" | "lt" | "eq";
@@ -24,7 +25,8 @@ export interface AssessmentFilterModel {
   actualMinutes?: NumericComparison;
   differenceMinutes?: NumericRange;
   differencePercent?: NumericRange;
-  dayParts?: DayPart[];
+  /** Tageszeit-IDs (siehe lib/day-parts) */
+  dayParts?: string[];
   category?: ActionCategory | "none";
   persons?: PersonsFilter;
   result?: "none" | "with_result";
@@ -75,6 +77,7 @@ const getDifferencePercent = (plannedMinutes?: number, actualMinutes?: number) =
 export const matchesAssessmentFilter = (
   { action, status, confirmation, disciplineId }: FilterInput,
   filter: AssessmentFilterModel,
+  dayParts: DayPartDefinition[] = getDayParts(),
 ) => {
   if (!filter.statuses.includes(status)) return false;
 
@@ -95,8 +98,11 @@ export const matchesAssessmentFilter = (
   if (!matchesNumericRange(differencePercent, filter.differencePercent)) return false;
 
   if (filter.dayParts && filter.dayParts.length > 0) {
-    const dayPart = action.dayPart;
-    if (!dayPart || !filter.dayParts.includes(dayPart)) return false;
+    // Im Uhrzeit-Modus ist die Tageszeit nicht gespeichert, sondern abgeleitet.
+    // Bei bestätigten Durchführungen gilt der Snapshot — gefiltert wird nach
+    // derselben Tageszeit, die die Umsetzung anzeigt.
+    const dayPart = confirmation?.dayPartSnapshot ?? effectiveDayPart(action, dayParts);
+    if (!dayPart || !filter.dayParts.includes(dayPart.id)) return false;
   }
 
   if (filter.category != null) {

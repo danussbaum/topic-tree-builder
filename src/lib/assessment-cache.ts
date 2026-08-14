@@ -1,5 +1,6 @@
 import type { Client, TopicNode } from "@/types/assessment";
 import type { AssessmentFilterModel } from "@/types/assessment-filter";
+import { LEGACY_DAY_PART_IDS } from "@/lib/day-parts";
 import {
   APPLICATION_BROWSER_STORAGE_KEYS,
   finishApplicationLogoutClearing,
@@ -19,6 +20,31 @@ export const migrateActionNodeGroupIds = (clients: Client[]): Client[] =>
           // Unplanned actions always get their own unique groupId
           (action.isUnplanned || !action.groupId) ? { ...action, groupId: uid() } : action,
         ),
+      })),
+    })),
+  }));
+
+/**
+ * Früher trug eine Handlung eine Tageszeit UND optional eine Uhrzeit. Seit der
+ * strikten Trennung gilt: Ist eine Uhrzeit erfasst, gewinnt sie und die Tageszeit
+ * entfällt (sie wird bei der Anzeige abgeleitet). Reine Tageszeit-Handlungen
+ * behalten ihre Angabe, deren alter Schlüssel wird auf die Tageszeit-ID abgebildet.
+ */
+const migrateCachedDayParts = (clients: Client[]): Client[] =>
+  clients.map((client) => ({
+    ...client,
+    topics: client.topics.map((topic) => ({
+      ...topic,
+      targets: topic.targets.map((target) => ({
+        ...target,
+        actions: target.actions.map((action) => {
+          if (action.scheduledTime?.trim()) {
+            return action.dayPart ? { ...action, dayPart: undefined } : action;
+          }
+          if (!action.dayPart) return action;
+          const mapped = LEGACY_DAY_PART_IDS[action.dayPart];
+          return mapped ? { ...action, dayPart: mapped } : action;
+        }),
       })),
     })),
   }));
@@ -97,7 +123,9 @@ export const loadCachedAssessmentState = (
         typeof parsed.lastNDays === "number" && Number.isFinite(parsed.lastNDays) && parsed.lastNDays > 0
           ? Math.floor(parsed.lastNDays)
           : DEFAULT_LAST_N_DAYS,
-      clients: migrateActionNodeGroupIds(migrateCachedTopicsToDisciplines(parsed.clients as Client[])),
+      clients: migrateCachedDayParts(
+        migrateActionNodeGroupIds(migrateCachedTopicsToDisciplines(parsed.clients as Client[])),
+      ),
       selectedClientIds: parsed.selectedClientIds,
       confirmationFilter: parsed.confirmationFilter ?? fallbackConfirmationFilter,
     };

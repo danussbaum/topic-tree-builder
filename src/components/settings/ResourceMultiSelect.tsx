@@ -63,6 +63,9 @@ export const ResourceMultiSelect = ({
               <Badge
                 key={resource.id}
                 variant="secondary"
+                // Die Beschreibung aus dem Katalog als Tooltip: sie erklärt das
+                // Hilfsmittel, ohne die Zeile zu verlängern.
+                title={resource.description.trim() || undefined}
                 className="h-6 gap-1 rounded-sm border border-border/60 bg-secondary/40 px-1.5 font-normal text-foreground/90"
               >
                 {resource.name}
@@ -114,16 +117,27 @@ export const ResourceMultiSelect = ({
       </div>
       {isDropdownOpen && filteredResources.length > 0 && (
         <div className="max-h-56 overflow-y-auto border-t border-border/70 p-1.5">
-          {filteredResources.map((resource) => (
-            <button
-              key={resource.id}
-              type="button"
-              onClick={() => selectResource(resource.id)}
-              className="flex w-full items-center rounded-sm px-2 py-1 text-left text-sm hover:bg-secondary/40"
-            >
-              <span className="truncate">{resource.name}</span>
-            </button>
-          ))}
+          {filteredResources.map((resource) => {
+            const description = resource.description.trim();
+            return (
+              <button
+                key={resource.id}
+                type="button"
+                onClick={() => selectResource(resource.id)}
+                // Der zugängliche Name bleibt der Hilfsmittel-Name, damit die Auswahl
+                // eindeutig ansprechbar ist — die Beschreibung ist nur Erläuterung.
+                aria-label={resource.name}
+                className="flex w-full flex-col items-start rounded-sm px-2 py-1 text-left text-sm hover:bg-secondary/40"
+              >
+                <span className="w-full truncate">{resource.name}</span>
+                {description && (
+                  <span className="w-full truncate text-xs text-muted-foreground">
+                    {description}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>

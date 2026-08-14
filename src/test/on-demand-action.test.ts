@@ -75,12 +75,13 @@ describe("Nach-Bedarf-Handlungen", () => {
   });
 
   it("erzeugt eine Durchführung für genau einen Tag mit den Plan-Werten", () => {
-    const occurrence = buildOnDemandOccurrence(onDemandAction, "2026-05-12", "evening", "18:30");
+    const occurrence = buildOnDemandOccurrence(onDemandAction, "2026-05-12", "none", "18:30");
 
     expect(occurrence.validFrom).toBe("2026-05-12");
     expect(occurrence.validTo).toBe("2026-05-12");
     expect(occurrence.recurrence).toBe("daily");
-    expect(occurrence.dayPart).toBe("evening");
+    // Strikte Trennung: mit Uhrzeit bleibt die Tageszeit leer und wird abgeleitet.
+    expect(occurrence.dayPart).toBeUndefined();
     expect(occurrence.scheduledTime).toBe("18:30");
     // Geplante Zeit stammt aus dem Plan — "Erledigt wie geplant" bleibt darum möglich.
     expect(occurrence.plannedMinutes).toBe(15);

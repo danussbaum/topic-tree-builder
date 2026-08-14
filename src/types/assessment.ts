@@ -5,7 +5,6 @@ export type ActionStatus =
   | "not_done"
   | "postponed";
 
-export type DayPart = "morning" | "noon" | "afternoon" | "evening" | "night";
 export type ActionCategory = "a" | "b" | "c";
 export type ActionServiceType =
   | "spitex-klv-a"
@@ -63,7 +62,7 @@ export interface ConfirmationFilter {
   };
   differenceMinutes?: number;
   differencePercent?: number;
-  dayPart?: DayPart | "none";
+  dayPart?: string | "none";
   persons?: { kind: "none" } | { kind: "exact"; value: number };
   result?: "none" | "with_result";
 }
@@ -72,6 +71,12 @@ export interface ActionConfirmation {
   status: ActionStatus;
   /** Snapshot der Leistungsart zum Zeitpunkt der Umsetzung */
   serviceType?: ActionServiceType;
+  /**
+   * Snapshot der Tageszeit zum Zeitpunkt der Umsetzung. Im Uhrzeit-Modus wird die
+   * Tageszeit sonst laufend aus der Konfiguration abgeleitet — festgehalten bleibt
+   * die Historie von späteren Änderungen an den Stammdaten unabhängig.
+   */
+  dayPartSnapshot?: { id: string; title: string; from: string; to: string };
   actualMinutes?: number;
   /** Bei der Umsetzung erfasste optionale Leistungen (nur Einträge mit Anzahl > 0) */
   optionalServices?: ConfirmedOptionalService[];
@@ -110,8 +115,12 @@ export interface ActionNode {
   requiredPersons?: number;
   /** Ob bei der Bestaetigung ein Resultat erfasst wird */
   resultRequirement?: ResultRequirement;
-  /** Tageszeit zur Gruppierung */
-  dayPart?: DayPart;
+  /**
+   * Tageszeit-ID zur Gruppierung (siehe lib/day-parts). Gesetzt nur im
+   * Tageszeit-Modus — im Uhrzeit-Modus steht stattdessen scheduledTime und die
+   * Tageszeit wird bei der Anzeige daraus abgeleitet.
+   */
+  dayPart?: string;
   /** Exakte Uhrzeit zur Durchführung (HH:mm) */
   scheduledTime?: string;
   /** Kategorie fuer optionale Einteilung */
@@ -200,33 +209,3 @@ export type Selection =
   | { kind: "topic"; topicId: string }
   | { kind: "target"; topicId: string; targetId: string }
   | { kind: "action"; topicId: string; targetId: string; actionId: string };
-
-export const DAY_PART_ORDER: (DayPart | "none")[] = [
-  "none",
-  "morning",
-  "noon",
-  "afternoon",
-  "evening",
-  "night",
-];
-
-export const DAY_PART_LABEL: Record<DayPart, string> = {
-  morning: "Morgen",
-  noon: "Mittag",
-  afternoon: "Nachmittag",
-  evening: "Abend",
-  night: "Nacht",
-};
-
-export const DAY_PART_OPTIONS: Array<{ value: DayPart; label: string }> = [
-  { value: "morning", label: DAY_PART_LABEL.morning },
-  { value: "noon", label: DAY_PART_LABEL.noon },
-  { value: "afternoon", label: DAY_PART_LABEL.afternoon },
-  { value: "evening", label: DAY_PART_LABEL.evening },
-  { value: "night", label: DAY_PART_LABEL.night },
-];
-
-export const DAY_PART_SELECT_OPTIONS: Array<{ value: DayPart | "none"; label: string }> = [
-  { value: "none", label: "Keine Angabe" },
-  ...DAY_PART_OPTIONS,
-];

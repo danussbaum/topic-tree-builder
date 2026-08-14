@@ -1,7 +1,8 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+﻿import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AssessmentOutline, UnplannedActionDialog } from "@/components/assessment/AssessmentOutline";
 import type { TopicNode } from "@/types/assessment";
+import { DAY_PART_SEED_IDS } from "@/lib/day-parts";
 import {
   ACTION_PLAN_TEMPLATES_STORAGE_KEY,
   buildDefaultTemplateEditable,
@@ -265,7 +266,7 @@ describe("AssessmentOutline confirmation actions", () => {
             dauer: "25",
             personen: "2",
             kategorie: "b",
-            tageszeit: "morning(08:15)",
+            tageszeit: "Morgen",
             resultat: "required",
           },
           editable: {
@@ -330,8 +331,7 @@ describe("AssessmentOutline confirmation actions", () => {
                 recurrence: "monthly",
                 recurrenceMonthlyPattern: "first_day",
                 category: "b",
-                dayPart: "morning",
-                scheduledTime: "08:15",
+                dayPart: DAY_PART_SEED_IDS.morning,
                 plannedMinutes: 25,
                 requiredPersons: 2,
                 resultRequirement: "required",
@@ -510,16 +510,18 @@ describe("AssessmentOutline confirmation actions", () => {
     fireEvent.change(within(dialog).getByPlaceholderText("Vorlagen suchen..."), { target: { value: "Morg" } });
     fireEvent.click(await within(dialog).findByText("Morgenroutine"));
 
-    // Ohne fixe Tageszeit rendert der Dialog den Chip-Selektor: Morgen (aus der
-    // Vorlage) abwählen, Abend manuell wählen.
-    fireEvent.click(within(dialog).getByRole("button", { name: "Morgen" }));
+    // Die Vorlage "Morgenroutine" ist im Uhrzeit-Modus erfasst. Für eine Tageszeit
+    // muss darum der Modus gewechselt werden — das verwirft die Uhrzeit und wird
+    // deshalb bestätigt.
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tageszeiten" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Wechseln" }));
     fireEvent.click(within(dialog).getByRole("button", { name: "Abend" }));
     fireEvent.click(within(dialog).getByRole("button", { name: "Bestätigen" }));
 
     // Die gewählten Tageszeiten kommen als zweites Argument (dayPartEntries).
     expect(onAddUnplannedAction).toHaveBeenCalledWith(
       expect.objectContaining({ title: "Morgenroutine" }),
-      [expect.objectContaining({ dayPart: "evening" })],
+      [expect.objectContaining({ dayPart: DAY_PART_SEED_IDS.evening })],
     );
   });
 
@@ -782,7 +784,6 @@ describe("Rollover von Nacht-Handlungen", () => {
               validFrom: "2026-08-01",
               validTo: "2026-08-01",
               recurrence: "daily",
-              dayPart: "night",
               scheduledTime: "22:00",
             },
             {
@@ -795,21 +796,20 @@ describe("Rollover von Nacht-Handlungen", () => {
               validFrom: "2026-08-01",
               validTo: "2026-08-01",
               recurrence: "daily",
-              dayPart: "night",
               scheduledTime: "01:00",
             },
             {
-              id: "act-morning-0100",
+              // Tageszeit-Modus ohne Uhrzeit: rollt nie, bleibt am Planungstag.
+              id: "act-morning",
               groupId: "grp-morning",
-              title: "Frühdienst 1 Uhr",
+              title: "Frühdienst ohne Uhrzeit",
               notes: "",
               status: "open",
               done: false,
               validFrom: "2026-08-01",
               validTo: "2026-08-01",
               recurrence: "daily",
-              dayPart: "morning",
-              scheduledTime: "01:00",
+              dayPart: DAY_PART_SEED_IDS.morning,
             },
           ],
         },
@@ -846,16 +846,16 @@ describe("Rollover von Nacht-Handlungen", () => {
     renderDay("2026-08-01");
 
     expect(screen.getByText("Umlagern 22 Uhr")).toBeInTheDocument();
-    // Morgen(01:00) rollt nicht — die Tageszeit Nacht ist ausschlaggebend.
-    expect(screen.getByText("Frühdienst 1 Uhr")).toBeInTheDocument();
+    // Ohne Uhrzeit gibt es keinen Rollover — die Handlung bleibt am Planungstag.
+    expect(screen.getByText("Frühdienst ohne Uhrzeit")).toBeInTheDocument();
     expect(screen.queryByText("Umlagern 1 Uhr")).not.toBeInTheDocument();
   });
 
-  it("zeigt Nacht(01:00) am Folgetag, auch über 'gültig bis' hinaus", () => {
+  it("zeigt 01:00 am Folgetag, auch über 'gültig bis' hinaus", () => {
     renderDay("2026-08-02");
 
     expect(screen.getByText("Umlagern 1 Uhr")).toBeInTheDocument();
     expect(screen.queryByText("Umlagern 22 Uhr")).not.toBeInTheDocument();
-    expect(screen.queryByText("Frühdienst 1 Uhr")).not.toBeInTheDocument();
+    expect(screen.queryByText("Frühdienst ohne Uhrzeit")).not.toBeInTheDocument();
   });
 });
