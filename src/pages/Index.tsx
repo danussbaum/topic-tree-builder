@@ -838,15 +838,6 @@ const Index = () => {
   const [pendingActualMinutesOp, setPendingActualMinutesOp] = useState<"gt" | "lt" | "eq">("eq");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [showClosedTargets, setShowClosedTargets] = useState(false);
-  // Eingeklappte Personen-Blöcke in der Planungs-Ansicht (nur Darstellung).
-  const [collapsedPlanningClientIds, setCollapsedPlanningClientIds] = useState<Set<string>>(new Set());
-  const togglePlanningClientCollapsed = (clientId: string) =>
-    setCollapsedPlanningClientIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(clientId)) next.delete(clientId);
-      else next.add(clientId);
-      return next;
-    });
   const [evaluationAssessmentPanel, setEvaluationAssessmentPanel] = useState<{
     clientId: string;
     topicId: string;
@@ -3451,18 +3442,6 @@ const Index = () => {
                   <section key={client.id} data-client-block className="scroll-mt-2 space-y-6">
                     {/* Client header */}
                     <div className={cn("flex items-center gap-4 pb-5 border-b border-border sticky z-10 bg-[#F5F5F6]", viewMode === "confirmation" ? "top-0 pt-[5px]" : viewMode === "planning" ? "top-0 pb-2" : "top-9 pb-2")}>
-                      {viewMode === "planning" && (
-                        <button
-                          type="button"
-                          onClick={() => togglePlanningClientCollapsed(client.id)}
-                          className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
-                          aria-label={collapsedPlanningClientIds.has(client.id) ? "Personen-Block ausklappen" : "Personen-Block einklappen"}
-                        >
-                          {collapsedPlanningClientIds.has(client.id)
-                            ? <ChevronRight className="h-5 w-5" />
-                            : <ChevronDown className="h-5 w-5" />}
-                        </button>
-                      )}
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline gap-0">
                           <ClientNameInput
@@ -3558,7 +3537,6 @@ const Index = () => {
                       )}
                     </div>
 
-                    {!(viewMode === "planning" && collapsedPlanningClientIds.has(client.id)) && (
                     <AssessmentOutline
                       viewMode={viewMode}
                       stickyOffset={viewMode === "confirmation" ? 58 : undefined}
@@ -3626,7 +3604,6 @@ const Index = () => {
                         deleteActionGroup(client.id, topicId, targetId, groupId)
                       }
                     />
-                    )}
                     {personOnDemandClientId === client.id && (
                       <OnDemandActionDialog
                         key={`${client.id}-on-demand`}

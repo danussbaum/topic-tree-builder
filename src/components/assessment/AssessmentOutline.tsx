@@ -1990,9 +1990,9 @@ export function AssessmentOutline({
                           <button
                             type="button"
                             onClick={() => toggleTopic(topic.id)}
-                            className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                            className="flex min-w-0 flex-1 items-start gap-2 text-left"
                           >
-                            <span className={cn("min-w-0 flex-1 truncate text-base font-semibold", !topic.title && "text-muted-foreground/40")}>
+                            <span className={cn("min-w-0 flex-1 whitespace-pre-wrap break-words text-base font-semibold", !topic.title && "text-muted-foreground/40")}>
                               {topic.title || "Schwerpunkt…"}
                             </span>
                           </button>
@@ -2067,7 +2067,7 @@ export function AssessmentOutline({
                                     : "text-muted-foreground hover:bg-muted",
                                 )}
                               >
-                                <span className="truncate">{target.title || "Ziel…"}</span>
+                                <span className="min-w-0 flex-1 whitespace-pre-wrap break-words">{target.title || "Ziel…"}</span>
                               </button>
                             </li>
                           );
@@ -2097,7 +2097,6 @@ export function AssessmentOutline({
         <div className="min-w-0 rounded-xl border border-border bg-white p-5" style={{ marginTop: detailOffset }}>
           {selectedTopicBlocks.length === 0 ? (
             <div className="flex min-h-[240px] flex-col items-center justify-center gap-2 text-center text-muted-foreground">
-              <div className="text-3xl">◻</div>
               <div>Schwerpunkt links wählen, um Ziele und Handlungen zu sehen.</div>
             </div>
           ) : (
