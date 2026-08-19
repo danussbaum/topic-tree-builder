@@ -142,6 +142,7 @@ import {
 } from "@/lib/action-plan-templates";
 import { DEFAULT_LAST_N_DAYS, type ConfirmationPeriod } from "@/lib/assessment-cache";
 import { getRescheduleWindow } from "@/lib/reschedule";
+import { isFutureConfirmationDate } from "@/lib/confirmation-window";
 import {
   SCHEDULE_FIELD_MESSAGE,
   getScheduleIssues,
@@ -503,6 +504,14 @@ const ACTION_PLAN_CATEGORY_PERMISSIONS = loadActionPlanCategoryPermissions();
 
 const canConfirmAction = (action: ActionNode) =>
   canConfirmActionCategory(action.category, ACTION_PLAN_CATEGORY_PERMISSIONS);
+
+/**
+ * "Erledigt wie geplant" per Mehrfachauswahl erfasst keine Eingaben. Handlungen mit
+ * zwingendem Resultat müssen darum einzeln bestätigt werden — sonst entstünde ein
+ * Abschluss ohne das geforderte Resultat. "Nicht durchgeführt" bleibt möglich: dort
+ * gibt es kein Resultat, sondern eine Begründung, und die wird im Dialog erfasst.
+ */
+const requiresResult = (action: ActionNode) => (action.resultRequirement ?? "none") === "required";
 
 const WEEKDAY_OPTIONS: Array<{ value: Weekday; label: string; dayIndex: number }> = [
   { value: "monday", label: "Mo", dayIndex: 1 },
@@ -1101,7 +1110,9 @@ export function AssessmentOutline({
     });
     const groupedFlatActions = groupFlatActionsByDateThenDayPart(sortedFlatActions);
     const bulkNotDoneTargets: BulkNotDoneTarget[] = sortedFlatActions
-      .filter(({ action, status }) => canConfirmAction(action) && (status === "open" || status === "postponed"))
+      .filter(({ action, status, confirmationDate }) =>
+        canConfirmAction(action) && (status === "open" || status === "postponed") &&
+        !isFutureConfirmationDate(confirmationDate, today))
       .map(({ topic, target, action, confirmationDate }) => ({
         key: buildBulkNotDoneKey(topic.id, target.id, action.id, confirmationDate),
         topicId: topic.id,
@@ -1121,8 +1132,10 @@ export function AssessmentOutline({
 
     const bulkDoneAsPlannedTargets: BulkDoneAsPlannedTarget[] = sortedFlatActions
       // Ungeplante Handlungen sind nie "wie geplant" erledigt — sie haben keine geplante Zeit.
-      .filter(({ action, status }) =>
-        canConfirmAction(action) && !action.isUnplanned && (status === "open" || status === "postponed"))
+      .filter(({ action, status, confirmationDate }) =>
+        canConfirmAction(action) && !action.isUnplanned && !requiresResult(action) &&
+        (status === "open" || status === "postponed") &&
+        !isFutureConfirmationDate(confirmationDate, today))
       .map(({ topic, target, action, confirmationDate }) => ({
         key: buildBulkNotDoneKey(topic.id, target.id, action.id, confirmationDate),
         topicId: topic.id,
@@ -1296,7 +1309,7 @@ export function AssessmentOutline({
               </div>
             </div>
             <p className="mt-1.5 text-xs text-muted-foreground/80">
-              Alle ausgewählten offenen/verschobenen Handlungen werden ohne weitere Angaben als erledigt wie geplant bestätigt. Bereits abgeschlossene Handlungen werden nicht in die Mehrfachauswahl aufgenommen.
+              Alle ausgewählten offenen/verschobenen Handlungen werden ohne weitere Angaben als erledigt wie geplant bestätigt. Bereits abgeschlossene Handlungen sowie Handlungen mit zwingendem Resultat werden nicht in die Mehrfachauswahl aufgenommen — Letztere müssen einzeln bestätigt werden.
             </p>
           </div>
         )}
@@ -1306,10 +1319,12 @@ export function AssessmentOutline({
             const isBulkActive = bulkNotDoneMode || bulkDoneAsPlannedMode;
             const daySelectableKeys = dateGroup.dayPartGroups.flatMap((g) =>
               g.actions
-                .filter(({ action, target, status }) =>
+                .filter(({ action, target, status, confirmationDate }) =>
                   canConfirmAction(action) && !target.validTo && (status === "open" || status === "postponed") &&
-                  // "Wie geplant" gibt es bei ungeplanten Handlungen nicht.
-                  !(bulkDoneAsPlannedMode && action.isUnplanned))
+                  !isFutureConfirmationDate(confirmationDate, today) &&
+                  // "Wie geplant" gibt es bei ungeplanten Handlungen nicht, und ein
+                  // zwingendes Resultat lässt sich in der Mehrfachauswahl nicht erfassen.
+                  !(bulkDoneAsPlannedMode && (action.isUnplanned || requiresResult(action))))
                 .map(({ topic, target, action, confirmationDate }) =>
                   buildBulkNotDoneKey(topic.id, target.id, action.id, confirmationDate)));
             const selectedDayKeys = isBulkActive
@@ -1362,9 +1377,10 @@ export function AssessmentOutline({
               </div>
               {dateGroup.dayPartGroups.map((group) => {
                 const groupSelectableKeys = group.actions
-                  .filter(({ action, target, status }) =>
+                  .filter(({ action, target, status, confirmationDate }) =>
                     canConfirmAction(action) && !target.validTo && (status === "open" || status === "postponed") &&
-                    !(bulkDoneAsPlannedMode && action.isUnplanned))
+                    !isFutureConfirmationDate(confirmationDate, today) &&
+                    !(bulkDoneAsPlannedMode && (action.isUnplanned || requiresResult(action))))
                   .map(({ topic, target, action, confirmationDate }) =>
                     buildBulkNotDoneKey(topic.id, target.id, action.id, confirmationDate));
                 const isBulkActive = bulkNotDoneMode || bulkDoneAsPlannedMode;
@@ -1451,17 +1467,23 @@ export function AssessmentOutline({
                           const conf = action.confirmations?.[confirmationDate];
                           const isTargetClosed = !!target.validTo;
                           const canConfirm = canConfirmAction(action) && !isTargetClosed;
+                          // Was noch nicht stattgefunden hat, lässt sich nicht bestätigen —
+                          // einzig die Neuplanung bleibt für zukünftige Termine offen.
+                          const isFutureDueDate = isFutureConfirmationDate(confirmationDate, today);
                           const bulkNotDoneKey = buildBulkNotDoneKey(topic.id, target.id, action.id, confirmationDate);
-                          const isBulkNotDoneSelectable = canConfirm && (status === "open" || status === "postponed");
+                          const isBulkNotDoneSelectable =
+                            canConfirm && !isFutureDueDate && (status === "open" || status === "postponed");
                           const bulkDoneAsPlannedKey = bulkNotDoneKey;
                           const isBulkDoneAsPlannedSelectable =
-                            canConfirm && !action.isUnplanned && (status === "open" || status === "postponed");
+                            canConfirm && !isFutureDueDate && !action.isUnplanned && !requiresResult(action) &&
+                            (status === "open" || status === "postponed");
                           const disciplineTitle =
                             disciplineOptions.find((discipline) => discipline.id === topic.disciplineId)?.title ??
                             topic.disciplineId ??
                             "Ohne Disziplin";
                           const openConfirmationDialog = (initialMode: ConfirmationMode) => {
                             if (!canConfirm) return;
+                            if (isFutureDueDate && initialMode !== "postponed") return;
                             openConfirmDialog({
                               topicId: topic.id,
                               targetId: target.id,
@@ -1535,8 +1557,10 @@ export function AssessmentOutline({
                                         // deshalb nur "mit Abweichung" erledigt sein, nie "wie geplant".
                                         const isDoneAsPlannedUnavailable =
                                           option.mode === "done_as_planned" && !!action.isUnplanned;
+                                        const isFutureUnavailable = isFutureDueDate && option.mode !== "postponed";
                                         const isDisabled =
-                                          !canConfirm || isBulkMode || isRescheduleUnavailable || isDoneAsPlannedUnavailable;
+                                          !canConfirm || isBulkMode || isRescheduleUnavailable || isDoneAsPlannedUnavailable ||
+                                          isFutureUnavailable;
                                         return (
                                           <Tooltip key={option.mode}>
                                             <TooltipTrigger asChild>
@@ -1560,6 +1584,8 @@ export function AssessmentOutline({
                                                 <div className="text-xs text-muted-foreground">
                                                   {isBulkMode
                                                     ? "Im Mehrfachauswahl-Modus nicht verfügbar"
+                                                    : isFutureUnavailable
+                                                      ? "Noch nicht möglich — der Termin liegt in der Zukunft. Eine Neuplanung ist weiterhin möglich."
                                                     : isDoneAsPlannedUnavailable
                                                       ? "Bei einer ungeplanten Handlung nicht möglich — es gibt keine geplante Zeit, also nur «Erledigt mit Abweichung»"
                                                       : isRescheduleUnavailable
@@ -5512,6 +5538,12 @@ export function ConfirmActionDialog({
                 placeholder="Resultat der Handlung..."
                 className="bg-background"
               />
+              <p className="text-xs text-muted-foreground">
+                Prototyp: Resultate werden hier als Freitext erfasst. Vorgesehen ist die Erfassung
+                über frei definierbare Formulare analog den Pflegeformularen aus dem Modul Pflege —
+                mit Feldern je nach Typ (Zahl, Text, Datum, einfache oder mehrfache Auswahlliste),
+                wahlweise obligatorisch oder optional.
+              </p>
             </div>
           )}
 
