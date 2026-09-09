@@ -1,0 +1,28 @@
+#!/bin/sh
+# Nicht blockierende Typpruefung vor dem Push. Der Build laeuft ueber Vite/SWC und
+# typisiert nicht, darum wird hier ab und zu nachgesehen. Ein Fehler warnt nur --
+# im Prototyp soll der Push nie an Typfehlern haengen.
+#
+# Ueberspringen: SKIP_TYPECHECK=1 git push
+# Einrichten (pro Klon einmalig): git config core.hooksPath .githooks
+
+if [ "$SKIP_TYPECHECK" = "1" ]; then
+  exit 0
+fi
+
+printf 'pre-push: npm run typecheck ... '
+OUTPUT=$(npm run --silent typecheck 2>&1)
+
+if [ $? -eq 0 ]; then
+  printf 'sauber\n'
+else
+  COUNT=$(printf '%s\n' "$OUTPUT" | grep -c 'error TS')
+  printf '\n'
+  printf '  WARNUNG: %s Typfehler. Der Push laeuft trotzdem.\n' "$COUNT"
+  printf '%s\n' "$OUTPUT" | grep 'error TS' | head -10 | sed 's/^/  /'
+  if [ "$COUNT" -gt 10 ]; then
+    printf '  ... Details mit: npm run typecheck\n'
+  fi
+fi
+
+exit 0
