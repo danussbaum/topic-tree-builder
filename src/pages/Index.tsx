@@ -72,6 +72,7 @@ import {
 } from "@/types/assessment-filter";
 import { cn } from "@/lib/utils";
 import { createSimpleXlsxBlob } from "@/lib/xlsx";
+import { buildClientReferenceNumbers, CLIENT_REFERENCE_HEADER } from "@/lib/client-reference-number";
 import {
   buildPlanningExportRows,
   PLANNING_EXPORT_DATE_HEADERS,
@@ -388,8 +389,9 @@ const formatEvalDiff = (minutes: number) => {
 
 /** Spalten für den Handlungs-Export (identisch für "Umsetzung" und "Auswertungen"). */
 const CONFIRMATION_EXPORT_HEADERS = [
+  CLIENT_REFERENCE_HEADER,
   "Datum",
-  "Klient/in",
+  "Dossier",
   "Disziplin",
   "Schwerpunkt",
   "Ziel",
@@ -982,6 +984,9 @@ const Index = () => {
 
   const selectedClients = clients.filter((c) => selectedClientIds.includes(c.id));
   const visibleSelectedClients = selectedClients;
+  // Aus der vollen Liste, nicht aus der Auswahl: sonst verschiebt sich die Laufnummer
+  // je nachdem, welche Klient/innen gerade angehakt sind.
+  const clientReferenceNumbers = useMemo(() => buildClientReferenceNumbers(clients), [clients]);
 
   const toggleClient = (id: string) => {
     setSelectedClientIds((prev) => {
@@ -2098,7 +2103,7 @@ const Index = () => {
   const exportEvaluationXlsx = () => {
     if (viewMode !== "evaluation") return;
     const disciplineList = availableDisciplines.length > 0 ? availableDisciplines : initialActionPlanDisciplines;
-    const headers = ["Dossier", "Disziplin", "Schwerpunkt", "Ziel", "Beschreibung", "Gültig ab", "Gültig bis", "Ziel erreicht", "Auswertung", "Abgeleitete Massnahmen", "Beurteilt von", "Beurteilt am"];
+    const headers = [CLIENT_REFERENCE_HEADER, "Dossier", "Disziplin", "Schwerpunkt", "Ziel", "Beschreibung", "Gültig ab", "Gültig bis", "Ziel erreicht", "Auswertung", "Abgeleitete Massnahmen", "Beurteilt von", "Beurteilt am"];
     const rows = visibleSelectedClients.flatMap((client) => {
       const clientName = `${client.firstName} ${client.lastName}`.trim();
       return client.topics.flatMap((topic) => {
@@ -2108,6 +2113,7 @@ const Index = () => {
           .map((tg) => {
             const gs = tg.assessment?.goalStatus;
             return [
+              clientReferenceNumbers.get(client.id) ?? "",
               clientName,
               disciplineTitle,
               topic.title,
@@ -2139,8 +2145,9 @@ const Index = () => {
   ): Record<string, string | number> => {
     const confirmation = action.confirmations?.[confirmationDate];
     return {
+      [CLIENT_REFERENCE_HEADER]: clientReferenceNumbers.get(client.id) ?? "",
       Datum: dueDate,
-      "Klient/in": `${client.firstName} ${client.lastName}`.trim(),
+      Dossier: `${client.firstName} ${client.lastName}`.trim(),
       Disziplin:
         availableDisciplines.find((discipline) => discipline.id === topic.disciplineId)?.title ??
         topic.disciplineId ??
@@ -2256,6 +2263,7 @@ const Index = () => {
       records: buildPlanningExportRows(selectedClients, {
         disciplines: availableDisciplines.length > 0 ? availableDisciplines : initialActionPlanDisciplines,
         resources: getActionPlanResources(),
+        clientReferenceNumbers,
       }),
       sheetName: "Planung",
       filename: `planung_${selectedDate}.xlsx`,

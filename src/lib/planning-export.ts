@@ -8,6 +8,7 @@ import {
   getActionServiceTypeLabel,
 } from "@/lib/action-plan-templates";
 import { initialActionPlanDisciplines, type ActionPlanDiscipline } from "@/lib/action-plan-disciplines";
+import { buildClientReferenceNumbers, CLIENT_REFERENCE_HEADER } from "@/lib/client-reference-number";
 import { getDayParts, type DayPartDefinition } from "@/lib/day-parts";
 import { effectiveDayPart, scheduleSortKey } from "@/lib/day-part-rollover";
 import type {
@@ -22,7 +23,8 @@ import type {
 } from "@/types/assessment";
 
 export const PLANNING_EXPORT_HEADERS = [
-  "Klient/in",
+  CLIENT_REFERENCE_HEADER,
+  "Dossier",
   "Disziplin",
   "Schwerpunkt",
   "Ziel",
@@ -160,6 +162,11 @@ export interface PlanningExportOptions {
   disciplines?: ActionPlanDiscipline[];
   resources?: ActionPlanResource[];
   dayParts?: DayPartDefinition[];
+  /**
+   * Laufnummern aus der Hauptnavigation. Muss von aussen kommen, weil hier nur die
+   * ausgewaehlten Klient/innen ankommen und zusaetzlich alphabetisch sortiert wird.
+   */
+  clientReferenceNumbers?: ReadonlyMap<string, string>;
 }
 
 /**
@@ -174,6 +181,7 @@ export const buildPlanningExportRows = (
     disciplines = initialActionPlanDisciplines,
     resources = getActionPlanResources(),
     dayParts = getDayParts(),
+    clientReferenceNumbers = buildClientReferenceNumbers(clients),
   }: PlanningExportOptions = {},
 ): PlanningExportRow[] => {
   const disciplineTitle = (topic: TopicNode) =>
@@ -184,7 +192,8 @@ export const buildPlanningExportRows = (
   const clientName = (client: Client) => `${client.firstName} ${client.lastName}`.trim();
 
   const baseRow = (client: Client, topic: TopicNode, target?: TargetNode): PlanningExportRow => ({
-    "Klient/in": clientName(client),
+    [CLIENT_REFERENCE_HEADER]: clientReferenceNumbers.get(client.id) ?? "",
+    Dossier: clientName(client),
     Disziplin: disciplineTitle(topic),
     Schwerpunkt: topic.title,
     Ziel: target?.title ?? "",

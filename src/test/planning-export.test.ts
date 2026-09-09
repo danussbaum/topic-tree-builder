@@ -6,6 +6,7 @@ import {
 import { DAY_PART_SEED_IDS, initialDayParts } from "@/lib/day-parts";
 import { initialActionPlanResources } from "@/lib/action-plan-resources";
 import { initialActionPlanDisciplines } from "@/lib/action-plan-disciplines";
+import { buildClientReferenceNumbers } from "@/lib/client-reference-number";
 import type { ActionNode, Client } from "@/types/assessment";
 
 const options = {
@@ -77,7 +78,7 @@ describe("buildPlanningExportRows", () => {
 
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
-      "Klient/in": "Anna Muster",
+      Dossier: "Anna Muster",
       Schwerpunkt: "Mobilität",
       Ziel: "Selbständig gehen",
       Zielbeschreibung: "Ziel-Notiz",
@@ -227,5 +228,25 @@ describe("buildPlanningExportRows", () => {
     );
 
     expect(Object.keys(rows[0]).every((key) => PLANNING_EXPORT_HEADERS.includes(key as never))).toBe(true);
+  });
+
+  it("stellt die Laufnummer als erste Spalte voran", () => {
+    expect(PLANNING_EXPORT_HEADERS[0]).toBe("Laufnummer");
+  });
+
+  it("uebernimmt die Laufnummern der Hauptnavigation trotz alphabetischer Sortierung", () => {
+    const anna = withPlan([action({ id: "a1", groupId: "g1" })]);
+    const bachmann = { ...anna, id: "c2", firstName: "Lukas", lastName: "Bachmann" };
+    // Reihenfolge der Hauptnavigation: Lukas zuerst, also Laufnummer 00001.
+    const rows = buildPlanningExportRows([bachmann, anna], {
+      ...options,
+      clientReferenceNumbers: buildClientReferenceNumbers([bachmann, anna]),
+    });
+
+    // Der Export sortiert nach Namen, die Laufnummer bleibt an der Klient/in haengen.
+    expect(rows.map((row) => [row.Dossier, row.Laufnummer])).toEqual([
+      ["Anna Muster", "B-2026-00002"],
+      ["Lukas Bachmann", "B-2026-00001"],
+    ]);
   });
 });
