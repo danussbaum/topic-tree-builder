@@ -141,7 +141,7 @@ import {
 } from "@/lib/action-plan-templates";
 import { DEFAULT_LAST_N_DAYS, type ConfirmationPeriod } from "@/lib/assessment-cache";
 import { getRescheduleWindow } from "@/lib/reschedule";
-import { isFutureConfirmationDate } from "@/lib/confirmation-window";
+import { isBeforeConfirmationStart } from "@/lib/confirmation-window";
 import {
   SCHEDULE_FIELD_MESSAGE,
   getScheduleIssues,
@@ -742,6 +742,24 @@ export function AssessmentOutline({
     nightRollover?: boolean;
   } | null>(null);
   const today = format(new Date(), "yyyy-MM-dd");
+  // Einmal pro Render ausgewertet — ohne Timer schaltet eine Zeile erst beim naechsten
+  // Render frei. Die Sperre ist damit nie zu locker, hoechstens zeitweise zu streng.
+  const now = new Date();
+  // Quittieren ist erst ab dem effektiven Termin der Zeile moeglich: dem Verschiebe-
+  // bzw. Rollover-Datum samt Uhrzeit, im Tageszeit-Modus ab deren Von-Zeit.
+  const isBeforeStart = (row: {
+    action: ActionNode;
+    dueDate: string;
+    confirmationDate: string;
+  }) =>
+    isBeforeConfirmationStart(
+      {
+        dueDate: row.dueDate,
+        action: row.action,
+        confirmation: row.action.confirmations?.[row.confirmationDate],
+      },
+      now,
+    );
   const disciplineOptions = disciplines.length > 0 ? disciplines : initialActionPlanDisciplines;
   const getTopicDisciplineId = (topic: TopicNode) =>
     topic.disciplineId ?? disciplineOptions[0]?.id ?? "";
@@ -1095,9 +1113,9 @@ export function AssessmentOutline({
     });
     const groupedFlatActions = groupFlatActionsByDateThenDayPart(sortedFlatActions);
     const bulkNotDoneTargets: BulkNotDoneTarget[] = sortedFlatActions
-      .filter(({ action, status, confirmationDate }) =>
-        canConfirmAction(action) && (status === "open" || status === "postponed") &&
-        !isFutureConfirmationDate(confirmationDate, today))
+      .filter((row) =>
+        canConfirmAction(row.action) && (row.status === "open" || row.status === "postponed") &&
+        !isBeforeStart(row))
       .map(({ topic, target, action, confirmationDate }) => ({
         key: buildBulkNotDoneKey(topic.id, target.id, action.id, confirmationDate),
         topicId: topic.id,
@@ -1116,10 +1134,10 @@ export function AssessmentOutline({
     const someVisibleBulkNotDoneSelected = visibleBulkNotDoneKeys.some((key) => selectedBulkNotDoneKeys.has(key));
 
     const bulkDoneAsPlannedTargets: BulkDoneAsPlannedTarget[] = sortedFlatActions
-      .filter(({ action, status, confirmationDate }) =>
-        canConfirmAction(action) && !requiresResult(action) &&
-        (status === "open" || status === "postponed") &&
-        !isFutureConfirmationDate(confirmationDate, today))
+      .filter((row) =>
+        canConfirmAction(row.action) && !requiresResult(row.action) &&
+        (row.status === "open" || row.status === "postponed") &&
+        !isBeforeStart(row))
       .map(({ topic, target, action, confirmationDate }) => ({
         key: buildBulkNotDoneKey(topic.id, target.id, action.id, confirmationDate),
         topicId: topic.id,
@@ -1303,12 +1321,13 @@ export function AssessmentOutline({
             const isBulkActive = bulkNotDoneMode || bulkDoneAsPlannedMode;
             const daySelectableKeys = dateGroup.dayPartGroups.flatMap((g) =>
               g.actions
-                .filter(({ action, target, status, confirmationDate }) =>
-                  canConfirmAction(action) && !target.validTo && (status === "open" || status === "postponed") &&
-                  !isFutureConfirmationDate(confirmationDate, today) &&
+                .filter((row) =>
+                  canConfirmAction(row.action) && !row.target.validTo &&
+                  (row.status === "open" || row.status === "postponed") &&
+                  !isBeforeStart(row) &&
                   // "Wie geplant" gibt es bei ungeplanten Handlungen nicht, und ein
                   // zwingendes Resultat lässt sich in der Mehrfachauswahl nicht erfassen.
-                  !(bulkDoneAsPlannedMode && requiresResult(action)))
+                  !(bulkDoneAsPlannedMode && requiresResult(row.action)))
                 .map(({ topic, target, action, confirmationDate }) =>
                   buildBulkNotDoneKey(topic.id, target.id, action.id, confirmationDate)));
             const selectedDayKeys = isBulkActive
@@ -1361,10 +1380,11 @@ export function AssessmentOutline({
               </div>
               {dateGroup.dayPartGroups.map((group) => {
                 const groupSelectableKeys = group.actions
-                  .filter(({ action, target, status, confirmationDate }) =>
-                    canConfirmAction(action) && !target.validTo && (status === "open" || status === "postponed") &&
-                    !isFutureConfirmationDate(confirmationDate, today) &&
-                    !(bulkDoneAsPlannedMode && requiresResult(action)))
+                  .filter((row) =>
+                    canConfirmAction(row.action) && !row.target.validTo &&
+                    (row.status === "open" || row.status === "postponed") &&
+                    !isBeforeStart(row) &&
+                    !(bulkDoneAsPlannedMode && requiresResult(row.action)))
                   .map(({ topic, target, action, confirmationDate }) =>
                     buildBulkNotDoneKey(topic.id, target.id, action.id, confirmationDate));
                 const isBulkActive = bulkNotDoneMode || bulkDoneAsPlannedMode;
@@ -1453,13 +1473,13 @@ export function AssessmentOutline({
                           const canConfirm = canConfirmAction(action) && !isTargetClosed;
                           // Was noch nicht stattgefunden hat, lässt sich nicht bestätigen —
                           // einzig die Neuplanung bleibt für zukünftige Termine offen.
-                          const isFutureDueDate = isFutureConfirmationDate(confirmationDate, today);
+                          const isBeforeConfirmable = isBeforeStart({ action, dueDate, confirmationDate });
                           const bulkNotDoneKey = buildBulkNotDoneKey(topic.id, target.id, action.id, confirmationDate);
                           const isBulkNotDoneSelectable =
-                            canConfirm && !isFutureDueDate && (status === "open" || status === "postponed");
+                            canConfirm && !isBeforeConfirmable && (status === "open" || status === "postponed");
                           const bulkDoneAsPlannedKey = bulkNotDoneKey;
                           const isBulkDoneAsPlannedSelectable =
-                            canConfirm && !isFutureDueDate && !requiresResult(action) &&
+                            canConfirm && !isBeforeConfirmable && !requiresResult(action) &&
                             (status === "open" || status === "postponed");
                           const disciplineTitle =
                             disciplineOptions.find((discipline) => discipline.id === topic.disciplineId)?.title ??
@@ -1467,7 +1487,7 @@ export function AssessmentOutline({
                             "Ohne Disziplin";
                           const openConfirmationDialog = (initialMode: ConfirmationMode) => {
                             if (!canConfirm) return;
-                            if (isFutureDueDate && initialMode !== "postponed") return;
+                            if (isBeforeConfirmable && initialMode !== "postponed") return;
                             openConfirmDialog({
                               topicId: topic.id,
                               targetId: target.id,
@@ -1531,13 +1551,15 @@ export function AssessmentOutline({
                                       {CONFIRMATION_MODE_OPTIONS.map((option) => {
                                         const Icon = option.icon;
                                         const isBulkMode = bulkNotDoneMode || bulkDoneAsPlannedMode;
-                                        // Gemessen wird am ursprünglichen Termin (confirmationDate), nicht am
-                                        // Verschiebe-Datum der Zeile — sonst liesse sich die Frist durch
-                                        // wiederholtes Verschieben beliebig verlängern.
+                                        // Die Neuplanungs-Frist zählt ab dem ursprünglichen Termin
+                                        // (confirmationDate), nicht ab dem Verschiebe-Datum der Zeile — sonst
+                                        // liesse sich die Frist durch wiederholtes Verschieben beliebig
+                                        // verlängern. Die Quittier-Sperre oben misst dagegen am effektiven
+                                        // Termin der Zeile.
                                         const isRescheduleUnavailable =
                                           option.mode === "postponed" &&
                                           !getRescheduleWindow(confirmationDate, today).isAvailable;
-                                        const isFutureUnavailable = isFutureDueDate && option.mode !== "postponed";
+                                        const isFutureUnavailable = isBeforeConfirmable && option.mode !== "postponed";
                                         const isDisabled =
                                           !canConfirm || isBulkMode || isRescheduleUnavailable || isFutureUnavailable;
                                         return (
