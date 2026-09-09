@@ -3059,7 +3059,7 @@ export function ActionRow({
           <StatusBadge action={action} />
         </div>
 
-        {viewMode === "confirmation" && (action.reason ||
+        {(action.reason ||
           action.status === "done_with_deviation" ||
           action.status === "not_done") && (
           <div className="mt-1 text-xs text-muted-foreground italic">
@@ -3073,15 +3073,14 @@ export function ActionRow({
           </div>
         )}
 
-        {viewMode === "confirmation" && action.observations && (
+        {action.observations && (
           <div className="mt-1 text-xs text-foreground/70">
             <span className="font-medium">Beobachtungen:</span>{" "}
             <span className="italic">{action.observations}</span>
           </div>
         )}
 
-        {viewMode === "confirmation" &&
-          (action.resultRequirement ?? "none") !== "none" &&
+        {(action.resultRequirement ?? "none") !== "none" &&
           action.result && (
           <div className="mt-1 text-xs text-foreground/70">
             <span className="font-medium">Resultat:</span>{" "}
@@ -3089,14 +3088,14 @@ export function ActionRow({
           </div>
         )}
 
-        {viewMode === "confirmation" && action.notes.trim() && (
+        {action.notes.trim() && (
           <div className="mt-1 text-xs text-foreground/70 whitespace-pre-wrap">
             <span className="font-medium">Beschreibung:</span>{" "}
             {action.notes}
           </div>
         )}
 
-        {viewMode === "confirmation" && formatActionResources(action, resourceCatalog) && (
+        {formatActionResources(action, resourceCatalog) && (
           <div className="mt-1 text-xs text-foreground/70 whitespace-pre-wrap">
             <span className="font-medium">Hilfsmittel:</span>{" "}
             {formatActionResources(action, resourceCatalog)}

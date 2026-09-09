@@ -46,7 +46,7 @@ npm run test:watch
 
 Die Typpruefung laeuft zusaetzlich als **nicht blockierender `pre-push`-Hook** (`.githooks/pre-push`): sie warnt vor dem Push, verhindert ihn aber nie. Pro Klon einmalig aktivieren mit `git config core.hooksPath .githooks`; einzelnen Push ohne Pruefung: `SKIP_TYPECHECK=1 git push`.
 
-Lokal immer mit `npx vercel dev` starten, damit der Auth-Endpoint `/api/auth` mitläuft (URL: http://localhost:3000). `npm run dev` bzw. reines `npx vite` startet nur das Frontend (Port 8080 laut `vite.config.ts`) **ohne** `/api/auth` — nur nutzen, wenn Auth egal ist. Die `.claude/launch.json` (Port 5173) ist veraltet.
+Lokal immer mit `npx vercel dev` starten, damit der Auth-Endpoint `/api/auth` mitläuft (URL: http://localhost:3000). `npm run dev` bzw. reines `npx vite` startet nur das Frontend (Port 8080 laut `vite.config.ts`) **ohne** `/api/auth` — nur nutzen, wenn Auth egal ist. Die `.claude/launch.json` enthält beide Varianten passend konfiguriert (`vercel-dev` auf 3000, `vite-dev` auf 8080).
 
 ## Projektstruktur
 
