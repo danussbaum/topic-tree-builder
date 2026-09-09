@@ -39,6 +39,7 @@ import {
   shiftISODate,
 } from "@/lib/day-part-rollover";
 import { getDayParts } from "@/lib/day-parts";
+import { applyConfirmationToAction, type ConfirmationPayload } from "@/lib/action-confirmation";
 import { clampDateToRange } from "@/lib/confirmation-window";
 import { buildInhouseSpitexSeedTopics } from "@/lib/inhouse-spitex-seed";
 import { ClientSidebar, ClientSidebarTrigger } from "@/components/assessment/ClientSidebar";
@@ -428,9 +429,16 @@ const CONFIRMATION_EXPORT_HEADERS = [
   "Optionale Leistungen",
   "Minuten geplant",
   "Minuten tatsächlich",
+  "Personen geplant",
+  "Personen tatsächlich",
 ];
 const CONFIRMATION_EXPORT_DATE_HEADERS = new Set(["Datum", "Verschoben auf Datum", "Gültig ab", "Gültig bis"]);
-const CONFIRMATION_EXPORT_NUMBER_HEADERS = new Set(["Minuten geplant", "Minuten tatsächlich"]);
+const CONFIRMATION_EXPORT_NUMBER_HEADERS = new Set([
+  "Minuten geplant",
+  "Minuten tatsächlich",
+  "Personen geplant",
+  "Personen tatsächlich",
+]);
 
 interface EvaluationActionEntry {
   key: string;
@@ -1751,24 +1759,7 @@ const Index = () => {
     topicId: string,
     targetId: string,
     actionId: string,
-    payload:
-      | {
-          status: "done_as_planned";
-          result?: string;
-          observations?: string;
-          optionalServices?: ConfirmedOptionalService[];
-        }
-      | {
-          status: "done_with_deviation";
-          actualMinutes?: number;
-          reason: string;
-          result?: string;
-          observations?: string;
-          optionalServices?: ConfirmedOptionalService[];
-        }
-      | { status: "not_done"; reason: string }
-      | { status: "postponed"; postponedToDate?: string; postponedToTime?: string; postponedReason: string }
-      | { status: "open" },
+    payload: ConfirmationPayload,
     date?: string,
   ) => {
     const auditTrail = {
@@ -1785,81 +1776,10 @@ const Index = () => {
       });
     }
 
-    const applyConfirmation = (a: ActionNode): ActionNode => {
-      if (a.id !== actionId) return a;
-      if (!date) return a;
-
-      const nextConfirmations = { ...(a.confirmations || {}) };
-
-      // Die Tageszeit wird im Uhrzeit-Modus laufend aus der Konfiguration
-      // abgeleitet — beim Bestätigen wird sie darum festgehalten, damit
-      // Historie und Auswertungen von späteren Änderungen unabhängig sind.
-      const dayPartSnapshot = effectiveDayPart(a);
-
-      const existing = nextConfirmations[date];
-      const postponementAudit = existing
-        ? {
-            postponedToDate: existing.postponedToDate,
-            postponedToTime: existing.postponedToTime,
-            postponedBy: existing.postponedBy,
-            postponedAt: existing.postponedAt,
-          }
-        : {};
-
-      if (payload.status === "open") {
-        delete nextConfirmations[date];
-      } else if (payload.status === "done_as_planned") {
-        nextConfirmations[date] = {
-          status: "done_as_planned",
-          serviceType: a.serviceType,
-          dayPartSnapshot,
-          done: true,
-          actualMinutes: a.plannedMinutes,
-          result: payload.result,
-          observations: payload.observations,
-          optionalServices: payload.optionalServices,
-          ...postponementAudit,
-          ...auditTrail,
-        };
-      } else if (payload.status === "done_with_deviation") {
-        nextConfirmations[date] = {
-          status: "done_with_deviation",
-          serviceType: a.serviceType,
-          dayPartSnapshot,
-          done: true,
-          actualMinutes: payload.actualMinutes,
-          reason: payload.reason,
-          result: payload.result,
-          observations: payload.observations,
-          optionalServices: payload.optionalServices,
-          ...postponementAudit,
-          ...auditTrail,
-        };
-      } else if (payload.status === "not_done") {
-        nextConfirmations[date] = {
-          status: "not_done",
-          dayPartSnapshot,
-          done: true,
-          reason: payload.reason,
-          ...postponementAudit,
-          ...auditTrail,
-        };
-      } else if (payload.status === "postponed") {
-        nextConfirmations[date] = {
-          ...existing,
-          status: "postponed",
-          serviceType: undefined,
-          done: false,
-          postponedToDate: payload.postponedToDate,
-          postponedToTime: payload.postponedToTime,
-          postponedReason: payload.postponedReason,
-          postponedBy: auditTrail.confirmedBy,
-          postponedAt: auditTrail.confirmedAt,
-        };
-      }
-
-      return { ...a, confirmations: nextConfirmations };
-    };
+    const applyConfirmation = (a: ActionNode): ActionNode =>
+      a.id !== actionId || !date
+        ? a
+        : applyConfirmationToAction(a, date, payload, auditTrail);
 
     if (isUnplannedTopicId(topicId)) {
       updateClientFor(clientId, (client) => ({
@@ -2214,6 +2134,8 @@ const Index = () => {
         .join(" | "),
       "Minuten geplant": action.plannedMinutes ?? "",
       "Minuten tatsächlich": confirmation?.actualMinutes ?? "",
+      "Personen geplant": action.requiredPersons ?? "",
+      "Personen tatsächlich": confirmation?.actualPersons ?? "",
     };
   };
 

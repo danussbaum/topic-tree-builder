@@ -271,6 +271,7 @@ describe("AssessmentOutline confirmation actions", () => {
           },
           editable: {
             ...buildDefaultTemplateEditable(true),
+            titel: false,
             beschreibung: false,
             hilfsmittel: false,
             dauer: false,
@@ -295,6 +296,7 @@ describe("AssessmentOutline confirmation actions", () => {
     fireEvent.change(within(dialog).getByPlaceholderText("Vorlagen suchen..."), { target: { value: "Kat" } });
     fireEvent.click(await within(dialog).findByText("Kategorie gesperrt"));
 
+    expect(within(dialog).getByLabelText("Bezeichnung *")).toBeDisabled();
     expect(within(dialog).getByLabelText("Beschreibung")).toBeDisabled();
     expect(within(dialog).getByPlaceholderText("Hilfsmittel suchen...")).toBeDisabled();
     // Ohne fixe Tageszeit rendert der Dialog den Chip-Selektor; bei gesperrter
@@ -427,7 +429,7 @@ describe("AssessmentOutline confirmation actions", () => {
     expect(weeklyPanel.getByRole("button", { name: "Mo" })).toBeDisabled();
   });
 
-  it("opens unplanned template creation without a preselected template or visible title field", async () => {
+  it("opens unplanned template creation without a preselected template and with an empty title", async () => {
     const onAddUnplannedAction = vi.fn();
 
     render(
@@ -441,7 +443,7 @@ describe("AssessmentOutline confirmation actions", () => {
     const dialog = await screen.findByRole("dialog");
 
     expect(within(dialog).queryByText("Morgenroutine")).not.toBeInTheDocument();
-    expect(within(dialog).queryByText("Titel")).not.toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Bezeichnung *")).toHaveValue("");
     expect(within(dialog).getByRole("button", { name: "Bestätigen" })).toBeDisabled();
   });
 
@@ -491,6 +493,61 @@ describe("AssessmentOutline confirmation actions", () => {
         templateName: "Morgenroutine",
       }),
       // Zweites Argument: die im Chip-Selektor gewählten Tageszeit-Einträge.
+      expect.any(Array),
+    );
+  });
+
+  it("belegt die Bezeichnung mit dem Vorlagennamen vor und lässt sie überschreiben", async () => {
+    const onAddUnplannedAction = vi.fn();
+
+    render(
+      <UnplannedActionDialog
+        target={{ dueDate: "2026-05-12", dayPart: "none" }}
+        onClose={vi.fn()}
+        onConfirm={onAddUnplannedAction}
+      />,
+    );
+
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByPlaceholderText("Vorlagen suchen..."), { target: { value: "Morg" } });
+    fireEvent.click(await within(dialog).findByText("Morgenroutine"));
+
+    const titleInput = within(dialog).getByLabelText("Bezeichnung *");
+    expect(titleInput).toHaveValue("Morgenroutine");
+    expect(titleInput).toBeEnabled();
+
+    fireEvent.change(titleInput, { target: { value: "Morgenroutine mit Dusche" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Bestätigen" }));
+
+    expect(onAddUnplannedAction).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Morgenroutine mit Dusche", templateName: "Morgenroutine" }),
+      expect.any(Array),
+    );
+  });
+
+  it("verlangt ohne Vorlage eine Bezeichnung statt eines Ersatztitels", async () => {
+    const onAddUnplannedAction = vi.fn();
+
+    render(
+      <UnplannedActionDialog
+        target={{ dueDate: "2026-05-12", dayPart: "none" }}
+        onClose={vi.fn()}
+        onConfirm={onAddUnplannedAction}
+      />,
+    );
+
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByText("Ohne Vorlage erstellen"));
+
+    expect(within(dialog).getByRole("button", { name: "Bestätigen" })).toBeDisabled();
+
+    fireEvent.change(within(dialog).getByLabelText("Bezeichnung *"), {
+      target: { value: "Spontane Begleitung" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Bestätigen" }));
+
+    expect(onAddUnplannedAction).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Spontane Begleitung" }),
       expect.any(Array),
     );
   });

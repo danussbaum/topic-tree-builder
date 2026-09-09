@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AssessmentOutline, UnplannedActionDialog } from "@/components/assessment/AssessmentOutline";
 import type { TopicNode } from "@/types/assessment";
 
-const topicsWith = (isUnplanned: boolean): TopicNode[] => [
+const topicsWith = (isUnplanned: boolean, requiredPersons?: number): TopicNode[] => [
   {
     id: "topic-1",
     title: "Schwerpunkt",
@@ -25,6 +25,7 @@ const topicsWith = (isUnplanned: boolean): TopicNode[] => [
             validTo: "2026-05-12",
             recurrence: "daily",
             plannedMinutes: isUnplanned ? 0 : 30,
+            requiredPersons,
             isUnplanned: isUnplanned || undefined,
           },
         ],
@@ -33,7 +34,8 @@ const topicsWith = (isUnplanned: boolean): TopicNode[] => [
   },
 ];
 
-const renderOutline = (isUnplanned: boolean) =>
+const renderOutline = (isUnplanned: boolean, requiredPersons?: number) => {
+  const onConfirmAction = vi.fn();
   render(
     <AssessmentOutline
       viewMode="confirmation"
@@ -41,14 +43,14 @@ const renderOutline = (isUnplanned: boolean) =>
       onSelectedDateChange={vi.fn()}
       confirmationPeriod="day"
       clientName="Test Klient"
-      topics={topicsWith(isUnplanned)}
+      topics={topicsWith(isUnplanned, requiredPersons)}
       hideConfirmationHeader
       filterModel={{ statuses: ["open", "postponed"] }}
       onUpdateTopic={vi.fn()}
       onUpdateTarget={vi.fn()}
       onUpdateAction={vi.fn()}
       onUpdateActionField={vi.fn()}
-      onConfirmAction={vi.fn()}
+      onConfirmAction={onConfirmAction}
       onAddTarget={vi.fn()}
       onAddAction={vi.fn()}
       onAddTopic={vi.fn()}
@@ -57,6 +59,8 @@ const renderOutline = (isUnplanned: boolean) =>
       onDeleteAction={vi.fn()}
     />,
   );
+  return { onConfirmAction };
+};
 
 describe("Ungeplante Handlungen ohne geplante Zeit", () => {
   beforeEach(() => {
@@ -113,5 +117,53 @@ describe("Ungeplante Handlungen ohne geplante Zeit", () => {
 
     fireEvent.change(dialog.getByLabelText("Tatsächliche Minuten"), { target: { value: "45" } });
     expect(dialog.getByRole("button", { name: "Bestätigen" })).toBeEnabled();
+  });
+});
+
+describe("Anzahl Personen bei Abweichung", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it("bietet die Anzahl Personen nur an, wenn die Handlung eine vorsieht", async () => {
+    renderOutline(false);
+    fireEvent.click(screen.getAllByRole("button", { name: "Erledigt mit Abweichung" })[0]);
+
+    const dialog = within(await screen.findByRole("dialog"));
+    expect(dialog.queryByLabelText("Tatsächliche Anzahl Personen")).not.toBeInTheDocument();
+  });
+
+  it("belegt die Anzahl Personen mit der geplanten vor und übernimmt die Änderung", async () => {
+    const { onConfirmAction } = renderOutline(false, 2);
+    fireEvent.click(screen.getAllByRole("button", { name: "Erledigt mit Abweichung" })[0]);
+
+    const dialog = within(await screen.findByRole("dialog"));
+    const personsInput = dialog.getByLabelText("Tatsächliche Anzahl Personen");
+    expect(personsInput).toHaveValue(2);
+
+    fireEvent.change(dialog.getByLabelText("Tatsächliche Minuten"), { target: { value: "45" } });
+    fireEvent.change(dialog.getByLabelText("Begründung"), { target: { value: "Zweite Person nötig" } });
+    fireEvent.change(personsInput, { target: { value: "3" } });
+    fireEvent.click(dialog.getByRole("button", { name: "Bestätigen" }));
+
+    expect(onConfirmAction).toHaveBeenCalledWith(
+      "topic-1",
+      "target-1",
+      "action-1",
+      expect.objectContaining({ status: "done_with_deviation", actualMinutes: 45, actualPersons: 3 }),
+      expect.any(String),
+    );
+  });
+
+  it("blockiert das Bestätigen, solange die Anzahl Personen leer ist", async () => {
+    renderOutline(false, 2);
+    fireEvent.click(screen.getAllByRole("button", { name: "Erledigt mit Abweichung" })[0]);
+
+    const dialog = within(await screen.findByRole("dialog"));
+    fireEvent.change(dialog.getByLabelText("Tatsächliche Minuten"), { target: { value: "45" } });
+    fireEvent.change(dialog.getByLabelText("Begründung"), { target: { value: "Zweite Person nötig" } });
+    fireEvent.change(dialog.getByLabelText("Tatsächliche Anzahl Personen"), { target: { value: "" } });
+
+    expect(dialog.getByRole("button", { name: "Bestätigen" })).toBeDisabled();
   });
 });

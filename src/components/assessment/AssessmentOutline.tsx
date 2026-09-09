@@ -149,6 +149,7 @@ import {
   type ActionSchedule,
   type ScheduleField,
 } from "@/lib/action-schedule";
+import type { ConfirmationPayload } from "@/lib/action-confirmation";
 import { OptionalServiceQuantities } from "@/components/assessment/OptionalServiceQuantities";
 import {
   initialActionPlanDisciplines,
@@ -159,24 +160,8 @@ import {
   loadActionPlanCategoryPermissions,
 } from "@/lib/action-plan-categories";
 
-type ConfirmPayload =
-  | {
-      status: "done_as_planned";
-      result?: string;
-      observations?: string;
-      optionalServices?: ConfirmedOptionalService[];
-    }
-  | {
-      status: "done_with_deviation";
-      actualMinutes?: number;
-      reason: string;
-      result?: string;
-      observations?: string;
-      optionalServices?: ConfirmedOptionalService[];
-    }
-  | { status: "not_done"; reason: string }
-  | { status: "postponed"; postponedToDate?: string; postponedToTime?: string; postponedReason: string }
-  | { status: "open" };
+// Die Nutzlast des Bestätigens liegt bei der Logik, die sie verarbeitet.
+type ConfirmPayload = ConfirmationPayload;
 
 type ActionField =
   | "plannedMinutes"
@@ -4571,7 +4556,7 @@ export function UnplannedActionDialog({
   const [showNightTimeError, setShowNightTimeError] = useState(false);
 
   const submit = () => {
-    const title = draft.title.trim() || (creationMode === "scratch" ? "Ungeplante Handlung" : "");
+    const title = draft.title.trim();
     if (!title) return;
     if (!dateFrom || !dateTo) return;
     if (dateRangeError) return;
@@ -4754,6 +4739,16 @@ export function UnplannedActionDialog({
           )}
 
           <div className="grid gap-3 sm:grid-cols-2">
+            <label className="space-y-1.5 sm:col-span-2">
+              <Label>Bezeichnung <span className="text-destructive">*</span></Label>
+              <Input
+                value={draft.title}
+                disabled={isDraftFieldLocked("title")}
+                onChange={(e) => updateDraft("title", e.target.value)}
+                placeholder="Handlung…"
+                className="bg-background"
+              />
+            </label>
             <label className="space-y-1.5">
               <Label>Von <span className="text-destructive">*</span></Label>
               <Input
@@ -5021,7 +5016,7 @@ export function UnplannedActionDialog({
               type="button"
               variant="ghost"
               onClick={submit}
-              disabled={(creationMode === "template" && !selectedTemplate) || !dateFrom || !dateTo || !!dateRangeError || scheduledTimeOutsideDayPart || missingRequiredFields.length > 0}
+              disabled={(creationMode === "template" && !selectedTemplate) || !draft.title.trim() || !dateFrom || !dateTo || !!dateRangeError || scheduledTimeOutsideDayPart || missingRequiredFields.length > 0}
               className="text-white hover:bg-white/10 hover:text-white"
             >
               Bestätigen
@@ -5177,6 +5172,11 @@ export function ConfirmActionDialog({
   const [actualMinutes, setActualMinutes] = useState<string>(
     target.action.actualMinutes != null ? String(target.action.actualMinutes) : ""
   );
+  // Vorbelegt mit der geplanten Anzahl — geändert wird nur, was abweicht.
+  const [actualPersons, setActualPersons] = useState<string>(() => {
+    const value = confirmation?.actualPersons ?? target.action.requiredPersons;
+    return value != null ? String(value) : "";
+  });
   const [reason, setReason] = useState<string>(target.action.reason ?? "");
   const [result, setResult] = useState<string>(target.action.result ?? "");
   const [observations, setObservations] = useState<string>(target.action.observations ?? "");
@@ -5207,6 +5207,8 @@ export function ConfirmActionDialog({
     const conf = target.action.confirmations?.[target.dueDate];
     setMode(target.initialMode ?? (target.action.status === "open" ? null : target.action.status));
     setActualMinutes(target.action.actualMinutes != null ? String(target.action.actualMinutes) : "");
+    const persons = conf?.actualPersons ?? target.action.requiredPersons;
+    setActualPersons(persons != null ? String(persons) : "");
     setReason(target.action.reason ?? "");
     setResult(target.action.result ?? "");
     setObservations(target.action.observations ?? "");
@@ -5258,9 +5260,13 @@ export function ConfirmActionDialog({
       const withPlannedDuration = hasPlannedDuration(target.action);
       const min = Number(actualMinutes);
       if ((withPlannedDuration && (!Number.isFinite(min) || min < 0)) || !reason.trim()) return;
+      // Die Anzahl Personen ist nur erfassbar, wenn die Handlung eine vorsieht.
+      const persons = Number(actualPersons);
+      if (hasRequiredPersons && (!Number.isFinite(persons) || persons < 1)) return;
       onConfirm({
         status: "done_with_deviation",
         actualMinutes: withPlannedDuration ? min : undefined,
+        actualPersons: hasRequiredPersons ? persons : undefined,
         reason: reason.trim(),
         result: res,
         observations: obs,
@@ -5313,6 +5319,7 @@ export function ConfirmActionDialog({
     }
     setMode(null);
     setActualMinutes("");
+    setActualPersons(target.action.requiredPersons != null ? String(target.action.requiredPersons) : "");
     setReason("");
     setResult("");
     setObservations("");
@@ -5327,6 +5334,7 @@ export function ConfirmActionDialog({
   const planned = target.action.plannedMinutes;
   const hasPlannedMinutes = hasPlannedDuration(target.action);
   const requiredPersons = target.action.requiredPersons;
+  const hasRequiredPersons = requiredPersons != null;
   const description = target.action.notes.trim();
   const requiredResources = formatActionResources(target.action, resourceCatalog);
   const resultRequirement = target.action.resultRequirement ?? "none";
@@ -5433,6 +5441,20 @@ export function ConfirmActionDialog({
                     value={actualMinutes}
                     onChange={(e) => setActualMinutes(e.target.value)}
                     placeholder="z. B. 60"
+                    className="bg-background"
+                  />
+                </div>
+              )}
+              {hasRequiredPersons && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="actual-persons">Tatsächliche Anzahl Personen</Label>
+                  <Input
+                    id="actual-persons"
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={actualPersons}
+                    onChange={(e) => setActualPersons(e.target.value)}
                     className="bg-background"
                   />
                 </div>
@@ -5624,6 +5646,7 @@ export function ConfirmActionDialog({
                   onConfirm({ status: "open" });
                   setMode(null);
                   setActualMinutes("");
+                  setActualPersons(target.action.requiredPersons != null ? String(target.action.requiredPersons) : "");
                   setReason("");
                   setResult("");
                   setObservations("");
@@ -5654,7 +5677,9 @@ export function ConfirmActionDialog({
               disabled={
                 !mode ||
                 (mode === "done_with_deviation" &&
-                  ((hasPlannedMinutes && actualMinutes === "") || !reason.trim())) ||
+                  ((hasPlannedMinutes && actualMinutes === "") ||
+                    (hasRequiredPersons && actualPersons === "") ||
+                    !reason.trim())) ||
                 (mode === "not_done" && !reason.trim()) ||
                 (mode === "postponed" &&
                   (!rescheduleWindow.isAvailable ||

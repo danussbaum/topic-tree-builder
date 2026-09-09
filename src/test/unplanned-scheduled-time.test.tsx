@@ -19,6 +19,10 @@ const renderForDayPart = (onConfirm = vi.fn()) => {
 const openScratchMode = async () => {
   const dialog = await screen.findByRole("dialog");
   fireEvent.click(within(dialog).getByText("Ohne Vorlage erstellen"));
+  // Die Bezeichnung ist Pflicht, sonst bleibt "Bestätigen" deaktiviert.
+  fireEvent.change(within(dialog).getByLabelText("Bezeichnung *"), {
+    target: { value: "Spontane Begleitung" },
+  });
   return dialog;
 };
 

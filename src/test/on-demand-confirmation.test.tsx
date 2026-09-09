@@ -278,8 +278,9 @@ describe("Handlungen nach Bedarf in der Umsetzung", () => {
     fireEvent.click(await screen.findByRole("menuitem", { name: "Ungeplante Handlung erstellen" }));
 
     const dialog = within(await screen.findByRole("dialog", { name: "Ungeplante Handlung erstellen" }));
-    // Ohne Vorlage genügt der Standardtitel — hier geht es allein um die Vortags-Regel.
     fireEvent.click(dialog.getByRole("button", { name: /Ohne Vorlage/ }));
+    // Die Bezeichnung ist Pflicht — hier geht es aber allein um die Vortags-Regel.
+    fireEvent.change(dialog.getByLabelText("Bezeichnung *"), { target: { value: "Lagerung nachts" } });
 
     // Der Hinweis erscheint erst beim Bestätigen ohne gültige Uhrzeit.
     expect(dialog.queryByText(/Zwingend zwischen 00:00 und 06:00/)).not.toBeInTheDocument();

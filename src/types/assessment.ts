@@ -78,6 +78,11 @@ export interface ActionConfirmation {
    */
   dayPartSnapshot?: { id: string; title: string; from: string; to: string };
   actualMinutes?: number;
+  /**
+   * Tatsächlich eingesetzte Anzahl Personen. Nur bei "mit Abweichung" erfassbar und
+   * nur, wenn die Handlung überhaupt eine Anzahl Personen vorsieht.
+   */
+  actualPersons?: number;
   /** Bei der Umsetzung erfasste optionale Leistungen (nur Einträge mit Anzahl > 0) */
   optionalServices?: ConfirmedOptionalService[];
   reason?: string;
