@@ -390,6 +390,7 @@ const KLV_CATEGORY_LABEL: Record<string, string> = {
   none: "Ohne Klassifizierung",
 };
 const KLV_CATEGORY_ORDER = ["a", "b", "c", "none"];
+const STAFF_UNASSIGNED_LABEL = "Ohne Zuordnung";
 
 const formatEvalMinutes = (minutes: number) => `${Math.round(minutes)} Min`;
 const formatEvalDiff = (minutes: number) => {
@@ -451,6 +452,7 @@ interface EvaluationActionEntry {
   confirmationDate: string;
   status: ActionNode["status"];
   reason: string;
+  confirmedBy: string;
   ist: number;
   soll: number;
 }
@@ -510,6 +512,19 @@ const CLIENT_DIMENSION: EvalDimension = {
   labelOf: (entry) => entry.clientName,
   sort: (nodes) => nodes.slice().sort((a, b) => a.label.localeCompare(b.label)),
 };
+/** Mitarbeitende: bislang nur das Audit-Feld der Bestaetigung (keine eigene Entitaet). */
+const STAFF_DIMENSION: EvalDimension = {
+  keyOf: (entry) => entry.confirmedBy || "none",
+  labelOf: (entry) => entry.confirmedBy || STAFF_UNASSIGNED_LABEL,
+  sort: (nodes) =>
+    nodes.slice().sort((a, b) => {
+      // "Ohne Zuordnung" immer zuletzt.
+      if (a.groupKey === "none" || b.groupKey === "none") {
+        return a.groupKey === "none" ? (b.groupKey === "none" ? 0 : 1) : -1;
+      }
+      return a.label.localeCompare(b.label);
+    }),
+};
 const DAY_DIMENSION: EvalDimension = {
   keyOf: (entry) => entry.dueDate,
   labelOf: (entry) => formatGermanDate(entry.dueDate),
@@ -544,6 +559,7 @@ const collectEvaluationEntries = (
         confirmationDate: row.confirmationDate,
         status: row.status,
         reason: confirmation?.reason ?? "",
+        confirmedBy: confirmation?.confirmedBy ?? "",
         ist,
         soll,
       });
@@ -645,8 +661,8 @@ const buildEvaluation = (
   };
 };
 
-type AuswertungMode = "category" | "client" | "resultObservation";
-type AuswertungTreeMode = "category" | "client";
+type AuswertungMode = "category" | "client" | "staff" | "resultObservation";
+type AuswertungTreeMode = "category" | "client" | "staff";
 
 /** Effektives Datum/Uhrzeit einer Handlung: bei Verschiebung gilt der neue Termin. */
 const getEffectiveDateTime = (entry: EvaluationActionEntry) => {
@@ -671,6 +687,18 @@ const EVALUATION_CONFIG: Record<AuswertungTreeMode, { dimensions: EvalDimension[
     expandLeaves: true,
     columnLabel: "Klient/in / Klassifizierung / Tag / Handlung",
   },
+  staff: {
+    dimensions: [STAFF_DIMENSION, CATEGORY_DIMENSION, DAY_DIMENSION, CLIENT_DIMENSION],
+    expandLeaves: true,
+    columnLabel: "Mitarbeitende / Klassifizierung / Tag / Klient/in / Handlung",
+  },
+};
+
+const AUSWERTUNG_TITLE: Record<AuswertungMode, string> = {
+  category: "Auswertung nach Klassifizierung",
+  client: "Auswertung nach Klientin",
+  staff: "Auswertung nach Mitarbeitenden",
+  resultObservation: "Auswertung nach Resultat und Beobachtung",
 };
 
 const formatGermanDate = (isoDate: string) => {
@@ -2413,6 +2441,14 @@ const Index = () => {
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => {
+                    setAuswertungMode("staff");
+                    setViewMode("auswertungen");
+                  }}
+                >
+                  Nach Mitarbeitenden
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
                     setAuswertungMode("resultObservation");
                     setViewMode("auswertungen");
                   }}
@@ -3304,11 +3340,7 @@ const Index = () => {
                       left={
                         <>
                         <div className="text-sm font-medium">
-                          {auswertungMode === "category"
-                            ? "Auswertung nach Klassifizierung"
-                            : auswertungMode === "client"
-                              ? "Auswertung nach Klientin"
-                              : "Auswertung nach Resultat und Beobachtung"}
+                          {AUSWERTUNG_TITLE[auswertungMode]}
                         </div>
                         <div className="flex items-center gap-1 bg-background border border-border rounded-md p-1">
                           <button
