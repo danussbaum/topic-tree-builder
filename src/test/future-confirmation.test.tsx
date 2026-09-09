@@ -19,6 +19,7 @@ const buildTopics = (validFrom: string, schedule: ScheduledAction = {}): TopicNo
         actions: [
           {
             id: "action-1",
+            groupId: "action-1",
             title: "Offene Handlung",
             notes: "",
             status: "open",
@@ -56,6 +57,9 @@ const renderOutline = (selectedDate: string, schedule: ScheduledAction = {}) =>
       onDeleteTopic={vi.fn()}
       onDeleteTarget={vi.fn()}
       onDeleteAction={vi.fn()}
+      onUpdateActionGroup={vi.fn()}
+      onReactivateTarget={vi.fn()}
+      onDeleteActionGroup={vi.fn()}
     />,
   );
 

@@ -17,6 +17,7 @@ const topics: TopicNode[] = [
         notes: "",
         actions: ["A", "B", "C"].map((name) => ({
           id: `action-${name}`,
+          groupId: `action-${name}`,
           title: `Handlung ${name}`,
           notes: "",
           status: "open" as const,
@@ -56,6 +57,9 @@ const renderOutline = (onConfirmAction: ReturnType<typeof vi.fn>, mode: "notDone
       onDeleteTopic={vi.fn()}
       onDeleteTarget={vi.fn()}
       onDeleteAction={vi.fn()}
+      onUpdateActionGroup={vi.fn()}
+      onReactivateTarget={vi.fn()}
+      onDeleteActionGroup={vi.fn()}
     />,
   );
 

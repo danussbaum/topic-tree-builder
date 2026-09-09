@@ -55,6 +55,9 @@ const renderOutline = (topics: TopicNode[], onConfirmAction = vi.fn()) => {
       onDeleteTopic={vi.fn()}
       onDeleteTarget={vi.fn()}
       onDeleteAction={vi.fn()}
+      onUpdateActionGroup={vi.fn()}
+      onReactivateTarget={vi.fn()}
+      onDeleteActionGroup={vi.fn()}
     />,
   );
   return onConfirmAction;

@@ -4,6 +4,7 @@ import type { ActionNode } from "@/types/assessment";
 
 const action: ActionNode = {
   id: "action-1",
+  groupId: "action-1",
   title: "Test",
   notes: "",
   status: "open",

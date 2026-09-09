@@ -1,7 +1,7 @@
 ﻿import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AssessmentOutline, UnplannedActionDialog } from "@/components/assessment/AssessmentOutline";
-import type { TopicNode } from "@/types/assessment";
+import type { ActionStatus, TopicNode } from "@/types/assessment";
 import { DAY_PART_SEED_IDS } from "@/lib/day-parts";
 import {
   ACTION_PLAN_TEMPLATES_STORAGE_KEY,
@@ -22,6 +22,7 @@ const topics: TopicNode[] = [
         actions: [
           {
             id: "action-past-open",
+            groupId: "action-past-open",
             title: "Vergangene offene Handlung",
             notes: "",
             status: "open",
@@ -79,6 +80,9 @@ describe("AssessmentOutline confirmation actions", () => {
         onDeleteTopic={vi.fn()}
         onDeleteTarget={vi.fn()}
         onDeleteAction={vi.fn()}
+        onUpdateActionGroup={vi.fn()}
+        onReactivateTarget={vi.fn()}
+        onDeleteActionGroup={vi.fn()}
       />,
     );
 
@@ -109,6 +113,9 @@ describe("AssessmentOutline confirmation actions", () => {
         onDeleteTopic={vi.fn()}
         onDeleteTarget={vi.fn()}
         onDeleteAction={vi.fn()}
+        onUpdateActionGroup={vi.fn()}
+        onReactivateTarget={vi.fn()}
+        onDeleteActionGroup={vi.fn()}
       />,
     );
 
@@ -140,6 +147,9 @@ describe("AssessmentOutline confirmation actions", () => {
         onDeleteTopic={vi.fn()}
         onDeleteTarget={vi.fn()}
         onDeleteAction={vi.fn()}
+        onUpdateActionGroup={vi.fn()}
+        onReactivateTarget={vi.fn()}
+        onDeleteActionGroup={vi.fn()}
       />,
     );
 
@@ -180,6 +190,9 @@ describe("AssessmentOutline confirmation actions", () => {
         onDeleteTopic={vi.fn()}
         onDeleteTarget={vi.fn()}
         onDeleteAction={vi.fn()}
+        onUpdateActionGroup={vi.fn()}
+        onReactivateTarget={vi.fn()}
+        onDeleteActionGroup={vi.fn()}
       />,
     );
 
@@ -216,6 +229,9 @@ describe("AssessmentOutline confirmation actions", () => {
         onDeleteTopic={vi.fn()}
         onDeleteTarget={vi.fn()}
         onDeleteAction={vi.fn()}
+        onUpdateActionGroup={vi.fn()}
+        onReactivateTarget={vi.fn()}
+        onDeleteActionGroup={vi.fn()}
       />,
     );
 
@@ -635,6 +651,7 @@ describe("AssessmentOutline confirmation actions", () => {
                 actions: [
                   {
                     id: "unplanned-confirmed",
+                    groupId: "unplanned-confirmed",
                     title: "Spontane Begleitung",
                     notes: "",
                     status: "done_as_planned",
@@ -670,6 +687,9 @@ describe("AssessmentOutline confirmation actions", () => {
         onDeleteTopic={vi.fn()}
         onDeleteTarget={vi.fn()}
         onDeleteAction={vi.fn()}
+        onUpdateActionGroup={vi.fn()}
+        onReactivateTarget={vi.fn()}
+        onDeleteActionGroup={vi.fn()}
       />,
     );
 
@@ -696,6 +716,7 @@ describe("AssessmentOutline confirmation actions", () => {
               actions: [
                 {
                   id: "unplanned-confirmed",
+                  groupId: "unplanned-confirmed",
                   title: "Spontane Begleitung",
                   notes: "",
                   status: "done_as_planned" as const,
@@ -718,7 +739,7 @@ describe("AssessmentOutline confirmation actions", () => {
         },
       ],
       hideConfirmationHeader: true,
-      filterModel: { statuses: ["open", "postponed"] as const },
+      filterModel: { statuses: ["open", "postponed"] as ActionStatus[] },
       onUpdateTopic: vi.fn(),
       onUpdateTarget: vi.fn(),
       onUpdateAction: vi.fn(),
@@ -730,6 +751,9 @@ describe("AssessmentOutline confirmation actions", () => {
       onDeleteTopic: vi.fn(),
       onDeleteTarget: vi.fn(),
       onDeleteAction: vi.fn(),
+      onUpdateActionGroup: vi.fn(),
+      onReactivateTarget: vi.fn(),
+      onDeleteActionGroup: vi.fn(),
     };
 
     const { rerender } = render(
@@ -774,6 +798,7 @@ describe("AssessmentOutline confirmation actions", () => {
                 actions: [
                   {
                     id: "unplanned-open",
+                    groupId: "unplanned-open",
                     title: "Spontane Begleitung",
                     notes: "",
                     status: "open",
@@ -800,6 +825,9 @@ describe("AssessmentOutline confirmation actions", () => {
         onDeleteTopic={vi.fn()}
         onDeleteTarget={vi.fn()}
         onDeleteAction={onDeleteAction}
+        onUpdateActionGroup={vi.fn()}
+        onReactivateTarget={vi.fn()}
+        onDeleteActionGroup={vi.fn()}
       />,
     );
 
@@ -896,6 +924,9 @@ describe("Rollover von Nacht-Handlungen", () => {
         onDeleteTopic={vi.fn()}
         onDeleteTarget={vi.fn()}
         onDeleteAction={vi.fn()}
+        onUpdateActionGroup={vi.fn()}
+        onReactivateTarget={vi.fn()}
+        onDeleteActionGroup={vi.fn()}
       />,
     );
 

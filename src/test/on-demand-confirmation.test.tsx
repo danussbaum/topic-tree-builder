@@ -65,6 +65,9 @@ const renderOutline = (
       onDeleteTopic={vi.fn()}
       onDeleteTarget={vi.fn()}
       onDeleteAction={vi.fn()}
+      onUpdateActionGroup={vi.fn()}
+      onReactivateTarget={vi.fn()}
+      onDeleteActionGroup={vi.fn()}
       onAddUnplannedAction={vi.fn()}
       onAddOnDemandAction={onAddOnDemandAction}
     />,
@@ -267,6 +270,9 @@ describe("Handlungen nach Bedarf in der Umsetzung", () => {
         onDeleteTopic={vi.fn()}
         onDeleteTarget={vi.fn()}
         onDeleteAction={vi.fn()}
+        onUpdateActionGroup={vi.fn()}
+        onReactivateTarget={vi.fn()}
+        onDeleteActionGroup={vi.fn()}
         onAddUnplannedAction={onAddUnplannedAction}
       />,
     );

@@ -18,6 +18,7 @@ const topics: TopicNode[] = [
         actions: [
           {
             id: "action-frei",
+            groupId: "action-frei",
             title: "Handlung ohne Resultatpflicht",
             notes: "",
             status: "open",
@@ -28,6 +29,7 @@ const topics: TopicNode[] = [
           },
           {
             id: "action-pflicht",
+            groupId: "action-pflicht",
             title: "Handlung mit Resultatpflicht",
             notes: "",
             status: "open",
@@ -69,6 +71,9 @@ const renderOutline = (mode: "notDone" | "done") =>
       onDeleteTopic={vi.fn()}
       onDeleteTarget={vi.fn()}
       onDeleteAction={vi.fn()}
+      onUpdateActionGroup={vi.fn()}
+      onReactivateTarget={vi.fn()}
+      onDeleteActionGroup={vi.fn()}
     />,
   );
 

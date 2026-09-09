@@ -5,6 +5,7 @@ import {
   ACTION_PLAN_TEMPLATES_STORAGE_KEY,
   buildDefaultTemplateEditable,
   buildDefaultTemplateFields,
+  buildDefaultTemplateRequired,
   type ActionPlanTemplate,
 } from "@/lib/action-plan-templates";
 
@@ -25,6 +26,7 @@ const createTemplate = (
     wiederholung,
   },
   editable: buildDefaultTemplateEditable(true),
+  required: buildDefaultTemplateRequired(),
 });
 
 const getTemplateRows = () => screen.getAllByRole("row").slice(1);

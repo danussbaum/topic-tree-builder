@@ -68,6 +68,9 @@ describe("Umsetzung: Sortierung innerhalb der Tageszeit", () => {
         onDeleteTopic={vi.fn()}
         onDeleteTarget={vi.fn()}
         onDeleteAction={vi.fn()}
+        onUpdateActionGroup={vi.fn()}
+        onReactivateTarget={vi.fn()}
+        onDeleteActionGroup={vi.fn()}
       />,
     );
 
@@ -162,6 +165,9 @@ describe("Einordnung verschobener Nacht-Handlungen", () => {
         onDeleteTopic={vi.fn()}
         onDeleteTarget={vi.fn()}
         onDeleteAction={vi.fn()}
+        onUpdateActionGroup={vi.fn()}
+        onReactivateTarget={vi.fn()}
+        onDeleteActionGroup={vi.fn()}
       />,
     );
 
