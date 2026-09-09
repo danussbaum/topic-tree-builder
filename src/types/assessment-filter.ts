@@ -81,7 +81,9 @@ export const matchesAssessmentFilter = (
 ) => {
   if (!filter.statuses.includes(status)) return false;
 
-  if (filter.disciplineIds && filter.disciplineIds.length > 0) {
+  // Ungeplante Handlungen hängen am Klienten statt an einem Schwerpunkt und haben
+  // darum keine Disziplin — der Disziplinfilter darf sie nicht ausblenden.
+  if (filter.disciplineIds && filter.disciplineIds.length > 0 && !action.isUnplanned) {
     if (!disciplineId || !filter.disciplineIds.includes(disciplineId)) return false;
   }
 

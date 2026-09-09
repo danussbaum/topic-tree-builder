@@ -1,6 +1,7 @@
-import type { Client, TopicNode } from "@/types/assessment";
+import type { ActionNode, Client, TopicNode } from "@/types/assessment";
 import type { AssessmentFilterModel } from "@/types/assessment-filter";
 import { LEGACY_DAY_PART_IDS } from "@/lib/day-parts";
+import { UNPLANNED_TARGET_TITLE, UNPLANNED_TOPIC_TITLE } from "@/lib/unplanned-action";
 import {
   APPLICATION_BROWSER_STORAGE_KEYS,
   finishApplicationLogoutClearing,
@@ -9,20 +10,33 @@ import {
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
-export const migrateActionNodeGroupIds = (clients: Client[]): Client[] =>
+/**
+ * Wendet eine Handlungs-Migration auf alle Handlungen eines Klienten an — im
+ * Themenbaum und bei den ungeplanten Handlungen, die direkt am Klienten hängen.
+ */
+const mapClientActions = (
+  clients: Client[],
+  mapAction: (action: ActionNode) => ActionNode,
+): Client[] =>
   clients.map((client) => ({
     ...client,
     topics: client.topics.map((topic) => ({
       ...topic,
       targets: topic.targets.map((target) => ({
         ...target,
-        actions: target.actions.map((action) =>
-          // Unplanned actions always get their own unique groupId
-          (action.isUnplanned || !action.groupId) ? { ...action, groupId: uid() } : action,
-        ),
+        actions: target.actions.map(mapAction),
       })),
     })),
+    ...(client.unplannedActions
+      ? { unplannedActions: client.unplannedActions.map(mapAction) }
+      : {}),
   }));
+
+export const migrateActionNodeGroupIds = (clients: Client[]): Client[] =>
+  // Unplanned actions always get their own unique groupId
+  mapClientActions(clients, (action) =>
+    (action.isUnplanned || !action.groupId) ? { ...action, groupId: uid() } : action,
+  );
 
 /**
  * Früher trug eine Handlung eine Tageszeit UND optional eine Uhrzeit. Seit der
@@ -31,23 +45,50 @@ export const migrateActionNodeGroupIds = (clients: Client[]): Client[] =>
  * behalten ihre Angabe, deren alter Schlüssel wird auf die Tageszeit-ID abgebildet.
  */
 const migrateCachedDayParts = (clients: Client[]): Client[] =>
-  clients.map((client) => ({
-    ...client,
-    topics: client.topics.map((topic) => ({
-      ...topic,
-      targets: topic.targets.map((target) => ({
-        ...target,
-        actions: target.actions.map((action) => {
-          if (action.scheduledTime?.trim()) {
-            return action.dayPart ? { ...action, dayPart: undefined } : action;
-          }
-          if (!action.dayPart) return action;
-          const mapped = LEGACY_DAY_PART_IDS[action.dayPart];
-          return mapped ? { ...action, dayPart: mapped } : action;
-        }),
-      })),
-    })),
-  }));
+  mapClientActions(clients, (action) => {
+    if (action.scheduledTime?.trim()) {
+      return action.dayPart ? { ...action, dayPart: undefined } : action;
+    }
+    if (!action.dayPart) return action;
+    const mapped = LEGACY_DAY_PART_IDS[action.dayPart];
+    return mapped ? { ...action, dayPart: mapped } : action;
+  });
+
+/**
+ * Früher lagen ungeplante Handlungen in einem synthetischen Thema/Ziel im Baum.
+ * Sie gehören direkt an den Klienten; das leergeräumte synthetische Thema wird
+ * entfernt. Idempotent: ohne isUnplanned-Nodes im Baum bleibt alles unverändert.
+ */
+export const migrateUnplannedActionsToClient = (clients: Client[]): Client[] =>
+  clients.map((client) => {
+    const extracted: ActionNode[] = [];
+    const topics = client.topics
+      .map((topic) => ({
+        ...topic,
+        targets: topic.targets
+          .map((target) => {
+            const remaining = target.actions.filter((action) => {
+              if (!action.isUnplanned) return true;
+              extracted.push(action);
+              return false;
+            });
+            return { ...target, actions: remaining };
+          })
+          // Nur das synthetische Ziel bzw. Thema wegräumen, keine echten Plan-Knoten.
+          .filter(
+            (target) =>
+              target.actions.length > 0 || target.title !== UNPLANNED_TARGET_TITLE,
+          ),
+      }))
+      .filter((topic) => topic.targets.length > 0 || topic.title !== UNPLANNED_TOPIC_TITLE);
+
+    if (extracted.length === 0) return client;
+    return {
+      ...client,
+      topics,
+      unplannedActions: [...(client.unplannedActions ?? []), ...extracted],
+    };
+  });
 
 export type ConfirmationPeriod = "day" | "week" | "month" | "lastNDays";
 
@@ -124,7 +165,11 @@ export const loadCachedAssessmentState = (
           ? Math.floor(parsed.lastNDays)
           : DEFAULT_LAST_N_DAYS,
       clients: migrateCachedDayParts(
-        migrateActionNodeGroupIds(migrateCachedTopicsToDisciplines(parsed.clients as Client[])),
+        migrateActionNodeGroupIds(
+          migrateUnplannedActionsToClient(
+            migrateCachedTopicsToDisciplines(parsed.clients as Client[]),
+          ),
+        ),
       ),
       selectedClientIds: parsed.selectedClientIds,
       confirmationFilter: parsed.confirmationFilter ?? fallbackConfirmationFilter,

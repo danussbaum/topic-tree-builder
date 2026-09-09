@@ -311,17 +311,22 @@ const collectUsedDayPartIds = (): Map<string, DayPartUsage> => {
   try {
     const raw = window.localStorage.getItem(APPLICATION_BROWSER_STORAGE_KEYS[0]);
     const parsed = raw ? JSON.parse(raw) : null;
+    type RawAction = { title?: string; dayPart?: string };
     const clients: Array<{
-      topics?: Array<{ targets?: Array<{ actions?: Array<{ title?: string; dayPart?: string }> }> }>;
+      topics?: Array<{ targets?: Array<{ actions?: RawAction[] }> }>;
+      unplannedActions?: RawAction[];
     }> = parsed?.clients ?? [];
+    const addAction = (action: RawAction) => {
+      if (action.dayPart) add(action.dayPart, "actionTitles", action.title ?? "Handlung");
+    };
     for (const client of clients) {
       for (const topic of client.topics ?? []) {
         for (const target of topic.targets ?? []) {
-          for (const action of target.actions ?? []) {
-            if (action.dayPart) add(action.dayPart, "actionTitles", action.title ?? "Handlung");
-          }
+          for (const action of target.actions ?? []) addAction(action);
         }
       }
+      // Ungeplante Handlungen hängen direkt am Klienten.
+      for (const action of client.unplannedActions ?? []) addAction(action);
     }
   } catch {
     // dito

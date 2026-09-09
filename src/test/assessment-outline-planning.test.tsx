@@ -201,21 +201,12 @@ describe("AssessmentOutline planning ungeplante Handlungen", () => {
     },
   ];
 
-  it("zeigt ungeplante Handlungen in der Planungsübersicht als eine Zeile mit Zeitraum", () => {
+  it("zeigt ungeplante Handlungen in der Planung nicht an", () => {
     renderPlanningOutline({ topics: unplannedTopics });
     fireEvent.click(screen.getByRole("button", { name: /Ungeplante Handlungen/ }));
 
-    expect(screen.getAllByText("Spontane Begleitung")).toHaveLength(1);
-    expect(screen.getByText("Ungeplant")).toBeInTheDocument();
-    expect(screen.getByText("12.05.2026 – 13.05.2026")).toBeInTheDocument();
-  });
-
-  it("bietet für ungeplante Handlungen keine Bearbeiten-/Löschen-Aktion an", () => {
-    renderPlanningOutline({ topics: unplannedTopics });
-    fireEvent.click(screen.getByRole("button", { name: /Ungeplante Handlungen/ }));
-
-    expect(screen.queryByRole("button", { name: "Handlung bearbeiten" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Handlung löschen" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Spontane Begleitung")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ungeplant")).not.toBeInTheDocument();
   });
 });
 

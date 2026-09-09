@@ -79,7 +79,11 @@ import {
   PLANNING_EXPORT_HEADERS,
   PLANNING_EXPORT_NUMBER_HEADERS,
 } from "@/lib/planning-export";
-import { buildUnplannedActionNodes } from "@/lib/unplanned-action";
+import {
+  buildUnplannedActionNodes,
+  buildUnplannedTopic,
+  isUnplannedTopicId,
+} from "@/lib/unplanned-action";
 import { buildOnDemandOccurrence } from "@/lib/on-demand-action";
 import type { OnDemandActionSelection } from "@/components/assessment/OnDemandActionDialog";
 import { OnDemandActionDialog } from "@/components/assessment/OnDemandActionDialog";
@@ -320,7 +324,11 @@ const getVisibleConfirmationRows = (
 
   const { start, end } = getPeriodRange(selectedDate, period, lastNDays);
 
-  client.topics.forEach((topic) => {
+  // Ungeplante Handlungen hängen am Klienten und werden über das virtuelle Thema
+  // eingeblendet — so gilt für sie dieselbe Fälligkeits- und Filterlogik.
+  const topicsWithUnplanned = [...client.topics, buildUnplannedTopic(client)];
+
+  topicsWithUnplanned.forEach((topic) => {
     topic.targets.forEach((target) => {
       target.actions.forEach((action) => {
         // Verschobene Nacht-Einträge sind einen Tag nach ihrem Planungstag fällig.
@@ -875,6 +883,7 @@ const Index = () => {
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
   const filterButtonRef = useRef<HTMLDivElement | null>(null);
   const [filterMenuLeft, setFilterMenuLeft] = useState(0);
+  const [filterMenuMaxHeight, setFilterMenuMaxHeight] = useState<number | undefined>(undefined);
   const latestAssessmentStateRef = useRef<CachedAssessmentState>({
     viewMode,
     selectedDate,
@@ -947,11 +956,23 @@ const Index = () => {
 
   useEffect(() => {
     if (!isFilterOpen || !filterButtonRef.current) return;
-    const btn = filterButtonRef.current;
-    const parent = btn.offsetParent as HTMLElement | null;
-    const parentRect = parent?.getBoundingClientRect();
-    const btnRect = btn.getBoundingClientRect();
-    setFilterMenuLeft(btnRect.left - (parentRect?.left ?? 0));
+
+    const measure = () => {
+      const btn = filterButtonRef.current;
+      if (!btn) return;
+      const parent = btn.offsetParent as HTMLElement | null;
+      const parentRect = parent?.getBoundingClientRect();
+      const btnRect = btn.getBoundingClientRect();
+      setFilterMenuLeft(btnRect.left - (parentRect?.left ?? 0));
+      // Auf flachen Notebook-Bildschirmen reicht der Platz unter der Funktionsleiste
+      // nicht für den ganzen Filter — die Höhe wird darum begrenzt und der Inhalt
+      // scrollt, damit die Buttons unten immer erreichbar bleiben.
+      setFilterMenuMaxHeight(Math.max(200, window.innerHeight - btnRect.bottom - 24));
+    };
+
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
   }, [isFilterOpen]);
 
   const isFilterActive = (() => {
@@ -1113,6 +1134,15 @@ const Index = () => {
       const nextSelectedClientIds = allSelected ? [] : clientIds;
       saveAssessmentStateImmediately({ selectedClientIds: nextSelectedClientIds });
       return nextSelectedClientIds;
+    });
+  };
+
+  /** Schreibpfad für Klienten-Daten ausserhalb des Themenbaums (ungeplante Handlungen). */
+  const updateClientFor = (clientId: string, fn: (client: Client) => Client) => {
+    setClients((prev) => {
+      const nextClients = prev.map((c) => (c.id === clientId ? fn(c) : c));
+      saveAssessmentStateImmediately({ clients: nextClients });
+      return nextClients;
     });
   };
 
@@ -1368,56 +1398,13 @@ const Index = () => {
       dateTo?: string;
     },
   ) => {
-    const unplannedTopicTitle = "Ungeplante Handlungen";
-    const unplannedTargetTitle = "Direkt in der Umsetzung erfasst";
     const newActions = buildUnplannedActionNodes(dayPart, draft, dueDate);
-
     const firstActionId = newActions[0]?.id ?? uid();
 
-    updateClientTopicsFor(clientId, (topics) => {
-      const existingTopic = topics.find((topic) => topic.title === unplannedTopicTitle);
-      if (!existingTopic) {
-        return [
-          ...topics,
-          {
-            id: uid(),
-            title: unplannedTopicTitle,
-            notes: "",
-            disciplineId: availableDisciplines[0]?.id ?? DEFAULT_SEED_DISCIPLINE_ID,
-            targets: [
-              {
-                id: uid(),
-                title: unplannedTargetTitle,
-                notes: "",
-                actions: newActions,
-              },
-            ],
-          },
-        ];
-      }
-
-      return topics.map((topic) => {
-        if (topic.id !== existingTopic.id) return topic;
-        const existingTarget = topic.targets.find((target) => target.title === unplannedTargetTitle);
-        if (!existingTarget) {
-          return {
-            ...topic,
-            targets: [
-              ...topic.targets,
-              { id: uid(), title: unplannedTargetTitle, notes: "", actions: newActions },
-            ],
-          };
-        }
-        return {
-          ...topic,
-          targets: topic.targets.map((target) =>
-            target.id === existingTarget.id
-              ? { ...target, actions: [...target.actions, ...newActions] }
-              : target,
-          ),
-        };
-      });
-    });
+    updateClientFor(clientId, (client) => ({
+      ...client,
+      unplannedActions: [...(client.unplannedActions ?? []), ...newActions],
+    }));
 
     newActions.forEach((a) => setTransientUnplannedActionIds((prev) => new Set(prev).add(a.id)));
 
@@ -1790,6 +1777,90 @@ const Index = () => {
       });
     }
 
+    const applyConfirmation = (a: ActionNode): ActionNode => {
+      if (a.id !== actionId) return a;
+      if (!date) return a;
+
+      const nextConfirmations = { ...(a.confirmations || {}) };
+
+      // Die Tageszeit wird im Uhrzeit-Modus laufend aus der Konfiguration
+      // abgeleitet — beim Bestätigen wird sie darum festgehalten, damit
+      // Historie und Auswertungen von späteren Änderungen unabhängig sind.
+      const dayPartSnapshot = effectiveDayPart(a);
+
+      const existing = nextConfirmations[date];
+      const postponementAudit = existing
+        ? {
+            postponedToDate: existing.postponedToDate,
+            postponedToTime: existing.postponedToTime,
+            postponedBy: existing.postponedBy,
+            postponedAt: existing.postponedAt,
+          }
+        : {};
+
+      if (payload.status === "open") {
+        delete nextConfirmations[date];
+      } else if (payload.status === "done_as_planned") {
+        nextConfirmations[date] = {
+          status: "done_as_planned",
+          serviceType: a.serviceType,
+          dayPartSnapshot,
+          done: true,
+          actualMinutes: a.plannedMinutes,
+          result: payload.result,
+          observations: payload.observations,
+          optionalServices: payload.optionalServices,
+          ...postponementAudit,
+          ...auditTrail,
+        };
+      } else if (payload.status === "done_with_deviation") {
+        nextConfirmations[date] = {
+          status: "done_with_deviation",
+          serviceType: a.serviceType,
+          dayPartSnapshot,
+          done: true,
+          actualMinutes: payload.actualMinutes,
+          reason: payload.reason,
+          result: payload.result,
+          observations: payload.observations,
+          optionalServices: payload.optionalServices,
+          ...postponementAudit,
+          ...auditTrail,
+        };
+      } else if (payload.status === "not_done") {
+        nextConfirmations[date] = {
+          status: "not_done",
+          dayPartSnapshot,
+          done: true,
+          reason: payload.reason,
+          ...postponementAudit,
+          ...auditTrail,
+        };
+      } else if (payload.status === "postponed") {
+        nextConfirmations[date] = {
+          ...existing,
+          status: "postponed",
+          serviceType: undefined,
+          done: false,
+          postponedToDate: payload.postponedToDate,
+          postponedToTime: payload.postponedToTime,
+          postponedReason: payload.postponedReason,
+          postponedBy: auditTrail.confirmedBy,
+          postponedAt: auditTrail.confirmedAt,
+        };
+      }
+
+      return { ...a, confirmations: nextConfirmations };
+    };
+
+    if (isUnplannedTopicId(topicId)) {
+      updateClientFor(clientId, (client) => ({
+        ...client,
+        unplannedActions: (client.unplannedActions ?? []).map(applyConfirmation),
+      }));
+      return;
+    }
+
     updateClientTopicsFor(clientId, (topics) =>
       topics.map((t) =>
         t.id !== topicId
@@ -1799,84 +1870,7 @@ const Index = () => {
               targets: t.targets.map((tg) =>
                 tg.id !== targetId
                   ? tg
-                  : {
-                      ...tg,
-                      actions: tg.actions.map((a) => {
-                        if (a.id !== actionId) return a;
-                        if (!date) return a;
-
-                        const nextConfirmations = { ...(a.confirmations || {}) };
-
-                        // Die Tageszeit wird im Uhrzeit-Modus laufend aus der Konfiguration
-                        // abgeleitet — beim Bestätigen wird sie darum festgehalten, damit
-                        // Historie und Auswertungen von späteren Änderungen unabhängig sind.
-                        const dayPartSnapshot = effectiveDayPart(a);
-
-                        const existing = nextConfirmations[date];
-                        const postponementAudit = existing
-                          ? {
-                              postponedToDate: existing.postponedToDate,
-                              postponedToTime: existing.postponedToTime,
-                              postponedBy: existing.postponedBy,
-                              postponedAt: existing.postponedAt,
-                            }
-                          : {};
-
-                        if (payload.status === "open") {
-                          delete nextConfirmations[date];
-                        } else if (payload.status === "done_as_planned") {
-                          nextConfirmations[date] = {
-                            status: "done_as_planned",
-                            serviceType: a.serviceType,
-                            dayPartSnapshot,
-                            done: true,
-                            actualMinutes: a.plannedMinutes,
-                            result: payload.result,
-                            observations: payload.observations,
-                            optionalServices: payload.optionalServices,
-                            ...postponementAudit,
-                            ...auditTrail,
-                          };
-                        } else if (payload.status === "done_with_deviation") {
-                          nextConfirmations[date] = {
-                            status: "done_with_deviation",
-                            serviceType: a.serviceType,
-                            dayPartSnapshot,
-                            done: true,
-                            actualMinutes: payload.actualMinutes,
-                            reason: payload.reason,
-                            result: payload.result,
-                            observations: payload.observations,
-                            optionalServices: payload.optionalServices,
-                            ...postponementAudit,
-                            ...auditTrail,
-                          };
-                        } else if (payload.status === "not_done") {
-                          nextConfirmations[date] = {
-                            status: "not_done",
-                            dayPartSnapshot,
-                            done: true,
-                            reason: payload.reason,
-                            ...postponementAudit,
-                            ...auditTrail,
-                          };
-                        } else if (payload.status === "postponed") {
-                          nextConfirmations[date] = {
-                            ...existing,
-                            status: "postponed",
-                            serviceType: undefined,
-                            done: false,
-                            postponedToDate: payload.postponedToDate,
-                            postponedToTime: payload.postponedToTime,
-                            postponedReason: payload.postponedReason,
-                            postponedBy: auditTrail.confirmedBy,
-                            postponedAt: auditTrail.confirmedAt,
-                          };
-                        }
-
-                        return { ...a, confirmations: nextConfirmations };
-                      }),
-                    },
+                  : { ...tg, actions: tg.actions.map(applyConfirmation) },
               ),
             },
       ),
@@ -1979,9 +1973,13 @@ const Index = () => {
     actionId: string,
   ) => {
     const client = clients.find((c) => c.id === clientId);
-    const topic = client?.topics.find((t) => t.id === topicId);
-    const target = topic?.targets.find((tg) => tg.id === targetId);
-    const action = target?.actions.find((a) => a.id === actionId);
+    const isUnplanned = isUnplannedTopicId(topicId);
+    const action = isUnplanned
+      ? client?.unplannedActions?.find((a) => a.id === actionId)
+      : client?.topics
+          .find((t) => t.id === topicId)
+          ?.targets.find((tg) => tg.id === targetId)
+          ?.actions.find((a) => a.id === actionId);
     const hasConfirmedActions = Object.keys(action?.confirmations ?? {}).length > 0;
 
     const doDelete = () => {
@@ -1991,6 +1989,14 @@ const Index = () => {
         next.delete(actionId);
         return next;
       });
+
+      if (isUnplanned) {
+        updateClientFor(clientId, (c) => ({
+          ...c,
+          unplannedActions: (c.unplannedActions ?? []).filter((a) => a.id !== actionId),
+        }));
+        return;
+      }
 
       updateClientTopicsFor(clientId, (topics) =>
         topics.map((t) =>
@@ -2550,14 +2556,14 @@ const Index = () => {
             {(viewMode === "confirmation" || viewMode === "auswertungen") && isFilterOpen && (
               <div
                 ref={filterMenuRef}
-                style={{ left: `${filterMenuLeft}px` }}
-                className="absolute top-full z-40 mt-1 w-[28rem] max-w-[calc(100vw-2rem)] rounded-sm border border-border bg-background text-sm shadow-xl"
+                style={{ left: `${filterMenuLeft}px`, maxHeight: filterMenuMaxHeight }}
+                className="absolute top-full z-40 mt-1 flex w-[28rem] max-w-[calc(100vw-2rem)] flex-col rounded-sm border border-border bg-background text-sm shadow-xl"
               >
-                <div className="border-b border-border px-3 py-2 text-sm font-medium">
+                <div className="shrink-0 border-b border-border px-3 py-2 text-sm font-medium">
                   Filter
                 </div>
 
-                <div className="space-y-3 p-3 text-xs">
+                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3 text-xs">
                   {viewMode !== "auswertungen" && (
                     <div className="space-y-1.5">
                       <div className="text-sm font-medium">Status (ODER)</div>
@@ -2912,7 +2918,7 @@ const Index = () => {
                   </label>
                 </div>
 
-                <div className="flex items-center justify-end border-t border-border px-3 py-2">
+                <div className="flex shrink-0 items-center justify-end border-t border-border px-3 py-2">
                   <div className="flex gap-1.5">
                     <Button variant="outline" onClick={cancelFilter}>Abbrechen</Button>
                     <Button variant="outline" onClick={resetFilter}>Zurücksetzen</Button>
@@ -3553,7 +3559,13 @@ const Index = () => {
                       confirmationPeriod={confirmationPeriod}
                       lastNDays={lastNDays}
                       clientName={`${client.firstName} ${client.lastName}`.trim()}
-                      topics={client.topics}
+                      topics={
+                        // Ungeplante Handlungen sind Umsetzungs-Daten: nur dort über das
+                        // virtuelle Thema einblenden, in der Planung gar nicht.
+                        viewMode === "confirmation"
+                          ? [...client.topics, buildUnplannedTopic(client)]
+                          : client.topics
+                      }
                       disciplines={availableDisciplines.length > 0 ? availableDisciplines : initialActionPlanDisciplines}
                       hideConfirmationHeader
                       bulkNotDoneMode={bulkNotDoneClientIds.has(client.id)}

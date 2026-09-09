@@ -38,7 +38,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { groupUnplannedActions } from "@/lib/unplanned-action";
 import {
   formatActionResources,
   getActionPlanResources,
@@ -122,7 +121,7 @@ import {
   shiftISODate,
   type ConfirmationDayPartKey,
 } from "@/lib/day-part-rollover";
-import { getDayParts, resolveDayPart } from "@/lib/day-parts";
+import { getDayParts, resolveDayPart, spansMidnight, toMinutes } from "@/lib/day-parts";
 import { parseLeistungsarten, parseOptionalLeistungsarten, parseTageszeit } from "@/lib/action-plan-templates";
 import {
   DEFAULT_ASSESSMENT_FILTER,
@@ -2255,9 +2254,12 @@ export function AssessmentOutline({
                       {(() => {
                         // Bedarfs-Durchführungen entstehen erst in der Umsetzung; in der Planung
                         // steht nur die Nach-Bedarf-Handlung selbst.
-                        const plannedActions = target.actions.filter((a) => !a.isUnplanned && !a.isOnDemandOccurrence);
-                        const unplannedActions = target.actions.filter((a) => a.isUnplanned);
-                        if (plannedActions.length === 0 && unplannedActions.length === 0) return null;
+                        // Ungeplante Handlungen hängen am Klienten und erreichen die Planung
+                        // gar nicht mehr — der Filter bleibt als Schutz gegen Altdaten.
+                        const plannedActions = target.actions.filter(
+                          (a) => !a.isUnplanned && !a.isOnDemandOccurrence,
+                        );
+                        if (plannedActions.length === 0) return null;
 
                         const groupMap = new Map<string, ActionNode[]>();
                         for (const action of plannedActions) {
@@ -2272,10 +2274,6 @@ export function AssessmentOutline({
                           const bMin = b.map((n) => scheduleSortKey(n)).sort()[0] ?? "";
                           return aMin.localeCompare(bMin);
                         });
-
-                        // Ungeplante Handlungen sind in der Planung nur informativ — sie werden
-                        // in der Umsetzung erfasst und darum unten und nur lesend angezeigt.
-                        const unplannedGroups = groupUnplannedActions(unplannedActions);
 
                         return (
                           <>
@@ -2294,17 +2292,6 @@ export function AssessmentOutline({
                                 />
                               );
                             })}
-                            {unplannedGroups.map((groupNodes) => (
-                              <ActionGroupRow
-                                key={groupNodes[0].id}
-                                readOnly
-                                topicId={topic.id}
-                                targetId={target.id}
-                                groupNodes={groupNodes}
-                                targetValidFrom={target.validFrom}
-                                targetValidTo={target.validTo}
-                              />
-                            ))}
                           </>
                         );
                       })()}
@@ -2511,27 +2498,17 @@ export function ActionGroupRow({
 
   const isLocked = Object.values(groupNodes).some((a) => Object.keys(a.confirmations ?? {}).length > 0);
   const hasConfirmations = isLocked;
-  const isUnplanned = !!representative.isUnplanned;
-  // Ungeplante Handlungen liegen als eine Node pro Tag vor — das Datum der Zeile
-  // ergibt sich daher aus dem gesamten Zeitraum der Gruppe.
+  // Das Datum der Zeile ergibt sich aus dem gesamten Zeitraum der Gruppe.
   const rangeFrom = groupNodes.map((n) => n.validFrom).filter(Boolean).sort()[0];
   const rangeTo = groupNodes.map((n) => n.validTo ?? n.validFrom).filter(Boolean).sort().at(-1);
 
   return (
-    <li className={cn(
-      "group/action flex items-start gap-3 rounded px-3 py-2.5 border transition-colors",
-      isUnplanned ? "border-amber-200 bg-amber-50/60" : "border-border bg-white hover:border-primary/40",
-    )}>
+    <li className="group/action flex items-start gap-3 rounded px-3 py-2.5 border border-border bg-white transition-colors hover:border-primary/40">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 min-w-0">
           <span className={cn("text-base font-medium truncate", !representative.title && "text-muted-foreground/40")}>
             {representative.title || "Handlung…"}
           </span>
-          {isUnplanned && (
-            <Badge variant="outline" className="shrink-0 border-amber-300 bg-amber-50 text-[10px] text-amber-800">
-              Ungeplant
-            </Badge>
-          )}
           {hasConfirmations && (
             <TooltipProvider delayDuration={150}>
               <Tooltip>
@@ -2608,15 +2585,11 @@ export function ActionGroupRow({
             </>
           )}
           <span className="tabular-nums self-center truncate">
-            {isUnplanned
-              ? <span className="opacity-40 italic">Keine geplante Zeit</span>
-              : representative.plannedMinutes != null ? `${representative.plannedMinutes} Min` : <span className="opacity-40 italic">Keine Minuten</span>}
+            {representative.plannedMinutes != null ? `${representative.plannedMinutes} Min` : <span className="opacity-40 italic">Keine Minuten</span>}
           </span>
           <span className="self-center h-3 bg-border" />
           <span className="self-center truncate">
-            {isUnplanned
-              ? <span className="opacity-40 italic">In der Umsetzung erfasst</span>
-              : recurrenceLabel(representative.recurrence) ?? <span className="opacity-40 italic">Keine Wiederholung</span>}
+            {recurrenceLabel(representative.recurrence) ?? <span className="opacity-40 italic">Keine Wiederholung</span>}
           </span>
           <span className="self-center h-3 bg-border" />
           <span className="tabular-nums self-center truncate">
@@ -4514,10 +4487,37 @@ export function UnplannedActionDialog({
   };
 
   const selectedDayPart = draft.dayPart ?? target.dayPart ?? "none";
-  const selectedDayPartLabel =
+  const selectedDayPartDefinition =
     selectedDayPart === "none"
-      ? "ohne"
-      : getDayParts().find((entry) => entry.id === selectedDayPart)?.title ?? "ohne";
+      ? undefined
+      : getDayParts().find((entry) => entry.id === selectedDayPart);
+  const selectedDayPartLabel = selectedDayPartDefinition?.title ?? "ohne";
+
+  /**
+   * Eine Uhrzeit muss im Bereich der gewählten Tageszeit liegen: sonst leitet die
+   * Anzeige daraus eine andere Tageszeit ab (strikte Trennung) und die Handlung
+   * erschiene nicht im Abschnitt, in dem sie erfasst wurde. Die Tageszeiten sind
+   * lückenlos, darum genügt der Vergleich mit der aufgelösten Tageszeit.
+   */
+  /**
+   * Grenzen für das Zeitfeld — nur bei Tageszeiten ohne Mitternachtssprung, weil
+   * min/max keinen Bereich über 00:00 hinweg ausdrücken können. Das "bis" der
+   * Tageszeit ist exklusiv, darum eine Minute davor.
+   */
+  const dayPartTimeBounds = (() => {
+    if (!selectedDayPartDefinition || spansMidnight(selectedDayPartDefinition)) return undefined;
+    const lastMinute = toMinutes(selectedDayPartDefinition.to) - 1;
+    return {
+      min: selectedDayPartDefinition.from,
+      max: `${String(Math.floor(lastMinute / 60)).padStart(2, "0")}:${String(lastMinute % 60).padStart(2, "0")}`,
+    };
+  })();
+
+  const scheduledTimeOutsideDayPart =
+    !nightRollover &&
+    !!draft.scheduledTime &&
+    !!selectedDayPartDefinition &&
+    resolveDayPart(draft.scheduledTime, getDayParts())?.id !== selectedDayPartDefinition.id;
 
   const dateRangeError = (() => {
     if (!dateFrom || !dateTo) return null;
@@ -4575,6 +4575,7 @@ export function UnplannedActionDialog({
       setShowNightTimeError(true);
       return;
     }
+    if (scheduledTimeOutsideDayPart) return;
     const finalDraft: UnplannedActionDraft = {
       ...draft,
       title,
@@ -4821,19 +4822,29 @@ export function UnplannedActionDialog({
                     id="unplanned-scheduled-time"
                     type="time"
                     value={draft.scheduledTime ?? ""}
-                    disabled={isDraftFieldLocked("scheduledTime") || !nightRollover}
-                    max={nightRollover ? rolloverLimit : undefined}
+                    disabled={isDraftFieldLocked("scheduledTime")}
+                    min={nightRollover ? undefined : dayPartTimeBounds?.min}
+                    max={nightRollover ? rolloverLimit : dayPartTimeBounds?.max}
                     onChange={(e) => {
                       const value = e.target.value || undefined;
                       updateDraft("scheduledTime", value);
                       if (value && rolloverLimit && value < rolloverLimit) setShowNightTimeError(false);
                     }}
-                    className={cn("bg-background", showNightTimeError && "border-destructive")}
+                    className={cn(
+                      "bg-background",
+                      (showNightTimeError || scheduledTimeOutsideDayPart) && "border-destructive",
+                    )}
                   />
                   {showNightTimeError && (
                     <p className="text-xs text-destructive">
                       Zwingend zwischen 00:00 und {rolloverLimit} — sonst wird die Handlung nicht
                       dem Vortag zugeordnet.
+                    </p>
+                  )}
+                  {scheduledTimeOutsideDayPart && selectedDayPartDefinition && (
+                    <p className="text-xs text-destructive">
+                      Uhrzeit muss im Bereich der Tageszeit «{selectedDayPartDefinition.title}»
+                      liegen ({selectedDayPartDefinition.from} bis {selectedDayPartDefinition.to}).
                     </p>
                   )}
                 </div>
@@ -5004,7 +5015,7 @@ export function UnplannedActionDialog({
               type="button"
               variant="ghost"
               onClick={submit}
-              disabled={(creationMode === "template" && !selectedTemplate) || !dateFrom || !dateTo || !!dateRangeError || missingRequiredFields.length > 0}
+              disabled={(creationMode === "template" && !selectedTemplate) || !dateFrom || !dateTo || !!dateRangeError || scheduledTimeOutsideDayPart || missingRequiredFields.length > 0}
               className="text-white hover:bg-white/10 hover:text-white"
             >
               Bestätigen

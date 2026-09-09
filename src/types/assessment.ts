@@ -203,6 +203,12 @@ export interface Client {
   firstName: string;
   lastName: string;
   topics: TopicNode[];
+  /**
+   * Ungeplante Handlungen hängen direkt am Klienten, nicht im Themenbaum: sie sind
+   * Umsetzungs-Daten und darum kein Plan-Inhalt. Für die Umsetzung werden sie über
+   * ein virtuelles Thema/Ziel eingeblendet (siehe lib/unplanned-action.ts).
+   */
+  unplannedActions?: ActionNode[];
 }
 
 export type Selection =

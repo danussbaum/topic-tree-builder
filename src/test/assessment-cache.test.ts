@@ -218,4 +218,55 @@ describe("assessment browser cache", () => {
       expect(action.scheduledTime).toBeUndefined();
     });
   });
+
+  describe("Ungeplante Handlungen aus Altdaten", () => {
+    it("verschiebt sie beim Laden aus dem Baum an den Klienten", () => {
+      const legacy: CachedAssessmentState = {
+        ...cachedState,
+        clients: [
+          {
+            id: "client-1",
+            firstName: "Test",
+            lastName: "Person",
+            topics: [
+              {
+                id: "topic-unplanned",
+                title: "Ungeplante Handlungen",
+                notes: "",
+                targets: [
+                  {
+                    id: "target-unplanned",
+                    title: "Direkt in der Umsetzung erfasst",
+                    notes: "",
+                    actions: [
+                      {
+                        id: "action-u1",
+                        groupId: "group-u1",
+                        title: "Spontane Begleitung",
+                        notes: "",
+                        status: "open",
+                        done: false,
+                        validFrom: "2026-05-12",
+                        validTo: "2026-05-12",
+                        recurrence: "daily",
+                        isUnplanned: true,
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+      window.localStorage.setItem(ASSESSMENT_CACHE_KEY, JSON.stringify(legacy));
+
+      const loaded = loadCachedAssessmentState("2026-01-01", fallbackFilter);
+
+      expect(loaded?.clients[0].topics).toEqual([]);
+      expect(loaded?.clients[0].unplannedActions?.map((a) => a.title)).toEqual([
+        "Spontane Begleitung",
+      ]);
+    });
+  });
 });
