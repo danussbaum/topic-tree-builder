@@ -38,6 +38,8 @@ npx vercel dev   # LOKALER Dev-Server — so wird lokal gestartet (nicht npm run
                  # Emuliert die Vercel-Umgebung inkl. /api/auth Edge Function. Port 3000.
 npm run build    # Production-Build nach dist/
 npm run lint     # ESLint
+npm run typecheck # tsc --noEmit: src/ (App+Tests) und vite.config.ts + api/
+                 # Laeuft NICHT im Build mit (Vite/SWC typisiert nicht) — separat pruefen.
 npm test         # Vitest einmalig (vitest run)
 npm run test:watch
 ```
