@@ -142,6 +142,7 @@ import {
 import { DEFAULT_LAST_N_DAYS, type ConfirmationPeriod } from "@/lib/assessment-cache";
 import { getRescheduleWindow } from "@/lib/reschedule";
 import { isBeforeConfirmationStart } from "@/lib/confirmation-window";
+import type { UnplannedActionDraft } from "@/lib/unplanned-action";
 import {
   SCHEDULE_FIELD_MESSAGE,
   getScheduleIssues,
@@ -180,28 +181,9 @@ type ActionField =
   | "recurrenceMonthlyPattern"
   | "observations";
 
+/** Felder, die einzeln aktualisiert werden — ohne die Leistungsarten, die als Liste ueber die Gruppe laufen. */
+type UpdatableActionField = Exclude<ActionField, "serviceEntries">;
 
-interface UnplannedActionDraft {
-  title: string;
-  notes: string;
-  requiredResources?: string;
-  resourceIds?: string[];
-  plannedMinutes?: number;
-  requiredPersons?: number;
-  resultRequirement?: ActionNode["resultRequirement"];
-  dayPart?: string;
-  scheduledTime?: string;
-  category?: ActionCategory;
-  serviceEntries?: ActionServiceEntry[];
-  optionalServiceTypes?: ActionServiceType[];
-  optionalServices?: ConfirmedOptionalService[];
-  templateId?: string;
-  templateName?: string;
-  templateLockedFields?: string[];
-  templateRequiredFields?: string[];
-  dateFrom?: string;
-  dateTo?: string;
-}
 
 type ActionDraftOverrides = Partial<Pick<ActionNode,
   | "title"
@@ -366,7 +348,7 @@ interface Props {
     topicId: string,
     targetId: string,
     actionId: string,
-    field: ActionField,
+    field: UpdatableActionField,
     value: number | string | string[] | undefined,
   ) => void;
     onConfirmAction: (
@@ -391,7 +373,8 @@ interface Props {
     topicId: string,
     targetId: string,
     groupId: string,
-    sharedFields: Partial<Omit<ActionNode, "id" | "groupId" | "dayPart" | "scheduledTime" | "confirmations" | "isUnplanned">>,
+    sharedFields: Partial<Omit<ActionNode, "id" | "groupId" | "dayPart" | "scheduledTime" | "confirmations" | "isUnplanned">>
+      & Pick<ActionNode, "title" | "notes">,
     dayPartEntries: Array<{ dayPart?: string; scheduledTime?: string; existingActionId?: string }>,
   ) => void;
   onAddUnplannedAction?: (
@@ -1228,7 +1211,7 @@ export function AssessmentOutline({
               <div className="flex items-center gap-2.5">
                 <Checkbox
                   id="bulk-not-done-select-all"
-                  checked={allVisibleBulkNotDoneSelected || (someVisibleBulkNotDoneSelected && "indeterminate")}
+                  checked={allVisibleBulkNotDoneSelected ? true : someVisibleBulkNotDoneSelected ? "indeterminate" : false}
                   disabled={visibleBulkNotDoneKeys.length === 0}
                   onCheckedChange={(checked) => toggleAllVisibleBulkNotDoneSelection(checked === true)}
                   aria-label="Alle offenen Handlungen für Mehrfachbestätigung auswählen"
@@ -1275,7 +1258,7 @@ export function AssessmentOutline({
               <div className="flex items-center gap-2.5">
                 <Checkbox
                   id="bulk-done-as-planned-select-all"
-                  checked={allVisibleBulkDoneAsPlannedSelected || (someVisibleBulkDoneAsPlannedSelected && "indeterminate")}
+                  checked={allVisibleBulkDoneAsPlannedSelected ? true : someVisibleBulkDoneAsPlannedSelected ? "indeterminate" : false}
                   disabled={visibleBulkDoneAsPlannedKeys.length === 0}
                   onCheckedChange={(checked) => toggleAllVisibleBulkDoneAsPlannedSelection(checked === true)}
                   aria-label="Alle offenen Handlungen für Mehrfachbestätigung auswählen"
@@ -2922,474 +2905,159 @@ export function ActionRow({
         )}
 
         {/* Meta fields */}
-        {viewMode === "planning" ? (
-          <div className="mt-1.5 flex flex-col gap-1 text-xs text-muted-foreground">
-            {/* Zeile 1: Tageszeit | Uhrzeit | geplante Minuten | Anz. Personen | Klassifizierung */}
-            <div className="grid grid-cols-5 gap-1">
-            <div className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1 transition-colors focus-within:border-primary">
-              <span className="shrink-0 text-muted-foreground">Tageszeit</span>
-              <Select
-                value={action.dayPart ?? "none"}
-                disabled={isFieldLocked("dayPart")}
-                onValueChange={(v) =>
-                  onUpdateActionField(
-                    topicId,
-                    targetId,
-                    action.id,
-                    "dayPart",
-                    v === "none" ? undefined : v,
-                  )
-                }
-              >
-                <SelectTrigger aria-label="Tageszeit" className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0 focus-visible:ring-0">
-                  <SelectValue placeholder="Keine Angabe" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Keine Angabe</SelectItem>
-                  {getDayParts().map((option) => (
-                    <SelectItem key={option.id} value={option.id}>
-                      {option.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <label className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1.5">
-              <Clock className="h-3.5 w-3.5 shrink-0" />
-              <span className="shrink-0">Uhrzeit</span>
-              <input
-                type="time"
-                disabled={isFieldLocked("scheduledTime")}
-                value={action.scheduledTime ?? ""}
-                onChange={(e) =>
-                  onUpdateActionField(
-                    topicId,
-                    targetId,
-                    action.id,
-                    "scheduledTime",
-                    e.target.value || undefined,
-                  )
-                }
-                className="h-7 w-full min-w-0 bg-transparent border border-border rounded focus:border-primary outline-none px-2 py-0.5 tabular-nums"
-              />
-              {rollsToNextDay(action) && (
-                <span className="shrink-0 whitespace-nowrap" title="Wird am Folgetag durchgeführt">+1 Tag</span>
-              )}
-            </label>
-
-            <label className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1.5">
-              <Clock className="h-3.5 w-3.5 shrink-0" />
-              <span className="shrink-0">Min.</span>
-              <input
-                type="number"
-                min={0}
-                step={5}
-                disabled={isFieldLocked("plannedMinutes")}
-                value={action.plannedMinutes ?? ""}
-                onChange={(e) =>
-                  onUpdateActionField(
-                    topicId,
-                    targetId,
-                    action.id,
-                    "plannedMinutes",
-                    e.target.value === ""
-                      ? undefined
-                      : Math.max(0, Number(e.target.value)),
-                  )
-                }
-                placeholder="–"
-                className="h-7 w-full min-w-0 bg-transparent border border-border rounded focus:border-primary outline-none px-2 py-0.5 text-right tabular-nums"
-              />
-              <span className="shrink-0">Min</span>
-            </label>
-
-            <label className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1.5">
-              <Users className="h-3.5 w-3.5 shrink-0" />
-              <span className="shrink-0">Pers.</span>
-              <input
-                type="number"
-                min={1}
-                step={1}
-                disabled={isFieldLocked("requiredPersons")}
-                value={action.requiredPersons ?? ""}
-                onChange={(e) => {
-                  const value = Number(e.target.value);
-                  onUpdateActionField(
-                    topicId,
-                    targetId,
-                    action.id,
-                    "requiredPersons",
-                    e.target.value === "" || !Number.isFinite(value)
-                      ? undefined
-                      : Math.max(1, Math.floor(value)),
-                  );
-                }}
-                placeholder="-"
-                className="h-7 w-full min-w-0 bg-transparent border border-border rounded focus:border-primary outline-none px-2 py-0.5 text-right tabular-nums"
-              />
-            </label>
-
-            <div className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1 transition-colors focus-within:border-primary">
-              <span className="shrink-0 text-muted-foreground">Klassifizierung</span>
-              <Select
-                value={action.category ?? "none"}
-                disabled={isFieldLocked("category")}
-                onValueChange={(v) =>
-                  onUpdateActionField(
-                    topicId,
-                    targetId,
-                    action.id,
-                    "category",
-                    v === "none" ? undefined : v,
-                  )
-                }
-              >
-                <SelectTrigger aria-label="Klassifizierung" className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0 focus-visible:ring-0">
-                  <SelectValue placeholder="Keine Angabe" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Keine Angabe</SelectItem>
-                  <SelectItem value="a">KLV A</SelectItem>
-                  <SelectItem value="b">KLV B</SelectItem>
-                  <SelectItem value="c">KLV C</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            </div>
-
-            {/* Zeile 2: Gültig ab | Gültig bis | Wiederholung | (Wochentage/Monatl. Regel) | Resultat */}
-            <div className="grid grid-cols-5 gap-1">
-            <DateField
-              label="Gültig ab"
-              required
-              disabled={isFieldLocked("validFrom")}
-              value={action.validFrom}
-              minDate={targetValidFrom}
-              maxDate={targetValidTo}
-              onChange={(v) => {
-                // Leeres Gültig ab würde die Handlung aus der Umsetzung entfernen.
-                if (!v) return;
-                onUpdateActionField(topicId, targetId, action.id, "validFrom", v);
-              }}
-              className="w-full"
-            />
-            <DateField
-              label="Gültig bis"
-              disabled={false}
-              value={action.validTo}
-              minDate={targetValidFrom}
-              maxDate={targetValidTo}
-              onChange={(v) =>
-                onUpdateActionField(topicId, targetId, action.id, "validTo", v)
-              }
-              className="w-full"
-            />
-            <div
-              className={cn(
-                "flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1 transition-colors focus-within:border-primary",
-                !action.recurrence && "border-destructive/60 text-destructive",
-              )}
-            >
-              <span className="shrink-0 text-muted-foreground">Wiederholung</span>
-              <Select
-                value={action.recurrence ?? "none"}
-                disabled={isFieldLocked("recurrence")}
-                onValueChange={(v) => {
-                  onUpdateActionField(topicId, targetId, action.id, "recurrence", v);
-                  // Direkt gültige Vorbelegung, damit die Handlung beim Wechsel nicht
-                  // vorübergehend aus der Umsetzung fällt.
-                  if (v === "weekly" && (action.recurrenceWeekdays?.length ?? 0) === 0) {
-                    onUpdateActionField(
-                      topicId,
-                      targetId,
-                      action.id,
-                      "recurrenceWeekdays",
-                      WEEKDAY_OPTIONS.map((option) => option.value),
-                    );
-                  }
-                  if (v === "monthly" && !action.recurrenceMonthlyPattern) {
-                    onUpdateActionField(topicId, targetId, action.id, "recurrenceMonthlyPattern", "first_day");
-                  }
-                }}
-              >
-                <SelectTrigger aria-label="Wiederholung" className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0 focus-visible:ring-0">
-                  <SelectValue placeholder="Wählen…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {RECURRENCE_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {action.recurrence === "weekly" ? (
-              <div
-                className={cn(
-                  "rounded border border-border bg-background px-2 py-1",
-                  weeklyDaysMissing && "border-destructive/60",
-                )}
-              >
-                <div className="flex flex-wrap items-center gap-1 select-none">
-                  {WEEKDAY_OPTIONS.map((weekday, weekdayIndex) => {
-                    const isSelected = (action.recurrenceWeekdays ?? []).includes(weekday.value);
-                    return (
-                      <button
-                        key={weekday.value}
-                        type="button"
-                        disabled={isFieldLocked("recurrenceWeekdays")}
-                        onPointerDown={(event) => {
-                          if (event.button !== 0) return;
-                          event.preventDefault();
-                          const baseSelection = action.recurrenceWeekdays ?? [];
-                          const mode: "add" | "remove" = isSelected ? "remove" : "add";
-                          const dragState = {
-                            anchorIndex: weekdayIndex,
-                            baseSelection,
-                            mode,
-                          };
-                          setWeekdayDragState(dragState);
-                          updateWeekdayRange(dragState, weekdayIndex);
-                        }}
-                        onPointerEnter={() => {
-                          if (!weekdayDragState) return;
-                          updateWeekdayRange(weekdayDragState, weekdayIndex);
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key !== " " && event.key !== "Enter") return;
-                          event.preventDefault();
-                          const next = isSelected
-                            ? (action.recurrenceWeekdays ?? []).filter((value) => value !== weekday.value)
-                            : [...(action.recurrenceWeekdays ?? []), weekday.value];
-                          if (next.length === 0) return;
-                          onUpdateActionField(topicId, targetId, action.id, "recurrenceWeekdays", next);
-                        }}
-                        className={cn(
-                          "rounded border px-2 py-0.5 text-xs transition-colors cursor-pointer",
-                          isSelected
-                            ? "border-primary bg-primary/10 text-primary"
-                            : "border-border hover:bg-secondary/60",
-                        )}
-                      >
-                        {weekday.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : action.recurrence === "monthly" ? (
-              <div
-                className={cn(
-                  "flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1 transition-colors focus-within:border-primary",
-                  monthlyPatternMissing && "border-destructive/60",
-                )}
-              >
-                <Select
-                  value={action.recurrenceMonthlyPattern ?? "none"}
-                  disabled={isFieldLocked("recurrenceMonthlyPattern")}
-                  onValueChange={(v) =>
-                    onUpdateActionField(topicId, targetId, action.id, "recurrenceMonthlyPattern", v)
-                  }
-                >
-                  <SelectTrigger aria-label="Monatliche Regel" className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0 focus-visible:ring-0">
-                    <SelectValue placeholder="Wählen…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MONTHLY_PATTERN_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : (
-              <div />
-            )}
-            <div className="flex min-w-0 items-center gap-2 rounded border border-border bg-background px-2 py-1 transition-colors focus-within:border-primary">
-              <span className="shrink-0 text-muted-foreground">Resultat</span>
-              <Select
-                value={action.resultRequirement ?? "none"}
-                disabled={isFieldLocked("resultRequirement")}
-                onValueChange={(v) =>
-                  onUpdateActionField(
-                    topicId,
-                    targetId,
-                    action.id,
-                    "resultRequirement",
-                    v === "none" ? undefined : v,
-                  )
-                }
-              >
-                <SelectTrigger aria-label="Resultat" className="h-7 w-full border-0 bg-transparent p-0 text-xs shadow-none focus:ring-0 focus-visible:ring-0">
-                  <SelectValue placeholder="Kein Resultat" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Kein Resultat</SelectItem>
-                  <SelectItem value="optional">Resultat optional</SelectItem>
-                  <SelectItem value="required">Resultat zwingend</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
-            <Select
-              value={action.dayPart ?? "none"}
-              disabled={isFieldLocked("dayPart")}
-              onValueChange={(v) =>
-                onUpdateActionField(
-                  topicId,
-                  targetId,
-                  action.id,
-                  "dayPart",
-                  v === "none" ? undefined : v,
-                )
-              }
-            >
-              <SelectTrigger className="h-7 w-[120px] text-xs px-2 py-0">
-                <SelectValue placeholder="Tageszeit" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Keine Angabe</SelectItem>
-                {getDayParts().map((option) => (
-                  <SelectItem key={option.id} value={option.id}>
-                    {option.title}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {action.scheduledTime && (
-              <span className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-100 px-2 py-1 font-bold text-amber-900 shadow-sm">
-                <Clock className="h-3.5 w-3.5" />
-                <span className="tabular-nums">{action.scheduledTime}</span>
-              </span>
-            )}
-            <label className="inline-flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
+          <Select
+            value={action.dayPart ?? "none"}
+            disabled={isFieldLocked("dayPart")}
+            onValueChange={(v) =>
+              onUpdateActionField(
+                topicId,
+                targetId,
+                action.id,
+                "dayPart",
+                v === "none" ? undefined : v,
+              )
+            }
+          >
+            <SelectTrigger className="h-7 w-[120px] text-xs px-2 py-0">
+              <SelectValue placeholder="Tageszeit" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Keine Angabe</SelectItem>
+              {getDayParts().map((option) => (
+                <SelectItem key={option.id} value={option.id}>
+                  {option.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {action.scheduledTime && (
+            <span className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-100 px-2 py-1 font-bold text-amber-900 shadow-sm">
               <Clock className="h-3.5 w-3.5" />
-              <span>geplant</span>
-              <input
-                type="number"
-                min={0}
-                step={5}
-                disabled={isFieldLocked("plannedMinutes")}
-                value={action.plannedMinutes ?? ""}
-                onChange={(e) =>
-                  onUpdateActionField(
-                    topicId,
-                    targetId,
-                    action.id,
-                    "plannedMinutes",
-                    e.target.value === ""
-                      ? undefined
-                      : Math.max(0, Number(e.target.value)),
-                  )
-                }
-                placeholder="–"
-                className="w-14 bg-background border border-border rounded focus:border-primary outline-none px-1.5 py-0.5 text-right tabular-nums"
-              />
-              <span>Min</span>
-            </label>
-            <label className="inline-flex items-center gap-1.5">
-              <Users className="h-3.5 w-3.5" />
-              <span>Personen</span>
-              <input
-                type="number"
-                min={1}
-                step={1}
-                disabled={isFieldLocked("requiredPersons")}
-                value={action.requiredPersons ?? ""}
-                onChange={(e) => {
-                  const value = Number(e.target.value);
-                  onUpdateActionField(
-                    topicId,
-                    targetId,
-                    action.id,
-                    "requiredPersons",
-                    e.target.value === "" || !Number.isFinite(value)
-                      ? undefined
-                      : Math.max(1, Math.floor(value)),
-                  );
-                }}
-                placeholder="-"
-                className="w-12 bg-background border border-border rounded focus:border-primary outline-none px-1.5 py-0.5 text-right tabular-nums"
-              />
-            </label>
-            <Select
-              value={action.category ?? "none"}
-              disabled={isFieldLocked("category")}
-              onValueChange={(v) =>
+              <span className="tabular-nums">{action.scheduledTime}</span>
+            </span>
+          )}
+          <label className="inline-flex items-center gap-1.5">
+            <Clock className="h-3.5 w-3.5" />
+            <span>geplant</span>
+            <input
+              type="number"
+              min={0}
+              step={5}
+              disabled={isFieldLocked("plannedMinutes")}
+              value={action.plannedMinutes ?? ""}
+              onChange={(e) =>
                 onUpdateActionField(
                   topicId,
                   targetId,
                   action.id,
-                  "category",
-                  v === "none" ? undefined : v,
+                  "plannedMinutes",
+                  e.target.value === ""
+                    ? undefined
+                    : Math.max(0, Number(e.target.value)),
                 )
               }
-            >
-              <SelectTrigger aria-label="Klassifizierung" className="h-7 w-[130px] text-xs px-2 py-0">
-                <SelectValue placeholder="Klassifizierung" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Keine Angabe</SelectItem>
-                <SelectItem value="a">KLV A</SelectItem>
-                <SelectItem value="b">KLV B</SelectItem>
-                <SelectItem value="c">KLV C</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select
-              value={action.resultRequirement ?? "none"}
-              disabled={isFieldLocked("resultRequirement")}
-              onValueChange={(v) =>
+              placeholder="–"
+              className="w-14 bg-background border border-border rounded focus:border-primary outline-none px-1.5 py-0.5 text-right tabular-nums"
+            />
+            <span>Min</span>
+          </label>
+          <label className="inline-flex items-center gap-1.5">
+            <Users className="h-3.5 w-3.5" />
+            <span>Personen</span>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              disabled={isFieldLocked("requiredPersons")}
+              value={action.requiredPersons ?? ""}
+              onChange={(e) => {
+                const value = Number(e.target.value);
                 onUpdateActionField(
                   topicId,
                   targetId,
                   action.id,
-                  "resultRequirement",
-                  v === "none" ? undefined : v,
-                )
-              }
-            >
-              <SelectTrigger className="h-7 w-[150px] text-xs px-2 py-0">
-                <SelectValue placeholder="Resultat" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Kein Resultat</SelectItem>
-                <SelectItem value="optional">Resultat optional</SelectItem>
-                <SelectItem value="required">Resultat zwingend</SelectItem>
-              </SelectContent>
-            </Select>
-            <DateField
-              label="Gültig ab"
-              required
-              disabled={isFieldLocked("validFrom")}
-              value={action.validFrom}
-              minDate={targetValidFrom}
-              maxDate={targetValidTo}
-              onChange={(v) => {
-                // Leeres Gültig ab würde die Handlung aus der Umsetzung entfernen.
-                if (!v) return;
-                onUpdateActionField(topicId, targetId, action.id, "validFrom", v);
+                  "requiredPersons",
+                  e.target.value === "" || !Number.isFinite(value)
+                    ? undefined
+                    : Math.max(1, Math.floor(value)),
+                );
               }}
+              placeholder="-"
+              className="w-12 bg-background border border-border rounded focus:border-primary outline-none px-1.5 py-0.5 text-right tabular-nums"
             />
-            <DateField
-              label="Gültig bis"
-              disabled={false}
-              value={action.validTo}
-              minDate={targetValidFrom}
-              maxDate={targetValidTo}
-              onChange={(v) =>
-                onUpdateActionField(topicId, targetId, action.id, "validTo", v)
-              }
-            />
+          </label>
+          <Select
+            value={action.category ?? "none"}
+            disabled={isFieldLocked("category")}
+            onValueChange={(v) =>
+              onUpdateActionField(
+                topicId,
+                targetId,
+                action.id,
+                "category",
+                v === "none" ? undefined : v,
+              )
+            }
+          >
+            <SelectTrigger aria-label="Klassifizierung" className="h-7 w-[130px] text-xs px-2 py-0">
+              <SelectValue placeholder="Klassifizierung" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Keine Angabe</SelectItem>
+              <SelectItem value="a">KLV A</SelectItem>
+              <SelectItem value="b">KLV B</SelectItem>
+              <SelectItem value="c">KLV C</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select
+            value={action.resultRequirement ?? "none"}
+            disabled={isFieldLocked("resultRequirement")}
+            onValueChange={(v) =>
+              onUpdateActionField(
+                topicId,
+                targetId,
+                action.id,
+                "resultRequirement",
+                v === "none" ? undefined : v,
+              )
+            }
+          >
+            <SelectTrigger className="h-7 w-[150px] text-xs px-2 py-0">
+              <SelectValue placeholder="Resultat" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Kein Resultat</SelectItem>
+              <SelectItem value="optional">Resultat optional</SelectItem>
+              <SelectItem value="required">Resultat zwingend</SelectItem>
+            </SelectContent>
+          </Select>
+          <DateField
+            label="Gültig ab"
+            required
+            disabled={isFieldLocked("validFrom")}
+            value={action.validFrom}
+            minDate={targetValidFrom}
+            maxDate={targetValidTo}
+            onChange={(v) => {
+              // Leeres Gültig ab würde die Handlung aus der Umsetzung entfernen.
+              if (!v) return;
+              onUpdateActionField(topicId, targetId, action.id, "validFrom", v);
+            }}
+          />
+          <DateField
+            label="Gültig bis"
+            disabled={false}
+            value={action.validTo}
+            minDate={targetValidFrom}
+            maxDate={targetValidTo}
+            onChange={(v) =>
+              onUpdateActionField(topicId, targetId, action.id, "validTo", v)
+            }
+          />
 
-            <StatusBadge action={action} />
-          </div>
-        )}
+          <StatusBadge action={action} />
+        </div>
 
         {viewMode === "confirmation" && (action.reason ||
           action.status === "done_with_deviation" ||
@@ -3562,7 +3230,11 @@ function ActionField({
       <label className="mb-1 flex items-center gap-1 text-xs font-medium text-muted-foreground">
         {label}
         {resolvedRequired && !resolvedLocked && <span className="text-destructive" title="Pflichtfeld">*</span>}
-        {resolvedLocked && <Lock className="h-3 w-3 opacity-50" title="Von Vorlage gesperrt" />}
+        {resolvedLocked && (
+          <span title="Von Vorlage gesperrt">
+            <Lock className="h-3 w-3 opacity-50" />
+          </span>
+        )}
       </label>
       <div className={cn(resolvedLocked && "opacity-60 pointer-events-none")}>{children}</div>
       {resolvedError && <p className="mt-0.5 text-xs text-destructive">Pflichtfeld – bitte ausfüllen</p>}
@@ -4548,13 +4220,17 @@ export function UnplannedActionDialog({
       case "resourceIds": return (draft.resourceIds?.length ?? 0) === 0 && !draft.requiredResources?.trim();
       case "plannedMinutes": return draft.plannedMinutes === undefined || draft.plannedMinutes === null;
       case "requiredPersons": return draft.requiredPersons === undefined || draft.requiredPersons === null;
-      case "category": return !draft.category || draft.category === "none";
+      case "category": return !draft.category;
       case "dayPart": return !draft.dayPart || draft.dayPart === "none";
       case "scheduledTime": return !draft.scheduledTime;
       case "resultRequirement": return !draft.resultRequirement || draft.resultRequirement === "none";
-      case "recurrence": return false;
-      case "recurrenceWeekdays": return !draft.recurrenceWeekdays;
-      case "recurrenceMonthlyPattern": return !draft.recurrenceMonthlyPattern || draft.recurrenceMonthlyPattern === "none";
+      // Die Wiederholung ist bei ungeplanten Handlungen nicht erfassbar: sie wird fix
+      // auf "daily" gesetzt und der Von-Bis-Bereich zu einem Eintrag pro Tag expandiert.
+      // Eine Vorlage kann diese Felder darum nicht als Pflicht einfordern.
+      case "recurrence":
+      case "recurrenceWeekdays":
+      case "recurrenceMonthlyPattern":
+        return false;
       case "serviceEntries": return (draft.serviceEntries?.length ?? 0) === 0;
       default: return false;
     }

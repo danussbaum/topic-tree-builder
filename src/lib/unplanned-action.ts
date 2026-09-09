@@ -32,6 +32,7 @@ export interface UnplannedActionDraft {
   templateId?: string;
   templateName?: string;
   templateLockedFields?: string[];
+  templateRequiredFields?: string[];
   /** Tageszeit-ID oder "none" */
   dayPart?: string | "none";
   dateFrom?: string;
@@ -94,6 +95,9 @@ export const buildUnplannedActionNodes = (
   return dates.map((date): ActionNode => ({
     id: uid(),
     groupId: uid(),
+    // Der Status wird pro Termin aus der Bestaetigung abgeleitet; hier steht der Startwert.
+    status: "open",
+    done: false,
     title: draft.title,
     notes: draft.notes,
     requiredResources: draft.requiredResources,

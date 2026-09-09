@@ -42,7 +42,7 @@ import { getDayParts } from "@/lib/day-parts";
 import { applyConfirmationToAction, type ConfirmationPayload } from "@/lib/action-confirmation";
 import { clampDateToRange } from "@/lib/confirmation-window";
 import { buildInhouseSpitexSeedTopics } from "@/lib/inhouse-spitex-seed";
-import { ClientSidebar, ClientSidebarTrigger } from "@/components/assessment/ClientSidebar";
+import { ClientSidebar } from "@/components/assessment/ClientSidebar";
 import { ModuleNav } from "@/components/ModuleNav";
 import { RibbonButton, RibbonDivider } from "@/components/ribbon/Ribbon";
 import { ExcelIcon } from "@/components/icons/ExcelIcon";
@@ -1631,7 +1631,6 @@ const Index = () => {
       | "dayPart"
       | "scheduledTime"
       | "category"
-      | "serviceType"
       | "validFrom"
       | "validTo"
       | "recurrence"
@@ -1731,7 +1730,8 @@ const Index = () => {
     topicId: string,
     targetId: string,
     groupId: string,
-    sharedFields: Partial<Omit<ActionNode, "id" | "groupId" | "dayPart" | "scheduledTime" | "confirmations" | "isUnplanned">>,
+    sharedFields: Partial<Omit<ActionNode, "id" | "groupId" | "dayPart" | "scheduledTime" | "confirmations" | "isUnplanned">>
+      & Pick<ActionNode, "title" | "notes">,
     dayPartEntries: Array<{ dayPart?: string; scheduledTime?: string; existingActionId?: string }>,
   ) => {
     updateClientTopicsFor(clientId, (topics) =>

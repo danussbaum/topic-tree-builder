@@ -150,11 +150,3 @@ export function ClientSidebar({
     </Sidebar>
   );
 }
-
-export function ClientSidebarTrigger() {
-  return (
-    <SidebarTrigger className="h-9 w-9 p-2 hover:bg-secondary rounded self-center">
-      <PanelLeft className="h-5 w-5" />
-    </SidebarTrigger>
-  );
-}
