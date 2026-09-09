@@ -76,11 +76,10 @@ describe("Ungeplante Handlungen ohne geplante Zeit", () => {
     expect(dialog.queryByText("Geplante Minuten")).not.toBeInTheDocument();
   });
 
-  it("sperrt „Erledigt wie geplant“ bei einer ungeplanten Handlung", () => {
+  it("lässt ohne geplante Dauer beide Erledigt-Varianten zu", () => {
     renderOutline(true);
 
-    expect(screen.getAllByRole("button", { name: "Erledigt wie geplant" })[0]).toBeDisabled();
-    // Die Abweichungs-Variante bleibt der gültige Weg.
+    expect(screen.getAllByRole("button", { name: "Erledigt wie geplant" })[0]).toBeEnabled();
     expect(screen.getAllByRole("button", { name: "Erledigt mit Abweichung" })[0]).toBeEnabled();
   });
 
@@ -88,5 +87,31 @@ describe("Ungeplante Handlungen ohne geplante Zeit", () => {
     renderOutline(false);
 
     expect(screen.getAllByRole("button", { name: "Erledigt wie geplant" })[0]).toBeEnabled();
+  });
+
+  it("verlangt bei Abweichung ohne geplante Dauer keine tatsächlichen Minuten", async () => {
+    renderOutline(true);
+    fireEvent.click(screen.getAllByRole("button", { name: "Erledigt mit Abweichung" })[0]);
+
+    const dialog = within(await screen.findByRole("dialog"));
+    // Ohne geplante Dauer fehlt der Vergleichswert — kein Minutenfeld.
+    expect(dialog.queryByLabelText("Tatsächliche Minuten")).not.toBeInTheDocument();
+
+    fireEvent.change(dialog.getByLabelText("Begründung"), { target: { value: "Spontan nötig" } });
+    expect(dialog.getByRole("button", { name: "Bestätigen" })).toBeEnabled();
+  });
+
+  it("verlangt bei Abweichung mit geplanter Dauer die tatsächlichen Minuten", async () => {
+    renderOutline(false);
+    fireEvent.click(screen.getAllByRole("button", { name: "Erledigt mit Abweichung" })[0]);
+
+    const dialog = within(await screen.findByRole("dialog"));
+    expect(dialog.getByLabelText("Tatsächliche Minuten")).toBeInTheDocument();
+
+    fireEvent.change(dialog.getByLabelText("Begründung"), { target: { value: "Länger gedauert" } });
+    expect(dialog.getByRole("button", { name: "Bestätigen" })).toBeDisabled();
+
+    fireEvent.change(dialog.getByLabelText("Tatsächliche Minuten"), { target: { value: "45" } });
+    expect(dialog.getByRole("button", { name: "Bestätigen" })).toBeEnabled();
   });
 });

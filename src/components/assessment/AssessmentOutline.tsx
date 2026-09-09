@@ -145,6 +145,7 @@ import { isFutureConfirmationDate } from "@/lib/confirmation-window";
 import {
   SCHEDULE_FIELD_MESSAGE,
   getScheduleIssues,
+  hasPlannedDuration,
   type ActionSchedule,
   type ScheduleField,
 } from "@/lib/action-schedule";
@@ -1130,9 +1131,8 @@ export function AssessmentOutline({
     const someVisibleBulkNotDoneSelected = visibleBulkNotDoneKeys.some((key) => selectedBulkNotDoneKeys.has(key));
 
     const bulkDoneAsPlannedTargets: BulkDoneAsPlannedTarget[] = sortedFlatActions
-      // Ungeplante Handlungen sind nie "wie geplant" erledigt — sie haben keine geplante Zeit.
       .filter(({ action, status, confirmationDate }) =>
-        canConfirmAction(action) && !action.isUnplanned && !requiresResult(action) &&
+        canConfirmAction(action) && !requiresResult(action) &&
         (status === "open" || status === "postponed") &&
         !isFutureConfirmationDate(confirmationDate, today))
       .map(({ topic, target, action, confirmationDate }) => ({
@@ -1323,7 +1323,7 @@ export function AssessmentOutline({
                   !isFutureConfirmationDate(confirmationDate, today) &&
                   // "Wie geplant" gibt es bei ungeplanten Handlungen nicht, und ein
                   // zwingendes Resultat lässt sich in der Mehrfachauswahl nicht erfassen.
-                  !(bulkDoneAsPlannedMode && (action.isUnplanned || requiresResult(action))))
+                  !(bulkDoneAsPlannedMode && requiresResult(action)))
                 .map(({ topic, target, action, confirmationDate }) =>
                   buildBulkNotDoneKey(topic.id, target.id, action.id, confirmationDate)));
             const selectedDayKeys = isBulkActive
@@ -1379,7 +1379,7 @@ export function AssessmentOutline({
                   .filter(({ action, target, status, confirmationDate }) =>
                     canConfirmAction(action) && !target.validTo && (status === "open" || status === "postponed") &&
                     !isFutureConfirmationDate(confirmationDate, today) &&
-                    !(bulkDoneAsPlannedMode && (action.isUnplanned || requiresResult(action))))
+                    !(bulkDoneAsPlannedMode && requiresResult(action)))
                   .map(({ topic, target, action, confirmationDate }) =>
                     buildBulkNotDoneKey(topic.id, target.id, action.id, confirmationDate));
                 const isBulkActive = bulkNotDoneMode || bulkDoneAsPlannedMode;
@@ -1474,7 +1474,7 @@ export function AssessmentOutline({
                             canConfirm && !isFutureDueDate && (status === "open" || status === "postponed");
                           const bulkDoneAsPlannedKey = bulkNotDoneKey;
                           const isBulkDoneAsPlannedSelectable =
-                            canConfirm && !isFutureDueDate && !action.isUnplanned && !requiresResult(action) &&
+                            canConfirm && !isFutureDueDate && !requiresResult(action) &&
                             (status === "open" || status === "postponed");
                           const disciplineTitle =
                             disciplineOptions.find((discipline) => discipline.id === topic.disciplineId)?.title ??
@@ -1552,14 +1552,9 @@ export function AssessmentOutline({
                                         const isRescheduleUnavailable =
                                           option.mode === "postponed" &&
                                           !getRescheduleWindow(confirmationDate, today).isAvailable;
-                                        // Ungeplante Handlungen haben keine geplante Zeit (intern 0) — sie können
-                                        // deshalb nur "mit Abweichung" erledigt sein, nie "wie geplant".
-                                        const isDoneAsPlannedUnavailable =
-                                          option.mode === "done_as_planned" && !!action.isUnplanned;
                                         const isFutureUnavailable = isFutureDueDate && option.mode !== "postponed";
                                         const isDisabled =
-                                          !canConfirm || isBulkMode || isRescheduleUnavailable || isDoneAsPlannedUnavailable ||
-                                          isFutureUnavailable;
+                                          !canConfirm || isBulkMode || isRescheduleUnavailable || isFutureUnavailable;
                                         return (
                                           <Tooltip key={option.mode}>
                                             <TooltipTrigger asChild>
@@ -1585,8 +1580,6 @@ export function AssessmentOutline({
                                                     ? "Im Mehrfachauswahl-Modus nicht verfügbar"
                                                     : isFutureUnavailable
                                                       ? "Noch nicht möglich — der Termin liegt in der Zukunft. Eine Neuplanung ist weiterhin möglich."
-                                                    : isDoneAsPlannedUnavailable
-                                                      ? "Bei einer ungeplanten Handlung nicht möglich — es gibt keine geplante Zeit, also nur «Erledigt mit Abweichung»"
                                                       : isRescheduleUnavailable
                                                       ? "Nicht mehr möglich — die Frist von 1 Woche zählt ab dem ursprünglich geplanten Termin, und der liegt länger zurück"
                                                       : canConfirm
@@ -1661,16 +1654,7 @@ export function AssessmentOutline({
                               <TableCell className="px-3 py-3 align-top break-words">
                                 <div className={cn("min-w-0 font-medium leading-snug break-words", status !== "open" && "text-foreground/70")}>
                                   <span>{action.title}</span>
-                                  {action.isUnplanned && (
-                                    <Badge variant="outline" className="ml-2 border-amber-300 bg-amber-50 align-middle text-[10px] text-amber-800">
-                                      Ungeplant
-                                    </Badge>
-                                  )}
-                                  {action.isOnDemandOccurrence && (
-                                    <Badge variant="outline" className="ml-2 align-middle text-[10px]">
-                                      Nach Bedarf
-                                    </Badge>
-                                  )}
+                                  <ActionOriginBadges action={action} />
                                   <TooltipProvider delayDuration={150}>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
@@ -4322,6 +4306,28 @@ const buildEmptyUnplannedTemplateDraft = (dayPart?: string): UnplannedActionDraf
   };
 };
 
+/**
+ * Herkunft einer Handlung: ungeplant (in der Umsetzung erfasst) oder Durchführung
+ * einer Nach-Bedarf-Handlung. Wird in der Umsetzung und in den Auswertungen gezeigt.
+ */
+export function ActionOriginBadges({ action }: { action: ActionNode }) {
+  if (!action.isUnplanned && !action.isOnDemandOccurrence) return null;
+  return (
+    <>
+      {action.isUnplanned && (
+        <Badge variant="outline" className="ml-2 border-amber-300 bg-amber-50 align-middle text-[10px] text-amber-800">
+          Ungeplant
+        </Badge>
+      )}
+      {action.isOnDemandOccurrence && (
+        <Badge variant="outline" className="ml-2 align-middle text-[10px]">
+          Nach Bedarf
+        </Badge>
+      )}
+    </>
+  );
+}
+
 export function UnplannedActionDialog({
   target,
   fixedDayPart,
@@ -5246,16 +5252,15 @@ export function ConfirmActionDialog({
     const optional = optionalServices.filter((entry) => entry.quantity > 0);
     const optionalPayload = optional.length > 0 ? optional : undefined;
     if (mode === "done_as_planned") {
-      // Ohne geplante Zeit gibt es kein "wie geplant" — bei ungeplanten Handlungen gesperrt.
-      if (target.action.isUnplanned) return;
       onConfirm({ status: "done_as_planned", result: res, observations: obs, optionalServices: optionalPayload });
     } else if (mode === "done_with_deviation") {
-      const hasPlannedMinutes = target.action.plannedMinutes != null;
+      // Ohne geplante Dauer fehlt der Vergleichswert — dann keine Minuteneingabe.
+      const withPlannedDuration = hasPlannedDuration(target.action);
       const min = Number(actualMinutes);
-      if ((hasPlannedMinutes && (!Number.isFinite(min) || min < 0)) || !reason.trim()) return;
+      if ((withPlannedDuration && (!Number.isFinite(min) || min < 0)) || !reason.trim()) return;
       onConfirm({
         status: "done_with_deviation",
-        actualMinutes: hasPlannedMinutes ? min : undefined,
+        actualMinutes: withPlannedDuration ? min : undefined,
         reason: reason.trim(),
         result: res,
         observations: obs,
@@ -5320,7 +5325,7 @@ export function ConfirmActionDialog({
 
   const resourceCatalog = getActionPlanResources();
   const planned = target.action.plannedMinutes;
-  const hasPlannedMinutes = planned != null;
+  const hasPlannedMinutes = hasPlannedDuration(target.action);
   const requiredPersons = target.action.requiredPersons;
   const description = target.action.notes.trim();
   const requiredResources = formatActionResources(target.action, resourceCatalog);
@@ -5417,7 +5422,7 @@ export function ConfirmActionDialog({
 
           {mode === "done_with_deviation" && (
             <div className="space-y-3 pt-2 border-t border-border">
-              {planned != null && (
+              {hasPlannedMinutes && (
                 <div className="space-y-1.5">
                   <Label htmlFor="actual-min">Tatsächliche Minuten</Label>
                   <Input
@@ -5648,7 +5653,6 @@ export function ConfirmActionDialog({
               onClick={submit}
               disabled={
                 !mode ||
-                (mode === "done_as_planned" && !!target.action.isUnplanned) ||
                 (mode === "done_with_deviation" &&
                   ((hasPlannedMinutes && actualMinutes === "") || !reason.trim())) ||
                 (mode === "not_done" && !reason.trim()) ||

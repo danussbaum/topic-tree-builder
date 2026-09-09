@@ -39,6 +39,7 @@ import {
   shiftISODate,
 } from "@/lib/day-part-rollover";
 import { getDayParts } from "@/lib/day-parts";
+import { clampDateToRange } from "@/lib/confirmation-window";
 import { buildInhouseSpitexSeedTopics } from "@/lib/inhouse-spitex-seed";
 import { ClientSidebar, ClientSidebarTrigger } from "@/components/assessment/ClientSidebar";
 import { ModuleNav } from "@/components/ModuleNav";
@@ -54,7 +55,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { AssessmentOutline, UnplannedActionDialog, ActionRow, ActionGroupRow, ConfirmActionDialog } from "@/components/assessment/AssessmentOutline";
+import { AssessmentOutline, UnplannedActionDialog, ActionRow, ActionGroupRow, ActionOriginBadges, ConfirmActionDialog } from "@/components/assessment/AssessmentOutline";
 import { ApplicationLogoutButton } from "@/components/ApplicationLogoutButton";
 import type {
   ActionNode,
@@ -1002,6 +1003,13 @@ const Index = () => {
   const isConfirmedVisible = CONFIRMED_STATUSES.some((status) =>
     confirmationFilter.statuses.includes(status),
   );
+
+  // Beide Erfassungs-Dialoge der Umsetzung (ungeplant und nach Bedarf) schlagen
+  // denselben Tag vor: den Tag im Fokus, geklammert auf den angezeigten Zeitraum.
+  const confirmationEntryDate = (() => {
+    const { start, end } = getPeriodRange(selectedDate, confirmationPeriod, lastNDays);
+    return clampDateToRange(selectedDate, start, end);
+  })();
 
   const selectedClients = clients.filter((c) => selectedClientIds.includes(c.id));
   const visibleSelectedClients = selectedClients;
@@ -3628,7 +3636,7 @@ const Index = () => {
                       <OnDemandActionDialog
                         key={`${client.id}-on-demand`}
                         topics={client.topics}
-                        date={selectedDate}
+                        date={confirmationEntryDate}
                         clientName={`${client.firstName} ${client.lastName}`.trim()}
                         onClose={() => setPersonOnDemandClientId(null)}
                         onConfirm={(selection) => {
@@ -3638,25 +3646,7 @@ const Index = () => {
                       />
                     )}
                     {personUnplannedClientId === client.id && (() => {
-                      const current = new Date(`${selectedDate}T00:00:00`);
-                      let dateFrom: string;
-                      if (confirmationPeriod === "day") {
-                        dateFrom = selectedDate;
-                      } else if (confirmationPeriod === "week") {
-                        const weekDay = current.getDay();
-                        const diff = weekDay === 0 ? -6 : 1 - weekDay;
-                        const start = new Date(current);
-                        start.setDate(current.getDate() + diff);
-                        dateFrom = format(start, "yyyy-MM-dd");
-                      } else if (confirmationPeriod === "lastNDays") {
-                        const start = new Date();
-                        start.setHours(0, 0, 0, 0);
-                        start.setDate(start.getDate() - Math.max(1, Math.floor(lastNDays)));
-                        dateFrom = format(start, "yyyy-MM-dd");
-                      } else {
-                        dateFrom = format(new Date(current.getFullYear(), current.getMonth(), 1), "yyyy-MM-dd");
-                      }
-                      const dialogTarget = { dateFrom, dayPart: "none" as const };
+                      const dialogTarget = { dateFrom: confirmationEntryDate, dayPart: "none" as const };
                       return (
                         <UnplannedActionDialog
                           key={client.id}
@@ -3795,6 +3785,7 @@ const Index = () => {
 const EvaluationRow = ({
   depth,
   label,
+  badges,
   subLabel,
   ist,
   soll,
@@ -3805,6 +3796,7 @@ const EvaluationRow = ({
 }: {
   depth: number;
   label: string;
+  badges?: ReactNode;
   subLabel?: string;
   ist: number;
   soll: number;
@@ -3835,7 +3827,10 @@ const EvaluationRow = ({
           <span className="inline-block w-4 shrink-0" />
         )}
         <div className="min-w-0">
-          <span className={cn("block truncate", emphasis && "font-medium")}>{label}</span>
+          <span className={cn("block truncate", emphasis && "font-medium")}>
+            {label}
+            {badges}
+          </span>
           {subLabel && (
             <span className="mt-0.5 block text-xs italic text-muted-foreground">{subLabel}</span>
           )}
@@ -3905,6 +3900,7 @@ function EvaluationTreeView({
           key={node.key}
           depth={depth}
           label={node.label}
+          badges={<ActionOriginBadges action={node.entry.action} />}
           subLabel={node.entry.reason ? `Begründung: ${node.entry.reason}` : undefined}
           ist={node.ist}
           soll={node.soll}
@@ -4397,7 +4393,10 @@ function EvaluationResultObservationTable({
           >
             <div className="truncate">{entry.clientName}</div>
             <div className="truncate">{formatEvalDateTime(entry)}</div>
-            <div className="truncate">{entry.action.title || "Ohne Titel"}</div>
+            <div className="truncate">
+              {entry.action.title || "Ohne Titel"}
+              <ActionOriginBadges action={entry.action} />
+            </div>
             <div className="min-w-0 whitespace-pre-wrap break-words">{confirmation?.result || "—"}</div>
             <div className="min-w-0 whitespace-pre-wrap break-words">{confirmation?.observations || "—"}</div>
           </div>

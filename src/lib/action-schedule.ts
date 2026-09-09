@@ -63,3 +63,12 @@ export const getScheduleIssuesForAction = (action: ActionNode): ScheduleField[] 
     recurrenceWeekdays: action.recurrenceWeekdays,
     recurrenceMonthlyPattern: action.recurrenceMonthlyPattern,
   });
+
+/**
+ * Geplante Dauer im Sinn der Umsetzung. Ungeplante Handlungen tragen intern 0
+ * (damit die Auswertung die Differenz zur erfassten Zeit ausweisen kann) und
+ * gelten wie eine fehlende Angabe als "ohne geplante Dauer": beim Bestätigen
+ * mit Abweichung entfällt dann der Vergleichswert und damit die Minuteneingabe.
+ */
+export const hasPlannedDuration = (action: Pick<ActionNode, "plannedMinutes">): boolean =>
+  action.plannedMinutes != null && action.plannedMinutes > 0;
