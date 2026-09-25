@@ -129,6 +129,7 @@ import {
   type AssessmentFilterModel,
 } from "@/types/assessment-filter";
 import { cn } from "@/lib/utils";
+import { isTargetClosed } from "@/lib/target-status";
 import {
   ACTION_SERVICE_TYPE_SELECT_OPTIONS,
   buildDefaultTemplateFields,
@@ -1035,7 +1036,7 @@ export function AssessmentOutline({
           if (action.validTo && shiftISODate(action.validTo, rolloverDays) < periodRange.start) return;
 
           const dueDates = getDueDatesInPeriod(action);
-          const isTargetClosedInConfirmation = !!target.validTo;
+          const isTargetClosedInConfirmation = isTargetClosed(target);
           if (filterModel?.showClosedTargets ? !isTargetClosedInConfirmation : isTargetClosedInConfirmation) return;
 
           dueDates.forEach((dueDate) => {
@@ -1305,7 +1306,7 @@ export function AssessmentOutline({
             const daySelectableKeys = dateGroup.dayPartGroups.flatMap((g) =>
               g.actions
                 .filter((row) =>
-                  canConfirmAction(row.action) && !row.target.validTo &&
+                  canConfirmAction(row.action) && !isTargetClosed(row.target) &&
                   (row.status === "open" || row.status === "postponed") &&
                   !isBeforeStart(row) &&
                   // "Wie geplant" gibt es bei ungeplanten Handlungen nicht, und ein
@@ -1364,7 +1365,7 @@ export function AssessmentOutline({
               {dateGroup.dayPartGroups.map((group) => {
                 const groupSelectableKeys = group.actions
                   .filter((row) =>
-                    canConfirmAction(row.action) && !row.target.validTo &&
+                    canConfirmAction(row.action) && !isTargetClosed(row.target) &&
                     (row.status === "open" || row.status === "postponed") &&
                     !isBeforeStart(row) &&
                     !(bulkDoneAsPlannedMode && requiresResult(row.action)))
@@ -1452,8 +1453,8 @@ export function AssessmentOutline({
                       <TableBody>
                         {group.actions.map(({ topic, target, action, dueDate, confirmationDate, status }) => {
                           const conf = action.confirmations?.[confirmationDate];
-                          const isTargetClosed = !!target.validTo;
-                          const canConfirm = canConfirmAction(action) && !isTargetClosed;
+                          const targetClosed = isTargetClosed(target);
+                          const canConfirm = canConfirmAction(action) && !targetClosed;
                           // Was noch nicht stattgefunden hat, lässt sich nicht bestätigen —
                           // einzig die Neuplanung bleibt für zukünftige Termine offen.
                           const isBeforeConfirmable = isBeforeStart({ action, dueDate, confirmationDate });
@@ -1574,7 +1575,7 @@ export function AssessmentOutline({
                                                       ? "Nicht mehr möglich — die Frist von 1 Woche zählt ab dem ursprünglich geplanten Termin, und der liegt länger zurück"
                                                       : canConfirm
                                                         ? option.description
-                                                        : isTargetClosed
+                                                        : targetClosed
                                                           ? "Ziel abgeschlossen — Bestätigungen gesperrt"
                                                           : "Keine Umsetzung möglich (zu geringe Berechtigung)"}
                                                 </div>
@@ -1632,7 +1633,7 @@ export function AssessmentOutline({
                                           <div className="max-w-[220px] space-y-0.5">
                                             <div className="font-medium">Umsetzung bearbeiten</div>
                                             <div className="text-xs text-muted-foreground">
-                                              {(bulkNotDoneMode || bulkDoneAsPlannedMode) ? "Im Mehrfachauswahl-Modus nicht verfügbar" : isTargetClosed ? "Ziel abgeschlossen — Bestätigungen gesperrt" : canConfirm ? "Umsetzungsstatus anpassen oder ändern" : "Keine Umsetzung möglich (zu geringe Berechtigung)"}
+                                              {(bulkNotDoneMode || bulkDoneAsPlannedMode) ? "Im Mehrfachauswahl-Modus nicht verfügbar" : targetClosed ? "Ziel abgeschlossen — Bestätigungen gesperrt" : canConfirm ? "Umsetzungsstatus anpassen oder ändern" : "Keine Umsetzung möglich (zu geringe Berechtigung)"}
                                             </div>
                                           </div>
                                         </TooltipContent>
@@ -1701,7 +1702,7 @@ export function AssessmentOutline({
                                 )}
                                 {!canConfirm && (
                                   <div className="mt-1 text-[11px] italic text-muted-foreground/70">
-                                    {isTargetClosed
+                                    {targetClosed
                                       ? "Ziel abgeschlossen — Bestätigungen gesperrt"
                                       : "Keine Umsetzung möglich (zu geringe Berechtigung)"}
                                   </div>
@@ -1909,7 +1910,7 @@ export function AssessmentOutline({
       if (topic.id !== selectedTopicId) continue;
       selectedTopicBlocks.push({
         topic,
-        targets: topic.targets.filter((target) => showClosedTargets || !target.validTo),
+        targets: topic.targets.filter((target) => showClosedTargets || !isTargetClosed(target)),
       });
     }
   }
@@ -1948,7 +1949,7 @@ export function AssessmentOutline({
                 {groupTopics.map((topic) => {
                   const topicReadOnly = topic.targets.some((t) => t.actions.length > 0);
                   const visibleTargets = topic.targets.filter(
-                    (target) => showClosedTargets || !target.validTo,
+                    (target) => showClosedTargets || !isTargetClosed(target),
                   );
                   const isTopicSelected = topic.id === selectedTopicId;
                   return (
@@ -2110,7 +2111,7 @@ export function AssessmentOutline({
                     </div>
                   )}
                   {selectedTargets.map((target) => {
-              const isTargetClosed = !!target.validTo;
+              const targetClosed = isTargetClosed(target);
               return (
                 <div
                   key={target.id}
@@ -2122,7 +2123,7 @@ export function AssessmentOutline({
                 >
                   <div className="flex items-start gap-3">
                     <div className="flex-1 min-w-0">
-                      {isTargetClosed && (
+                      {targetClosed && (
                         <div className="mb-1">
                           <span className="text-[10px] uppercase tracking-widest font-semibold px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
                             Abgeschlossen
@@ -2138,7 +2139,7 @@ export function AssessmentOutline({
                         onStopEdit={() => setEditingTargetTitleId(null)}
                         editLabel="Ziel umbenennen"
                         editHint="Titel des Ziels anpassen"
-                        readOnly={isTargetClosed}
+                        readOnly={targetClosed}
                         textClassName="text-lg font-medium"
                         hoverGroupClassName="group-hover/target:opacity-100"
                         inputRef={(el) => {
@@ -2150,20 +2151,20 @@ export function AssessmentOutline({
                         <DateField
                           label="Gültig ab"
                           value={target.validFrom}
-                          disabled={isTargetClosed}
+                          disabled={targetClosed}
                           onChange={(v) => onUpdateTarget(topic.id, target.id, "validFrom", v ?? "")}
                           className="text-xs"
                         />
                         <DateField
                           label="Gültig bis"
                           value={target.validTo}
-                          disabled={isTargetClosed}
+                          disabled={targetClosed}
                           onChange={(v) => onUpdateTarget(topic.id, target.id, "validTo", v ?? "")}
                           className="text-xs"
                         />
                       </div>
                     </div>
-                    {isTargetClosed ? (
+                    {targetClosed ? (
                       <TooltipProvider delayDuration={150}>
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -2206,7 +2207,7 @@ export function AssessmentOutline({
                     )}
                   </div>
 
-                  <div className={cn("pl-6", isTargetClosed && "pointer-events-none opacity-60")}>
+                  <div className={cn("pl-6", targetClosed && "pointer-events-none opacity-60")}>
                     <div className="mt-2 -ml-6">
                       <InlineEditable
                         value={target.notes}
@@ -2218,7 +2219,7 @@ export function AssessmentOutline({
                         onStopEdit={() => setEditingTargetNotesId(null)}
                         editLabel="Freitext bearbeiten"
                         editHint="Freitext zum Ziel anpassen"
-                        readOnly={isTargetClosed}
+                        readOnly={targetClosed}
                         textClassName="text-sm"
                         hoverGroupClassName="group-hover/target:opacity-100"
                       />
@@ -2271,7 +2272,7 @@ export function AssessmentOutline({
                       })()}
                     </div>
 
-                    {!isTargetClosed && (
+                    {!targetClosed && (
                       <button
                         onClick={() => openCreatePanel(topic.id, target.id)}
                         className="mt-3 inline-flex items-center gap-2 rounded-sm bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"

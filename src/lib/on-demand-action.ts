@@ -1,3 +1,4 @@
+import { isTargetClosed } from "@/lib/target-status";
 import type { ActionNode, TopicNode } from "@/types/assessment";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -25,7 +26,7 @@ export const collectOnDemandCandidates = (
   const candidates: OnDemandCandidate[] = [];
   for (const topic of topics) {
     for (const target of topic.targets) {
-      if (target.validTo) continue;
+      if (isTargetClosed(target)) continue;
       for (const action of target.actions) {
         if (!isOnDemandPlanAction(action)) continue;
         if (action.validFrom && date < action.validFrom) continue;

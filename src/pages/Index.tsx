@@ -38,6 +38,7 @@ import {
   scheduleSortKey,
   shiftISODate,
 } from "@/lib/day-part-rollover";
+import { isTargetClosed } from "@/lib/target-status";
 import { getDayParts } from "@/lib/day-parts";
 import { applyConfirmationToAction, type ConfirmationPayload } from "@/lib/action-confirmation";
 import { clampDateToRange } from "@/lib/confirmation-window";
@@ -2071,7 +2072,7 @@ const Index = () => {
       return client.topics.flatMap((topic) => {
         const disciplineTitle = disciplineList.find((d) => d.id === topic.disciplineId)?.title ?? topic.disciplineId ?? "Ohne Disziplin";
         return topic.targets
-          .filter((tg) => !!tg.validTo)
+          .filter((tg) => isTargetClosed(tg))
           .map((tg) => {
             const gs = tg.assessment?.goalStatus;
             return [
@@ -3128,7 +3129,7 @@ const Index = () => {
                       }
                     />
                     {visibleSelectedClients.every((client) =>
-                      client.topics.every((topic) => topic.targets.every((tg) => !tg.validTo))
+                      client.topics.every((topic) => topic.targets.every((tg) => !isTargetClosed(tg)))
                     ) && (
                       <div className="py-16 text-center text-muted-foreground">
                         <p className="text-lg">Keine abgeschlossenen Ziele vorhanden.</p>
@@ -3142,12 +3143,12 @@ const Index = () => {
                         .map((topic) => ({
                           topic,
                           targets: topic.targets.filter(
-                            (tg) => !!tg.validTo && (!hideEvaluationAssessed || !tg.assessment),
+                            (tg) => isTargetClosed(tg) && (!hideEvaluationAssessed || !tg.assessment),
                           ),
                         }))
                         .filter((group) => group.targets.length > 0);
                       const hasAnyClosedTarget = client.topics.some((topic) =>
-                        topic.targets.some((tg) => !!tg.validTo),
+                        topic.targets.some((tg) => isTargetClosed(tg)),
                       );
                       if (!hasAnyClosedTarget) return null;
                       const clientName = `${client.firstName} ${client.lastName}`.trim();
