@@ -1,39 +1,32 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AssessmentOutline } from "@/components/assessment/AssessmentOutline";
-import type { ActionServiceType, TopicNode } from "@/types/assessment";
+import type { ActionServiceType, TargetNode } from "@/types/assessment";
 
-const buildTopics = (optionalServiceTypes?: ActionServiceType[]): TopicNode[] => [
+const buildTargets = (optionalServiceTypes?: ActionServiceType[]): TargetNode[] => [
   {
-    id: "topic-1",
-    title: "Schwerpunkt",
+    id: "target-1",
+    title: "Ziel",
     notes: "",
-    targets: [
+    actions: [
       {
-        id: "target-1",
-        title: "Ziel",
+        id: "action-1",
+        groupId: "group-1",
+        title: "Physiotherapie",
         notes: "",
-        actions: [
-          {
-            id: "action-1",
-            groupId: "group-1",
-            title: "Physiotherapie",
-            notes: "",
-            status: "open",
-            done: false,
-            validFrom: "2026-05-12",
-            validTo: "2026-05-12",
-            recurrence: "daily",
-            plannedMinutes: 30,
-            optionalServiceTypes,
-          },
-        ],
+        status: "open",
+        done: false,
+        validFrom: "2026-05-12",
+        validTo: "2026-05-12",
+        recurrence: "daily",
+        plannedMinutes: 30,
+        optionalServiceTypes,
       },
     ],
   },
 ];
 
-const renderOutline = (topics: TopicNode[], onConfirmAction = vi.fn()) => {
+const renderOutline = (targets: TargetNode[], onConfirmAction = vi.fn()) => {
   render(
     <AssessmentOutline
       viewMode="confirmation"
@@ -41,18 +34,15 @@ const renderOutline = (topics: TopicNode[], onConfirmAction = vi.fn()) => {
       onSelectedDateChange={vi.fn()}
       confirmationPeriod="day"
       clientName="Test Klient"
-      topics={topics}
+      targets={targets}
       hideConfirmationHeader
       filterModel={{ statuses: ["open", "postponed"] }}
-      onUpdateTopic={vi.fn()}
       onUpdateTarget={vi.fn()}
       onUpdateAction={vi.fn()}
       onUpdateActionField={vi.fn()}
       onConfirmAction={onConfirmAction}
       onAddTarget={vi.fn()}
       onAddAction={vi.fn()}
-      onAddTopic={vi.fn()}
-      onDeleteTopic={vi.fn()}
       onDeleteTarget={vi.fn()}
       onDeleteAction={vi.fn()}
       onUpdateActionGroup={vi.fn()}
@@ -69,7 +59,7 @@ describe("Optionale Leistungen beim Bestätigen", () => {
   });
 
   it("zeigt ohne hinterlegte optionale Leistungsarten nichts an — auch keine Überschrift", async () => {
-    renderOutline(buildTopics());
+    renderOutline(buildTargets());
 
     fireEvent.click(screen.getAllByRole("button", { name: "Erledigt wie geplant" })[0]);
     const dialog = within(await screen.findByRole("dialog"));
@@ -79,7 +69,7 @@ describe("Optionale Leistungen beim Bestätigen", () => {
 
   it("speichert die erfassten Anzahlen mit der Bestätigung", async () => {
     const onConfirmAction = renderOutline(
-      buildTopics(["material-tape-1m", "zuschlag-physio"]),
+      buildTargets(["material-tape-1m", "zuschlag-physio"]),
     );
 
     fireEvent.click(screen.getAllByRole("button", { name: "Erledigt wie geplant" })[0]);
@@ -97,7 +87,6 @@ describe("Optionale Leistungen beim Bestätigen", () => {
     fireEvent.click(dialog.getByRole("button", { name: "Bestätigen" }));
 
     expect(onConfirmAction).toHaveBeenCalledWith(
-      "topic-1",
       "target-1",
       "action-1",
       expect.objectContaining({
@@ -110,18 +99,18 @@ describe("Optionale Leistungen beim Bestätigen", () => {
   });
 
   it("lässt leere Anzahlen weg, statt Nullwerte zu speichern", async () => {
-    const onConfirmAction = renderOutline(buildTopics(["zuschlag-physio"]));
+    const onConfirmAction = renderOutline(buildTargets(["zuschlag-physio"]));
 
     fireEvent.click(screen.getAllByRole("button", { name: "Erledigt wie geplant" })[0]);
     const dialog = within(await screen.findByRole("dialog"));
     fireEvent.click(dialog.getByRole("button", { name: "Bestätigen" }));
 
-    const payload = onConfirmAction.mock.calls[0][3];
+    const payload = onConfirmAction.mock.calls[0][2];
     expect(payload.optionalServices).toBeUndefined();
   });
 
   it("blendet die optionalen Leistungen bei „Nicht durchgeführt“ und „Neu planen“ aus", async () => {
-    renderOutline(buildTopics(["zuschlag-physio"]));
+    renderOutline(buildTargets(["zuschlag-physio"]));
 
     fireEvent.click(screen.getAllByRole("button", { name: "Nicht durchgeführt" })[0]);
     const notDoneDialog = within(await screen.findByRole("dialog"));

@@ -1,45 +1,38 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AssessmentOutline } from "@/components/assessment/AssessmentOutline";
-import type { TopicNode } from "@/types/assessment";
+import type { TargetNode } from "@/types/assessment";
 
 const DATE = "2026-08-19";
 
-const topics: TopicNode[] = [
+const targets: TargetNode[] = [
   {
-    id: "topic-1",
-    title: "Schwerpunkt",
+    id: "target-1",
+    title: "Ziel",
     notes: "",
-    targets: [
+    actions: [
       {
-        id: "target-1",
-        title: "Ziel",
+        id: "action-frei",
+        groupId: "action-frei",
+        title: "Handlung ohne Resultatpflicht",
         notes: "",
-        actions: [
-          {
-            id: "action-frei",
-            groupId: "action-frei",
-            title: "Handlung ohne Resultatpflicht",
-            notes: "",
-            status: "open",
-            done: false,
-            validFrom: DATE,
-            recurrence: "daily",
-            plannedMinutes: 30,
-          },
-          {
-            id: "action-pflicht",
-            groupId: "action-pflicht",
-            title: "Handlung mit Resultatpflicht",
-            notes: "",
-            status: "open",
-            done: false,
-            validFrom: DATE,
-            recurrence: "daily",
-            plannedMinutes: 30,
-            resultRequirement: "required",
-          },
-        ],
+        status: "open",
+        done: false,
+        validFrom: DATE,
+        recurrence: "daily",
+        plannedMinutes: 30,
+      },
+      {
+        id: "action-pflicht",
+        groupId: "action-pflicht",
+        title: "Handlung mit Resultatpflicht",
+        notes: "",
+        status: "open",
+        done: false,
+        validFrom: DATE,
+        recurrence: "daily",
+        plannedMinutes: 30,
+        resultRequirement: "required",
       },
     ],
   },
@@ -53,22 +46,19 @@ const renderOutline = (mode: "notDone" | "done") =>
       onSelectedDateChange={vi.fn()}
       confirmationPeriod="day"
       clientName="Test Klient"
-      topics={topics}
+      targets={targets}
       hideConfirmationHeader
       filterModel={{ statuses: ["open", "postponed"] }}
       bulkNotDoneMode={mode === "notDone"}
       onBulkNotDoneModeChange={vi.fn()}
       bulkDoneAsPlannedMode={mode === "done"}
       onBulkDoneAsPlannedModeChange={vi.fn()}
-      onUpdateTopic={vi.fn()}
       onUpdateTarget={vi.fn()}
       onUpdateAction={vi.fn()}
       onUpdateActionField={vi.fn()}
       onConfirmAction={vi.fn()}
       onAddTarget={vi.fn()}
       onAddAction={vi.fn()}
-      onAddTopic={vi.fn()}
-      onDeleteTopic={vi.fn()}
       onDeleteTarget={vi.fn()}
       onDeleteAction={vi.fn()}
       onUpdateActionGroup={vi.fn()}

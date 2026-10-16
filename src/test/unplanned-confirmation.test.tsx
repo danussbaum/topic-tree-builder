@@ -1,34 +1,27 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AssessmentOutline, UnplannedActionDialog } from "@/components/assessment/AssessmentOutline";
-import type { TopicNode } from "@/types/assessment";
+import type { TargetNode } from "@/types/assessment";
 
-const topicsWith = (isUnplanned: boolean, requiredPersons?: number): TopicNode[] => [
+const targetsWith = (isUnplanned: boolean, requiredPersons?: number): TargetNode[] => [
   {
-    id: "topic-1",
-    title: "Schwerpunkt",
+    id: "target-1",
+    title: "Ziel",
     notes: "",
-    targets: [
+    actions: [
       {
-        id: "target-1",
-        title: "Ziel",
+        id: "action-1",
+        groupId: "group-1",
+        title: "Spontane Begleitung",
         notes: "",
-        actions: [
-          {
-            id: "action-1",
-            groupId: "group-1",
-            title: "Spontane Begleitung",
-            notes: "",
-            status: "open",
-            done: false,
-            validFrom: "2026-05-12",
-            validTo: "2026-05-12",
-            recurrence: "daily",
-            plannedMinutes: isUnplanned ? 0 : 30,
-            requiredPersons,
-            isUnplanned: isUnplanned || undefined,
-          },
-        ],
+        status: "open",
+        done: false,
+        validFrom: "2026-05-12",
+        validTo: "2026-05-12",
+        recurrence: "daily",
+        plannedMinutes: isUnplanned ? 0 : 30,
+        requiredPersons,
+        isUnplanned: isUnplanned || undefined,
       },
     ],
   },
@@ -43,18 +36,15 @@ const renderOutline = (isUnplanned: boolean, requiredPersons?: number) => {
       onSelectedDateChange={vi.fn()}
       confirmationPeriod="day"
       clientName="Test Klient"
-      topics={topicsWith(isUnplanned, requiredPersons)}
+      targets={targetsWith(isUnplanned, requiredPersons)}
       hideConfirmationHeader
       filterModel={{ statuses: ["open", "postponed"] }}
-      onUpdateTopic={vi.fn()}
       onUpdateTarget={vi.fn()}
       onUpdateAction={vi.fn()}
       onUpdateActionField={vi.fn()}
       onConfirmAction={onConfirmAction}
       onAddTarget={vi.fn()}
       onAddAction={vi.fn()}
-      onAddTopic={vi.fn()}
-      onDeleteTopic={vi.fn()}
       onDeleteTarget={vi.fn()}
       onDeleteAction={vi.fn()}
       onUpdateActionGroup={vi.fn()}
@@ -150,7 +140,6 @@ describe("Anzahl Personen bei Abweichung", () => {
     fireEvent.click(dialog.getByRole("button", { name: "Bestätigen" }));
 
     expect(onConfirmAction).toHaveBeenCalledWith(
-      "topic-1",
       "target-1",
       "action-1",
       expect.objectContaining({ status: "done_with_deviation", actualMinutes: 45, actualPersons: 3 }),

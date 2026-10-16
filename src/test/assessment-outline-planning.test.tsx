@@ -2,35 +2,17 @@
 import { describe, expect, it, vi } from "vitest";
 import { AssessmentOutline } from "@/components/assessment/AssessmentOutline";
 import type { ActionPlanDiscipline } from "@/lib/action-plan-disciplines";
-import type { ActionNode, TopicNode } from "@/types/assessment";
+import type { ActionNode, TargetNode } from "@/types/assessment";
 
 const disciplines: ActionPlanDiscipline[] = [
   { id: "discipline-ihp", title: "IHP", authorizedRoleIds: [] },
   { id: "discipline-physio", title: "Physiotherapie", authorizedRoleIds: [] },
 ];
 
-const topics: TopicNode[] = [
-  {
-    id: "topic-1",
-    title: "Mobilität erhalten",
-    notes: "",
-    disciplineId: "discipline-ihp",
-    targets: [],
-  },
-  {
-    id: "topic-2",
-    title: "Alltag strukturieren",
-    notes: "",
-    disciplineId: "discipline-ihp",
-    targets: [],
-  },
-  {
-    id: "topic-3",
-    title: "Gleichgewicht trainieren",
-    notes: "",
-    disciplineId: "discipline-physio",
-    targets: [],
-  },
+const targets: TargetNode[] = [
+  { id: "goal-1", title: "Mobilität erhalten", notes: "", disciplineId: "discipline-ihp", actions: [] },
+  { id: "goal-2", title: "Alltag strukturieren", notes: "", disciplineId: "discipline-ihp", actions: [] },
+  { id: "goal-3", title: "Gleichgewicht trainieren", notes: "", disciplineId: "discipline-physio", actions: [] },
 ];
 
 const action = (id: string, groupId: string, title: string): ActionNode => ({
@@ -42,38 +24,32 @@ const action = (id: string, groupId: string, title: string): ActionNode => ({
   done: false,
 });
 
-const topicsWithGoals: TopicNode[] = [
+const targetsWithGoals: TargetNode[] = [
   {
-    id: "topic-1",
-    title: "Mobilität erhalten",
-    notes: "",
+    id: "goal-a",
     disciplineId: "discipline-ihp",
-    targets: [
-      {
-        id: "goal-a",
-        title: "Ziel A",
-        notes: "",
-        actions: [action("act-a1", "grp-a1", "Handlung A1")],
-      },
-      {
-        id: "goal-b",
-        title: "Ziel B",
-        notes: "",
-        actions: [action("act-b1", "grp-b1", "Handlung B1")],
-      },
-    ],
+    title: "Ziel A",
+    notes: "",
+    actions: [action("act-a1", "grp-a1", "Handlung A1")],
+  },
+  {
+    id: "goal-b",
+    disciplineId: "discipline-ihp",
+    title: "Ziel B",
+    notes: "",
+    actions: [action("act-b1", "grp-b1", "Handlung B1")],
   },
 ];
 
-const renderPlanningOutline = (props?: { topics?: TopicNode[] }) =>
+const renderPlanningOutline = (props?: { targets?: TargetNode[]; showClosedTargets?: boolean }) =>
   render(
     <AssessmentOutline
       viewMode="planning"
       selectedDate="2026-05-12"
       onSelectedDateChange={vi.fn()}
-      topics={props?.topics ?? topics}
+      targets={props?.targets ?? targets}
       disciplines={disciplines}
-      onUpdateTopic={vi.fn()}
+      showClosedTargets={props?.showClosedTargets}
       onUpdateTarget={vi.fn()}
       onUpdateAction={vi.fn()}
       onUpdateActionField={vi.fn()}
@@ -81,9 +57,6 @@ const renderPlanningOutline = (props?: { topics?: TopicNode[] }) =>
       onAddTarget={vi.fn()}
       onAddAction={vi.fn()}
       onUpdateActionGroup={vi.fn()}
-      onAddTopic={vi.fn()}
-      onUpdateTopicDiscipline={vi.fn()}
-      onDeleteTopic={vi.fn()}
       onDeleteTarget={vi.fn()}
       onReactivateTarget={vi.fn()}
       onDeleteAction={vi.fn()}
@@ -92,7 +65,7 @@ const renderPlanningOutline = (props?: { topics?: TopicNode[] }) =>
   );
 
 describe("AssessmentOutline planning discipline groups", () => {
-  it("renders topics of the same discipline below one shared discipline header", () => {
+  it("renders targets of the same discipline below one shared discipline header", () => {
     renderPlanningOutline();
 
     expect(screen.getAllByRole("heading", { name: "IHP" })).toHaveLength(1);
@@ -107,103 +80,150 @@ describe("AssessmentOutline planning discipline groups", () => {
 });
 
 describe("AssessmentOutline planning master-detail", () => {
-  const topicsWithTwoTopics: TopicNode[] = [
-    ...topicsWithGoals,
+  const targetsInOneDiscipline: TargetNode[] = [
+    ...targetsWithGoals,
     {
-      id: "topic-2",
-      title: "Alltag strukturieren",
-      notes: "",
+      id: "goal-c",
       disciplineId: "discipline-ihp",
-      targets: [
-        {
-          id: "goal-c",
-          title: "Ziel C",
-          notes: "",
-          actions: [action("act-c1", "grp-c1", "Handlung C1")],
-        },
-      ],
-    },
-  ];
-
-  const topicsInTwoDisciplines: TopicNode[] = [
-    ...topicsWithGoals,
-    {
-      id: "topic-3",
-      title: "Gleichgewicht trainieren",
+      title: "Ziel C",
       notes: "",
-      disciplineId: "discipline-physio",
-      targets: [
-        {
-          id: "goal-d",
-          title: "Ziel D",
-          notes: "",
-          actions: [action("act-d1", "grp-d1", "Handlung D1")],
-        },
-      ],
+      actions: [action("act-c1", "grp-c1", "Handlung C1")],
     },
   ];
 
-  it("wählt standardmässig keinen Schwerpunkt aus", () => {
-    renderPlanningOutline({ topics: topicsWithGoals });
+  const targetsInTwoDisciplines: TargetNode[] = [
+    ...targetsWithGoals,
+    {
+      id: "goal-d",
+      disciplineId: "discipline-physio",
+      title: "Ziel D",
+      notes: "",
+      actions: [action("act-d1", "grp-d1", "Handlung D1")],
+    },
+  ];
+
+  it("wählt standardmässig kein Ziel aus", () => {
+    renderPlanningOutline({ targets: targetsWithGoals });
 
     expect(screen.queryByText("Handlung A1")).not.toBeInTheDocument();
-    expect(screen.getByText(/Schwerpunkt links wählen/)).toBeInTheDocument();
+    expect(screen.getByText(/Ziel links wählen/)).toBeInTheDocument();
   });
 
-  it("zeigt alle Ziele des gewählten Schwerpunkts mit ihren Handlungen", () => {
-    renderPlanningOutline({ topics: topicsWithGoals });
+  it("zeigt nur das gewählte Ziel mit seinen Handlungen", () => {
+    renderPlanningOutline({ targets: targetsWithGoals });
 
-    fireEvent.click(screen.getByRole("button", { name: /Mobilität erhalten/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Ziel A/ }));
 
     expect(screen.getByText("Handlung A1")).toBeInTheDocument();
-    expect(screen.getByText("Handlung B1")).toBeInTheDocument();
+    expect(screen.queryByText("Handlung B1")).not.toBeInTheDocument();
   });
 
-  it("ersetzt die Auswahl innerhalb derselben Disziplin", () => {
-    renderPlanningOutline({ topics: topicsWithTwoTopics });
+  it("zeigt mehrere gewählte Ziele derselben Disziplin gleichzeitig", () => {
+    renderPlanningOutline({ targets: targetsInOneDiscipline });
 
-    fireEvent.click(screen.getByRole("button", { name: /Mobilität erhalten/ }));
-    fireEvent.click(screen.getByRole("button", { name: /Alltag strukturieren/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Ziel A/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Ziel C/ }));
 
+    expect(screen.getByText("Handlung A1")).toBeInTheDocument();
     expect(screen.getByText("Handlung C1")).toBeInTheDocument();
-    expect(screen.queryByText("Handlung A1")).not.toBeInTheDocument();
+    expect(screen.queryByText("Handlung B1")).not.toBeInTheDocument();
   });
 
-  it("ersetzt die Auswahl auch über Disziplinen hinweg", () => {
-    renderPlanningOutline({ topics: topicsInTwoDisciplines });
+  it("ersetzt die Auswahl beim Wechsel in eine andere Disziplin", () => {
+    renderPlanningOutline({ targets: targetsInTwoDisciplines });
 
-    fireEvent.click(screen.getByRole("button", { name: /Mobilität erhalten/ }));
-    fireEvent.click(screen.getByRole("button", { name: /Gleichgewicht trainieren/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Ziel A/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Ziel B/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Ziel D/ }));
 
     expect(screen.getByText("Handlung D1")).toBeInTheDocument();
     expect(screen.queryByText("Handlung A1")).not.toBeInTheDocument();
+    expect(screen.queryByText("Handlung B1")).not.toBeInTheDocument();
+  });
+
+  it("wählt ein Ziel mit einem zweiten Klick wieder ab", () => {
+    renderPlanningOutline({ targets: targetsWithGoals });
+
+    fireEvent.click(screen.getByRole("button", { name: /Ziel A/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Ziel A/ }));
+
+    expect(screen.queryByText("Handlung A1")).not.toBeInTheDocument();
+    expect(screen.getByText(/Ziel links wählen/)).toBeInTheDocument();
+  });
+
+  it("wählt mit Klick auf die Disziplin alle ihre Ziele, einzelne lassen sich abwählen", () => {
+    renderPlanningOutline({ targets: targetsInOneDiscipline });
+
+    fireEvent.click(screen.getByRole("button", { name: "IHP" }));
+    expect(screen.getByText("Handlung A1")).toBeInTheDocument();
+    expect(screen.getByText("Handlung B1")).toBeInTheDocument();
+    expect(screen.getByText("Handlung C1")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Ziel B/ }));
+    expect(screen.queryByText("Handlung B1")).not.toBeInTheDocument();
+    expect(screen.getByText("Handlung A1")).toBeInTheDocument();
+  });
+
+  it("ersetzt mit Klick auf eine andere Disziplin die bisherige Auswahl", () => {
+    renderPlanningOutline({ targets: targetsInTwoDisciplines });
+
+    fireEvent.click(screen.getByRole("button", { name: /Ziel D/ }));
+    fireEvent.click(screen.getByRole("button", { name: "IHP" }));
+
+    expect(screen.getByText("Handlung A1")).toBeInTheDocument();
+    expect(screen.getByText("Handlung B1")).toBeInTheDocument();
+    expect(screen.queryByText("Handlung D1")).not.toBeInTheDocument();
+  });
+
+  it("hebt mit erneutem Klick auf die Disziplin die Auswahl auf", () => {
+    renderPlanningOutline({ targets: targetsWithGoals });
+
+    fireEvent.click(screen.getByRole("button", { name: "IHP" }));
+    fireEvent.click(screen.getByRole("button", { name: "IHP" }));
+
+    expect(screen.queryByText("Handlung A1")).not.toBeInTheDocument();
+    expect(screen.getByText(/Ziel links wählen/)).toBeInTheDocument();
+  });
+});
+
+describe("AssessmentOutline planning abgeschlossene Ziele", () => {
+  const withClosedTarget: TargetNode[] = [
+    ...targetsWithGoals,
+    { id: "goal-closed", disciplineId: "discipline-ihp", title: "Ziel Z", notes: "", validTo: "2020-01-31", actions: [] },
+  ];
+
+  it("blendet abgeschlossene Ziele in der Navigation standardmässig aus", () => {
+    renderPlanningOutline({ targets: withClosedTarget });
+
+    expect(screen.queryByRole("button", { name: /Ziel Z/ })).not.toBeInTheDocument();
+  });
+
+  it("kennzeichnet eingeblendete abgeschlossene Ziele in der Navigation", () => {
+    renderPlanningOutline({ targets: withClosedTarget, showClosedTargets: true });
+
+    expect(screen.getByText("Ziel Z")).toHaveClass("line-through");
+    expect(screen.getByRole("button", { name: /Ziel Z \(abgeschlossen\)/ })).toBeInTheDocument();
+    expect(screen.getByText("Ziel A")).not.toHaveClass("line-through");
   });
 });
 
 describe("AssessmentOutline planning ungeplante Handlungen", () => {
-  const unplannedTopics: TopicNode[] = [
+  const unplannedTargets: TargetNode[] = [
     {
-      id: "topic-unplanned",
-      title: "Ungeplante Handlungen",
-      notes: "",
+      id: "goal-unplanned",
       disciplineId: "discipline-ihp",
-      targets: [
-        {
-          id: "goal-unplanned",
-          title: "Direkt in der Umsetzung erfasst",
-          notes: "",
-          actions: [
-            { ...action("act-u1", "grp-u1", "Spontane Begleitung"), isUnplanned: true, plannedMinutes: 0, validFrom: "2026-05-12", validTo: "2026-05-12" },
-            { ...action("act-u2", "grp-u2", "Spontane Begleitung"), isUnplanned: true, plannedMinutes: 0, validFrom: "2026-05-13", validTo: "2026-05-13" },
-          ],
-        },
+      title: "Direkt in der Umsetzung erfasst",
+      notes: "",
+      actions: [
+        { ...action("act-u1", "grp-u1", "Spontane Begleitung"), isUnplanned: true, plannedMinutes: 0, validFrom: "2026-05-12", validTo: "2026-05-12" },
+        { ...action("act-u2", "grp-u2", "Spontane Begleitung"), isUnplanned: true, plannedMinutes: 0, validFrom: "2026-05-13", validTo: "2026-05-13" },
       ],
     },
   ];
 
   it("zeigt ungeplante Handlungen in der Planung nicht an", () => {
-    renderPlanningOutline({ topics: unplannedTopics });
-    fireEvent.click(screen.getByRole("button", { name: /Ungeplante Handlungen/ }));
+    renderPlanningOutline({ targets: unplannedTargets });
+    fireEvent.click(screen.getByRole("button", { name: /Direkt in der Umsetzung erfasst/ }));
 
     expect(screen.queryByText("Spontane Begleitung")).not.toBeInTheDocument();
     expect(screen.queryByText("Ungeplant")).not.toBeInTheDocument();
@@ -229,16 +249,8 @@ describe("Mehrfache Durchführungen pro Tageszeit", () => {
     },
   ];
 
-  const nightTopics: TopicNode[] = [
-    {
-      id: "topic-1",
-      title: "Mobilität und Transfer",
-      notes: "",
-      disciplineId: "discipline-ihp",
-      targets: [
-        { id: "goal-a", title: "Ziel A", notes: "", validFrom: "2026-08-01", actions: nightGroup },
-      ],
-    },
+  const nightTargets: TargetNode[] = [
+    { id: "goal-a", title: "Ziel A", notes: "", validFrom: "2026-08-01", actions: nightGroup, disciplineId: "discipline-ihp" },
   ];
 
   const renderWithGroup = (onUpdateActionGroup = vi.fn()) => {
@@ -247,9 +259,8 @@ describe("Mehrfache Durchführungen pro Tageszeit", () => {
         viewMode="planning"
         selectedDate="2026-08-01"
         onSelectedDateChange={vi.fn()}
-        topics={nightTopics}
+        targets={nightTargets}
         disciplines={disciplines}
-        onUpdateTopic={vi.fn()}
         onUpdateTarget={vi.fn()}
         onUpdateAction={vi.fn()}
         onUpdateActionField={vi.fn()}
@@ -257,16 +268,13 @@ describe("Mehrfache Durchführungen pro Tageszeit", () => {
         onAddTarget={vi.fn()}
         onAddAction={vi.fn()}
         onUpdateActionGroup={onUpdateActionGroup}
-        onAddTopic={vi.fn()}
-        onUpdateTopicDiscipline={vi.fn()}
-        onDeleteTopic={vi.fn()}
         onDeleteTarget={vi.fn()}
         onReactivateTarget={vi.fn()}
         onDeleteAction={vi.fn()}
         onDeleteActionGroup={vi.fn()}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: /Mobilität und Transfer/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Ziel A/ }));
     fireEvent.click(screen.getByRole("button", { name: "Handlung bearbeiten" }));
     return onUpdateActionGroup;
   };
@@ -288,7 +296,7 @@ describe("Mehrfache Durchführungen pro Tageszeit", () => {
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     expect(onUpdateActionGroup).toHaveBeenCalledTimes(1);
-    const entries = onUpdateActionGroup.mock.calls[0][4];
+    const entries = onUpdateActionGroup.mock.calls[0][3];
     expect(entries).toEqual([
       { dayPart: undefined, scheduledTime: "01:00", existingActionId: "act-n2" },
       { dayPart: undefined, scheduledTime: "04:00", existingActionId: undefined },

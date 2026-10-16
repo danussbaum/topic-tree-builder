@@ -42,7 +42,7 @@ import { isTargetClosed } from "@/lib/target-status";
 import { getDayParts } from "@/lib/day-parts";
 import { applyConfirmationToAction, type ConfirmationPayload } from "@/lib/action-confirmation";
 import { clampDateToRange } from "@/lib/confirmation-window";
-import { buildInhouseSpitexSeedTopics } from "@/lib/inhouse-spitex-seed";
+import { buildInhouseSpitexSeedTargets } from "@/lib/inhouse-spitex-seed";
 import { ClientSidebar } from "@/components/assessment/ClientSidebar";
 import { ModuleNav } from "@/components/ModuleNav";
 import { RibbonButton, RibbonDivider } from "@/components/ribbon/Ribbon";
@@ -65,7 +65,7 @@ import type {
   ActionServiceEntry,
   Client,
   ConfirmedOptionalService,
-  TopicNode,
+  TargetNode,
   Weekday,
 } from "@/types/assessment";
 import {
@@ -84,8 +84,8 @@ import {
 } from "@/lib/planning-export";
 import {
   buildUnplannedActionNodes,
-  buildUnplannedTopic,
-  isUnplannedTopicId,
+  buildUnplannedTarget,
+  isUnplannedTargetId,
 } from "@/lib/unplanned-action";
 import { buildOnDemandOccurrence } from "@/lib/on-demand-action";
 import type { OnDemandActionSelection } from "@/components/assessment/OnDemandActionDialog";
@@ -174,7 +174,7 @@ const WEEKDAY_TO_INDEX: Record<Weekday, number> = {
   sunday: 0,
 };
 
-const isTargetVisibleInPlanning = (target: TopicNode["targets"][number], today: string) => {
+const isTargetVisibleInPlanning = (target: TargetNode, today: string) => {
   if (target.actions.length === 0) return true;
   if (target.actions.some((action) => !action.validFrom)) return true;
   return target.actions.some(
@@ -318,8 +318,7 @@ const getVisibleConfirmationRows = (
 ) => {
   const rows: Array<{
     dueDate: string;
-    topic: TopicNode;
-    target: { id: string; title: string; notes: string };
+    target: TargetNode;
     action: ActionNode;
     confirmationDate: string;
     status: ActionNode["status"];
@@ -327,43 +326,40 @@ const getVisibleConfirmationRows = (
 
   const { start, end } = getPeriodRange(selectedDate, period, lastNDays);
 
-  // Ungeplante Handlungen hängen am Klienten und werden über das virtuelle Thema
+  // Ungeplante Handlungen hängen am Klienten und werden über das virtuelle Ziel
   // eingeblendet — so gilt für sie dieselbe Fälligkeits- und Filterlogik.
-  const topicsWithUnplanned = [...client.topics, buildUnplannedTopic(client)];
+  const targetsWithUnplanned = [...client.targets, buildUnplannedTarget(client)];
 
-  topicsWithUnplanned.forEach((topic) => {
-    topic.targets.forEach((target) => {
-      target.actions.forEach((action) => {
-        // Verschobene Nacht-Einträge sind einen Tag nach ihrem Planungstag fällig.
-        const rolloverDays = rollsToNextDay(action) ? 1 : 0;
-        if (action.validFrom && shiftISODate(action.validFrom, rolloverDays) > end) return;
-        if (action.validTo && shiftISODate(action.validTo, rolloverDays) < start) return;
+  targetsWithUnplanned.forEach((target) => {
+    target.actions.forEach((action) => {
+      // Verschobene Nacht-Einträge sind einen Tag nach ihrem Planungstag fällig.
+      const rolloverDays = rollsToNextDay(action) ? 1 : 0;
+      if (action.validFrom && shiftISODate(action.validFrom, rolloverDays) > end) return;
+      if (action.validTo && shiftISODate(action.validTo, rolloverDays) < start) return;
 
-        const dueDates = getDueDatesInPeriod(action, selectedDate, period, lastNDays);
-        dueDates.forEach((dueDate) => {
-          const confirmation = action.confirmations?.[dueDate];
-          if (confirmation?.postponedToDate) return;
-          const status = confirmation?.status || "open";
-          const forceShowTransientUnplanned =
-            (action.isUnplanned || action.isOnDemandOccurrence) && transientUnplannedActionIds.has(action.id);
-          if (!forceShowTransientUnplanned && !matchesAssessmentFilter({ action, status, confirmation, disciplineId: topic.disciplineId }, filterModel)) return;
-          rows.push({ dueDate, topic, target, action, confirmationDate: dueDate, status });
-        });
+      const dueDates = getDueDatesInPeriod(action, selectedDate, period, lastNDays);
+      dueDates.forEach((dueDate) => {
+        const confirmation = action.confirmations?.[dueDate];
+        if (confirmation?.postponedToDate) return;
+        const status = confirmation?.status || "open";
+        const forceShowTransientUnplanned =
+          (action.isUnplanned || action.isOnDemandOccurrence) && transientUnplannedActionIds.has(action.id);
+        if (!forceShowTransientUnplanned && !matchesAssessmentFilter({ action, status, confirmation, disciplineId: target.disciplineId }, filterModel)) return;
+        rows.push({ dueDate, target, action, confirmationDate: dueDate, status });
+      });
 
-        Object.entries(action.confirmations ?? {}).forEach(([confirmationDate, confirmation]) => {
-          if (!confirmation.postponedToDate) return;
-          if (confirmation.postponedToDate < start || confirmation.postponedToDate > end) return;
-          const forceShowTransientUnplanned =
-            (action.isUnplanned || action.isOnDemandOccurrence) && transientUnplannedActionIds.has(action.id);
-          if (!forceShowTransientUnplanned && !matchesAssessmentFilter({ action, status: confirmation.status, confirmation, disciplineId: topic.disciplineId }, filterModel)) return;
-          rows.push({
-            dueDate: confirmation.postponedToDate,
-            topic,
-            target,
-            action,
-            confirmationDate,
-            status: confirmation.status,
-          });
+      Object.entries(action.confirmations ?? {}).forEach(([confirmationDate, confirmation]) => {
+        if (!confirmation.postponedToDate) return;
+        if (confirmation.postponedToDate < start || confirmation.postponedToDate > end) return;
+        const forceShowTransientUnplanned =
+          (action.isUnplanned || action.isOnDemandOccurrence) && transientUnplannedActionIds.has(action.id);
+        if (!forceShowTransientUnplanned && !matchesAssessmentFilter({ action, status: confirmation.status, confirmation, disciplineId: target.disciplineId }, filterModel)) return;
+        rows.push({
+          dueDate: confirmation.postponedToDate,
+          target,
+          action,
+          confirmationDate,
+          status: confirmation.status,
         });
       });
     });
@@ -405,7 +401,6 @@ const CONFIRMATION_EXPORT_HEADERS = [
   "Datum",
   "Dossier",
   "Disziplin",
-  "Schwerpunkt",
   "Ziel",
   "Handlung",
   "Planungsart",
@@ -446,8 +441,7 @@ interface EvaluationActionEntry {
   key: string;
   clientId: string;
   clientName: string;
-  topic: TopicNode;
-  target: { id: string; title: string; notes: string };
+  target: TargetNode;
   action: ActionNode;
   dueDate: string;
   confirmationDate: string;
@@ -553,7 +547,6 @@ const collectEvaluationEntries = (
         key: `${client.id}|${row.action.id}|${row.dueDate}|${row.confirmationDate}`,
         clientId: client.id,
         clientName,
-        topic: row.topic,
         target: row.target,
         action: row.action,
         dueDate: row.dueDate,
@@ -786,43 +779,35 @@ const seedClients: Client[] = [
     id: uid(),
     firstName: "Anna",
     lastName: "Müller",
-    topics: [
+    targets: [
       {
         id: uid(),
-        title: "Förderziele KJA",
         disciplineId: DEFAULT_SEED_DISCIPLINE_ID,
+        title: "Betreuung und Wohnen 2025",
         notes:
-          "Strukturierte Förderziele für die Kinder- und Jugendarbeit, gegliedert nach Leistungstypen und individuellen Handlungen.",
-        targets: [
+          "Die Erreichung der gemeinsam erarbeiteten Ziele wird durch die beteiligten Personen beurteilt.",
+        actions: [
           {
             id: uid(),
-            title: "Betreuung und Wohnen 2025",
+            groupId: uid(),
+            title: "LZ-1 IND-2: Ressourcen aktivieren",
             notes:
-              "Die Erreichung der gemeinsam erarbeiteten Ziele wird durch die beteiligten Personen beurteilt.",
-            actions: [
-              {
-                id: uid(),
-                groupId: uid(),
-                title: "LZ-1 IND-2: Ressourcen aktivieren",
-                notes:
-                  "Die Aktivierung und Förderung des Systems wurde gemeinsam reflektiert.",
-                plannedMinutes: 45,
-                actualMinutes: 60,
-                reason: "Gespräch mit Familie länger als geplant.",
-                status: "done_with_deviation",
-                done: true,
-              },
-              {
-                id: uid(),
-                groupId: uid(),
-                title: "LZ-2 IND-1: Individuelle Kontaktregelung",
-                notes:
-                  "Eine individuelle Kontaktregelung liegt vor und wurde kongruent umgesetzt.",
-                plannedMinutes: 30,
-                status: "open",
-                done: false,
-              },
-            ],
+              "Die Aktivierung und Förderung des Systems wurde gemeinsam reflektiert.",
+            plannedMinutes: 45,
+            actualMinutes: 60,
+            reason: "Gespräch mit Familie länger als geplant.",
+            status: "done_with_deviation",
+            done: true,
+          },
+          {
+            id: uid(),
+            groupId: uid(),
+            title: "LZ-2 IND-1: Individuelle Kontaktregelung",
+            notes:
+              "Eine individuelle Kontaktregelung liegt vor und wurde kongruent umgesetzt.",
+            plannedMinutes: 30,
+            status: "open",
+            done: false,
           },
         ],
       },
@@ -832,26 +817,19 @@ const seedClients: Client[] = [
     id: uid(),
     firstName: "Lukas",
     lastName: "Bachmann",
-    topics: [
+    targets: [
       {
         id: uid(),
-        title: "Tagesstruktur",
         disciplineId: DEFAULT_SEED_DISCIPLINE_ID,
-        notes: "Aufbau einer stabilen Tages- und Wochenstruktur.",
-        targets: [
-          {
-            id: uid(),
-            title: "Schule und Ausbildung",
-            notes: "Regelmässiger Schulbesuch und Lerncoaching.",
-            actions: [],
-          },
-        ],
+        title: "Schule und Ausbildung",
+        notes: "Regelmässiger Schulbesuch und Lerncoaching.",
+        actions: [],
       },
-      ...buildInhouseSpitexSeedTopics(),
+      ...buildInhouseSpitexSeedTargets(),
     ],
   },
-  { id: uid(), firstName: "Sara", lastName: "Keller", topics: [] },
-  { id: uid(), firstName: "Marco", lastName: "Schneider", topics: [] },
+  { id: uid(), firstName: "Sara", lastName: "Keller", targets: [] },
+  { id: uid(), firstName: "Marco", lastName: "Schneider", targets: [] },
 ];
 
 const Index = () => {
@@ -888,8 +866,7 @@ const Index = () => {
   const [showClosedTargets, setShowClosedTargets] = useState(false);
   const [evaluationAssessmentPanel, setEvaluationAssessmentPanel] = useState<{
     clientId: string;
-    topicId: string;
-    target: import("@/types/assessment").TargetNode;
+    target: TargetNode;
   } | null>(null);
   const [hideEvaluationAssessed, setHideEvaluationAssessed] = useState(false);
   const [confirmDialogState, setConfirmDialogState] = useState<{
@@ -909,7 +886,6 @@ const Index = () => {
     });
   const [pendingTargetValidTo, setPendingTargetValidTo] = useState<{
     clientId: string;
-    topicId: string;
     targetId: string;
     value: string;
     affectedActionCount: number;
@@ -1182,7 +1158,7 @@ const Index = () => {
     });
   };
 
-  /** Schreibpfad für Klienten-Daten ausserhalb des Themenbaums (ungeplante Handlungen). */
+  /** Schreibpfad für Klienten-Daten ausserhalb des Zielbaums (ungeplante Handlungen). */
   const updateClientFor = (clientId: string, fn: (client: Client) => Client) => {
     setClients((prev) => {
       const nextClients = prev.map((c) => (c.id === clientId ? fn(c) : c));
@@ -1191,13 +1167,13 @@ const Index = () => {
     });
   };
 
-  const updateClientTopicsFor = (
+  const updateClientTargetsFor = (
     clientId: string,
-    fn: (topics: TopicNode[]) => TopicNode[],
+    fn: (targets: TargetNode[]) => TargetNode[],
   ) => {
     setClients((prev) => {
       const nextClients = prev.map((c) =>
-        c.id === clientId ? { ...c, topics: fn(c.topics) } : c,
+        c.id === clientId ? { ...c, targets: fn(c.targets) } : c,
       );
       saveAssessmentStateImmediately({ clients: nextClients });
       return nextClients;
@@ -1209,7 +1185,7 @@ const Index = () => {
       id: uid(),
       firstName: "Neu",
       lastName: "Klient/in",
-      topics: [],
+      targets: [],
     };
     setClients((prev) => {
       const nextClients = [...prev, c];
@@ -1223,50 +1199,28 @@ const Index = () => {
     });
   };
 
-  const [pendingFocusTopicId, setPendingFocusTopicId] = useState<string | null>(null);
-  const [newTopicPopoverOpen, setNewTopicPopoverOpen] = useState(false);
-  const [newTopicRibbonDisciplineId, setNewTopicRibbonDisciplineId] = useState<string>("");
+  const [newTargetPopoverOpen, setNewTargetPopoverOpen] = useState(false);
+  const [newTargetRibbonDisciplineId, setNewTargetRibbonDisciplineId] = useState<string>("");
+  const [pendingFocusTargetId, setPendingFocusTargetId] = useState<string | null>(null);
 
-  const addTopic = (clientId: string, disciplineId?: string): string => {
+  const addTarget = (clientId: string, disciplineId?: string): string => {
     const newId = uid();
-    updateClientTopicsFor(clientId, (topics) => [
-      ...topics,
+    updateClientTargetsFor(clientId, (targets) => [
+      ...targets,
       {
         id: newId,
         title: "",
         notes: "",
         disciplineId: disciplineId ?? availableDisciplines[0]?.id ?? DEFAULT_SEED_DISCIPLINE_ID,
-        targets: [],
+        actions: [],
       },
     ]);
-    setPendingFocusTopicId(newId);
-    return newId;
-  };
-
-  const [pendingFocusTargetId, setPendingFocusTargetId] = useState<string | null>(null);
-
-  const addTarget = (clientId: string, topicId: string): string => {
-    const newId = uid();
-    updateClientTopicsFor(clientId, (topics) =>
-      topics.map((t) =>
-        t.id === topicId
-          ? {
-              ...t,
-              targets: [
-                ...t.targets,
-                { id: newId, title: "", notes: "", actions: [] },
-              ],
-            }
-          : t,
-      ),
-    );
     setPendingFocusTargetId(newId);
     return newId;
   };
 
   const addAction = (
     clientId: string,
-    topicId: string,
     targetId: string,
     templateIds: string[],
     overrides?: Partial<ActionNode>,
@@ -1364,23 +1318,16 @@ const Index = () => {
       return { ...a, ...overrides };
     });
 
-    updateClientTopicsFor(clientId, (topics) =>
-      topics.map((t) =>
-        t.id !== topicId
-          ? t
+    updateClientTargetsFor(clientId, (targets) =>
+      targets.map((tg) =>
+        tg.id !== targetId
+          ? tg
           : {
-              ...t,
-              targets: t.targets.map((tg) =>
-                tg.id !== targetId
-                  ? tg
-                  : {
-                      ...tg,
-                      actions: [
-                        ...tg.actions,
-                        ...newActions,
-                      ],
-                    },
-              ),
+              ...tg,
+              actions: [
+                ...tg.actions,
+                ...newActions,
+              ],
             },
       ),
     );
@@ -1389,7 +1336,7 @@ const Index = () => {
 
   /**
    * Fügt eine im Plan hinterlegte Nach-Bedarf-Handlung als Durchführung für einen Tag
-   * zum bestehenden Plan hinzu — im selben Schwerpunkt/Ziel wie die Plan-Handlung.
+   * zum bestehenden Plan hinzu — im selben Ziel wie die Plan-Handlung.
    */
   const addOnDemandAction = (clientId: string, selection: OnDemandActionSelection) => {
     const occurrence = buildOnDemandOccurrence(
@@ -1399,18 +1346,11 @@ const Index = () => {
       selection.scheduledTime,
     );
 
-    updateClientTopicsFor(clientId, (topics) =>
-      topics.map((topic) =>
-        topic.id !== selection.topicId
-          ? topic
-          : {
-              ...topic,
-              targets: topic.targets.map((target) =>
-                target.id !== selection.targetId
-                  ? target
-                  : { ...target, actions: [...target.actions, occurrence] },
-              ),
-            },
+    updateClientTargetsFor(clientId, (targets) =>
+      targets.map((target) =>
+        target.id !== selection.targetId
+          ? target
+          : { ...target, actions: [...target.actions, occurrence] },
       ),
     );
 
@@ -1456,44 +1396,21 @@ const Index = () => {
     return firstActionId;
   };
 
-  const updateTopic = (
-    clientId: string,
-    topicId: string,
-    field: "title" | "notes",
-    value: string,
-  ) => {
-    updateClientTopicsFor(clientId, (topics) =>
-      topics.map((t) => (t.id === topicId ? { ...t, [field]: value } : t)),
-    );
-  };
-
-  const updateTopicDiscipline = (
-    clientId: string,
-    topicId: string,
-    disciplineId: string,
-  ) => {
-    updateClientTopicsFor(clientId, (topics) =>
-      topics.map((topic) =>
-        topic.id === topicId ? { ...topic, disciplineId } : topic,
-      ),
-    );
-  };
-
   const deleteDiscipline = (clientId: string, disciplineId: string) => {
     const client = clients.find((c) => c.id === clientId);
-    const topicsInDiscipline = client?.topics.filter(
-      (topic) => (topic.disciplineId ?? DEFAULT_SEED_DISCIPLINE_ID) === disciplineId,
+    const targetsInDiscipline = client?.targets.filter(
+      (target) => (target.disciplineId ?? DEFAULT_SEED_DISCIPLINE_ID) === disciplineId,
     ) ?? [];
-    const hasNestedPlanning = topicsInDiscipline.length > 0;
+    const hasNestedPlanning = targetsInDiscipline.length > 0;
 
     const doDelete = () =>
-      updateClientTopicsFor(clientId, (topics) =>
-        topics.filter((topic) => (topic.disciplineId ?? DEFAULT_SEED_DISCIPLINE_ID) !== disciplineId),
+      updateClientTargetsFor(clientId, (targets) =>
+        targets.filter((target) => (target.disciplineId ?? DEFAULT_SEED_DISCIPLINE_ID) !== disciplineId),
       );
 
     if (hasNestedPlanning) {
       showConfirm(
-        "Diese Disziplin enthält Schwerpunkte, Ziele oder Handlungen. Beim Löschen werden alle verknüpften Daten ebenfalls gelöscht. Möchten Sie fortfahren?",
+        "Diese Disziplin enthält Ziele oder Handlungen. Beim Löschen werden alle verknüpften Daten ebenfalls gelöscht. Möchten Sie fortfahren?",
         doDelete,
       );
       return;
@@ -1504,114 +1421,88 @@ const Index = () => {
 
   const applyTargetUpdate = (
     clientId: string,
-    topicId: string,
     targetId: string,
     field: "title" | "notes" | "validFrom" | "validTo",
     value: string,
     alsoSetActionsValidTo?: string,
   ) => {
-    updateClientTopicsFor(clientId, (topics) =>
-      topics.map((t) =>
-        t.id !== topicId
-          ? t
-          : {
-              ...t,
-              targets: t.targets.map((tg) => {
-                if (tg.id !== targetId) return tg;
-                const updatedTarget = { ...tg, [field]: value };
-                if (alsoSetActionsValidTo !== undefined) {
-                  updatedTarget.actions = tg.actions.map((a) =>
-                    !a.validTo || a.validTo > alsoSetActionsValidTo
-                      ? { ...a, validTo: alsoSetActionsValidTo }
-                      : a,
-                  );
-                }
-                if (field === "validFrom" && value) {
-                  updatedTarget.actions = (updatedTarget.actions ?? tg.actions).map((a) =>
-                    a.validFrom && a.validFrom < value ? { ...a, validFrom: value } : a,
-                  );
-                }
-                return updatedTarget;
-              }),
-            },
-      ),
+    updateClientTargetsFor(clientId, (targets) =>
+      targets.map((tg) => {
+        if (tg.id !== targetId) return tg;
+        const updatedTarget = { ...tg, [field]: value };
+        if (alsoSetActionsValidTo !== undefined) {
+          updatedTarget.actions = tg.actions.map((a) =>
+            !a.validTo || a.validTo > alsoSetActionsValidTo
+              ? { ...a, validTo: alsoSetActionsValidTo }
+              : a,
+          );
+        }
+        if (field === "validFrom" && value) {
+          updatedTarget.actions = (updatedTarget.actions ?? tg.actions).map((a) =>
+            a.validFrom && a.validFrom < value ? { ...a, validFrom: value } : a,
+          );
+        }
+        return updatedTarget;
+      }),
     );
   };
 
   const updateTarget = (
     clientId: string,
-    topicId: string,
     targetId: string,
     field: "title" | "notes" | "validFrom" | "validTo",
     value: string,
   ) => {
     if (field === "validTo" && value) {
       const client = clients.find((c) => c.id === clientId);
-      const topic = client?.topics.find((t) => t.id === topicId);
-      const target = topic?.targets.find((tg) => tg.id === targetId);
+      const target = client?.targets.find((tg) => tg.id === targetId);
       const affectedActions = (target?.actions ?? []).filter(
         (a) => !a.validTo || a.validTo > value,
       );
       if (affectedActions.length > 0) {
-        setPendingTargetValidTo({ clientId, topicId, targetId, value, affectedActionCount: affectedActions.length });
+        setPendingTargetValidTo({ clientId, targetId, value, affectedActionCount: affectedActions.length });
         return;
       }
     }
-    applyTargetUpdate(clientId, topicId, targetId, field, value);
+    applyTargetUpdate(clientId, targetId, field, value);
   };
 
-  const reactivateTarget = (clientId: string, topicId: string, targetId: string) => {
-    applyTargetUpdate(clientId, topicId, targetId, "validTo", "");
+  const reactivateTarget = (clientId: string, targetId: string) => {
+    applyTargetUpdate(clientId, targetId, "validTo", "");
   };
 
   const updateTargetAssessment = (
     clientId: string,
-    topicId: string,
     targetId: string,
     assessment: import("@/types/assessment").TargetAssessment,
   ) => {
-    updateClientTopicsFor(clientId, (topics) =>
-      topics.map((t) =>
-        t.id !== topicId
-          ? t
-          : {
-              ...t,
-              targets: t.targets.map((tg) =>
-                tg.id === targetId ? { ...tg, assessment } : tg,
-              ),
-            },
+    updateClientTargetsFor(clientId, (targets) =>
+      targets.map((tg) =>
+        tg.id === targetId ? { ...tg, assessment } : tg,
       ),
     );
   };
 
   const updateAction = (
     clientId: string,
-    topicId: string,
     targetId: string,
     actionId: string,
     field: "title" | "notes" | "requiredResources",
     value: string,
   ) => {
-    updateClientTopicsFor(clientId, (topics) =>
-      topics.map((t) =>
-        t.id !== topicId
-          ? t
+    updateClientTargetsFor(clientId, (targets) =>
+      targets.map((tg) =>
+        tg.id !== targetId
+          ? tg
           : {
-              ...t,
-              targets: t.targets.map((tg) =>
-                tg.id !== targetId
-                  ? tg
-                  : {
-                      ...tg,
-                      actions: tg.actions.map((a) =>
-                        a.id === actionId
-                          ? Object.keys(a.confirmations ?? {}).length > 0 ||
-                            isTemplateLockedActionField(a, field)
-                            ? a
-                            : { ...a, [field]: value }
-                          : a,
-                      ),
-                    },
+              ...tg,
+              actions: tg.actions.map((a) =>
+                a.id === actionId
+                  ? Object.keys(a.confirmations ?? {}).length > 0 ||
+                    isTemplateLockedActionField(a, field)
+                    ? a
+                    : { ...a, [field]: value }
+                  : a,
               ),
             },
       ),
@@ -1620,7 +1511,6 @@ const Index = () => {
 
   const updateActionField = (
     clientId: string,
-    topicId: string,
     targetId: string,
     actionId: string,
     field:
@@ -1647,8 +1537,7 @@ const Index = () => {
     };
 
     const client = clients.find((c) => c.id === clientId);
-    const topic = client?.topics.find((t) => t.id === topicId);
-    const target = topic?.targets.find((tg) => tg.id === targetId);
+    const target = client?.targets.find((tg) => tg.id === targetId);
     const currentAction = target?.actions.find((a) => a.id === actionId);
 
     const nextAction = (() => {
@@ -1686,39 +1575,32 @@ const Index = () => {
       return { ...currentAction, [field]: value };
     })();
 
-    updateClientTopicsFor(clientId, (topics) =>
-      topics.map((t) =>
-        t.id !== topicId
-          ? t
+    updateClientTargetsFor(clientId, (targets) =>
+      targets.map((tg) =>
+        tg.id !== targetId
+          ? tg
           : {
-              ...t,
-              targets: t.targets.map((tg) =>
-                tg.id !== targetId
-                  ? tg
-                  : {
-                      ...tg,
-                      actions: tg.actions.map((a) =>
-                        a.id === actionId
-                          ? (() => {
-                              const hasConfirmations = Object.keys(a.confirmations ?? {}).length > 0;
-                              const isValidToUpdate = field === "validTo";
+              ...tg,
+              actions: tg.actions.map((a) =>
+                a.id === actionId
+                  ? (() => {
+                      const hasConfirmations = Object.keys(a.confirmations ?? {}).length > 0;
+                      const isValidToUpdate = field === "validTo";
 
-                              if ((hasConfirmations && !isValidToUpdate) || isTemplateLockedActionField(a, field)) {
-                                return a;
-                              }
+                      if ((hasConfirmations && !isValidToUpdate) || isTemplateLockedActionField(a, field)) {
+                        return a;
+                      }
 
-                              if (isValidToUpdate && typeof value === "string" && value) {
-                                const oldestConfirmationDate = getOldestConfirmationDate(a.confirmations);
-                                if (oldestConfirmationDate && value < oldestConfirmationDate) {
-                                  return a;
-                                }
-                              }
+                      if (isValidToUpdate && typeof value === "string" && value) {
+                        const oldestConfirmationDate = getOldestConfirmationDate(a.confirmations);
+                        if (oldestConfirmationDate && value < oldestConfirmationDate) {
+                          return a;
+                        }
+                      }
 
-                              return { ...a, [field]: value };
-                            })()
-                          : a,
-                      ),
-                    },
+                      return { ...a, [field]: value };
+                    })()
+                  : a,
               ),
             },
       ),
@@ -1728,56 +1610,49 @@ const Index = () => {
 
   const updateActionGroup = (
     clientId: string,
-    topicId: string,
     targetId: string,
     groupId: string,
     sharedFields: Partial<Omit<ActionNode, "id" | "groupId" | "dayPart" | "scheduledTime" | "confirmations" | "isUnplanned">>
       & Pick<ActionNode, "title" | "notes">,
     dayPartEntries: Array<{ dayPart?: string; scheduledTime?: string; existingActionId?: string }>,
   ) => {
-    updateClientTopicsFor(clientId, (topics) =>
-      topics.map((t) => {
-        if (t.id !== topicId) return t;
+    updateClientTargetsFor(clientId, (targets) =>
+      targets.map((tg) => {
+        if (tg.id !== targetId) return tg;
+        const groupActions = tg.actions.filter((a) => a.groupId === groupId);
+        const insertIndex = tg.actions.findIndex((a) => a.groupId === groupId);
+
+        const updatedGroupActions: ActionNode[] = dayPartEntries.map(({ dayPart, scheduledTime, existingActionId }) => {
+          const actionDayPart = (dayPart === "none" || dayPart === undefined) ? undefined : dayPart;
+          const existing = existingActionId
+            ? groupActions.find((a) => a.id === existingActionId)
+            : undefined;
+          if (existing) {
+            return { ...existing, ...sharedFields, dayPart: actionDayPart, scheduledTime };
+          }
+          return {
+            id: uid(),
+            groupId,
+            ...sharedFields,
+            dayPart: actionDayPart,
+            scheduledTime,
+            status: "open" as const,
+            done: false,
+          };
+        });
+
+        const nonGroupActions = tg.actions.filter((a) => a.groupId !== groupId);
+        const splitAt = insertIndex >= 0
+          ? tg.actions.slice(0, insertIndex).filter((a) => a.groupId !== groupId).length
+          : nonGroupActions.length;
+
         return {
-          ...t,
-          targets: t.targets.map((tg) => {
-            if (tg.id !== targetId) return tg;
-            const groupActions = tg.actions.filter((a) => a.groupId === groupId);
-            const insertIndex = tg.actions.findIndex((a) => a.groupId === groupId);
-
-            const updatedGroupActions: ActionNode[] = dayPartEntries.map(({ dayPart, scheduledTime, existingActionId }) => {
-              const actionDayPart = (dayPart === "none" || dayPart === undefined) ? undefined : dayPart;
-              const existing = existingActionId
-                ? groupActions.find((a) => a.id === existingActionId)
-                : undefined;
-              if (existing) {
-                return { ...existing, ...sharedFields, dayPart: actionDayPart, scheduledTime };
-              }
-              return {
-                id: uid(),
-                groupId,
-                ...sharedFields,
-                dayPart: actionDayPart,
-                scheduledTime,
-                status: "open" as const,
-                done: false,
-              };
-            });
-
-            const nonGroupActions = tg.actions.filter((a) => a.groupId !== groupId);
-            const splitAt = insertIndex >= 0
-              ? tg.actions.slice(0, insertIndex).filter((a) => a.groupId !== groupId).length
-              : nonGroupActions.length;
-
-            return {
-              ...tg,
-              actions: [
-                ...nonGroupActions.slice(0, splitAt),
-                ...updatedGroupActions,
-                ...nonGroupActions.slice(splitAt),
-              ],
-            };
-          }),
+          ...tg,
+          actions: [
+            ...nonGroupActions.slice(0, splitAt),
+            ...updatedGroupActions,
+            ...nonGroupActions.slice(splitAt),
+          ],
         };
       }),
     );
@@ -1785,7 +1660,6 @@ const Index = () => {
 
   const confirmAction = (
     clientId: string,
-    topicId: string,
     targetId: string,
     actionId: string,
     payload: ConfirmationPayload,
@@ -1810,7 +1684,7 @@ const Index = () => {
         ? a
         : applyConfirmationToAction(a, date, payload, auditTrail);
 
-    if (isUnplannedTopicId(topicId)) {
+    if (isUnplannedTargetId(targetId)) {
       updateClientFor(clientId, (client) => ({
         ...client,
         unplannedActions: (client.unplannedActions ?? []).map(applyConfirmation),
@@ -1818,60 +1692,22 @@ const Index = () => {
       return;
     }
 
-    updateClientTopicsFor(clientId, (topics) =>
-      topics.map((t) =>
-        t.id !== topicId
-          ? t
-          : {
-              ...t,
-              targets: t.targets.map((tg) =>
-                tg.id !== targetId
-                  ? tg
-                  : { ...tg, actions: tg.actions.map(applyConfirmation) },
-              ),
-            },
+    updateClientTargetsFor(clientId, (targets) =>
+      targets.map((tg) =>
+        tg.id !== targetId
+          ? tg
+          : { ...tg, actions: tg.actions.map(applyConfirmation) },
       ),
     );
   };
 
-  const deleteTopic = (clientId: string, topicId: string) => {
+  const deleteTarget = (clientId: string, targetId: string) => {
     const client = clients.find((c) => c.id === clientId);
-    const topic = client?.topics.find((t) => t.id === topicId);
-    const hasTitle = (topic?.title ?? "").trim().length > 0;
-    const hasNotes = (topic?.notes ?? "").trim().length > 0;
-    const hasTargets = (topic?.targets.length ?? 0) > 0;
-    const requiresConfirmation = hasTitle || hasNotes || hasTargets;
-
-    const doDelete = () =>
-      updateClientTopicsFor(clientId, (topics) => topics.filter((t) => t.id !== topicId));
-
-    if (requiresConfirmation) {
-      showConfirm(
-        hasTargets
-          ? "Dieser Schwerpunkt enthält Ziele oder Handlungen. Beim Löschen werden alle verknüpften Daten ebenfalls gelöscht. Möchten Sie fortfahren?"
-          : "Diesen Schwerpunkt wirklich löschen?",
-        doDelete,
-      );
-      return;
-    }
-
-    doDelete();
-  };
-
-  const deleteTarget = (clientId: string, topicId: string, targetId: string) => {
-    const client = clients.find((c) => c.id === clientId);
-    const topic = client?.topics.find((t) => t.id === topicId);
-    const target = topic?.targets.find((tg) => tg.id === targetId);
+    const target = client?.targets.find((tg) => tg.id === targetId);
     const hasActions = (target?.actions.length ?? 0) > 0;
 
     const doDelete = () =>
-      updateClientTopicsFor(clientId, (topics) =>
-        topics.map((t) =>
-          t.id !== topicId
-            ? t
-            : { ...t, targets: t.targets.filter((tg) => tg.id !== targetId) },
-        ),
-      );
+      updateClientTargetsFor(clientId, (targets) => targets.filter((tg) => tg.id !== targetId));
 
     if (hasActions) {
       showConfirm(
@@ -1886,28 +1722,20 @@ const Index = () => {
 
   const deleteActionGroup = (
     clientId: string,
-    topicId: string,
     targetId: string,
     groupId: string,
   ) => {
     const client = clients.find((c) => c.id === clientId);
-    const target = client?.topics.find((t) => t.id === topicId)?.targets.find((tg) => tg.id === targetId);
+    const target = client?.targets.find((tg) => tg.id === targetId);
     const groupNodes = target?.actions.filter((a) => a.groupId === groupId) ?? [];
     const hasConfirmedActions = groupNodes.some((a) => Object.keys(a.confirmations ?? {}).length > 0);
 
     const doDelete = () => {
-      updateClientTopicsFor(clientId, (topics) =>
-        topics.map((t) =>
-          t.id !== topicId
-            ? t
-            : {
-                ...t,
-                targets: t.targets.map((tg) =>
-                  tg.id !== targetId
-                    ? tg
-                    : { ...tg, actions: tg.actions.filter((a) => a.groupId !== groupId) },
-                ),
-              },
+      updateClientTargetsFor(clientId, (targets) =>
+        targets.map((tg) =>
+          tg.id !== targetId
+            ? tg
+            : { ...tg, actions: tg.actions.filter((a) => a.groupId !== groupId) },
         ),
       );
     };
@@ -1925,17 +1753,15 @@ const Index = () => {
 
   const deleteAction = (
     clientId: string,
-    topicId: string,
     targetId: string,
     actionId: string,
   ) => {
     const client = clients.find((c) => c.id === clientId);
-    const isUnplanned = isUnplannedTopicId(topicId);
+    const isUnplanned = isUnplannedTargetId(targetId);
     const action = isUnplanned
       ? client?.unplannedActions?.find((a) => a.id === actionId)
-      : client?.topics
-          .find((t) => t.id === topicId)
-          ?.targets.find((tg) => tg.id === targetId)
+      : client?.targets
+          .find((tg) => tg.id === targetId)
           ?.actions.find((a) => a.id === actionId);
     const hasConfirmedActions = Object.keys(action?.confirmations ?? {}).length > 0;
 
@@ -1955,18 +1781,11 @@ const Index = () => {
         return;
       }
 
-      updateClientTopicsFor(clientId, (topics) =>
-        topics.map((t) =>
-          t.id !== topicId
-            ? t
-            : {
-                ...t,
-                targets: t.targets.map((tg) =>
-                  tg.id !== targetId
-                    ? tg
-                    : { ...tg, actions: tg.actions.filter((a) => a.id !== actionId) },
-                ),
-              },
+      updateClientTargetsFor(clientId, (targets) =>
+        targets.map((tg) =>
+          tg.id !== targetId
+            ? tg
+            : { ...tg, actions: tg.actions.filter((a) => a.id !== actionId) },
         ),
       );
     };
@@ -2066,32 +1885,28 @@ const Index = () => {
   const exportEvaluationXlsx = () => {
     if (viewMode !== "evaluation") return;
     const disciplineList = availableDisciplines.length > 0 ? availableDisciplines : initialActionPlanDisciplines;
-    const headers = [CLIENT_REFERENCE_HEADER, "Dossier", "Disziplin", "Schwerpunkt", "Ziel", "Beschreibung", "Gültig ab", "Gültig bis", "Ziel erreicht", "Auswertung", "Abgeleitete Massnahmen", "Beurteilt von", "Beurteilt am"];
+    const headers = [CLIENT_REFERENCE_HEADER, "Dossier", "Disziplin", "Ziel", "Beschreibung", "Gültig ab", "Gültig bis", "Ziel erreicht", "Auswertung", "Abgeleitete Massnahmen", "Beurteilt von", "Beurteilt am"];
     const rows = visibleSelectedClients.flatMap((client) => {
       const clientName = `${client.firstName} ${client.lastName}`.trim();
-      return client.topics.flatMap((topic) => {
-        const disciplineTitle = disciplineList.find((d) => d.id === topic.disciplineId)?.title ?? topic.disciplineId ?? "Ohne Disziplin";
-        return topic.targets
-          .filter((tg) => isTargetClosed(tg))
-          .map((tg) => {
-            const gs = tg.assessment?.goalStatus;
-            return [
-              clientReferenceNumbers.get(client.id) ?? "",
-              clientName,
-              disciplineTitle,
-              topic.title,
-              tg.title,
-              tg.notes,
-              tg.validFrom ? format(new Date(tg.validFrom), "dd.MM.yyyy") : "",
-              tg.validTo ? format(new Date(tg.validTo), "dd.MM.yyyy") : "",
-              gs === "ja" ? "Ja" : gs === "nein" ? "Nein" : gs === "teilweise" ? "Teilweise" : "",
-              tg.assessment?.goalAchievement ?? "",
-              tg.assessment?.derivedMeasures ?? "",
-              tg.assessment?.assessedBy ?? "",
-              tg.assessment?.assessedAt ? format(new Date(tg.assessment.assessedAt), "dd.MM.yyyy, HH:mm") : "",
-            ];
-          });
-      });
+      return client.targets
+        .filter((tg) => isTargetClosed(tg))
+        .map((tg) => {
+          const gs = tg.assessment?.goalStatus;
+          return [
+            clientReferenceNumbers.get(client.id) ?? "",
+            clientName,
+            disciplineList.find((d) => d.id === tg.disciplineId)?.title ?? tg.disciplineId ?? "Ohne Disziplin",
+            tg.title,
+            tg.notes,
+            tg.validFrom ? format(new Date(tg.validFrom), "dd.MM.yyyy") : "",
+            tg.validTo ? format(new Date(tg.validTo), "dd.MM.yyyy") : "",
+            gs === "ja" ? "Ja" : gs === "nein" ? "Nein" : gs === "teilweise" ? "Teilweise" : "",
+            tg.assessment?.goalAchievement ?? "",
+            tg.assessment?.derivedMeasures ?? "",
+            tg.assessment?.assessedBy ?? "",
+            tg.assessment?.assessedAt ? format(new Date(tg.assessment.assessedAt), "dd.MM.yyyy, HH:mm") : "",
+          ];
+        });
     });
     const blob = createSimpleXlsxBlob({ sheetName: "Evaluation", headers, rows });
     const url = URL.createObjectURL(blob);
@@ -2104,7 +1919,7 @@ const Index = () => {
 
   const toConfirmationExportRecord = (
     client: Client,
-    { dueDate, topic, target, action, confirmationDate, status }: ReturnType<typeof getVisibleConfirmationRows>[number],
+    { dueDate, target, action, confirmationDate, status }: ReturnType<typeof getVisibleConfirmationRows>[number],
   ): Record<string, string | number> => {
     const confirmation = action.confirmations?.[confirmationDate];
     return {
@@ -2112,10 +1927,9 @@ const Index = () => {
       Datum: dueDate,
       Dossier: `${client.firstName} ${client.lastName}`.trim(),
       Disziplin:
-        availableDisciplines.find((discipline) => discipline.id === topic.disciplineId)?.title ??
-        topic.disciplineId ??
+        availableDisciplines.find((discipline) => discipline.id === target.disciplineId)?.title ??
+        target.disciplineId ??
         "",
-      Schwerpunkt: topic.title,
       Ziel: target.title,
       Handlung: action.title,
       "Planungsart": action.isUnplanned
@@ -2332,12 +2146,12 @@ const Index = () => {
                   ? "Nur in der Planungsansicht verfügbar"
                   : undefined;
               const disciplineList = availableDisciplines.length > 0 ? availableDisciplines : initialActionPlanDisciplines;
-              const effectiveDisciplineId = newTopicRibbonDisciplineId || disciplineList[0]?.id || "";
+              const effectiveDisciplineId = newTargetRibbonDisciplineId || disciplineList[0]?.id || "";
               const btn = (
                 <Popover
-                  open={newTopicPopoverOpen && !isDisabled}
+                  open={newTargetPopoverOpen && !isDisabled}
                   onOpenChange={(open) => {
-                    if (!isDisabled) setNewTopicPopoverOpen(open);
+                    if (!isDisabled) setNewTargetPopoverOpen(open);
                   }}
                 >
                   <PopoverTrigger asChild>
@@ -2351,12 +2165,12 @@ const Index = () => {
                     </button>
                   </PopoverTrigger>
                   <PopoverContent className="w-64 p-4 space-y-3" align="start" side="bottom">
-                    <div className="text-sm font-semibold">Neuer Schwerpunkt</div>
+                    <div className="text-sm font-semibold">Neues Ziel</div>
                     <div>
                       <Label className="mb-1 block text-xs uppercase tracking-widest text-muted-foreground">
                         Disziplin
                       </Label>
-                      <Select value={effectiveDisciplineId} onValueChange={setNewTopicRibbonDisciplineId}>
+                      <Select value={effectiveDisciplineId} onValueChange={setNewTargetRibbonDisciplineId}>
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder="Disziplin auswählen" />
                         </SelectTrigger>
@@ -2371,12 +2185,12 @@ const Index = () => {
                       className="w-full"
                       onClick={() => {
                         if (selectedClients[0]) {
-                          addTopic(selectedClients[0].id, effectiveDisciplineId);
-                          setNewTopicPopoverOpen(false);
+                          addTarget(selectedClients[0].id, effectiveDisciplineId);
+                          setNewTargetPopoverOpen(false);
                         }
                       }}
                     >
-                      Schwerpunkt erstellen
+                      Ziel erstellen
                     </Button>
                   </PopoverContent>
                 </Popover>
@@ -3129,7 +2943,7 @@ const Index = () => {
                       }
                     />
                     {visibleSelectedClients.every((client) =>
-                      client.topics.every((topic) => topic.targets.every((tg) => !isTargetClosed(tg)))
+                      client.targets.every((tg) => !isTargetClosed(tg))
                     ) && (
                       <div className="py-16 text-center text-muted-foreground">
                         <p className="text-lg">Keine abgeschlossenen Ziele vorhanden.</p>
@@ -3137,19 +2951,19 @@ const Index = () => {
                     )}
                     {visibleSelectedClients.map((client) => {
                       const disciplineList = availableDisciplines.length > 0 ? availableDisciplines : initialActionPlanDisciplines;
-                      // Geschlossene (und je nach Filter unbeurteilte) Ziele nach Schwerpunkt
-                      // gruppieren – gleiche Client → Schwerpunkt → Ziel-Achse wie in der Planung.
-                      const topicGroups = client.topics
-                        .map((topic) => ({
-                          topic,
-                          targets: topic.targets.filter(
-                            (tg) => isTargetClosed(tg) && (!hideEvaluationAssessed || !tg.assessment),
-                          ),
-                        }))
-                        .filter((group) => group.targets.length > 0);
-                      const hasAnyClosedTarget = client.topics.some((topic) =>
-                        topic.targets.some((tg) => isTargetClosed(tg)),
+                      // Geschlossene (und je nach Filter unbeurteilte) Ziele nach Disziplin
+                      // gruppieren – gleiche Client → Disziplin → Ziel-Achse wie in der Planung.
+                      const disciplineGroups = Array.from(
+                        client.targets
+                          .filter((tg) => isTargetClosed(tg) && (!hideEvaluationAssessed || !tg.assessment))
+                          .reduce((groups, tg) => {
+                            const disciplineId = tg.disciplineId ?? "";
+                            groups.set(disciplineId, [...(groups.get(disciplineId) ?? []), tg]);
+                            return groups;
+                          }, new Map<string, TargetNode[]>()),
+                        ([disciplineId, targets]) => ({ disciplineId, targets }),
                       );
+                      const hasAnyClosedTarget = client.targets.some((tg) => isTargetClosed(tg));
                       if (!hasAnyClosedTarget) return null;
                       const clientName = `${client.firstName} ${client.lastName}`.trim();
                       return (
@@ -3157,24 +2971,21 @@ const Index = () => {
                           <div className="flex items-center gap-4 pb-5 border-b border-border sticky top-0 z-10 bg-[#F5F5F6]">
                             <h1 className="text-2xl font-semibold">{clientName}</h1>
                           </div>
-                          {topicGroups.length === 0 ? (
+                          {disciplineGroups.length === 0 ? (
                             <p className="text-sm text-muted-foreground">
                               Alle abgeschlossenen Ziele wurden bereits beurteilt.
                             </p>
                           ) : (
                           <div className="space-y-8">
-                            {topicGroups.map(({ topic, targets }) => {
+                            {disciplineGroups.map(({ disciplineId, targets }) => {
                               const disciplineTitle =
-                                disciplineList.find((d) => d.id === topic.disciplineId)?.title ??
-                                topic.disciplineId ??
+                                disciplineList.find((d) => d.id === disciplineId)?.title ||
+                                disciplineId ||
                                 "Ohne Disziplin";
                               return (
-                                <div key={topic.id} className="space-y-4">
-                                  <div className="flex items-baseline gap-2 flex-wrap">
-                                    <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                                      {topic.title || "Ohne Schwerpunkt"}
-                                    </div>
-                                    <span className="text-[11px] text-muted-foreground/70">{disciplineTitle}</span>
+                                <div key={disciplineId} className="space-y-4">
+                                  <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                                    {disciplineTitle}
                                   </div>
                                   <div className="space-y-4">
                             {targets.map((target) => {
@@ -3221,7 +3032,7 @@ const Index = () => {
                                         <Tooltip>
                                           <TooltipTrigger asChild>
                                             <button
-                                              onClick={() => setEvaluationAssessmentPanel({ clientId: client.id, topicId: topic.id, target })}
+                                              onClick={() => setEvaluationAssessmentPanel({ clientId: client.id, target })}
                                               className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
                                               aria-label={target.assessment ? "Beurteilung bearbeiten" : "Beurteilung erfassen"}
                                             >
@@ -3308,7 +3119,6 @@ const Index = () => {
                                                 <ActionGroupRow
                                                   key={groupNodes[0].groupId}
                                                   readOnly
-                                                  topicId={topic.id}
                                                   targetId={target.id}
                                                   groupNodes={groupNodes}
                                                   targetValidFrom={target.validFrom}
@@ -3447,7 +3257,7 @@ const Index = () => {
                               className="shrink-0 inline-flex items-center gap-1 text-sm text-primary transition-colors hover:underline"
                             >
                               <Plus className="h-4 w-4" />
-                              Schwerpunkt
+                              Ziel
                             </button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent
@@ -3462,7 +3272,7 @@ const Index = () => {
                               (discipline) => (
                                 <DropdownMenuItem
                                   key={discipline.id}
-                                  onClick={() => addTopic(client.id, discipline.id)}
+                                  onClick={() => addTarget(client.id, discipline.id)}
                                 >
                                   {discipline.title}
                                 </DropdownMenuItem>
@@ -3522,12 +3332,12 @@ const Index = () => {
                       confirmationPeriod={confirmationPeriod}
                       lastNDays={lastNDays}
                       clientName={`${client.firstName} ${client.lastName}`.trim()}
-                      topics={
+                      targets={
                         // Ungeplante Handlungen sind Umsetzungs-Daten: nur dort über das
-                        // virtuelle Thema einblenden, in der Planung gar nicht.
+                        // virtuelle Ziel einblenden, in der Planung gar nicht.
                         viewMode === "confirmation"
-                          ? [...client.topics, buildUnplannedTopic(client)]
-                          : client.topics
+                          ? [...client.targets, buildUnplannedTarget(client)]
+                          : client.targets
                       }
                       disciplines={availableDisciplines.length > 0 ? availableDisciplines : initialActionPlanDisciplines}
                       hideConfirmationHeader
@@ -3538,59 +3348,50 @@ const Index = () => {
                       filterModel={confirmationFilter}
                       showClosedTargets={showClosedTargets}
                       transientUnplannedActionIds={transientUnplannedActionIds}
-                      onUpdateTopic={(topicId, field, value) =>
-                        updateTopic(client.id, topicId, field, value)
+                      onUpdateTarget={(targetId, field, value) =>
+                        updateTarget(client.id, targetId, field, value)
                       }
-                      onUpdateTarget={(topicId, targetId, field, value) =>
-                        updateTarget(client.id, topicId, targetId, field, value)
+                      onUpdateAction={(targetId, actionId, field, value) =>
+                        updateAction(client.id, targetId, actionId, field, value)
                       }
-                      onUpdateAction={(topicId, targetId, actionId, field, value) =>
-                        updateAction(client.id, topicId, targetId, actionId, field, value)
+                      onUpdateActionField={(targetId, actionId, field, value) =>
+                        updateActionField(client.id, targetId, actionId, field, value)
                       }
-                      onUpdateActionField={(topicId, targetId, actionId, field, value) =>
-                        updateActionField(client.id, topicId, targetId, actionId, field, value)
-                      }
-                      onConfirmAction={(topicId, targetId, actionId, payload, date) =>
-                        confirmAction(client.id, topicId, targetId, actionId, payload, date)
-                      }
-                      onAddTopic={(disciplineId) => addTopic(client.id, disciplineId)}
-                      focusTopicId={pendingFocusTopicId}
-                      onFocusHandled={() => setPendingFocusTopicId(null)}
-                      onUpdateTopicDiscipline={(topicId, disciplineId) =>
-                        updateTopicDiscipline(client.id, topicId, disciplineId)
+                      onConfirmAction={(targetId, actionId, payload, date) =>
+                        confirmAction(client.id, targetId, actionId, payload, date)
                       }
                       onDeleteDiscipline={(disciplineId) => deleteDiscipline(client.id, disciplineId)}
-                      onAddTarget={(topicId) => addTarget(client.id, topicId)}
+                      onAddTarget={(disciplineId) => addTarget(client.id, disciplineId)}
                       focusTargetId={pendingFocusTargetId}
                       onFocusTargetHandled={() => setPendingFocusTargetId(null)}
-                      onAddAction={(topicId, targetId, templateIds, overrides, dayPartEntries) =>
-                        addAction(client.id, topicId, targetId, templateIds, overrides, dayPartEntries)
+                      onAddAction={(targetId, templateIds, overrides, dayPartEntries) =>
+                        addAction(client.id, targetId, templateIds, overrides, dayPartEntries)
                       }
-                      onUpdateActionGroup={(topicId, targetId, groupId, sharedFields, dayPartEntries) =>
-                        updateActionGroup(client.id, topicId, targetId, groupId, sharedFields, dayPartEntries)
+                      onUpdateActionGroup={(targetId, groupId, sharedFields, dayPartEntries) =>
+                        updateActionGroup(client.id, targetId, groupId, sharedFields, dayPartEntries)
                       }
                       onAddUnplannedAction={(dueDate, dayPart, draft) =>
                         addUnplannedAction(client.id, dueDate, dayPart, draft)
                       }
                       onAddOnDemandAction={(selection) => addOnDemandAction(client.id, selection)}
-                      onDeleteTopic={(topicId) => deleteTopic(client.id, topicId)}
-                      onDeleteTarget={(topicId, targetId) =>
-                        deleteTarget(client.id, topicId, targetId)
+                      onDeleteTarget={(targetId) =>
+                        deleteTarget(client.id, targetId)
                       }
-                      onReactivateTarget={(topicId, targetId) =>
-                        reactivateTarget(client.id, topicId, targetId)
+                      onReactivateTarget={(targetId) =>
+                        reactivateTarget(client.id, targetId)
                       }
-                      onDeleteAction={(topicId, targetId, actionId) =>
-                        deleteAction(client.id, topicId, targetId, actionId)
+                      onDeleteAction={(targetId, actionId) =>
+                        deleteAction(client.id, targetId, actionId)
                       }
-                      onDeleteActionGroup={(topicId, targetId, groupId) =>
-                        deleteActionGroup(client.id, topicId, targetId, groupId)
+                      onDeleteActionGroup={(targetId, groupId) =>
+                        deleteActionGroup(client.id, targetId, groupId)
                       }
                     />
                     {personOnDemandClientId === client.id && (
                       <OnDemandActionDialog
                         key={`${client.id}-on-demand`}
-                        topics={client.topics}
+                        targets={client.targets}
+                        disciplines={availableDisciplines.length > 0 ? availableDisciplines : initialActionPlanDisciplines}
                         date={confirmationEntryDate}
                         clientName={`${client.firstName} ${client.lastName}`.trim()}
                         onClose={() => setPersonOnDemandClientId(null)}
@@ -3659,7 +3460,6 @@ const Index = () => {
                 if (pendingTargetValidTo) {
                   applyTargetUpdate(
                     pendingTargetValidTo.clientId,
-                    pendingTargetValidTo.topicId,
                     pendingTargetValidTo.targetId,
                     "validTo",
                     pendingTargetValidTo.value,
@@ -3683,7 +3483,6 @@ const Index = () => {
           onSave={(assessment) => {
             updateTargetAssessment(
               evaluationAssessmentPanel.clientId,
-              evaluationAssessmentPanel.topicId,
               evaluationAssessmentPanel.target.id,
               {
                 ...assessment,
@@ -3703,7 +3502,6 @@ const Index = () => {
             readOnly
             title="Handlung"
             target={{
-              topicId: auswertungDetail.topic.id,
               targetId: auswertungDetail.target.id,
               dueDate: auswertungDetail.confirmationDate,
               confirmedBy: confirmation?.confirmedBy,

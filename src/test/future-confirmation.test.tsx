@@ -1,35 +1,28 @@
 import { render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AssessmentOutline } from "@/components/assessment/AssessmentOutline";
-import type { ActionNode, TopicNode } from "@/types/assessment";
+import type { ActionNode, TargetNode } from "@/types/assessment";
 import type { ScheduledAction } from "@/lib/day-part-rollover";
 import { getConfirmationStart, isBeforeConfirmationStart } from "@/lib/confirmation-window";
 import { initialDayParts } from "@/lib/day-parts";
 
-const buildTopics = (validFrom: string, schedule: ScheduledAction = {}): TopicNode[] => [
+const buildTargets = (validFrom: string, schedule: ScheduledAction = {}): TargetNode[] => [
   {
-    id: "topic-1",
-    title: "Schwerpunkt",
+    id: "target-1",
+    title: "Ziel",
     notes: "",
-    targets: [
+    actions: [
       {
-        id: "target-1",
-        title: "Ziel",
+        id: "action-1",
+        groupId: "action-1",
+        title: "Offene Handlung",
         notes: "",
-        actions: [
-          {
-            id: "action-1",
-            groupId: "action-1",
-            title: "Offene Handlung",
-            notes: "",
-            status: "open",
-            done: false,
-            validFrom,
-            recurrence: "daily",
-            plannedMinutes: 30,
-            ...schedule,
-          },
-        ],
+        status: "open",
+        done: false,
+        validFrom,
+        recurrence: "daily",
+        plannedMinutes: 30,
+        ...schedule,
       },
     ],
   },
@@ -43,18 +36,15 @@ const renderOutline = (selectedDate: string, schedule: ScheduledAction = {}) =>
       onSelectedDateChange={vi.fn()}
       confirmationPeriod="day"
       clientName="Test Klient"
-      topics={buildTopics(selectedDate, schedule)}
+      targets={buildTargets(selectedDate, schedule)}
       hideConfirmationHeader
       filterModel={{ statuses: ["open", "postponed"] }}
-      onUpdateTopic={vi.fn()}
       onUpdateTarget={vi.fn()}
       onUpdateAction={vi.fn()}
       onUpdateActionField={vi.fn()}
       onConfirmAction={vi.fn()}
       onAddTarget={vi.fn()}
       onAddAction={vi.fn()}
-      onAddTopic={vi.fn()}
-      onDeleteTopic={vi.fn()}
       onDeleteTarget={vi.fn()}
       onDeleteAction={vi.fn()}
       onUpdateActionGroup={vi.fn()}

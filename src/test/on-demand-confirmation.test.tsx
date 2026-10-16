@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AssessmentOutline } from "@/components/assessment/AssessmentOutline";
 import { matchesAssessmentFilter } from "@/types/assessment-filter";
-import type { ActionNode, TopicNode } from "@/types/assessment";
+import type { ActionNode, TargetNode } from "@/types/assessment";
 import { DAY_PART_SEED_IDS } from "@/lib/day-parts";
 
 const dailyAction: ActionNode = {
@@ -31,13 +31,8 @@ const onDemandAction: ActionNode = {
   recurrence: "on_demand",
 };
 
-const topicsWith = (actions: ActionNode[]): TopicNode[] => [
-  {
-    id: "topic-1",
-    title: "Schwerpunkt",
-    notes: "",
-    targets: [{ id: "target-1", title: "Ziel", notes: "", actions }],
-  },
+const targetsWith = (actions: ActionNode[]): TargetNode[] => [
+  { id: "target-1", disciplineId: "discipline-inhouse-spitex", title: "Ziel", notes: "", actions },
 ];
 
 const renderOutline = (
@@ -51,18 +46,15 @@ const renderOutline = (
       onSelectedDateChange={vi.fn()}
       confirmationPeriod="day"
       clientName="Test Klient"
-      topics={topicsWith(actions)}
+      targets={targetsWith(actions)}
       hideConfirmationHeader
       filterModel={{ statuses: ["open", "postponed"] }}
-      onUpdateTopic={vi.fn()}
       onUpdateTarget={vi.fn()}
       onUpdateAction={vi.fn()}
       onUpdateActionField={vi.fn()}
       onConfirmAction={vi.fn()}
       onAddTarget={vi.fn()}
       onAddAction={vi.fn()}
-      onAddTopic={vi.fn()}
-      onDeleteTopic={vi.fn()}
       onDeleteTarget={vi.fn()}
       onDeleteAction={vi.fn()}
       onUpdateActionGroup={vi.fn()}
@@ -128,7 +120,6 @@ describe("Handlungen nach Bedarf in der Umsetzung", () => {
 
     expect(onAddOnDemandAction).toHaveBeenCalledWith(
       expect.objectContaining({
-        topicId: "topic-1",
         targetId: "target-1",
         date: "2026-05-12",
         dayPart: DAY_PART_SEED_IDS.morning,
@@ -147,8 +138,8 @@ describe("Handlungen nach Bedarf in der Umsetzung", () => {
     // Nur Nach-Bedarf-Handlungen, nicht die täglich wiederkehrende — jede mit ihrer
     // Herkunft, damit gleich benannte Handlungen unterscheidbar sind.
     expect(options.map((option) => option.textContent)).toEqual([
-      "Schwerpunkt › ZielBedarfsmedikation (15 Min)",
-      "Schwerpunkt › ZielWundkontrolle (15 Min)",
+      "Inhouse-Spitex › ZielBedarfsmedikation (15 Min)",
+      "Inhouse-Spitex › ZielWundkontrolle (15 Min)",
     ]);
 
     fireEvent.click(screen.getByRole("option", { name: /Wundkontrolle/ }));
@@ -256,18 +247,15 @@ describe("Handlungen nach Bedarf in der Umsetzung", () => {
         selectedDate="2026-05-12"
         onSelectedDateChange={vi.fn()}
         confirmationPeriod="day"
-        topics={topicsWith([nachts])}
+        targets={targetsWith([nachts])}
         hideConfirmationHeader
         filterModel={{ statuses: ["open", "postponed"] }}
-        onUpdateTopic={vi.fn()}
         onUpdateTarget={vi.fn()}
         onUpdateAction={vi.fn()}
         onUpdateActionField={vi.fn()}
         onConfirmAction={vi.fn()}
         onAddTarget={vi.fn()}
         onAddAction={vi.fn()}
-        onAddTopic={vi.fn()}
-        onDeleteTopic={vi.fn()}
         onDeleteTarget={vi.fn()}
         onDeleteAction={vi.fn()}
         onUpdateActionGroup={vi.fn()}
@@ -349,8 +337,7 @@ describe("Bedarfs-Durchführungen in der Planung", () => {
         viewMode="planning"
         selectedDate="2026-05-12"
         onSelectedDateChange={vi.fn()}
-        topics={topicsWith([onDemandAction, occurrence])}
-        onUpdateTopic={vi.fn()}
+        targets={targetsWith([onDemandAction, occurrence])}
         onUpdateTarget={vi.fn()}
         onUpdateAction={vi.fn()}
         onUpdateActionField={vi.fn()}
@@ -358,8 +345,6 @@ describe("Bedarfs-Durchführungen in der Planung", () => {
         onAddTarget={vi.fn()}
         onAddAction={vi.fn()}
         onUpdateActionGroup={vi.fn()}
-        onAddTopic={vi.fn()}
-        onDeleteTopic={vi.fn()}
         onDeleteTarget={vi.fn()}
         onReactivateTarget={vi.fn()}
         onDeleteAction={vi.fn()}
@@ -367,7 +352,7 @@ describe("Bedarfs-Durchführungen in der Planung", () => {
       />,
     );
 
-    screen.getAllByRole("button", { name: /Schwerpunkt/ }).forEach((button) => fireEvent.click(button));
+    fireEvent.click(screen.getAllByRole("button", { name: "Ziel" })[0]);
 
     // Die Plan-Handlung steht genau einmal da, die Durchführung gar nicht.
     expect(screen.getAllByText("Bedarfsmedikation")).toHaveLength(1);

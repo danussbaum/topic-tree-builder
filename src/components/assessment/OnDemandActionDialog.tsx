@@ -11,7 +11,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DatePickerInput } from "@/components/ui/date-picker-input";
-import type { ActionNode, TopicNode } from "@/types/assessment";
+import type { ActionNode, TargetNode } from "@/types/assessment";
+import type { ActionPlanDiscipline } from "@/lib/action-plan-disciplines";
 import { collectOnDemandCandidates } from "@/lib/on-demand-action";
 import { previousDayDayPart, shiftISODate } from "@/lib/day-part-rollover";
 import { getDayParts } from "@/lib/day-parts";
@@ -20,7 +21,6 @@ import { cn } from "@/lib/utils";
 const formatDate = (isoDate: string) => isoDate.split("-").reverse().join(".");
 
 export interface OnDemandActionSelection {
-  topicId: string;
   targetId: string;
   action: ActionNode;
   date: string;
@@ -38,7 +38,8 @@ const TIME_MODE_VALUE = "__time";
  * (Dauer, Leistungsarten, Hilfsmittel) kommen aus dem Plan.
  */
 export function OnDemandActionDialog({
-  topics,
+  targets,
+  disciplines = [],
   date: initialDate,
   fixedDayPart,
   dateLocked = false,
@@ -47,7 +48,9 @@ export function OnDemandActionDialog({
   onClose,
   onConfirm,
 }: {
-  topics: TopicNode[];
+  targets: TargetNode[];
+  /** Für den Pfad Disziplin › Ziel in der Auswahl. */
+  disciplines?: ActionPlanDiscipline[];
   date: string;
   fixedDayPart?: string | "none";
   /** Aus dem (+)-Menü einer Tageszeit: Tag und Tageszeit sind durch den Kontext gesetzt. */
@@ -99,7 +102,7 @@ export function OnDemandActionDialog({
     return () => document.removeEventListener("mousedown", handler);
   }, [isPanelVisible, handleClose]);
 
-  const candidates = useMemo(() => collectOnDemandCandidates(topics, date), [topics, date]);
+  const candidates = useMemo(() => collectOnDemandCandidates(targets, date), [targets, date]);
   const candidateById = useMemo(
     () => new Map(candidates.map((entry) => [entry.action.id, entry])),
     [candidates],
@@ -145,7 +148,6 @@ export function OnDemandActionDialog({
       return;
     }
     onConfirm({
-      topicId: selected.topicId,
       targetId: selected.targetId,
       action: selected.action,
       date,
@@ -210,7 +212,7 @@ export function OnDemandActionDialog({
             ) : (
               <Select value={selectedActionId ?? undefined} onValueChange={selectAction}>
                 {/* Zweizeilig: dieselbe Handlung kann in mehreren Zielen geplant sein — der
-                    Pfad Schwerpunkt › Ziel unterscheidet die Einträge. */}
+                    Pfad Disziplin › Ziel unterscheidet die Einträge. */}
                 <SelectTrigger className="h-auto min-h-10 py-1.5 text-left bg-background" aria-label="Handlung">
                   <SelectValue placeholder="Wählen…" />
                 </SelectTrigger>
@@ -221,7 +223,9 @@ export function OnDemandActionDialog({
                         {/* Erbt die Textfarbe des Eintrags: auf dem dunkelgrünen Hover
                             bleibt die Zeile damit lesbar. */}
                         <span className="text-xs opacity-70">
-                          {option.topicTitle || "Ohne Schwerpunkt"} › {option.targetTitle || "Ohne Ziel"}
+                          {disciplines.find((discipline) => discipline.id === option.disciplineId)?.title ??
+                            "Ohne Disziplin"}{" "}
+                          › {option.targetTitle || "Ohne Ziel"}
                         </span>
                         <span>
                           {option.action.title}

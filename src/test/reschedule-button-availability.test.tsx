@@ -1,37 +1,30 @@
 import { render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AssessmentOutline } from "@/components/assessment/AssessmentOutline";
-import type { TopicNode } from "@/types/assessment";
+import type { TargetNode } from "@/types/assessment";
 
-const buildTopics = (validFrom: string): TopicNode[] => [
+const buildTargets = (validFrom: string): TargetNode[] => [
   {
-    id: "topic-1",
-    title: "Schwerpunkt",
+    id: "target-1",
+    title: "Ziel",
     notes: "",
-    targets: [
+    actions: [
       {
-        id: "target-1",
-        title: "Ziel",
+        id: "action-1",
+        groupId: "action-1",
+        title: "Offene Handlung",
         notes: "",
-        actions: [
-          {
-            id: "action-1",
-            groupId: "action-1",
-            title: "Offene Handlung",
-            notes: "",
-            status: "open",
-            done: false,
-            validFrom,
-            recurrence: "daily",
-            plannedMinutes: 30,
-          },
-        ],
+        status: "open",
+        done: false,
+        validFrom,
+        recurrence: "daily",
+        plannedMinutes: 30,
       },
     ],
   },
 ];
 
-const renderOutline = (selectedDate: string, topics = buildTopics(selectedDate)) =>
+const renderOutline = (selectedDate: string, targets = buildTargets(selectedDate)) =>
   render(
     <AssessmentOutline
       viewMode="confirmation"
@@ -39,18 +32,15 @@ const renderOutline = (selectedDate: string, topics = buildTopics(selectedDate))
       onSelectedDateChange={vi.fn()}
       confirmationPeriod="day"
       clientName="Test Klient"
-      topics={topics}
+      targets={targets}
       hideConfirmationHeader
       filterModel={{ statuses: ["open", "postponed"] }}
-      onUpdateTopic={vi.fn()}
       onUpdateTarget={vi.fn()}
       onUpdateAction={vi.fn()}
       onUpdateActionField={vi.fn()}
       onConfirmAction={vi.fn()}
       onAddTarget={vi.fn()}
       onAddAction={vi.fn()}
-      onAddTopic={vi.fn()}
-      onDeleteTopic={vi.fn()}
       onDeleteTarget={vi.fn()}
       onDeleteAction={vi.fn()}
       onUpdateActionGroup={vi.fn()}
@@ -88,8 +78,8 @@ describe("Verfügbarkeit der Neuplanung in der Umsetzung", () => {
     // Ursprünglich am 02.05. geplant, verschoben auf den 14.05., heute ist der 11.05.
     // 02.05. + 7 = 09.05. liegt vor heute — die Zeile erscheint am 14.05., trotzdem ist
     // keine weitere Neuplanung möglich. Sonst liesse sich die Frist endlos verlängern.
-    const topics = buildTopics("2026-05-02");
-    topics[0].targets[0].actions[0].confirmations = {
+    const targets = buildTargets("2026-05-02");
+    targets[0].actions[0].confirmations = {
       "2026-05-02": {
         status: "postponed",
         done: false,
@@ -98,7 +88,7 @@ describe("Verfügbarkeit der Neuplanung in der Umsetzung", () => {
       },
     };
 
-    renderOutline("2026-05-14", topics);
+    renderOutline("2026-05-14", targets);
 
     // Am 14.05. stehen zwei Zeilen: die vom 02.05. verschobene und die regulär am 14.05. fällige.
     const postponedRow = screen.getByText(/Verschoben von 02\.05\.2026/).closest("tr");

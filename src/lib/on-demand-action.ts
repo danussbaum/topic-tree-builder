@@ -1,5 +1,5 @@
 import { isTargetClosed } from "@/lib/target-status";
-import type { ActionNode, TopicNode } from "@/types/assessment";
+import type { ActionNode, TargetNode } from "@/types/assessment";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -8,8 +8,7 @@ export const isOnDemandPlanAction = (action: ActionNode): boolean =>
   action.recurrence === "on_demand" && !action.isOnDemandOccurrence;
 
 export interface OnDemandCandidate {
-  topicId: string;
-  topicTitle: string;
+  disciplineId?: string;
   targetId: string;
   targetTitle: string;
   action: ActionNode;
@@ -20,25 +19,22 @@ export interface OnDemandCandidate {
  * Gültig ab/bis muss das Datum einschliessen und das Ziel darf nicht abgeschlossen sein.
  */
 export const collectOnDemandCandidates = (
-  topics: TopicNode[],
+  targets: TargetNode[],
   date: string,
 ): OnDemandCandidate[] => {
   const candidates: OnDemandCandidate[] = [];
-  for (const topic of topics) {
-    for (const target of topic.targets) {
-      if (isTargetClosed(target)) continue;
-      for (const action of target.actions) {
-        if (!isOnDemandPlanAction(action)) continue;
-        if (action.validFrom && date < action.validFrom) continue;
-        if (action.validTo && date > action.validTo) continue;
-        candidates.push({
-          topicId: topic.id,
-          topicTitle: topic.title,
-          targetId: target.id,
-          targetTitle: target.title,
-          action,
-        });
-      }
+  for (const target of targets) {
+    if (isTargetClosed(target)) continue;
+    for (const action of target.actions) {
+      if (!isOnDemandPlanAction(action)) continue;
+      if (action.validFrom && date < action.validFrom) continue;
+      if (action.validTo && date > action.validTo) continue;
+      candidates.push({
+        disciplineId: target.disciplineId,
+        targetId: target.id,
+        targetTitle: target.title,
+        action,
+      });
     }
   }
   return candidates;

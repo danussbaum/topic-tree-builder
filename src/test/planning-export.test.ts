@@ -28,28 +28,21 @@ const client = (overrides: Partial<Client> = {}): Client => ({
   id: "c1",
   firstName: "Anna",
   lastName: "Muster",
-  topics: [],
+  targets: [],
   ...overrides,
 });
 
 const withPlan = (actions: ActionNode[], disciplineId = initialActionPlanDisciplines[0].id) =>
   client({
-    topics: [
+    targets: [
       {
-        id: "t1",
-        title: "Mobilität",
-        notes: "",
+        id: "tg1",
         disciplineId,
-        targets: [
-          {
-            id: "tg1",
-            title: "Selbständig gehen",
-            notes: "Ziel-Notiz",
-            validFrom: "2026-01-01",
-            validTo: "2026-06-30",
-            actions,
-          },
-        ],
+        title: "Selbständig gehen",
+        notes: "Ziel-Notiz",
+        validFrom: "2026-01-01",
+        validTo: "2026-06-30",
+        actions,
       },
     ],
   });
@@ -79,7 +72,6 @@ describe("buildPlanningExportRows", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
       Dossier: "Anna Muster",
-      Schwerpunkt: "Mobilität",
       Ziel: "Selbständig gehen",
       Zielbeschreibung: "Ziel-Notiz",
       "Ziel gültig ab": "2026-01-01",
@@ -166,30 +158,22 @@ describe("buildPlanningExportRows", () => {
     expect(rows.map((row) => row.Handlung)).toEqual(["Geplant"]);
   });
 
-  it("gibt Ziele ohne Handlung und Schwerpunkte ohne Ziel mit leeren Spalten aus", () => {
+  it("gibt Ziele ohne Handlung mit leeren Handlungs-Spalten aus", () => {
     const rows = buildPlanningExportRows(
       [
         client({
-          topics: [
-            { id: "t1", title: "Ohne Ziel", notes: "", targets: [] },
-            {
-              id: "t2",
-              title: "Mit Ziel",
-              notes: "",
-              targets: [{ id: "tg1", title: "Ziel ohne Handlung", notes: "", actions: [] }],
-            },
+          targets: [
+            { id: "tg1", title: "Ziel ohne Handlung", notes: "", actions: [] },
           ],
         }),
       ],
       options,
     );
 
-    expect(rows).toHaveLength(2);
-    expect(rows.find((row) => row.Schwerpunkt === "Ohne Ziel")).toMatchObject({ Ziel: "" });
-    const ohneHandlung = rows.find((row) => row.Schwerpunkt === "Mit Ziel");
-    expect(ohneHandlung).toMatchObject({ Ziel: "Ziel ohne Handlung" });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ Ziel: "Ziel ohne Handlung" });
     // Handlungs-Spalten bleiben leer und werden beim Download zu leeren Zellen
-    expect(ohneHandlung?.Handlung ?? "").toBe("");
+    expect(rows[0].Handlung ?? "").toBe("");
   });
 
   it("sortiert nach Klient/in und innerhalb des Ziels nach Zeitplan", () => {

@@ -18,7 +18,6 @@ import type {
   RecurrenceType,
   ResultRequirement,
   TargetNode,
-  TopicNode,
   Weekday,
 } from "@/types/assessment";
 
@@ -26,7 +25,6 @@ export const PLANNING_EXPORT_HEADERS = [
   CLIENT_REFERENCE_HEADER,
   "Dossier",
   "Disziplin",
-  "Schwerpunkt",
   "Ziel",
   "Zielbeschreibung",
   "Ziel gültig ab",
@@ -184,44 +182,38 @@ export const buildPlanningExportRows = (
     clientReferenceNumbers = buildClientReferenceNumbers(clients),
   }: PlanningExportOptions = {},
 ): PlanningExportRow[] => {
-  const disciplineTitle = (topic: TopicNode) =>
-    disciplines.find((discipline) => discipline.id === topic.disciplineId)?.title ??
-    topic.disciplineId ??
+  const disciplineTitle = (target: TargetNode) =>
+    disciplines.find((discipline) => discipline.id === target.disciplineId)?.title ??
+    target.disciplineId ??
     "Ohne Disziplin";
 
   const clientName = (client: Client) => `${client.firstName} ${client.lastName}`.trim();
 
-  const baseRow = (client: Client, topic: TopicNode, target?: TargetNode): PlanningExportRow => ({
+  const baseRow = (client: Client, target: TargetNode): PlanningExportRow => ({
     [CLIENT_REFERENCE_HEADER]: clientReferenceNumbers.get(client.id) ?? "",
     Dossier: clientName(client),
-    Disziplin: disciplineTitle(topic),
-    Schwerpunkt: topic.title,
-    Ziel: target?.title ?? "",
-    Zielbeschreibung: target?.notes ?? "",
-    "Ziel gültig ab": target?.validFrom ?? "",
-    "Ziel gültig bis": target?.validTo ?? "",
+    Disziplin: disciplineTitle(target),
+    Ziel: target.title,
+    Zielbeschreibung: target.notes,
+    "Ziel gültig ab": target.validFrom ?? "",
+    "Ziel gültig bis": target.validTo ?? "",
   });
 
   return [...clients]
     .sort((a, b) => clientName(a).localeCompare(clientName(b)))
     .flatMap((client) =>
-      [...client.topics]
+      [...client.targets]
         .sort(
           (a, b) =>
             disciplineTitle(a).localeCompare(disciplineTitle(b)) || a.title.localeCompare(b.title),
         )
-        .flatMap((topic) => {
-          if (topic.targets.length === 0) return [baseRow(client, topic)];
-
-          return [...topic.targets]
-            .sort((a, b) => a.title.localeCompare(b.title))
             .flatMap((target) => {
               // Bedarfs-Durchführungen und ungeplante Handlungen sind Umsetzungs-Daten,
               // keine eigenen Plan-Handlungen (siehe Planungsansicht).
               const plannedActions = target.actions.filter(
                 (action) => !action.isUnplanned && !action.isOnDemandOccurrence,
               );
-              if (plannedActions.length === 0) return [baseRow(client, topic, target)];
+              if (plannedActions.length === 0) return [baseRow(client, target)];
 
               const groups = new Map<string, ActionNode[]>();
               plannedActions.forEach((action) => {
@@ -242,7 +234,7 @@ export const buildPlanningExportRows = (
                 .map((nodes) => {
                   const action = nodes[0];
                   return {
-                    ...baseRow(client, topic, target),
+                    ...baseRow(client, target),
                     Handlung: action.title,
                     Beschreibung: action.notes,
                     Planungsart: action.recurrence === "on_demand" ? "Nach Bedarf" : "Geplant",
@@ -263,7 +255,6 @@ export const buildPlanningExportRows = (
                       : "",
                   };
                 });
-            });
-        }),
+            }),
     );
 };

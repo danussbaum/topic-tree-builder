@@ -1,7 +1,7 @@
 ﻿import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AssessmentOutline, UnplannedActionDialog } from "@/components/assessment/AssessmentOutline";
-import type { ActionStatus, TopicNode } from "@/types/assessment";
+import type { ActionStatus, TargetNode } from "@/types/assessment";
 import { DAY_PART_SEED_IDS } from "@/lib/day-parts";
 import {
   ACTION_PLAN_TEMPLATES_STORAGE_KEY,
@@ -9,29 +9,22 @@ import {
   buildDefaultTemplateFields,
 } from "@/lib/action-plan-templates";
 
-const topics: TopicNode[] = [
+const targets: TargetNode[] = [
   {
-    id: "topic-1",
-    title: "Schwerpunkt",
+    id: "target-1",
+    title: "Ziel",
     notes: "",
-    targets: [
+    actions: [
       {
-        id: "target-1",
-        title: "Ziel",
+        id: "action-past-open",
+        groupId: "action-past-open",
+        title: "Vergangene offene Handlung",
         notes: "",
-        actions: [
-          {
-            id: "action-past-open",
-            groupId: "action-past-open",
-            title: "Vergangene offene Handlung",
-            notes: "",
-            status: "open",
-            done: false,
-            validFrom: "2026-05-01",
-            recurrence: "daily",
-            plannedMinutes: 30,
-          },
-        ],
+        status: "open",
+        done: false,
+        validFrom: "2026-05-01",
+        recurrence: "daily",
+        plannedMinutes: 30,
       },
     ],
   },
@@ -51,33 +44,25 @@ describe("AssessmentOutline confirmation actions", () => {
         confirmationPeriod="lastNDays"
         lastNDays={3}
         clientName="Test Klient"
-        topics={[
+        targets={[
           {
-            ...topics[0],
-            targets: [
+            ...targets[0],
+            actions: [
               {
-                ...topics[0].targets[0],
-                actions: [
-                  {
-                    ...topics[0].targets[0].actions[0],
-                    category: "a",
-                  },
-                ],
+                ...targets[0].actions[0],
+                category: "a",
               },
             ],
           },
         ]}
         hideConfirmationHeader
         filterModel={{ statuses: ["open", "postponed"] }}
-        onUpdateTopic={vi.fn()}
         onUpdateTarget={vi.fn()}
         onUpdateAction={vi.fn()}
         onUpdateActionField={vi.fn()}
         onConfirmAction={vi.fn()}
         onAddTarget={vi.fn()}
         onAddAction={vi.fn()}
-        onAddTopic={vi.fn()}
-        onDeleteTopic={vi.fn()}
         onDeleteTarget={vi.fn()}
         onDeleteAction={vi.fn()}
         onUpdateActionGroup={vi.fn()}
@@ -99,18 +84,15 @@ describe("AssessmentOutline confirmation actions", () => {
         confirmationPeriod="lastNDays"
         lastNDays={3}
         clientName="Test Klient"
-        topics={topics}
+        targets={targets}
         hideConfirmationHeader
         filterModel={{ statuses: ["open", "postponed"] }}
-        onUpdateTopic={vi.fn()}
         onUpdateTarget={vi.fn()}
         onUpdateAction={vi.fn()}
         onUpdateActionField={vi.fn()}
         onConfirmAction={vi.fn()}
         onAddTarget={vi.fn()}
         onAddAction={vi.fn()}
-        onAddTopic={vi.fn()}
-        onDeleteTopic={vi.fn()}
         onDeleteTarget={vi.fn()}
         onDeleteAction={vi.fn()}
         onUpdateActionGroup={vi.fn()}
@@ -133,18 +115,15 @@ describe("AssessmentOutline confirmation actions", () => {
         confirmationPeriod="lastNDays"
         lastNDays={3}
         clientName="Test Klient"
-        topics={topics}
+        targets={targets}
         hideConfirmationHeader
         filterModel={{ statuses: ["open", "postponed"] }}
-        onUpdateTopic={vi.fn()}
         onUpdateTarget={vi.fn()}
         onUpdateAction={vi.fn()}
         onUpdateActionField={vi.fn()}
         onConfirmAction={vi.fn()}
         onAddTarget={vi.fn()}
         onAddAction={vi.fn()}
-        onAddTopic={vi.fn()}
-        onDeleteTopic={vi.fn()}
         onDeleteTarget={vi.fn()}
         onDeleteAction={vi.fn()}
         onUpdateActionGroup={vi.fn()}
@@ -174,20 +153,17 @@ describe("AssessmentOutline confirmation actions", () => {
         confirmationPeriod="lastNDays"
         lastNDays={3}
         clientName="Test Klient"
-        topics={topics}
+        targets={targets}
         hideConfirmationHeader
         bulkNotDoneMode
         onBulkNotDoneModeChange={onBulkNotDoneModeChange}
         filterModel={{ statuses: ["open", "postponed"] }}
-        onUpdateTopic={vi.fn()}
         onUpdateTarget={vi.fn()}
         onUpdateAction={vi.fn()}
         onUpdateActionField={vi.fn()}
         onConfirmAction={vi.fn()}
         onAddTarget={vi.fn()}
         onAddAction={vi.fn()}
-        onAddTopic={vi.fn()}
-        onDeleteTopic={vi.fn()}
         onDeleteTarget={vi.fn()}
         onDeleteAction={vi.fn()}
         onUpdateActionGroup={vi.fn()}
@@ -213,20 +189,17 @@ describe("AssessmentOutline confirmation actions", () => {
         confirmationPeriod="lastNDays"
         lastNDays={3}
         clientName="Test Klient"
-        topics={topics}
+        targets={targets}
         hideConfirmationHeader
         bulkNotDoneMode
         onBulkNotDoneModeChange={onBulkNotDoneModeChange}
         filterModel={{ statuses: ["open", "postponed"] }}
-        onUpdateTopic={vi.fn()}
         onUpdateTarget={vi.fn()}
         onUpdateAction={vi.fn()}
         onUpdateActionField={vi.fn()}
         onConfirmAction={onConfirmAction}
         onAddTarget={vi.fn()}
         onAddAction={vi.fn()}
-        onAddTopic={vi.fn()}
-        onDeleteTopic={vi.fn()}
         onDeleteTarget={vi.fn()}
         onDeleteAction={vi.fn()}
         onUpdateActionGroup={vi.fn()}
@@ -250,7 +223,6 @@ describe("AssessmentOutline confirmation actions", () => {
     expect(onConfirmAction).toHaveBeenCalledTimes(2);
     expect(onConfirmAction).toHaveBeenNthCalledWith(
       1,
-      "topic-1",
       "target-1",
       "action-past-open",
       { status: "not_done", reason: "Klient war abwesend" },
@@ -258,7 +230,6 @@ describe("AssessmentOutline confirmation actions", () => {
     );
     expect(onConfirmAction).toHaveBeenNthCalledWith(
       2,
-      "topic-1",
       "target-1",
       "action-past-open",
       { status: "not_done", reason: "Klient war abwesend" },
@@ -326,60 +297,53 @@ describe("AssessmentOutline confirmation actions", () => {
 
   it("deaktiviert alle gesperrten Vorlagenfelder in der Planung", async () => {
     const onUpdateActionField = vi.fn();
-    const lockedTopics: TopicNode[] = [
+    const lockedTopics: TargetNode[] = [
       {
-        id: "topic-locked",
-        title: "Schwerpunkt",
+        id: "target-locked",
+        title: "Ziel",
         notes: "",
-        targets: [
+        actions: [
           {
-            id: "target-locked",
-            title: "Ziel",
-            notes: "",
-            actions: [
-              {
-                id: "action-locked-monthly",
-                groupId: "grp-monthly",
-                title: "Gesperrte Vorlage",
-                notes: "Fixe Beschreibung",
-                resourceIds: ["resource-rutschbrett"],
-                status: "open",
-                done: false,
-                validFrom: "2026-05-01",
-                recurrence: "monthly",
-                recurrenceMonthlyPattern: "first_day",
-                category: "b",
-                dayPart: DAY_PART_SEED_IDS.morning,
-                plannedMinutes: 25,
-                requiredPersons: 2,
-                resultRequirement: "required",
-                templateLockedFields: [
-                  "title",
-                  "notes",
-                  "resourceIds",
-                  "category",
-                  "dayPart",
-                  "scheduledTime",
-                  "plannedMinutes",
-                  "requiredPersons",
-                  "resultRequirement",
-                  "recurrence",
-                  "recurrenceMonthlyPattern",
-                ],
-              },
-              {
-                id: "action-locked-weekly",
-                groupId: "grp-weekly",
-                title: "Gesperrte Wochentage",
-                notes: "",
-                status: "open",
-                done: false,
-                validFrom: "2026-05-01",
-                recurrence: "weekly",
-                recurrenceWeekdays: ["monday"],
-                templateLockedFields: ["recurrenceWeekdays"],
-              },
+            id: "action-locked-monthly",
+            groupId: "grp-monthly",
+            title: "Gesperrte Vorlage",
+            notes: "Fixe Beschreibung",
+            resourceIds: ["resource-rutschbrett"],
+            status: "open",
+            done: false,
+            validFrom: "2026-05-01",
+            recurrence: "monthly",
+            recurrenceMonthlyPattern: "first_day",
+            category: "b",
+            dayPart: DAY_PART_SEED_IDS.morning,
+            plannedMinutes: 25,
+            requiredPersons: 2,
+            resultRequirement: "required",
+            templateLockedFields: [
+              "title",
+              "notes",
+              "resourceIds",
+              "category",
+              "dayPart",
+              "scheduledTime",
+              "plannedMinutes",
+              "requiredPersons",
+              "resultRequirement",
+              "recurrence",
+              "recurrenceMonthlyPattern",
             ],
+          },
+          {
+            id: "action-locked-weekly",
+            groupId: "grp-weekly",
+            title: "Gesperrte Wochentage",
+            notes: "",
+            status: "open",
+            done: false,
+            validFrom: "2026-05-01",
+            recurrence: "weekly",
+            recurrenceWeekdays: ["monday"],
+            templateLockedFields: ["recurrenceWeekdays"],
           },
         ],
       },
@@ -389,10 +353,9 @@ describe("AssessmentOutline confirmation actions", () => {
       selectedDate: "2026-05-12",
       onSelectedDateChange: vi.fn(),
       clientName: "Test Klient",
-      topics: lockedTopics,
+      targets: lockedTopics,
       hideConfirmationHeader: true,
       viewMode: "planning" as const,
-      onUpdateTopic: vi.fn(),
       onUpdateTarget: vi.fn(),
       onUpdateAction: vi.fn(),
       onUpdateActionField,
@@ -400,10 +363,8 @@ describe("AssessmentOutline confirmation actions", () => {
       onConfirmAction: vi.fn(),
       onAddTarget: vi.fn(),
       onAddAction: vi.fn(),
-      onAddTopic: vi.fn(),
       onUpdateTopicDiscipline: vi.fn(),
       onReactivateTarget: vi.fn(),
-      onDeleteTopic: vi.fn(),
       onDeleteTarget: vi.fn(),
       onDeleteAction: vi.fn(),
       onDeleteActionGroup: vi.fn(),
@@ -413,7 +374,7 @@ describe("AssessmentOutline confirmation actions", () => {
     // bearbeitet (und dabei gemäss Vorlage gesperrt) werden sie im Seitenpanel.
     const { unmount } = render(<AssessmentOutline {...outlineProps} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Schwerpunkt" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Ziel" })[0]);
 
     const monthlyRow = screen.getByText("Gesperrte Vorlage").closest("li");
     expect(monthlyRow).not.toBeNull();
@@ -436,7 +397,7 @@ describe("AssessmentOutline confirmation actions", () => {
 
     // Zweite Handlung: nur die Wochentage sind gesperrt.
     render(<AssessmentOutline {...outlineProps} />);
-    fireEvent.click(screen.getByRole("button", { name: "Schwerpunkt" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Ziel" })[0]);
     const weeklyRow = screen.getByText("Gesperrte Wochentage").closest("li");
     expect(weeklyRow).not.toBeNull();
     fireEvent.click(within(weeklyRow as HTMLElement).getByRole("button", { name: "Handlung bearbeiten" }));
@@ -638,37 +599,30 @@ describe("AssessmentOutline confirmation actions", () => {
         onSelectedDateChange={vi.fn()}
         confirmationPeriod="day"
         clientName="Test Klient"
-        topics={[
+        targets={[
           {
-            id: "topic-unplanned",
-            title: "Ungeplante Handlungen",
+            id: "target-unplanned",
+            title: "Direkt in der Umsetzung erfasst",
             notes: "",
-            targets: [
+            actions: [
               {
-                id: "target-unplanned",
-                title: "Direkt in der Umsetzung erfasst",
+                id: "unplanned-confirmed",
+                groupId: "unplanned-confirmed",
+                title: "Spontane Begleitung",
                 notes: "",
-                actions: [
-                  {
-                    id: "unplanned-confirmed",
-                    groupId: "unplanned-confirmed",
-                    title: "Spontane Begleitung",
-                    notes: "",
+                status: "done_as_planned",
+                done: true,
+                validFrom: "2026-05-12",
+                validTo: "2026-05-12",
+                recurrence: "daily",
+                isUnplanned: true,
+                confirmations: {
+                  "2026-05-12": {
                     status: "done_as_planned",
                     done: true,
-                    validFrom: "2026-05-12",
-                    validTo: "2026-05-12",
-                    recurrence: "daily",
-                    isUnplanned: true,
-                    confirmations: {
-                      "2026-05-12": {
-                        status: "done_as_planned",
-                        done: true,
-                        actualMinutes: 20,
-                      },
-                    },
+                    actualMinutes: 20,
                   },
-                ],
+                },
               },
             ],
           },
@@ -676,15 +630,12 @@ describe("AssessmentOutline confirmation actions", () => {
         hideConfirmationHeader
         filterModel={{ statuses: ["open", "postponed"] }}
         transientUnplannedActionIds={new Set(["unplanned-confirmed"])}
-        onUpdateTopic={vi.fn()}
         onUpdateTarget={vi.fn()}
         onUpdateAction={vi.fn()}
         onUpdateActionField={vi.fn()}
         onConfirmAction={vi.fn()}
         onAddTarget={vi.fn()}
         onAddAction={vi.fn()}
-        onAddTopic={vi.fn()}
-        onDeleteTopic={vi.fn()}
         onDeleteTarget={vi.fn()}
         onDeleteAction={vi.fn()}
         onUpdateActionGroup={vi.fn()}
@@ -703,52 +654,42 @@ describe("AssessmentOutline confirmation actions", () => {
       onSelectedDateChange: vi.fn(),
       confirmationPeriod: "day" as const,
       clientName: "Test Klient",
-      topics: [
+      targets: [
         {
-          id: "topic-unplanned",
-          title: "Ungeplante Handlungen",
+          id: "target-unplanned",
+          title: "Direkt in der Umsetzung erfasst",
           notes: "",
-          targets: [
+          actions: [
             {
-              id: "target-unplanned",
-              title: "Direkt in der Umsetzung erfasst",
+              id: "unplanned-confirmed",
+              groupId: "unplanned-confirmed",
+              title: "Spontane Begleitung",
               notes: "",
-              actions: [
-                {
-                  id: "unplanned-confirmed",
-                  groupId: "unplanned-confirmed",
-                  title: "Spontane Begleitung",
-                  notes: "",
+              status: "done_as_planned" as const,
+              done: true,
+              validFrom: "2026-05-12",
+              validTo: "2026-05-12",
+              recurrence: "daily" as const,
+              isUnplanned: true,
+              confirmations: {
+                "2026-05-12": {
                   status: "done_as_planned" as const,
                   done: true,
-                  validFrom: "2026-05-12",
-                  validTo: "2026-05-12",
-                  recurrence: "daily" as const,
-                  isUnplanned: true,
-                  confirmations: {
-                    "2026-05-12": {
-                      status: "done_as_planned" as const,
-                      done: true,
-                      actualMinutes: 20,
-                    },
-                  },
+                  actualMinutes: 20,
                 },
-              ],
+              },
             },
           ],
         },
       ],
       hideConfirmationHeader: true,
       filterModel: { statuses: ["open", "postponed"] as ActionStatus[] },
-      onUpdateTopic: vi.fn(),
       onUpdateTarget: vi.fn(),
       onUpdateAction: vi.fn(),
       onUpdateActionField: vi.fn(),
       onConfirmAction: vi.fn(),
       onAddTarget: vi.fn(),
       onAddAction: vi.fn(),
-      onAddTopic: vi.fn(),
-      onDeleteTopic: vi.fn(),
       onDeleteTarget: vi.fn(),
       onDeleteAction: vi.fn(),
       onUpdateActionGroup: vi.fn(),
@@ -785,44 +726,34 @@ describe("AssessmentOutline confirmation actions", () => {
         onSelectedDateChange={vi.fn()}
         confirmationPeriod="day"
         clientName="Test Klient"
-        topics={[
+        targets={[
           {
-            id: "topic-unplanned",
-            title: "Ungeplante Handlungen",
+            id: "target-unplanned",
+            title: "Direkt in der Umsetzung erfasst",
             notes: "",
-            targets: [
+            actions: [
               {
-                id: "target-unplanned",
-                title: "Direkt in der Umsetzung erfasst",
+                id: "unplanned-open",
+                groupId: "unplanned-open",
+                title: "Spontane Begleitung",
                 notes: "",
-                actions: [
-                  {
-                    id: "unplanned-open",
-                    groupId: "unplanned-open",
-                    title: "Spontane Begleitung",
-                    notes: "",
-                    status: "open",
-                    done: false,
-                    validFrom: "2026-05-12",
-                    recurrence: "daily",
-                    isUnplanned: true,
-                  },
-                ],
+                status: "open",
+                done: false,
+                validFrom: "2026-05-12",
+                recurrence: "daily",
+                isUnplanned: true,
               },
             ],
           },
         ]}
         hideConfirmationHeader
         filterModel={{ statuses: ["open", "postponed"] }}
-        onUpdateTopic={vi.fn()}
         onUpdateTarget={vi.fn()}
         onUpdateAction={vi.fn()}
         onUpdateActionField={vi.fn()}
         onConfirmAction={vi.fn()}
         onAddTarget={vi.fn()}
         onAddAction={vi.fn()}
-        onAddTopic={vi.fn()}
-        onDeleteTopic={vi.fn()}
         onDeleteTarget={vi.fn()}
         onDeleteAction={onDeleteAction}
         onUpdateActionGroup={vi.fn()}
@@ -839,7 +770,6 @@ describe("AssessmentOutline confirmation actions", () => {
     fireEvent.click(dialog.getByRole("button", { name: "Löschen" }));
 
     expect(onDeleteAction).toHaveBeenCalledWith(
-      "topic-unplanned",
       "target-unplanned",
       "unplanned-open",
     );
@@ -848,55 +778,48 @@ describe("AssessmentOutline confirmation actions", () => {
 });
 
 describe("Rollover von Nacht-Handlungen", () => {
-  const nightTopics: TopicNode[] = [
+  const nightTopics: TargetNode[] = [
     {
-      id: "topic-1",
-      title: "Schwerpunkt",
+      id: "target-1",
+      title: "Ziel",
       notes: "",
-      targets: [
+      actions: [
         {
-          id: "target-1",
-          title: "Ziel",
+          id: "act-2200",
+          groupId: "grp-night",
+          title: "Umlagern 22 Uhr",
           notes: "",
-          actions: [
-            {
-              id: "act-2200",
-              groupId: "grp-night",
-              title: "Umlagern 22 Uhr",
-              notes: "",
-              status: "open",
-              done: false,
-              validFrom: "2026-08-01",
-              validTo: "2026-08-01",
-              recurrence: "daily",
-              scheduledTime: "22:00",
-            },
-            {
-              id: "act-0100",
-              groupId: "grp-night",
-              title: "Umlagern 1 Uhr",
-              notes: "",
-              status: "open",
-              done: false,
-              validFrom: "2026-08-01",
-              validTo: "2026-08-01",
-              recurrence: "daily",
-              scheduledTime: "01:00",
-            },
-            {
-              // Tageszeit-Modus ohne Uhrzeit: rollt nie, bleibt am Planungstag.
-              id: "act-morning",
-              groupId: "grp-morning",
-              title: "Frühdienst ohne Uhrzeit",
-              notes: "",
-              status: "open",
-              done: false,
-              validFrom: "2026-08-01",
-              validTo: "2026-08-01",
-              recurrence: "daily",
-              dayPart: DAY_PART_SEED_IDS.morning,
-            },
-          ],
+          status: "open",
+          done: false,
+          validFrom: "2026-08-01",
+          validTo: "2026-08-01",
+          recurrence: "daily",
+          scheduledTime: "22:00",
+        },
+        {
+          id: "act-0100",
+          groupId: "grp-night",
+          title: "Umlagern 1 Uhr",
+          notes: "",
+          status: "open",
+          done: false,
+          validFrom: "2026-08-01",
+          validTo: "2026-08-01",
+          recurrence: "daily",
+          scheduledTime: "01:00",
+        },
+        {
+          // Tageszeit-Modus ohne Uhrzeit: rollt nie, bleibt am Planungstag.
+          id: "act-morning",
+          groupId: "grp-morning",
+          title: "Frühdienst ohne Uhrzeit",
+          notes: "",
+          status: "open",
+          done: false,
+          validFrom: "2026-08-01",
+          validTo: "2026-08-01",
+          recurrence: "daily",
+          dayPart: DAY_PART_SEED_IDS.morning,
         },
       ],
     },
@@ -910,18 +833,15 @@ describe("Rollover von Nacht-Handlungen", () => {
         onSelectedDateChange={vi.fn()}
         confirmationPeriod="day"
         clientName="Test Klient"
-        topics={nightTopics}
+        targets={nightTopics}
         hideConfirmationHeader
         filterModel={{ statuses: ["open", "postponed"] }}
-        onUpdateTopic={vi.fn()}
         onUpdateTarget={vi.fn()}
         onUpdateAction={vi.fn()}
         onUpdateActionField={vi.fn()}
         onConfirmAction={vi.fn()}
         onAddTarget={vi.fn()}
         onAddAction={vi.fn()}
-        onAddTopic={vi.fn()}
-        onDeleteTopic={vi.fn()}
         onDeleteTarget={vi.fn()}
         onDeleteAction={vi.fn()}
         onUpdateActionGroup={vi.fn()}

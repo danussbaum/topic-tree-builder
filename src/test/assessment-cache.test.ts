@@ -19,39 +19,32 @@ const cachedState: CachedAssessmentState = {
       id: "client-1",
       firstName: "Test",
       lastName: "Person",
-      topics: [
+      targets: [
         {
-          id: "topic-1",
-          title: "Schwerpunkt",
+          id: "target-1",
           disciplineId: "discipline-kja-foerderplanung",
+          title: "Ziel",
           notes: "",
-          targets: [
+          actions: [
             {
-              id: "target-1",
-              title: "Ziel",
+              id: "action-1",
+              groupId: "group-1",
+              title: "Handlung",
               notes: "",
-              actions: [
-                {
-                  id: "action-1",
-                  groupId: "group-1",
-                  title: "Handlung",
-                  notes: "",
-                  plannedMinutes: 30,
+              plannedMinutes: 30,
+              serviceType: "spitex-klv-b",
+              validFrom: "2026-05-07",
+              recurrence: "daily",
+              status: "open",
+              done: false,
+              confirmations: {
+                "2026-05-07": {
+                  status: "done_as_planned",
                   serviceType: "spitex-klv-b",
-                  validFrom: "2026-05-07",
-                  recurrence: "daily",
-                  status: "open",
-                  done: false,
-                  confirmations: {
-                    "2026-05-07": {
-                      status: "done_as_planned",
-                      serviceType: "spitex-klv-b",
-                      actualMinutes: 30,
-                      done: true,
-                    },
-                  },
+                  actualMinutes: 30,
+                  done: true,
                 },
-              ],
+              },
             },
           ],
         },
@@ -101,11 +94,11 @@ describe("assessment browser cache", () => {
     });
   });
 
-  it("migriert bestehende Cache-Planungen einmalig zur Inhouse-Spitex", () => {
+  it("ordnet Ziele ohne Disziplin beim Laden der Inhouse-Spitex zu", () => {
     const legacyClients = [
       {
         ...cachedState.clients[0],
-        topics: cachedState.clients[0].topics.map(({ disciplineId: _disciplineId, ...topic }) => topic),
+        targets: cachedState.clients[0].targets.map(({ disciplineId: _disciplineId, ...target }) => target),
       },
     ];
 
@@ -114,7 +107,7 @@ describe("assessment browser cache", () => {
       JSON.stringify({ ...cachedState, clients: legacyClients }),
     );
 
-    expect(loadCachedAssessmentState("2026-01-01", fallbackFilter)?.clients[0].topics[0].disciplineId).toBe(
+    expect(loadCachedAssessmentState("2026-01-01", fallbackFilter)?.clients[0].targets[0].disciplineId).toBe(
       "discipline-inhouse-spitex",
     );
   });
@@ -143,21 +136,15 @@ describe("assessment browser cache", () => {
           id: "client-1",
           firstName: "Test",
           lastName: "Person",
-          topics: [
-            {
-              id: "topic-1",
-              title: "Schwerpunkt",
-              disciplineId: "discipline-inhouse-spitex",
-              notes: "",
-              targets: [{ id: "target-1", title: "Ziel", notes: "", actions }],
-            },
+          targets: [
+            { id: "target-1", title: "Ziel", notes: "", actions, disciplineId: "discipline-inhouse-spitex" },
           ],
         },
       ],
     });
 
     const loadActions = () =>
-      loadCachedAssessmentState("2026-01-01", fallbackFilter)!.clients[0].topics[0].targets[0]
+      loadCachedAssessmentState("2026-01-01", fallbackFilter)!.clients[0].targets[0]
         .actions;
 
     it("überführt Tageszeit plus Uhrzeit in den Uhrzeit-Modus", () => {
@@ -219,54 +206,22 @@ describe("assessment browser cache", () => {
     });
   });
 
-  describe("Ungeplante Handlungen aus Altdaten", () => {
-    it("verschiebt sie beim Laden aus dem Baum an den Klienten", () => {
-      const legacy: CachedAssessmentState = {
+  it("verwirft einen Cache im früheren Format mit Schwerpunkten", () => {
+    window.localStorage.setItem(
+      ASSESSMENT_CACHE_KEY,
+      JSON.stringify({
         ...cachedState,
         clients: [
           {
             id: "client-1",
             firstName: "Test",
             lastName: "Person",
-            topics: [
-              {
-                id: "topic-unplanned",
-                title: "Ungeplante Handlungen",
-                notes: "",
-                targets: [
-                  {
-                    id: "target-unplanned",
-                    title: "Direkt in der Umsetzung erfasst",
-                    notes: "",
-                    actions: [
-                      {
-                        id: "action-u1",
-                        groupId: "group-u1",
-                        title: "Spontane Begleitung",
-                        notes: "",
-                        status: "open",
-                        done: false,
-                        validFrom: "2026-05-12",
-                        validTo: "2026-05-12",
-                        recurrence: "daily",
-                        isUnplanned: true,
-                      },
-                    ],
-                  },
-                ],
-              },
-            ],
+            topics: [{ id: "topic-1", title: "Schwerpunkt", notes: "", targets: [] }],
           },
         ],
-      };
-      window.localStorage.setItem(ASSESSMENT_CACHE_KEY, JSON.stringify(legacy));
+      }),
+    );
 
-      const loaded = loadCachedAssessmentState("2026-01-01", fallbackFilter);
-
-      expect(loaded?.clients[0].topics).toEqual([]);
-      expect(loaded?.clients[0].unplannedActions?.map((a) => a.title)).toEqual([
-        "Spontane Begleitung",
-      ]);
-    });
+    expect(loadCachedAssessmentState("2026-01-01", fallbackFilter)).toBeNull();
   });
 });

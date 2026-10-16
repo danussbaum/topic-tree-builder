@@ -1,7 +1,6 @@
-import type { ActionNode, Client, TopicNode } from "@/types/assessment";
+import type { ActionNode, Client } from "@/types/assessment";
 import type { AssessmentFilterModel } from "@/types/assessment-filter";
 import { LEGACY_DAY_PART_IDS } from "@/lib/day-parts";
-import { UNPLANNED_TARGET_TITLE, UNPLANNED_TOPIC_TITLE } from "@/lib/unplanned-action";
 import {
   APPLICATION_BROWSER_STORAGE_KEYS,
   finishApplicationLogoutClearing,
@@ -12,7 +11,7 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 
 /**
  * Wendet eine Handlungs-Migration auf alle Handlungen eines Klienten an — im
- * Themenbaum und bei den ungeplanten Handlungen, die direkt am Klienten hängen.
+ * Zielbaum und bei den ungeplanten Handlungen, die direkt am Klienten hängen.
  */
 const mapClientActions = (
   clients: Client[],
@@ -20,12 +19,9 @@ const mapClientActions = (
 ): Client[] =>
   clients.map((client) => ({
     ...client,
-    topics: client.topics.map((topic) => ({
-      ...topic,
-      targets: topic.targets.map((target) => ({
-        ...target,
-        actions: target.actions.map(mapAction),
-      })),
+    targets: client.targets.map((target) => ({
+      ...target,
+      actions: target.actions.map(mapAction),
     })),
     ...(client.unplannedActions
       ? { unplannedActions: client.unplannedActions.map(mapAction) }
@@ -54,42 +50,6 @@ const migrateCachedDayParts = (clients: Client[]): Client[] =>
     return mapped ? { ...action, dayPart: mapped } : action;
   });
 
-/**
- * Früher lagen ungeplante Handlungen in einem synthetischen Thema/Ziel im Baum.
- * Sie gehören direkt an den Klienten; das leergeräumte synthetische Thema wird
- * entfernt. Idempotent: ohne isUnplanned-Nodes im Baum bleibt alles unverändert.
- */
-export const migrateUnplannedActionsToClient = (clients: Client[]): Client[] =>
-  clients.map((client) => {
-    const extracted: ActionNode[] = [];
-    const topics = client.topics
-      .map((topic) => ({
-        ...topic,
-        targets: topic.targets
-          .map((target) => {
-            const remaining = target.actions.filter((action) => {
-              if (!action.isUnplanned) return true;
-              extracted.push(action);
-              return false;
-            });
-            return { ...target, actions: remaining };
-          })
-          // Nur das synthetische Ziel bzw. Thema wegräumen, keine echten Plan-Knoten.
-          .filter(
-            (target) =>
-              target.actions.length > 0 || target.title !== UNPLANNED_TARGET_TITLE,
-          ),
-      }))
-      .filter((topic) => topic.targets.length > 0 || topic.title !== UNPLANNED_TOPIC_TITLE);
-
-    if (extracted.length === 0) return client;
-    return {
-      ...client,
-      topics,
-      unplannedActions: [...(client.unplannedActions ?? []), ...extracted],
-    };
-  });
-
 export type ConfirmationPeriod = "day" | "week" | "month" | "lastNDays";
 
 export const DEFAULT_LAST_N_DAYS = 3;
@@ -98,19 +58,29 @@ export const ASSESSMENT_CACHE_KEY = APPLICATION_BROWSER_STORAGE_KEYS[0];
 
 export const DEFAULT_CACHED_DISCIPLINE_ID = "discipline-inhouse-spitex";
 
-const migrateCachedTopicsToDisciplines = (clients: Client[]): Client[] =>
+const migrateCachedTargetsToDisciplines = (clients: Client[]): Client[] =>
   clients.map((client) => ({
     ...client,
-    topics: Array.isArray(client.topics)
-      ? client.topics.map((topic: TopicNode) => ({
-          ...topic,
-          disciplineId:
-            typeof topic.disciplineId === "string" && topic.disciplineId.trim()
-              ? topic.disciplineId
-              : DEFAULT_CACHED_DISCIPLINE_ID,
-        }))
-      : [],
+    targets: client.targets.map((target) => ({
+      ...target,
+      disciplineId:
+        typeof target.disciplineId === "string" && target.disciplineId.trim()
+          ? target.disciplineId
+          : DEFAULT_CACHED_DISCIPLINE_ID,
+    })),
   }));
+
+/**
+ * Früher hingen Ziele unter Schwerpunkten (client.topics). Ein solcher Cache wird
+ * bewusst nicht migriert, sondern verworfen — es greift dann der Seed.
+ */
+const hasCurrentClientShape = (clients: unknown[]): clients is Client[] =>
+  clients.every(
+    (client) =>
+      typeof client === "object" &&
+      client !== null &&
+      Array.isArray((client as Partial<Client>).targets),
+  );
 
 export interface CachedAssessmentState {
   viewMode: "planning" | "confirmation" | "evaluation" | "auswertungen";
@@ -143,6 +113,7 @@ export const loadCachedAssessmentState = (
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<CachedAssessmentState>;
     if (!Array.isArray(parsed.clients) || !Array.isArray(parsed.selectedClientIds)) return null;
+    if (!hasCurrentClientShape(parsed.clients)) return null;
     return {
       viewMode:
         parsed.viewMode === "confirmation"
@@ -165,11 +136,7 @@ export const loadCachedAssessmentState = (
           ? Math.floor(parsed.lastNDays)
           : DEFAULT_LAST_N_DAYS,
       clients: migrateCachedDayParts(
-        migrateActionNodeGroupIds(
-          migrateUnplannedActionsToClient(
-            migrateCachedTopicsToDisciplines(parsed.clients as Client[]),
-          ),
-        ),
+        migrateActionNodeGroupIds(migrateCachedTargetsToDisciplines(parsed.clients)),
       ),
       selectedClientIds: parsed.selectedClientIds,
       confirmationFilter: parsed.confirmationFilter ?? fallbackConfirmationFilter,

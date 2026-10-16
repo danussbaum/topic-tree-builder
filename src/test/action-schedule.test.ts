@@ -7,7 +7,7 @@ import {
   getTemplateValidationIssues,
   initialTemplates,
 } from "@/lib/action-plan-templates";
-import { buildInhouseSpitexSeedTopics } from "@/lib/inhouse-spitex-seed";
+import { buildInhouseSpitexSeedTargets } from "@/lib/inhouse-spitex-seed";
 import { buildUnplannedActionNodes } from "@/lib/unplanned-action";
 
 describe("getScheduleIssues", () => {
@@ -51,9 +51,7 @@ describe("getScheduleIssues", () => {
 
 describe("Seed und ungeplante Handlungen", () => {
   it("seedet ausschliesslich Handlungen, die in der Umsetzung erscheinen", () => {
-    const actions = buildInhouseSpitexSeedTopics().flatMap((topic) =>
-      topic.targets.flatMap((target) => target.actions),
-    );
+    const actions = buildInhouseSpitexSeedTargets().flatMap((target) => target.actions);
     expect(actions.length).toBeGreaterThan(0);
     actions.forEach((action) => {
       expect({ title: action.title, issues: getScheduleIssues(action) }).toEqual({

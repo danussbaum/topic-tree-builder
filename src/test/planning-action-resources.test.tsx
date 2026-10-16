@@ -8,16 +8,10 @@ import {
   buildDefaultTemplateRequired,
   saveActionPlanTemplates,
 } from "@/lib/action-plan-templates";
-import type { TopicNode } from "@/types/assessment";
+import type { TargetNode } from "@/types/assessment";
 
-const topics: TopicNode[] = [
-  {
-    id: "topic-1",
-    title: "Mobilität erhalten",
-    notes: "",
-    disciplineId: "discipline-ihp",
-    targets: [{ id: "goal-a", title: "Ziel A", notes: "", validFrom: "2026-06-01", actions: [] }],
-  },
+const targets: TargetNode[] = [
+  { id: "goal-a", title: "Ziel A", notes: "", validFrom: "2026-06-01", actions: [], disciplineId: "discipline-ihp" },
 ];
 
 const openNewActionPanel = async () => {
@@ -26,9 +20,8 @@ const openNewActionPanel = async () => {
       viewMode="planning"
       selectedDate="2026-05-12"
       onSelectedDateChange={vi.fn()}
-      topics={topics}
+      targets={targets}
       disciplines={[{ id: "discipline-ihp", title: "IHP", authorizedRoleIds: [] }]}
-      onUpdateTopic={vi.fn()}
       onUpdateTarget={vi.fn()}
       onUpdateAction={vi.fn()}
       onUpdateActionField={vi.fn()}
@@ -36,9 +29,6 @@ const openNewActionPanel = async () => {
       onAddTarget={vi.fn()}
       onAddAction={vi.fn()}
       onUpdateActionGroup={vi.fn()}
-      onAddTopic={vi.fn()}
-      onUpdateTopicDiscipline={vi.fn()}
-      onDeleteTopic={vi.fn()}
       onDeleteTarget={vi.fn()}
       onReactivateTarget={vi.fn()}
       onDeleteAction={vi.fn()}
@@ -46,7 +36,7 @@ const openNewActionPanel = async () => {
     />,
   );
 
-  fireEvent.click(screen.getByRole("button", { name: /Mobilität erhalten/ }));
+  fireEvent.click(screen.getByRole("button", { name: /Ziel A/ }));
   fireEvent.click(screen.getByRole("button", { name: /Neue Handlung erfassen/ }));
   return within(await screen.findByRole("dialog"));
 };
@@ -75,7 +65,7 @@ describe("Hilfsmittel-Auswahl in der Planung", () => {
     ]);
   });
 
-  it("bietet ohne Vorlage nur Hilfsmittel der Disziplin des Themas an", async () => {
+  it("bietet ohne Vorlage nur Hilfsmittel der Disziplin des Ziels an", async () => {
     const panel = await openNewActionPanel();
     fireEvent.click(panel.getByRole("button", { name: /Ohne Vorlage/ }));
     openResourceDropdown(panel);

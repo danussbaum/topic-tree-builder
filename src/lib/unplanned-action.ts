@@ -1,7 +1,7 @@
 import type {
   ActionNode,
   Client,
-  TopicNode,
+  TargetNode,
   ActionServiceEntry,
   ActionServiceType,
   ConfirmedOptionalService,
@@ -39,33 +39,23 @@ export interface UnplannedActionDraft {
   dateTo?: string;
 }
 
-/** Stabile Sentinel-IDs des virtuellen Themas/Ziels der ungeplanten Handlungen. */
-export const UNPLANNED_TOPIC_ID = "__unplanned__";
+/** Stabile Sentinel-ID des virtuellen Ziels der ungeplanten Handlungen. */
 export const UNPLANNED_TARGET_ID = "__unplanned__";
-export const UNPLANNED_TOPIC_TITLE = "Ungeplante Handlungen";
-export const UNPLANNED_TARGET_TITLE = "Direkt in der Umsetzung erfasst";
+export const UNPLANNED_TARGET_TITLE = "Ungeplante Handlungen";
 
-export const isUnplannedTopicId = (topicId: string) => topicId === UNPLANNED_TOPIC_ID;
+export const isUnplannedTargetId = (targetId: string) => targetId === UNPLANNED_TARGET_ID;
 
 /**
  * Ungeplante Handlungen liegen direkt am Klienten. Die Umsetzungs-Pipelines erwarten
- * pro Zeile aber ein Thema und ein Ziel, darum wird zur Laufzeit ein virtuelles
- * Thema/Ziel davorgehängt. Bewusst ohne validTo, damit der Abschluss-Filter der
- * Umsetzung sie nicht ausblendet, und ohne Disziplin, weil eine ungeplante Handlung
- * keinem Schwerpunkt und damit keiner Disziplin zugeordnet ist.
+ * pro Zeile aber ein Ziel, darum wird zur Laufzeit ein virtuelles Ziel davorgehängt.
+ * Bewusst ohne validTo, damit der Abschluss-Filter der Umsetzung sie nicht ausblendet,
+ * und ohne Disziplin, weil eine ungeplante Handlung keinem Ziel zugeordnet ist.
  */
-export const buildUnplannedTopic = (client: Client): TopicNode => ({
-  id: UNPLANNED_TOPIC_ID,
-  title: UNPLANNED_TOPIC_TITLE,
+export const buildUnplannedTarget = (client: Client): TargetNode => ({
+  id: UNPLANNED_TARGET_ID,
+  title: UNPLANNED_TARGET_TITLE,
   notes: "",
-  targets: [
-    {
-      id: UNPLANNED_TARGET_ID,
-      title: UNPLANNED_TARGET_TITLE,
-      notes: "",
-      actions: client.unplannedActions ?? [],
-    },
-  ],
+  actions: client.unplannedActions ?? [],
 });
 
 /**

@@ -113,12 +113,8 @@ describe("Tageszeiten: Löschschutz", () => {
       JSON.stringify({
         clients: [
           {
-            topics: [
-              {
-                targets: [
-                  { actions: [{ title: "Lagerung", dayPart: DAY_PART_SEED_IDS.night }] },
-                ],
-              },
+            targets: [
+              { actions: [{ title: "Lagerung", dayPart: DAY_PART_SEED_IDS.night }] },
             ],
           },
         ],
@@ -133,7 +129,7 @@ describe("Tageszeiten: Löschschutz", () => {
       ASSESSMENT_CACHE_KEY,
       JSON.stringify({
         clients: [
-          { topics: [{ targets: [{ actions: [{ title: "Umlagern", scheduledTime: "01:00" }] }] }] },
+          { targets: [{ actions: [{ title: "Umlagern", scheduledTime: "01:00" }] }] },
         ],
       }),
     );

@@ -1,13 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { buildInhouseSpitexSeedTopics } from "@/lib/inhouse-spitex-seed";
+import { buildInhouseSpitexSeedTargets } from "@/lib/inhouse-spitex-seed";
 import { effectiveDayPart, rollsToNextDay } from "@/lib/day-part-rollover";
 import { collectOnDemandCandidates, isOnDemandPlanAction } from "@/lib/on-demand-action";
 import { initialTemplates } from "@/lib/action-plan-templates";
 import { DAY_PART_SEED_IDS } from "@/lib/day-parts";
 
 describe("Beispielplanung Inhouse-Spitex", () => {
-  const actions = buildInhouseSpitexSeedTopics()
-    .flatMap((topic) => topic.targets)
+  const actions = buildInhouseSpitexSeedTargets()
     .flatMap((target) => target.actions);
 
   const umlagern = actions.filter((a) => a.title === "10501 Lagerung der Klientin im Bett");
@@ -35,7 +34,7 @@ describe("Beispielplanung Inhouse-Spitex", () => {
   });
 
   describe("Handlungen nach Bedarf", () => {
-    const topics = buildInhouseSpitexSeedTopics();
+    const targets = buildInhouseSpitexSeedTargets();
     const onDemand = actions.filter(isOnDemandPlanAction);
 
     it("stellt die fachlich passenden Handlungsarten nach Bedarf bereit", () => {
@@ -60,14 +59,14 @@ describe("Beispielplanung Inhouse-Spitex", () => {
       // Ohne Wiederholung erscheint keine der Handlungen von selbst in der Umsetzung.
       expect(onDemand.every((a) => a.recurrence === "on_demand")).toBe(true);
 
-      const candidates = collectOnDemandCandidates(topics, "2026-08-05");
+      const candidates = collectOnDemandCandidates(targets, "2026-08-05");
       expect(candidates.map((entry) => entry.action.title).sort()).toEqual(
         onDemand.map((a) => a.title).sort(),
       );
     });
 
     it("steht vor dem Planungsbeginn noch nicht zur Auswahl", () => {
-      expect(collectOnDemandCandidates(topics, "2026-07-31")).toEqual([]);
+      expect(collectOnDemandCandidates(targets, "2026-07-31")).toEqual([]);
     });
 
     it("belegt die Zeitangabe nur dort vor, wo sie fachlich feststeht", () => {

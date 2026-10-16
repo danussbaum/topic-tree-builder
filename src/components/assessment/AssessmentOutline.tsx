@@ -85,7 +85,6 @@ import type {
   Weekday,
   MonthlyRecurrencePattern,
   RecurrenceType,
-  TopicNode,
   TargetNode,
 } from "@/types/assessment";
 import { DayPartChipSelector } from "@/components/assessment/DayPartChipSelector";
@@ -320,7 +319,7 @@ interface Props {
   confirmationPeriod?: ConfirmationPeriod;
   lastNDays?: number;
   clientName?: string;
-  topics: TopicNode[];
+  targets: TargetNode[];
   disciplines?: ActionPlanDiscipline[];
   hideConfirmationHeader?: boolean;
   bulkNotDoneMode?: boolean;
@@ -330,40 +329,34 @@ interface Props {
   showConfirmed?: boolean;
   filterModel?: AssessmentFilterModel;
   transientUnplannedActionIds?: Set<string>;
-  onUpdateTopic: (topicId: string, field: "title" | "notes", value: string) => void;
   showClosedTargets?: boolean;
   onUpdateTarget: (
-    topicId: string,
     targetId: string,
     field: "title" | "notes" | "validFrom" | "validTo",
     value: string,
   ) => void;
   onUpdateAction: (
-    topicId: string,
     targetId: string,
     actionId: string,
     field: "title" | "notes" | "requiredResources",
     value: string,
   ) => void;
   onUpdateActionField: (
-    topicId: string,
     targetId: string,
     actionId: string,
     field: UpdatableActionField,
     value: number | string | string[] | undefined,
   ) => void;
     onConfirmAction: (
-    topicId: string,
     targetId: string,
     actionId: string,
     payload: ConfirmPayload,
     date?: string,
   ) => void;
-  onAddTarget: (topicId: string) => string;
+  onAddTarget: (disciplineId: string) => string;
   focusTargetId?: string | null;
   onFocusTargetHandled?: () => void;
   onAddAction: (
-    topicId: string,
     targetId: string,
     templateIds: string[],
     overrides?: ActionDraftOverrides,
@@ -371,7 +364,6 @@ interface Props {
   ) => void;
 
   onUpdateActionGroup: (
-    topicId: string,
     targetId: string,
     groupId: string,
     sharedFields: Partial<Omit<ActionNode, "id" | "groupId" | "dayPart" | "scheduledTime" | "confirmations" | "isUnplanned">>
@@ -384,22 +376,16 @@ interface Props {
     draft: UnplannedActionDraft,
   ) => string | void;
   onAddOnDemandAction?: (selection: OnDemandActionSelection) => void;
-  onAddTopic: (disciplineId?: string) => string;
-  focusTopicId?: string | null;
-  onFocusHandled?: () => void;
-  onUpdateTopicDiscipline?: (topicId: string, disciplineId: string) => void;
   onDeleteDiscipline?: (disciplineId: string) => void;
-  onDeleteTopic: (topicId: string) => void;
-  onDeleteTarget: (topicId: string, targetId: string) => void;
-  onReactivateTarget: (topicId: string, targetId: string) => void;
-  onDeleteAction: (topicId: string, targetId: string, actionId: string) => void;
-  onDeleteActionGroup: (topicId: string, targetId: string, groupId: string) => void;
+  onDeleteTarget: (targetId: string) => void;
+  onReactivateTarget: (targetId: string) => void;
+  onDeleteAction: (targetId: string, actionId: string) => void;
+  onDeleteActionGroup: (targetId: string, groupId: string) => void;
 }
 
 type ConfirmationMode = "done_as_planned" | "done_with_deviation" | "not_done" | "postponed";
 
 interface DialogTarget {
-  topicId: string;
   targetId: string;
   dueDate: string;
   action: ActionNode;
@@ -410,7 +396,6 @@ interface DialogTarget {
 
 interface BulkNotDoneTarget {
   key: string;
-  topicId: string;
   targetId: string;
   actionId: string;
   dueDate: string;
@@ -419,7 +404,6 @@ interface BulkNotDoneTarget {
 
 interface BulkDoneAsPlannedTarget {
   key: string;
-  topicId: string;
   targetId: string;
   actionId: string;
   dueDate: string;
@@ -603,8 +587,8 @@ function groupFlatActionsByDateThenDayPart<T extends { action: ActionNode; dueDa
 const buildPlannedDateTime = (date: string, time?: string) =>
   new Date(`${date}T${time || "00:00"}:00`);
 
-const buildBulkNotDoneKey = (topicId: string, targetId: string, actionId: string, dueDate: string) =>
-  `${topicId}::${targetId}::${actionId}::${dueDate}`;
+const buildBulkNotDoneKey = (targetId: string, actionId: string, dueDate: string) =>
+  `${targetId}::${actionId}::${dueDate}`;
 
 const getPostponedLabel = (date?: string, time?: string) => {
   if (!date && !time) return "neuen Zeitpunkt";
@@ -621,7 +605,7 @@ export function AssessmentOutline({
   confirmationPeriod = "day",
   lastNDays = DEFAULT_LAST_N_DAYS,
   clientName,
-  topics,
+  targets,
   disciplines = initialActionPlanDisciplines,
   hideConfirmationHeader,
   bulkNotDoneMode = false,
@@ -631,7 +615,6 @@ export function AssessmentOutline({
   filterModel = DEFAULT_ASSESSMENT_FILTER,
   showClosedTargets = false,
   transientUnplannedActionIds = new Set(),
-  onUpdateTopic,
   onUpdateTarget,
   onUpdateAction,
   onUpdateActionField,
@@ -643,55 +626,37 @@ export function AssessmentOutline({
   onUpdateActionGroup,
   onAddUnplannedAction,
   onAddOnDemandAction,
-  onAddTopic,
-  focusTopicId,
-  onFocusHandled,
-  onUpdateTopicDiscipline,
   onDeleteDiscipline,
-  onDeleteTopic,
   onDeleteTarget,
   onReactivateTarget,
   onDeleteAction,
   onDeleteActionGroup,
 }: Props) {
-  const topicInputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
   const targetInputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
 
   useEffect(() => {
     if (!focusTargetId) return;
-    // Neu angelegtes Ziel direkt im Umbenennen-Modus öffnen — sonst gibt es kein Feld.
+    // Neu angelegtes Ziel als einziges auswählen und direkt im Umbenennen-Modus
+    // öffnen — sonst gibt es kein Feld, das den Fokus übernehmen könnte.
+    setSelectedTargetIds(new Set([focusTargetId]));
     setEditingTargetTitleId(focusTargetId);
-    const el = targetInputRefs.current.get(focusTargetId);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-      el.focus();
-      onFocusTargetHandled?.();
-    }
-  }, [focusTargetId, onFocusTargetHandled]);
-
-  useEffect(() => {
-    if (!focusTopicId) return;
-    // Ein neu angelegter Schwerpunkt geht direkt in den Umbenennen-Modus, sonst
-    // gäbe es kein Eingabefeld, das den Fokus übernehmen könnte.
-    setEditingTopicId(focusTopicId);
-    // rAF: erst nach dem Schliessen von Popover/Dropdown (Radix gibt sonst den
-    // Fokus an seinen Trigger zurück und überschreibt den Feld-Fokus).
+    // rAF: erst nach dem Rendern des Details und dem Schliessen von Popover/Dropdown
+    // (Radix gibt sonst den Fokus an seinen Trigger zurück).
     const raf = requestAnimationFrame(() => {
-      const el = topicInputRefs.current.get(focusTopicId);
+      const el = targetInputRefs.current.get(focusTargetId);
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "center" });
         el.focus();
       }
-      onFocusHandled?.();
+      onFocusTargetHandled?.();
     });
     return () => cancelAnimationFrame(raf);
-  }, [focusTopicId, onFocusHandled]);
+  }, [focusTargetId, onFocusTargetHandled]);
 
   const [panelContext, setPanelContext] = useState<{
     mode: "create" | "edit";
-    topicId: string;
     targetId: string;
-    topicDisciplineId?: string;
+    targetDisciplineId?: string;
     targetValidFrom?: string;
     targetValidTo?: string;
     action?: ActionNode;
@@ -745,94 +710,112 @@ export function AssessmentOutline({
       now,
     );
   const disciplineOptions = disciplines.length > 0 ? disciplines : initialActionPlanDisciplines;
-  const getTopicDisciplineId = (topic: TopicNode) =>
-    topic.disciplineId ?? disciplineOptions[0]?.id ?? "";
+  const getTargetDisciplineId = (target: TargetNode) =>
+    target.disciplineId ?? disciplineOptions[0]?.id ?? "";
   const disciplineById = new Map(
     disciplineOptions.map((discipline) => [discipline.id, discipline]),
   );
-  const topicsByDiscipline = topics.reduce((groups, topic) => {
-    const disciplineId = getTopicDisciplineId(topic);
-    const groupTopics = groups.get(disciplineId) ?? [];
-    groupTopics.push(topic);
-    groups.set(disciplineId, groupTopics);
+  const targetsByDiscipline = targets.reduce((groups, target) => {
+    const disciplineId = getTargetDisciplineId(target);
+    const groupTargets = groups.get(disciplineId) ?? [];
+    groupTargets.push(target);
+    groups.set(disciplineId, groupTargets);
     return groups;
-  }, new Map<string, TopicNode[]>());
-  const topicDisciplineGroups = [
+  }, new Map<string, TargetNode[]>());
+  const targetDisciplineGroups = [
     ...disciplineOptions
       .map((discipline) => ({
         discipline,
-        topics: topicsByDiscipline.get(discipline.id) ?? [],
+        targets: targetsByDiscipline.get(discipline.id) ?? [],
       }))
-      .filter((group) => group.topics.length > 0),
-    ...Array.from(topicsByDiscipline.entries())
+      .filter((group) => group.targets.length > 0),
+    ...Array.from(targetsByDiscipline.entries())
       .filter(([disciplineId]) => !disciplineById.has(disciplineId))
-      .map(([disciplineId, groupTopics]) => ({
+      .map(([disciplineId, groupTargets]) => ({
         discipline: { id: disciplineId, title: "Unbekannte Disziplin", authorizedRoleIds: [] },
-        topics: groupTopics,
+        targets: groupTargets,
       })),
   ];
 
-  // Master-Detail (Planung): Auswahl auf Ebene Schwerpunkt — rechts erscheinen
-  // immer alle Ziele des gewählten Schwerpunkts samt Handlungen. Die Ziele links
-  // sind Sprungmarken in dieses Detail.
-  // Pro Person ist disziplin-übergreifend höchstens ein Schwerpunkt gewählt.
-  // Start: nichts gewählt.
+  // Master-Detail (Planung): links die Ziele gruppiert nach Disziplin, rechts die
+  // gewählten Ziele samt Handlungen. Ziele werden einzeln an-/abgewählt, ein Klick
+  // auf die Disziplin wählt alle ihre Ziele. Gewählt wird nur innerhalb einer
+  // Disziplin: eine Auswahl in einer anderen ersetzt die bisherige. Start: nichts gewählt.
   const resourceCatalog = getActionPlanResources();
-  const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
-  const [editingTopicId, setEditingTopicId] = useState<string | null>(null);
-  const [editingTopicNotesId, setEditingTopicNotesId] = useState<string | null>(null);
+  const [selectedTargetIds, setSelectedTargetIds] = useState<Set<string>>(new Set());
   const [editingTargetTitleId, setEditingTargetTitleId] = useState<string | null>(null);
   const [editingTargetNotesId, setEditingTargetNotesId] = useState<string | null>(null);
-  const goalDetailRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   useEffect(() => {
-    setSelectedTopicId((prev) => (prev && topics.some((t) => t.id === prev) ? prev : null));
-  }, [topics]);
+    setSelectedTargetIds((prev) => {
+      const next = new Set([...prev].filter((id) => targets.some((t) => t.id === id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [targets]);
 
-  const toggleTopic = (topicId: string) =>
-    setSelectedTopicId((prev) => (prev === topicId ? null : topicId));
+  const disciplineIdOfTarget = (targetId: string) => {
+    const target = targets.find((t) => t.id === targetId);
+    return target ? getTargetDisciplineId(target) : undefined;
+  };
 
-  const selectTopic = (topicId: string) => setSelectedTopicId(topicId);
+  /** Auswahl auf die Disziplin beschränken: Ziele anderer Disziplinen fallen weg. */
+  const keepDiscipline = (ids: Set<string>, disciplineId: string | undefined) =>
+    new Set([...ids].filter((id) => disciplineIdOfTarget(id) === disciplineId));
+
+  const toggleTarget = (targetId: string) =>
+    setSelectedTargetIds((prev) => {
+      const next = keepDiscipline(prev, disciplineIdOfTarget(targetId));
+      if (next.has(targetId)) next.delete(targetId);
+      else next.add(targetId);
+      return next;
+    });
+
+  // Sind schon alle Ziele der Disziplin gewählt, hebt der Klick die Auswahl wieder auf.
+  const toggleDisciplineTargets = (disciplineTargetIds: string[]) =>
+    setSelectedTargetIds((prev) => {
+      const allSelected = disciplineTargetIds.every((id) => prev.has(id));
+      return allSelected ? new Set() : new Set(disciplineTargetIds);
+    });
+
+  const hasSelection = selectedTargetIds.size > 0;
+  // Erstes gewähltes Ziel in der Reihenfolge der Navigation — daran richtet sich das Detail aus.
+  const firstSelectedTargetId = targetDisciplineGroups
+    .flatMap((group) => group.targets)
+    .find((target) => selectedTargetIds.has(target.id) && (showClosedTargets || !isTargetClosed(target)))?.id;
 
   const masterColumnRef = useRef<HTMLDivElement | null>(null);
   const disciplineSectionRefs = useRef<Map<string, HTMLElement>>(new Map());
-  const topicBlockRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const targetRowRefs = useRef<Map<string, HTMLLIElement>>(new Map());
 
-  // Beim Anwählen eines Schwerpunkts die Personen-Zeile an den oberen Rand scrollen,
-  // damit die gewählte Disziplin-Box und die Ziele rechts zusammen im Blick sind.
+  // Bei der ersten Auswahl die Personen-Zeile an den oberen Rand scrollen, damit
+  // Navigation und Detail rechts zusammen im Blick sind. Weitere An-/Abwahlen
+  // scrollen nicht, sonst springt die Ansicht bei jedem Klick.
   useEffect(() => {
-    if (!selectedTopicId) return;
+    if (!hasSelection) return;
     const clientBlock = masterColumnRef.current?.closest("[data-client-block]");
     clientBlock?.scrollIntoView({ block: "start", behavior: "smooth" });
-  }, [selectedTopicId]);
+  }, [hasSelection]);
 
-  // Das Detail beginnt auf der Höhe des gewählten Schwerpunkts.
+  // Das Detail beginnt auf der Höhe des ersten gewählten Ziels.
   // Nur im zweispaltigen Layout — einspaltig entstünde sonst eine Leerfläche.
   const [detailOffset, setDetailOffset] = useState(0);
   useLayoutEffect(() => {
     const applyOffset = () => {
-      const topicBlock = selectedTopicId ? topicBlockRefs.current.get(selectedTopicId) : undefined;
+      const targetRow = firstSelectedTargetId ? targetRowRefs.current.get(firstSelectedTargetId) : undefined;
       const master = masterColumnRef.current;
       const isTwoColumn = typeof window !== "undefined" && window.matchMedia("(min-width: 768px)").matches;
-      if (!topicBlock || !master || !isTwoColumn) {
+      if (!targetRow || !master || !isTwoColumn) {
         setDetailOffset(0);
         return;
       }
       setDetailOffset(
-        Math.max(0, topicBlock.getBoundingClientRect().top - master.getBoundingClientRect().top),
+        Math.max(0, targetRow.getBoundingClientRect().top - master.getBoundingClientRect().top),
       );
     };
     applyOffset();
     window.addEventListener("resize", applyOffset);
     return () => window.removeEventListener("resize", applyOffset);
-  }, [selectedTopicId, topics]);
-
-  const selectGoal = (topicId: string, targetId: string) => {
-    selectTopic(topicId);
-    // Bereits sichtbares Ziel direkt anspringen; bei Schwerpunkt-Wechsel rendert
-    // das Detail erst danach — dann übernimmt der Wechsel selbst die Position.
-    goalDetailRefs.current.get(targetId)?.scrollIntoView({ block: "start", behavior: "smooth" });
-  };
+  }, [firstSelectedTargetId, targets]);
 
   useEffect(() => {
     if (!bulkNotDoneMode) {
@@ -848,19 +831,17 @@ export function AssessmentOutline({
     }
   }, [bulkDoneAsPlannedMode]);
 
-  const openCreatePanel = (topicId: string, targetId: string, initialDayPart?: string) => {
-    const topic = topics.find((t) => t.id === topicId);
-    const topicDisciplineId = topic ? getTopicDisciplineId(topic) : undefined;
-    const target = topic?.targets.find((tg) => tg.id === targetId);
-    setPanelContext({ mode: "create", topicId, targetId, topicDisciplineId, targetValidFrom: target?.validFrom, targetValidTo: target?.validTo, initialDayPart });
+  const openCreatePanel = (targetId: string, initialDayPart?: string) => {
+    const target = targets.find((tg) => tg.id === targetId);
+    const targetDisciplineId = target ? getTargetDisciplineId(target) : undefined;
+    setPanelContext({ mode: "create", targetId, targetDisciplineId, targetValidFrom: target?.validFrom, targetValidTo: target?.validTo, initialDayPart });
     setIsPanelMounted(true);
   };
 
-  const openEditPanel = (topicId: string, targetId: string, action: ActionNode) => {
-    const topic = topics.find((t) => t.id === topicId);
-    const target = topic?.targets.find((tg) => tg.id === targetId);
+  const openEditPanel = (targetId: string, action: ActionNode) => {
+    const target = targets.find((tg) => tg.id === targetId);
     const groupActions = target?.actions.filter((a) => a.groupId === action.groupId) ?? [action];
-    setPanelContext({ mode: "edit", topicId, targetId, action, groupActions, targetValidFrom: target?.validFrom, targetValidTo: target?.validTo });
+    setPanelContext({ mode: "edit", targetId, action, groupActions, targetValidFrom: target?.validFrom, targetValidTo: target?.validTo });
     setIsPanelMounted(true);
   };
 
@@ -880,7 +861,7 @@ export function AssessmentOutline({
 
   const handlePanelSave = (draft: ActionDraft, selectedTemplateIds: string[], dayPartEntries: DayPartEntry[]) => {
     if (!panelContext) return;
-    const { topicId, targetId, mode, action, groupActions } = panelContext;
+    const { targetId, mode, action, groupActions } = panelContext;
 
     if (mode === "create") {
       const overrides = {
@@ -888,10 +869,10 @@ export function AssessmentOutline({
         serviceEntries: draft.serviceEntries.length > 0 ? draft.serviceEntries : undefined,
         optionalServiceTypes: draft.optionalServiceTypes.length > 0 ? draft.optionalServiceTypes : undefined,
       };
-      onAddAction(topicId, targetId, selectedTemplateIds, overrides, dayPartEntries);
+      onAddAction(targetId, selectedTemplateIds, overrides, dayPartEntries);
       closePanel();
     } else if (mode === "edit" && action) {
-      const sharedFields: Parameters<typeof onUpdateActionGroup>[3] = {
+      const sharedFields: Parameters<typeof onUpdateActionGroup>[2] = {
         title: draft.title,
         notes: draft.notes,
         requiredResources: draft.requiredResources || undefined,
@@ -915,7 +896,7 @@ export function AssessmentOutline({
 
       // Die Zuordnung läuft über die Eintrags-ID, nicht über die Tageszeit — sonst
       // liessen sich mehrere Durchführungen derselben Tageszeit nicht unterscheiden.
-      const entries: Parameters<typeof onUpdateActionGroup>[4] = sortDayPartEntries(dayPartEntries).map(
+      const entries: Parameters<typeof onUpdateActionGroup>[3] = sortDayPartEntries(dayPartEntries).map(
         ({ id, dayPart, scheduledTime }) => {
           const existing = groupActions?.find((a) => a.id === id);
           // Strikte Trennung: ein Eintrag trägt entweder eine Uhrzeit oder eine Tageszeit.
@@ -929,14 +910,14 @@ export function AssessmentOutline({
         },
       );
 
-      onUpdateActionGroup(topicId, targetId, action.groupId, sharedFields, entries);
+      onUpdateActionGroup(targetId, action.groupId, sharedFields, entries);
       closePanel();
     }
   };
 
   const handlePanelDelete = () => {
     if (!panelContext?.action) return;
-    onDeleteActionGroup(panelContext.topicId, panelContext.targetId, panelContext.action.groupId);
+    onDeleteActionGroup(panelContext.targetId, panelContext.action.groupId);
     closePanel();
   };
 
@@ -1017,54 +998,50 @@ export function AssessmentOutline({
     };
 
     const flatActions: Array<{
-      topic: TopicNode;
-      target: { id: string; title: string; notes: string; validTo?: string };
+      target: { id: string; title: string; notes: string; validTo?: string; disciplineId?: string };
       action: ActionNode;
       dueDate: string;
       confirmationDate: string;
       status: ActionStatus;
     }> = [];
 
-    topics.forEach((topic) => {
-      topic.targets.forEach((target) => {
-        target.actions.forEach((action) => {
-          if (!action.validFrom) return;
-          if (!action.recurrence) return;
-          // Date Filtering
-          const rolloverDays = rollsToNextDay(action) ? 1 : 0;
-          if (action.validFrom && shiftISODate(action.validFrom, rolloverDays) > periodRange.end) return;
-          if (action.validTo && shiftISODate(action.validTo, rolloverDays) < periodRange.start) return;
+    targets.forEach((target) => {
+      target.actions.forEach((action) => {
+        if (!action.validFrom) return;
+        if (!action.recurrence) return;
+        // Date Filtering
+        const rolloverDays = rollsToNextDay(action) ? 1 : 0;
+        if (action.validFrom && shiftISODate(action.validFrom, rolloverDays) > periodRange.end) return;
+        if (action.validTo && shiftISODate(action.validTo, rolloverDays) < periodRange.start) return;
 
-          const dueDates = getDueDatesInPeriod(action);
-          const isTargetClosedInConfirmation = isTargetClosed(target);
-          if (filterModel?.showClosedTargets ? !isTargetClosedInConfirmation : isTargetClosedInConfirmation) return;
+        const dueDates = getDueDatesInPeriod(action);
+        const isTargetClosedInConfirmation = isTargetClosed(target);
+        if (filterModel?.showClosedTargets ? !isTargetClosedInConfirmation : isTargetClosedInConfirmation) return;
 
-          dueDates.forEach((dueDate) => {
-            const confirmation = action.confirmations?.[dueDate];
-            if (confirmation?.postponedToDate) return;
-            const status = getStatusForDate(action, dueDate);
-            const forceShowTransientUnplanned =
-              (action.isUnplanned || action.isOnDemandOccurrence) && transientUnplannedActionIds.has(action.id);
-            if (!forceShowTransientUnplanned && !matchesAssessmentFilter({ action, status, confirmation, disciplineId: topic.disciplineId }, filterModel)) return;
-            flatActions.push({ topic, target: { id: target.id, title: target.title, notes: target.notes, validTo: target.validTo }, action, dueDate, confirmationDate: dueDate, status });
-          });
+        dueDates.forEach((dueDate) => {
+          const confirmation = action.confirmations?.[dueDate];
+          if (confirmation?.postponedToDate) return;
+          const status = getStatusForDate(action, dueDate);
+          const forceShowTransientUnplanned =
+            (action.isUnplanned || action.isOnDemandOccurrence) && transientUnplannedActionIds.has(action.id);
+          if (!forceShowTransientUnplanned && !matchesAssessmentFilter({ action, status, confirmation, disciplineId: target.disciplineId }, filterModel)) return;
+          flatActions.push({ target: { id: target.id, title: target.title, notes: target.notes, validTo: target.validTo, disciplineId: target.disciplineId }, action, dueDate, confirmationDate: dueDate, status });
+        });
 
-          Object.entries(action.confirmations ?? {}).forEach(([confirmationDate, confirmation]) => {
-            if (!confirmation.postponedToDate) return;
-            if (confirmation.postponedToDate < periodRange.start || confirmation.postponedToDate > periodRange.end) {
-              return;
-            }
-            const forceShowTransientUnplanned =
-              (action.isUnplanned || action.isOnDemandOccurrence) && transientUnplannedActionIds.has(action.id);
-            if (!forceShowTransientUnplanned && !matchesAssessmentFilter({ action, status: confirmation.status, confirmation, disciplineId: topic.disciplineId }, filterModel)) return;
-            flatActions.push({
-              topic,
-              target: { id: target.id, title: target.title, notes: target.notes, validTo: target.validTo },
-              action,
-              dueDate: confirmation.postponedToDate,
-              confirmationDate,
-              status: confirmation.status,
-            });
+        Object.entries(action.confirmations ?? {}).forEach(([confirmationDate, confirmation]) => {
+          if (!confirmation.postponedToDate) return;
+          if (confirmation.postponedToDate < periodRange.start || confirmation.postponedToDate > periodRange.end) {
+            return;
+          }
+          const forceShowTransientUnplanned =
+            (action.isUnplanned || action.isOnDemandOccurrence) && transientUnplannedActionIds.has(action.id);
+          if (!forceShowTransientUnplanned && !matchesAssessmentFilter({ action, status: confirmation.status, confirmation, disciplineId: target.disciplineId }, filterModel)) return;
+          flatActions.push({
+            target: { id: target.id, title: target.title, notes: target.notes, validTo: target.validTo, disciplineId: target.disciplineId },
+            action,
+            dueDate: confirmation.postponedToDate,
+            confirmationDate,
+            status: confirmation.status,
           });
         });
       });
@@ -1100,9 +1077,8 @@ export function AssessmentOutline({
       .filter((row) =>
         canConfirmAction(row.action) && (row.status === "open" || row.status === "postponed") &&
         !isBeforeStart(row))
-      .map(({ topic, target, action, confirmationDate }) => ({
-        key: buildBulkNotDoneKey(topic.id, target.id, action.id, confirmationDate),
-        topicId: topic.id,
+      .map(({ target, action, confirmationDate }) => ({
+        key: buildBulkNotDoneKey(target.id, action.id, confirmationDate),
         targetId: target.id,
         actionId: action.id,
         dueDate: confirmationDate,
@@ -1122,9 +1098,8 @@ export function AssessmentOutline({
         canConfirmAction(row.action) && !requiresResult(row.action) &&
         (row.status === "open" || row.status === "postponed") &&
         !isBeforeStart(row))
-      .map(({ topic, target, action, confirmationDate }) => ({
-        key: buildBulkNotDoneKey(topic.id, target.id, action.id, confirmationDate),
-        topicId: topic.id,
+      .map(({ target, action, confirmationDate }) => ({
+        key: buildBulkNotDoneKey(target.id, action.id, confirmationDate),
         targetId: target.id,
         actionId: action.id,
         dueDate: confirmationDate,
@@ -1312,8 +1287,8 @@ export function AssessmentOutline({
                   // "Wie geplant" gibt es bei ungeplanten Handlungen nicht, und ein
                   // zwingendes Resultat lässt sich in der Mehrfachauswahl nicht erfassen.
                   !(bulkDoneAsPlannedMode && requiresResult(row.action)))
-                .map(({ topic, target, action, confirmationDate }) =>
-                  buildBulkNotDoneKey(topic.id, target.id, action.id, confirmationDate)));
+                .map(({ target, action, confirmationDate }) =>
+                  buildBulkNotDoneKey(target.id, action.id, confirmationDate)));
             const selectedDayKeys = isBulkActive
               ? daySelectableKeys.filter((k) =>
                   bulkNotDoneMode ? selectedBulkNotDoneKeys.has(k) : selectedBulkDoneAsPlannedKeys.has(k))
@@ -1369,8 +1344,8 @@ export function AssessmentOutline({
                     (row.status === "open" || row.status === "postponed") &&
                     !isBeforeStart(row) &&
                     !(bulkDoneAsPlannedMode && requiresResult(row.action)))
-                  .map(({ topic, target, action, confirmationDate }) =>
-                    buildBulkNotDoneKey(topic.id, target.id, action.id, confirmationDate));
+                  .map(({ target, action, confirmationDate }) =>
+                    buildBulkNotDoneKey(target.id, action.id, confirmationDate));
                 const isBulkActive = bulkNotDoneMode || bulkDoneAsPlannedMode;
                 const selectedGroupKeys = isBulkActive
                   ? groupSelectableKeys.filter((k) =>
@@ -1451,14 +1426,14 @@ export function AssessmentOutline({
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {group.actions.map(({ topic, target, action, dueDate, confirmationDate, status }) => {
+                        {group.actions.map(({ target, action, dueDate, confirmationDate, status }) => {
                           const conf = action.confirmations?.[confirmationDate];
                           const targetClosed = isTargetClosed(target);
                           const canConfirm = canConfirmAction(action) && !targetClosed;
                           // Was noch nicht stattgefunden hat, lässt sich nicht bestätigen —
                           // einzig die Neuplanung bleibt für zukünftige Termine offen.
                           const isBeforeConfirmable = isBeforeStart({ action, dueDate, confirmationDate });
-                          const bulkNotDoneKey = buildBulkNotDoneKey(topic.id, target.id, action.id, confirmationDate);
+                          const bulkNotDoneKey = buildBulkNotDoneKey(target.id, action.id, confirmationDate);
                           const isBulkNotDoneSelectable =
                             canConfirm && !isBeforeConfirmable && (status === "open" || status === "postponed");
                           const bulkDoneAsPlannedKey = bulkNotDoneKey;
@@ -1466,14 +1441,13 @@ export function AssessmentOutline({
                             canConfirm && !isBeforeConfirmable && !requiresResult(action) &&
                             (status === "open" || status === "postponed");
                           const disciplineTitle =
-                            disciplineOptions.find((discipline) => discipline.id === topic.disciplineId)?.title ??
-                            topic.disciplineId ??
+                            disciplineOptions.find((discipline) => discipline.id === target.disciplineId)?.title ??
+                            target.disciplineId ??
                             "Ohne Disziplin";
                           const openConfirmationDialog = (initialMode: ConfirmationMode) => {
                             if (!canConfirm) return;
                             if (isBeforeConfirmable && initialMode !== "postponed") return;
                             openConfirmDialog({
-                              topicId: topic.id,
                               targetId: target.id,
                               dueDate: confirmationDate,
                               initialMode,
@@ -1589,7 +1563,7 @@ export function AssessmentOutline({
                                           <TooltipTrigger asChild>
                                             <button
                                               type="button"
-                                              onClick={() => onDeleteAction(topic.id, target.id, action.id)}
+                                              onClick={() => onDeleteAction(target.id, action.id)}
                                               disabled={bulkNotDoneMode || bulkDoneAsPlannedMode}
                                               aria-label={action.isUnplanned ? "Ungeplante Handlung löschen" : "Bedarfs-Handlung löschen"}
                                               className={cn("pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive", (bulkNotDoneMode || bulkDoneAsPlannedMode) && "cursor-not-allowed opacity-50 hover:bg-background hover:border-border hover:text-foreground")}
@@ -1651,7 +1625,7 @@ export function AssessmentOutline({
                                       <TooltipTrigger asChild>
                                         <span
                                           tabIndex={0}
-                                          aria-label="Details zu Disziplin, Schwerpunkt und Ziel anzeigen"
+                                          aria-label="Details zu Disziplin und Ziel anzeigen"
                                           className="ml-1.5 inline-flex h-6 w-6 shrink-0 cursor-help items-center justify-center rounded-full border border-border bg-background align-middle text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                                         >
                                           <Info className="h-3.5 w-3.5" aria-hidden="true" />
@@ -1661,10 +1635,6 @@ export function AssessmentOutline({
                                         <div>
                                           <div className="font-semibold text-foreground">Disziplin</div>
                                           <div className="mt-0.5 text-muted-foreground">{disciplineTitle}</div>
-                                        </div>
-                                        <div>
-                                          <div className="font-semibold text-foreground">Schwerpunkt</div>
-                                          <div className="mt-0.5 text-muted-foreground">{topic.title}</div>
                                         </div>
                                         <div>
                                           <div className="font-semibold text-foreground">Ziel</div>
@@ -1808,7 +1778,6 @@ export function AssessmentOutline({
             onClose={closeConfirmDialog}
             onConfirm={(payload) => {
               onConfirmAction(
-                dialogTarget.topicId,
                 dialogTarget.targetId,
                 dialogTarget.action.id,
                 payload,
@@ -1817,7 +1786,7 @@ export function AssessmentOutline({
               closeConfirmDialog();
             }}
             onDelete={(dialogTarget.action.isUnplanned || dialogTarget.action.isOnDemandOccurrence) && dialogTarget.action.status === "open" ? () => {
-              onDeleteAction(dialogTarget.topicId, dialogTarget.targetId, dialogTarget.action.id);
+              onDeleteAction(dialogTarget.targetId, dialogTarget.action.id);
               closeConfirmDialog();
             } : undefined}
             clientName={clientName}
@@ -1825,7 +1794,8 @@ export function AssessmentOutline({
         )}
         {onDemandDialogTarget && onAddOnDemandAction && (
           <OnDemandActionDialog
-            topics={topics}
+            targets={targets}
+            disciplines={disciplineOptions}
             date={onDemandDialogTarget.dueDate}
             fixedDayPart={onDemandDialogTarget.dayPart}
             nightRollover={onDemandDialogTarget.nightRollover}
@@ -1859,7 +1829,6 @@ export function AssessmentOutline({
           onConfirm={(reason) => {
             selectedBulkNotDoneTargets.forEach((target) => {
               onConfirmAction(
-                target.topicId,
                 target.targetId,
                 target.actionId,
                 { status: "not_done", reason },
@@ -1878,7 +1847,6 @@ export function AssessmentOutline({
           onConfirm={() => {
             selectedBulkDoneAsPlannedTargets.forEach((target) => {
               onConfirmAction(
-                target.topicId,
                 target.targetId,
                 target.actionId,
                 { status: "done_as_planned" },
@@ -1894,233 +1862,23 @@ export function AssessmentOutline({
     );
   }
 
-  if (topics.length === 0) {
+  if (targets.length === 0) {
     return (
       <div className="border border-dashed border-border rounded-sm p-12 text-center text-muted-foreground">
-        <p>Noch keine Schwerpunkte erfasst.</p>
+        <p>Noch keine Ziele erfasst.</p>
       </div>
     );
   }
 
-  // Rechts anzuzeigende Ziele: gewählte IDs, in Baum-Reihenfolge, nur sichtbare (abgeschlossene je nach showClosedTargets).
-  // Gewählter Schwerpunkt (max. einer) mit seinen sichtbaren Zielen.
-  const selectedTopicBlocks: Array<{ topic: TopicNode; targets: TargetNode[] }> = [];
-  for (const group of topicDisciplineGroups) {
-    for (const topic of group.topics) {
-      if (topic.id !== selectedTopicId) continue;
-      selectedTopicBlocks.push({
-        topic,
-        targets: topic.targets.filter((target) => showClosedTargets || !isTargetClosed(target)),
-      });
-    }
-  }
+  // Gewählte Ziele in der Reihenfolge der Navigation, nur sichtbare (abgeschlossene je nach showClosedTargets).
+  const selectedTargets = targetDisciplineGroups
+    .flatMap((group) => group.targets)
+    .filter((target) => selectedTargetIds.has(target.id) && (showClosedTargets || !isTargetClosed(target)));
 
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-[300px_minmax(0,1fr)]">
-        {/* MASTER: Ziel-Navigation, gruppiert nach Disziplin → Schwerpunkt */}
-        <div ref={masterColumnRef} className="space-y-3 md:sticky md:top-2 md:max-h-[calc(100vh-9rem)] md:overflow-y-auto">
-          {/* Jede Disziplin in eigener Box: die frühere Trennung per Haarlinie war zu
-              wenig prägnant und führte zu Einträgen in der falschen Disziplin. */}
-          {topicDisciplineGroups.map(({ discipline, topics: groupTopics }) => (
-            <section
-              key={discipline.id}
-              ref={(el) => {
-                if (el) disciplineSectionRefs.current.set(discipline.id, el);
-                else disciplineSectionRefs.current.delete(discipline.id);
-              }}
-              className="scroll-mt-2 overflow-hidden rounded-xl border border-border bg-white"
-            >
-              <div
-                className={cn(
-                  "border-b border-border bg-muted/60 px-4 py-2.5 transition-opacity",
-                  // Disziplin ohne den gewählten Schwerpunkt tritt zurück.
-                  selectedTopicId &&
-                    !groupTopics.some((t) => t.id === selectedTopicId) &&
-                    "opacity-50",
-                )}
-              >
-                <h3 className="text-sm font-semibold tracking-wide text-foreground">
-                  {discipline.title}
-                </h3>
-              </div>
-
-              <div className="space-y-5 p-4">
-                {groupTopics.map((topic) => {
-                  const topicReadOnly = topic.targets.some((t) => t.actions.length > 0);
-                  const visibleTargets = topic.targets.filter(
-                    (target) => showClosedTargets || !isTargetClosed(target),
-                  );
-                  const isTopicSelected = topic.id === selectedTopicId;
-                  return (
-                    <div
-                      key={topic.id}
-                      ref={(el) => {
-                        if (el) topicBlockRefs.current.set(topic.id, el);
-                        else topicBlockRefs.current.delete(topic.id);
-                      }}
-                      className={cn(
-                        "group/topic space-y-1.5 rounded-md px-2 py-1.5 transition-colors",
-                        isTopicSelected
-                          ? "bg-primary/5 ring-1 ring-primary/30"
-                          : "hover:bg-muted/60",
-                        // Ist ein Schwerpunkt gewählt, treten die übrigen zurück.
-                        selectedTopicId && !isTopicSelected && "opacity-50 hover:opacity-100",
-                      )}
-                    >
-                      <div className="flex items-start gap-1">
-                        {/* Titelzeile ist das Auswahl-Element; umbenannt wird über den Stift. */}
-                        {editingTopicId === topic.id && !topicReadOnly ? (
-                          <input
-                            ref={(el) => {
-                              if (el) topicInputRefs.current.set(topic.id, el);
-                              else topicInputRefs.current.delete(topic.id);
-                            }}
-                            value={topic.title}
-                            autoFocus
-                            onChange={(e) => onUpdateTopic(topic.id, "title", e.target.value)}
-                            onBlur={() => setEditingTopicId(null)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" || e.key === "Escape") setEditingTopicId(null);
-                            }}
-                            placeholder="Schwerpunkt…"
-                            className="min-w-0 flex-1 bg-transparent border-0 px-0 text-base font-semibold outline-none focus:ring-0 placeholder:text-muted-foreground/40"
-                          />
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => toggleTopic(topic.id)}
-                            className="flex min-w-0 flex-1 items-start gap-2 text-left"
-                          >
-                            <span className={cn("min-w-0 flex-1 whitespace-pre-wrap break-words text-base font-semibold", !topic.title && "text-muted-foreground/40")}>
-                              {topic.title || "Schwerpunkt…"}
-                            </span>
-                          </button>
-                        )}
-                        {!topicReadOnly && editingTopicId !== topic.id && (
-                          <TooltipProvider delayDuration={150}>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <button
-                                  onClick={() => setEditingTopicId(topic.id)}
-                                  className="shrink-0 rounded p-1 opacity-0 transition-opacity hover:bg-secondary group-hover/topic:opacity-100"
-                                  aria-label="Schwerpunkt umbenennen"
-                                >
-                                  <Pencil className="h-3.5 w-3.5" />
-                                </button>
-                              </TooltipTrigger>
-                              <TooltipContent side="top">
-                                <div className="max-w-[220px] space-y-0.5">
-                                  <div className="font-medium">Schwerpunkt umbenennen</div>
-                                  <div className="text-xs text-muted-foreground">Titel des Schwerpunkts anpassen</div>
-                                </div>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        )}
-                        <TooltipProvider delayDuration={150}>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button
-                                onClick={() => onDeleteTopic(topic.id)}
-                                className="shrink-0 rounded p-1 opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover/topic:opacity-100"
-                                aria-label="Schwerpunkt löschen"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent side="top">
-                              <div className="max-w-[220px] space-y-0.5">
-                                <div className="font-medium">Schwerpunkt löschen</div>
-                                <div className="text-xs text-muted-foreground">Schwerpunkt mit allen Zielen und Handlungen entfernen</div>
-                              </div>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </div>
-
-                      <InlineEditable
-                        value={topic.notes}
-                        onChange={(v) => onUpdateTopic(topic.id, "notes", v)}
-                        placeholder="Freitext zum Schwerpunkt…"
-                        multiline
-                        isEditing={editingTopicNotesId === topic.id}
-                        onStartEdit={() => setEditingTopicNotesId(topic.id)}
-                        onStopEdit={() => setEditingTopicNotesId(null)}
-                        editLabel="Freitext bearbeiten"
-                        editHint="Freitext zum Schwerpunkt anpassen"
-                        textClassName="text-sm text-muted-foreground"
-                        hoverGroupClassName="group-hover/topic:opacity-100"
-                      />
-
-                      <ul className="space-y-0.5">
-                        {visibleTargets.map((target) => {
-                          return (
-                            <li key={target.id}>
-                              <button
-                                type="button"
-                                onClick={() => selectGoal(topic.id, target.id)}
-                                className={cn(
-                                  "flex w-full items-center rounded-md px-2 py-1.5 text-left text-base transition-colors",
-                                  isTopicSelected
-                                    ? "font-medium text-foreground hover:bg-primary/10"
-                                    : "text-muted-foreground hover:bg-muted",
-                                )}
-                              >
-                                <span className="min-w-0 flex-1 whitespace-pre-wrap break-words">{target.title || "Ziel…"}</span>
-                              </button>
-                            </li>
-                          );
-                        })}
-                      </ul>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onAddTarget(topic.id);
-                          selectTopic(topic.id);
-                        }}
-                        className="inline-flex items-center gap-1 pl-2 text-sm text-muted-foreground transition-colors hover:text-primary"
-                      >
-                        <Plus className="h-4 w-4" />
-                        Ziel
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          ))}
-        </div>
-
-        {/* DETAIL: alle Ziele der gewählten Schwerpunkte mit ihren Handlungen */}
-        <div className="min-w-0 rounded-xl border border-border bg-white p-5" style={{ marginTop: detailOffset }}>
-          {selectedTopicBlocks.length === 0 ? (
-            <div className="flex min-h-[240px] flex-col items-center justify-center gap-2 text-center text-muted-foreground">
-              <div>Schwerpunkt links wählen, um Ziele und Handlungen zu sehen.</div>
-            </div>
-          ) : (
-            <div className="space-y-10">
-              {selectedTopicBlocks.map(({ topic, targets: selectedTargets }) => (
-                <div key={topic.id}>
-                  {/* Kein Schwerpunkt-Kopf: die Auswahl steht links in der Navigation. */}
-                  <div className="space-y-10">
-                  {selectedTargets.length === 0 && (
-                    <div className="text-sm text-muted-foreground">
-                      Für diesen Schwerpunkt ist noch kein Ziel erfasst.
-                    </div>
-                  )}
-                  {selectedTargets.map((target) => {
+  const renderTargetDetail = (target: TargetNode) => {
               const targetClosed = isTargetClosed(target);
               return (
-                <div
-                  key={target.id}
-                  ref={(el) => {
-                    if (el) goalDetailRefs.current.set(target.id, el);
-                    else goalDetailRefs.current.delete(target.id);
-                  }}
-                  className="group/target scroll-mt-4"
-                >
+                <div key={target.id} className="group/target">
                   <div className="flex items-start gap-3">
                     <div className="flex-1 min-w-0">
                       {targetClosed && (
@@ -2132,7 +1890,7 @@ export function AssessmentOutline({
                       )}
                       <InlineEditable
                         value={target.title}
-                        onChange={(v) => onUpdateTarget(topic.id, target.id, "title", v)}
+                        onChange={(v) => onUpdateTarget(target.id, "title", v)}
                         placeholder="Ziel…"
                         isEditing={editingTargetTitleId === target.id}
                         onStartEdit={() => setEditingTargetTitleId(target.id)}
@@ -2152,14 +1910,14 @@ export function AssessmentOutline({
                           label="Gültig ab"
                           value={target.validFrom}
                           disabled={targetClosed}
-                          onChange={(v) => onUpdateTarget(topic.id, target.id, "validFrom", v ?? "")}
+                          onChange={(v) => onUpdateTarget(target.id, "validFrom", v ?? "")}
                           className="text-xs"
                         />
                         <DateField
                           label="Gültig bis"
                           value={target.validTo}
                           disabled={targetClosed}
-                          onChange={(v) => onUpdateTarget(topic.id, target.id, "validTo", v ?? "")}
+                          onChange={(v) => onUpdateTarget(target.id, "validTo", v ?? "")}
                           className="text-xs"
                         />
                       </div>
@@ -2169,7 +1927,7 @@ export function AssessmentOutline({
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <button
-                              onClick={() => onReactivateTarget(topic.id, target.id)}
+                              onClick={() => onReactivateTarget(target.id)}
                               className="p-1.5 hover:bg-primary/10 hover:text-primary rounded transition-colors"
                               aria-label="Ziel wieder aktivieren"
                             >
@@ -2189,7 +1947,7 @@ export function AssessmentOutline({
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <button
-                              onClick={() => onDeleteTarget(topic.id, target.id)}
+                              onClick={() => onDeleteTarget(target.id)}
                               className="opacity-0 group-hover/target:opacity-100 p-1.5 hover:bg-destructive/10 hover:text-destructive rounded transition-opacity"
                               aria-label="Ziel löschen"
                             >
@@ -2211,7 +1969,7 @@ export function AssessmentOutline({
                     <div className="mt-2 -ml-6">
                       <InlineEditable
                         value={target.notes}
-                        onChange={(v) => onUpdateTarget(topic.id, target.id, "notes", v)}
+                        onChange={(v) => onUpdateTarget(target.id, "notes", v)}
                         placeholder="Freitext zum Ziel…"
                         multiline
                         isEditing={editingTargetNotesId === target.id}
@@ -2257,13 +2015,12 @@ export function AssessmentOutline({
                               return (
                                 <ActionGroupRow
                                   key={representative.groupId}
-                                  topicId={topic.id}
                                   targetId={target.id}
                                   groupNodes={groupNodes}
                                   targetValidFrom={target.validFrom}
                                   targetValidTo={target.validTo}
                                   onDeleteActionGroup={onDeleteActionGroup}
-                                  onOpenEditPanel={() => openEditPanel(topic.id, target.id, representative)}
+                                  onOpenEditPanel={() => openEditPanel(target.id, representative)}
                                 />
                               );
                             })}
@@ -2274,7 +2031,7 @@ export function AssessmentOutline({
 
                     {!targetClosed && (
                       <button
-                        onClick={() => openCreatePanel(topic.id, target.id)}
+                        onClick={() => openCreatePanel(target.id)}
                         className="mt-3 inline-flex items-center gap-2 rounded-sm bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
                       >
                         <Plus className="h-4 w-4" />
@@ -2284,10 +2041,104 @@ export function AssessmentOutline({
                   </div>
                 </div>
               );
-                  })}
-                  </div>
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-[300px_minmax(0,1fr)]">
+        {/* MASTER: Ziel-Navigation, gruppiert nach Disziplin */}
+        <div ref={masterColumnRef} className="space-y-3 md:sticky md:top-2 md:max-h-[calc(100vh-9rem)] md:overflow-y-auto">
+          {/* Jede Disziplin in eigener Box: die frühere Trennung per Haarlinie war zu
+              wenig prägnant und führte zu Einträgen in der falschen Disziplin. */}
+          {targetDisciplineGroups.map(({ discipline, targets: groupTargets }) => {
+            const visibleTargets = groupTargets.filter(
+              (target) => showClosedTargets || !isTargetClosed(target),
+            );
+            return (
+              <section
+                key={discipline.id}
+                ref={(el) => {
+                  if (el) disciplineSectionRefs.current.set(discipline.id, el);
+                  else disciplineSectionRefs.current.delete(discipline.id);
+                }}
+                className="scroll-mt-2 overflow-hidden rounded-xl border border-border bg-white"
+              >
+                <button
+                  type="button"
+                  onClick={() => toggleDisciplineTargets(visibleTargets.map((target) => target.id))}
+                  disabled={visibleTargets.length === 0}
+                  className={cn(
+                    "block w-full border-b border-border bg-muted/60 px-4 py-2.5 text-left transition-opacity hover:bg-muted disabled:cursor-default",
+                    // Disziplin ohne gewähltes Ziel tritt zurück.
+                    hasSelection &&
+                      !groupTargets.some((t) => selectedTargetIds.has(t.id)) &&
+                      "opacity-50",
+                  )}
+                >
+                  <h3 className="text-sm font-semibold tracking-wide text-foreground">
+                    {discipline.title}
+                  </h3>
+                </button>
+
+                <div className="space-y-1.5 p-4">
+                  <ul className="space-y-0.5">
+                    {visibleTargets.map((target) => {
+                      const isTargetSelected = selectedTargetIds.has(target.id);
+                      const targetClosed = isTargetClosed(target);
+                      return (
+                        <li
+                          key={target.id}
+                          ref={(el) => {
+                            if (el) targetRowRefs.current.set(target.id, el);
+                            else targetRowRefs.current.delete(target.id);
+                          }}
+                        >
+                          <button
+                            type="button"
+                            aria-pressed={isTargetSelected}
+                            onClick={() => toggleTarget(target.id)}
+                            className={cn(
+                              "flex w-full items-center rounded-md px-2 py-1.5 text-left text-base transition-colors",
+                              isTargetSelected
+                                ? "bg-primary/5 font-medium text-foreground ring-1 ring-primary/30"
+                                : "text-muted-foreground hover:bg-muted",
+                              // Abgeschlossene Ziele (nur sichtbar, wenn eingeblendet) heben sich ab.
+                              targetClosed && "text-muted-foreground/70",
+                              // Ist ein Ziel gewählt, treten die übrigen zurück.
+                              hasSelection && !isTargetSelected && "opacity-50 hover:opacity-100",
+                            )}
+                          >
+                            <span className={cn("min-w-0 flex-1 whitespace-pre-wrap break-words", targetClosed && "line-through decoration-muted-foreground/50")}>
+                              {target.title || "Ziel…"}
+                            </span>
+                            {targetClosed && <span className="sr-only"> (abgeschlossen)</span>}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTargetIds(new Set([onAddTarget(discipline.id)]))}
+                    className="inline-flex items-center gap-1 pl-2 text-sm text-muted-foreground transition-colors hover:text-primary"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Ziel
+                  </button>
                 </div>
-              ))}
+              </section>
+            );
+          })}
+        </div>
+
+        {/* DETAIL: die gewählten Ziele mit ihren Handlungen */}
+        <div className="min-w-0 rounded-xl border border-border bg-white p-5" style={{ marginTop: detailOffset }}>
+          {selectedTargets.length > 0 ? (
+            <div className="space-y-10">{selectedTargets.map(renderTargetDetail)}</div>
+          ) : (
+            <div className="flex min-h-[240px] flex-col items-center justify-center gap-2 text-center text-muted-foreground">
+              <div>Ziel links wählen, um Handlungen zu sehen.</div>
             </div>
           )}
         </div>
@@ -2300,7 +2151,6 @@ export function AssessmentOutline({
           onClose={closeConfirmDialog}
           onConfirm={(payload) => {
             onConfirmAction(
-              dialogTarget.topicId,
               dialogTarget.targetId,
               dialogTarget.action.id,
               payload,
@@ -2318,7 +2168,7 @@ export function AssessmentOutline({
           mode={panelContext.mode}
           action={panelContext.action}
           groupActions={panelContext.groupActions}
-          topicDisciplineId={panelContext.topicDisciplineId}
+          targetDisciplineId={panelContext.targetDisciplineId}
           targetValidFrom={panelContext.targetValidFrom}
           targetValidTo={panelContext.targetValidTo}
           initialDayPart={panelContext.initialDayPart}
@@ -2446,7 +2296,6 @@ function DayPartHeader({
 }
 
 export function ActionGroupRow({
-  topicId,
   targetId,
   groupNodes,
   targetValidFrom,
@@ -2455,7 +2304,6 @@ export function ActionGroupRow({
   onOpenEditPanel,
   readOnly = false,
 }: {
-  topicId: string;
   targetId: string;
   groupNodes: ActionNode[];
   targetValidFrom?: string;
@@ -2609,7 +2457,7 @@ export function ActionGroupRow({
             <TooltipTrigger asChild>
               <button
                 type="button"
-                onClick={() => onDeleteActionGroup?.(topicId, targetId, representative.groupId)}
+                onClick={() => onDeleteActionGroup?.(targetId, representative.groupId)}
                 className="shrink-0 mt-0.5 opacity-0 group-hover/action:opacity-100 p-1 hover:bg-destructive/10 hover:text-destructive rounded transition-opacity"
                 aria-label="Handlung löschen"
               >
@@ -2631,7 +2479,6 @@ export function ActionGroupRow({
 
 export function ActionRow({
   viewMode,
-  topicId,
   targetId,
   action,
   targetValidFrom,
@@ -2643,7 +2490,6 @@ export function ActionRow({
   onOpenDialog,
 }: {
   viewMode: "planning" | "confirmation";
-  topicId: string;
   targetId: string;
   action: ActionNode;
   targetValidFrom?: string;
@@ -2688,7 +2534,7 @@ export function ActionRow({
       .filter((day) => next.has(day));
     // Ohne Wochentag wäre die Handlung nie fällig und verschwände aus der Umsetzung.
     if (normalized.length === 0) return;
-    onUpdateActionField(topicId, targetId, action.id, "recurrenceWeekdays", normalized);
+    onUpdateActionField(targetId, action.id, "recurrenceWeekdays", normalized);
   };
 
   useEffect(() => {
@@ -2834,7 +2680,7 @@ export function ActionRow({
             <TooltipTrigger asChild>
               <button
                 type="button"
-                onClick={() => onDeleteAction(topicId, targetId, action.id)}
+                onClick={() => onDeleteAction(targetId, action.id)}
                 className="shrink-0 mt-0.5 opacity-0 group-hover/action:opacity-100 p-1 hover:bg-destructive/10 hover:text-destructive rounded transition-opacity"
                 aria-label="Handlung löschen"
               >
@@ -2912,7 +2758,6 @@ export function ActionRow({
             disabled={isFieldLocked("dayPart")}
             onValueChange={(v) =>
               onUpdateActionField(
-                topicId,
                 targetId,
                 action.id,
                 "dayPart",
@@ -2949,7 +2794,6 @@ export function ActionRow({
               value={action.plannedMinutes ?? ""}
               onChange={(e) =>
                 onUpdateActionField(
-                  topicId,
                   targetId,
                   action.id,
                   "plannedMinutes",
@@ -2975,7 +2819,6 @@ export function ActionRow({
               onChange={(e) => {
                 const value = Number(e.target.value);
                 onUpdateActionField(
-                  topicId,
                   targetId,
                   action.id,
                   "requiredPersons",
@@ -2993,7 +2836,6 @@ export function ActionRow({
             disabled={isFieldLocked("category")}
             onValueChange={(v) =>
               onUpdateActionField(
-                topicId,
                 targetId,
                 action.id,
                 "category",
@@ -3016,7 +2858,6 @@ export function ActionRow({
             disabled={isFieldLocked("resultRequirement")}
             onValueChange={(v) =>
               onUpdateActionField(
-                topicId,
                 targetId,
                 action.id,
                 "resultRequirement",
@@ -3043,7 +2884,7 @@ export function ActionRow({
             onChange={(v) => {
               // Leeres Gültig ab würde die Handlung aus der Umsetzung entfernen.
               if (!v) return;
-              onUpdateActionField(topicId, targetId, action.id, "validFrom", v);
+              onUpdateActionField(targetId, action.id, "validFrom", v);
             }}
           />
           <DateField
@@ -3053,7 +2894,7 @@ export function ActionRow({
             minDate={targetValidFrom}
             maxDate={targetValidTo}
             onChange={(v) =>
-              onUpdateActionField(topicId, targetId, action.id, "validTo", v)
+              onUpdateActionField(targetId, action.id, "validTo", v)
             }
           />
 
@@ -3109,7 +2950,7 @@ export function ActionRow({
         )}
       </div>
       <button
-        onClick={() => onDeleteAction(topicId, targetId, action.id)}
+        onClick={() => onDeleteAction(targetId, action.id)}
         className="opacity-0 group-hover/action:opacity-100 p-1 hover:bg-destructive/10 hover:text-destructive rounded transition-opacity self-start mt-0.5"
         aria-label="Handlung löschen"
       >
@@ -3246,7 +3087,7 @@ export function ActionSidePanel({
   mode,
   action,
   groupActions,
-  topicDisciplineId,
+  targetDisciplineId,
   targetValidFrom,
   targetValidTo,
   initialDayPart,
@@ -3261,7 +3102,7 @@ export function ActionSidePanel({
   mode: "create" | "edit";
   action?: ActionNode;
   groupActions?: ActionNode[];
-  topicDisciplineId?: string;
+  targetDisciplineId?: string;
   targetValidFrom?: string;
   targetValidTo?: string;
   initialDayPart?: string;
@@ -3275,7 +3116,7 @@ export function ActionSidePanel({
   readOnly?: boolean;
 }) {
   const resourceCatalog = getActionPlanResources();
-  // Mit Vorlage sind nur deren Hilfsmittel wählbar, ohne Vorlage die der Disziplin des Themas.
+  // Mit Vorlage sind nur deren Hilfsmittel wählbar, ohne Vorlage die der Disziplin des Ziels.
   const [templateResourceIds, setTemplateResourceIds] = useState<string[] | null>(() => {
     if (!action?.templateId) return null;
     const template = loadActionPlanTemplates().find((t) => t.id === action.templateId);
@@ -3283,7 +3124,7 @@ export function ActionSidePanel({
   });
   const resourceOptions = templateResourceIds
     ? getResourcesByIds(resourceCatalog, templateResourceIds)
-    : getResourcesForDisciplines(resourceCatalog, topicDisciplineId ? [topicDisciplineId] : []);
+    : getResourcesForDisciplines(resourceCatalog, targetDisciplineId ? [targetDisciplineId] : []);
   const [draft, setDraft] = useState<ActionDraft>(() => {
     if (action) return actionToDraft(action);
     const base = emptyActionDraft();
@@ -3338,9 +3179,9 @@ export function ActionSidePanel({
   useEffect(() => {
     if (mode !== "create") return;
     setAvailableTemplates(
-      loadActionPlanTemplates().filter((t) => templateMatchesDiscipline(t, topicDisciplineId)),
+      loadActionPlanTemplates().filter((t) => templateMatchesDiscipline(t, targetDisciplineId)),
     );
-  }, [mode, topicDisciplineId]);
+  }, [mode, targetDisciplineId]);
 
   useEffect(() => {
     setActiveIndex(0);
@@ -5428,7 +5269,7 @@ function InlineEditable({
   editHint: string;
   readOnly?: boolean;
   textClassName?: string;
-  /** z.B. "group-hover/topic:opacity-100" — bestimmt, wann der Stift erscheint. */
+  /** z.B. "group-hover/target:opacity-100" — bestimmt, wann der Stift erscheint. */
   hoverGroupClassName: string;
   inputRef?: (el: HTMLInputElement | null) => void;
 }) {

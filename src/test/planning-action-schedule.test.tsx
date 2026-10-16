@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AssessmentOutline } from "@/components/assessment/AssessmentOutline";
-import type { TopicNode } from "@/types/assessment";
+import type { TargetNode } from "@/types/assessment";
 import {
   buildDefaultTemplateEditable,
   buildDefaultTemplateFields,
@@ -9,21 +9,14 @@ import {
   saveActionPlanTemplates,
 } from "@/lib/action-plan-templates";
 
-const topics: TopicNode[] = [
+const targets: TargetNode[] = [
   {
-    id: "topic-1",
-    title: "Mobilität erhalten",
-    notes: "",
+    id: "goal-a",
     disciplineId: "discipline-ihp",
-    targets: [
-      {
-        id: "goal-a",
-        title: "Ziel A",
-        notes: "",
-        validFrom: "2026-06-01",
-        actions: [],
-      },
-    ],
+    title: "Ziel A",
+    notes: "",
+    validFrom: "2026-06-01",
+    actions: [],
   },
 ];
 
@@ -33,9 +26,8 @@ const openNewActionPanel = async (onAddAction = vi.fn()) => {
       viewMode="planning"
       selectedDate="2026-05-12"
       onSelectedDateChange={vi.fn()}
-      topics={topics}
+      targets={targets}
       disciplines={[{ id: "discipline-ihp", title: "IHP", authorizedRoleIds: [] }]}
-      onUpdateTopic={vi.fn()}
       onUpdateTarget={vi.fn()}
       onUpdateAction={vi.fn()}
       onUpdateActionField={vi.fn()}
@@ -43,9 +35,6 @@ const openNewActionPanel = async (onAddAction = vi.fn()) => {
       onAddTarget={vi.fn()}
       onAddAction={onAddAction}
       onUpdateActionGroup={vi.fn()}
-      onAddTopic={vi.fn()}
-      onUpdateTopicDiscipline={vi.fn()}
-      onDeleteTopic={vi.fn()}
       onDeleteTarget={vi.fn()}
       onReactivateTarget={vi.fn()}
       onDeleteAction={vi.fn()}
@@ -53,7 +42,7 @@ const openNewActionPanel = async (onAddAction = vi.fn()) => {
     />,
   );
 
-  fireEvent.click(screen.getByRole("button", { name: /Mobilität erhalten/ }));
+  fireEvent.click(screen.getByRole("button", { name: /Ziel A/ }));
   fireEvent.click(screen.getByRole("button", { name: /Neue Handlung erfassen/ }));
   return { panel: within(await screen.findByRole("dialog")), onAddAction };
 };

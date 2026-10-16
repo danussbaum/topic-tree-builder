@@ -190,33 +190,25 @@ export interface TargetNode {
   notes: string;
   validFrom?: string;
   validTo?: string;
-  assessment?: TargetAssessment;
-  actions: ActionNode[];
-}
-
-export interface TopicNode {
-  id: string;
-  title: string;
-  notes: string;
   /** Zugeordnete Disziplin aus den Einstellungen */
   disciplineId?: string;
-  targets: TargetNode[];
+  assessment?: TargetAssessment;
+  actions: ActionNode[];
 }
 
 export interface Client {
   id: string;
   firstName: string;
   lastName: string;
-  topics: TopicNode[];
+  targets: TargetNode[];
   /**
-   * Ungeplante Handlungen hängen direkt am Klienten, nicht im Themenbaum: sie sind
+   * Ungeplante Handlungen hängen direkt am Klienten, nicht im Zielbaum: sie sind
    * Umsetzungs-Daten und darum kein Plan-Inhalt. Für die Umsetzung werden sie über
-   * ein virtuelles Thema/Ziel eingeblendet (siehe lib/unplanned-action.ts).
+   * ein virtuelles Ziel eingeblendet (siehe lib/unplanned-action.ts).
    */
   unplannedActions?: ActionNode[];
 }
 
 export type Selection =
-  | { kind: "topic"; topicId: string }
-  | { kind: "target"; topicId: string; targetId: string }
-  | { kind: "action"; topicId: string; targetId: string; actionId: string };
+  | { kind: "target"; targetId: string }
+  | { kind: "action"; targetId: string; actionId: string };
