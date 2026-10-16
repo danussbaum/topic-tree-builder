@@ -72,10 +72,10 @@ describe("buildPlanningExportRows", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
       Dossier: "Anna Muster",
-      Ziel: "Selbständig gehen",
-      Zielbeschreibung: "Ziel-Notiz",
-      "Ziel gültig ab": "2026-01-01",
-      "Ziel gültig bis": "2026-06-30",
+      "Thema / Ziel": "Selbständig gehen",
+      "Beschreibung Thema / Ziel": "Ziel-Notiz",
+      "Thema / Ziel gültig ab": "2026-01-01",
+      "Thema / Ziel gültig bis": "2026-06-30",
       Handlung: "Gehtraining",
       Beschreibung: "Mit Rollator",
       Planungsart: "Geplant",
@@ -171,7 +171,7 @@ describe("buildPlanningExportRows", () => {
     );
 
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ Ziel: "Ziel ohne Handlung" });
+    expect(rows[0]).toMatchObject({ "Thema / Ziel": "Ziel ohne Handlung" });
     // Handlungs-Spalten bleiben leer und werden beim Download zu leeren Zellen
     expect(rows[0].Handlung ?? "").toBe("");
   });

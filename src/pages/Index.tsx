@@ -401,7 +401,7 @@ const CONFIRMATION_EXPORT_HEADERS = [
   "Datum",
   "Dossier",
   "Disziplin",
-  "Ziel",
+  "Thema / Ziel",
   "Handlung",
   "Planungsart",
   "Beschreibung",
@@ -1410,7 +1410,7 @@ const Index = () => {
 
     if (hasNestedPlanning) {
       showConfirm(
-        "Diese Disziplin enthält Ziele oder Handlungen. Beim Löschen werden alle verknüpften Daten ebenfalls gelöscht. Möchten Sie fortfahren?",
+        "Diese Disziplin enthält Themen / Ziele oder Handlungen. Beim Löschen werden alle verknüpften Daten ebenfalls gelöscht. Möchten Sie fortfahren?",
         doDelete,
       );
       return;
@@ -1711,7 +1711,7 @@ const Index = () => {
 
     if (hasActions) {
       showConfirm(
-        "Dieses Ziel enthält Handlungen. Beim Löschen werden alle verknüpften Daten ebenfalls gelöscht. Möchten Sie fortfahren?",
+        "Dieses Thema / Ziel enthält Handlungen. Beim Löschen werden alle verknüpften Daten ebenfalls gelöscht. Möchten Sie fortfahren?",
         doDelete,
       );
       return;
@@ -1885,7 +1885,7 @@ const Index = () => {
   const exportEvaluationXlsx = () => {
     if (viewMode !== "evaluation") return;
     const disciplineList = availableDisciplines.length > 0 ? availableDisciplines : initialActionPlanDisciplines;
-    const headers = [CLIENT_REFERENCE_HEADER, "Dossier", "Disziplin", "Ziel", "Beschreibung", "Gültig ab", "Gültig bis", "Ziel erreicht", "Auswertung", "Abgeleitete Massnahmen", "Beurteilt von", "Beurteilt am"];
+    const headers = [CLIENT_REFERENCE_HEADER, "Dossier", "Disziplin", "Thema / Ziel", "Beschreibung", "Gültig ab", "Gültig bis", "Ziel erreicht", "Auswertung", "Abgeleitete Massnahmen", "Beurteilt von", "Beurteilt am"];
     const rows = visibleSelectedClients.flatMap((client) => {
       const clientName = `${client.firstName} ${client.lastName}`.trim();
       return client.targets
@@ -1930,7 +1930,7 @@ const Index = () => {
         availableDisciplines.find((discipline) => discipline.id === target.disciplineId)?.title ??
         target.disciplineId ??
         "",
-      Ziel: target.title,
+      "Thema / Ziel": target.title,
       Handlung: action.title,
       "Planungsart": action.isUnplanned
         ? "Ungeplant"
@@ -2165,7 +2165,7 @@ const Index = () => {
                     </button>
                   </PopoverTrigger>
                   <PopoverContent className="w-64 p-4 space-y-3" align="start" side="bottom">
-                    <div className="text-sm font-semibold">Neues Ziel</div>
+                    <div className="text-sm font-semibold">Neues Thema / Ziel</div>
                     <div>
                       <Label className="mb-1 block text-xs uppercase tracking-widest text-muted-foreground">
                         Disziplin
@@ -2190,7 +2190,7 @@ const Index = () => {
                         }
                       }}
                     >
-                      Ziel erstellen
+                      Thema / Ziel erstellen
                     </Button>
                   </PopoverContent>
                 </Popover>
@@ -2695,7 +2695,7 @@ const Index = () => {
                       }
                       className="h-3.5 w-3.5 rounded border-border accent-primary"
                     />
-                    Nur abgeschlossene Ziele einblenden
+                    Nur abgeschlossene Themen / Ziele einblenden
                   </label>
                 </div>
 
@@ -2922,7 +2922,7 @@ const Index = () => {
                           onChange={(e) => setShowClosedTargets(e.target.checked)}
                           className="h-4 w-4 rounded border-border accent-primary"
                         />
-                        Abgeschlossene Ziele einblenden
+                        Abgeschlossene Themen / Ziele einblenden
                       </label>
                     }
                   />
@@ -2938,7 +2938,7 @@ const Index = () => {
                             onChange={(e) => setHideEvaluationAssessed(e.target.checked)}
                             className="h-4 w-4 rounded border-border accent-primary"
                           />
-                          Beurteilte Ziele ausblenden
+                          Beurteilte Themen / Ziele ausblenden
                         </label>
                       }
                     />
@@ -2946,7 +2946,7 @@ const Index = () => {
                       client.targets.every((tg) => !isTargetClosed(tg))
                     ) && (
                       <div className="py-16 text-center text-muted-foreground">
-                        <p className="text-lg">Keine abgeschlossenen Ziele vorhanden.</p>
+                        <p className="text-lg">Keine abgeschlossenen Themen / Ziele vorhanden.</p>
                       </div>
                     )}
                     {visibleSelectedClients.map((client) => {
@@ -2973,7 +2973,7 @@ const Index = () => {
                           </div>
                           {disciplineGroups.length === 0 ? (
                             <p className="text-sm text-muted-foreground">
-                              Alle abgeschlossenen Ziele wurden bereits beurteilt.
+                              Alle abgeschlossenen Themen / Ziele wurden bereits beurteilt.
                             </p>
                           ) : (
                           <div className="space-y-8">
@@ -3257,7 +3257,7 @@ const Index = () => {
                               className="shrink-0 inline-flex items-center gap-1 text-sm text-primary transition-colors hover:underline"
                             >
                               <Plus className="h-4 w-4" />
-                              Ziel
+                              Thema / Ziel
                             </button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent
@@ -3445,7 +3445,7 @@ const Index = () => {
                   {pendingTargetValidTo.affectedActionCount === 1
                     ? "Eine Handlung hat"
                     : `${pendingTargetValidTo.affectedActionCount} Handlungen haben`}{" "}
-                  kein oder ein späteres «Gültig bis»-Datum als das Ziel. Soll das «Gültig bis»-Datum
+                  kein oder ein späteres «Gültig bis»-Datum als das Thema / Ziel. Soll das «Gültig bis»-Datum
                   dieser Handlungen automatisch auf dasselbe Datum gesetzt werden?
                 </>
               )}
@@ -4219,7 +4219,7 @@ function TargetAssessmentPanel({
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
           {(target.title?.trim() || target.notes?.trim()) && (
             <div className="space-y-1.5">
-              <div className="text-xs font-medium text-muted-foreground uppercase tracking-widest">Ziel</div>
+              <div className="text-xs font-medium text-muted-foreground uppercase tracking-widest">Thema / Ziel</div>
               <div className="rounded-md bg-background border border-border px-4 py-3 space-y-1">
                 {target.title?.trim() && <p className="text-sm font-medium">{target.title}</p>}
                 {target.notes?.trim() && <p className="text-sm text-muted-foreground">{target.notes}</p>}

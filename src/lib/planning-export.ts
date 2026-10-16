@@ -25,10 +25,10 @@ export const PLANNING_EXPORT_HEADERS = [
   CLIENT_REFERENCE_HEADER,
   "Dossier",
   "Disziplin",
-  "Ziel",
-  "Zielbeschreibung",
-  "Ziel gültig ab",
-  "Ziel gültig bis",
+  "Thema / Ziel",
+  "Beschreibung Thema / Ziel",
+  "Thema / Ziel gültig ab",
+  "Thema / Ziel gültig bis",
   "Handlung",
   "Beschreibung",
   "Planungsart",
@@ -48,8 +48,8 @@ export const PLANNING_EXPORT_HEADERS = [
 ] as const;
 
 export const PLANNING_EXPORT_DATE_HEADERS = new Set([
-  "Ziel gültig ab",
-  "Ziel gültig bis",
+  "Thema / Ziel gültig ab",
+  "Thema / Ziel gültig bis",
   "Gültig ab",
   "Gültig bis",
 ]);
@@ -193,10 +193,10 @@ export const buildPlanningExportRows = (
     [CLIENT_REFERENCE_HEADER]: clientReferenceNumbers.get(client.id) ?? "",
     Dossier: clientName(client),
     Disziplin: disciplineTitle(target),
-    Ziel: target.title,
-    Zielbeschreibung: target.notes,
-    "Ziel gültig ab": target.validFrom ?? "",
-    "Ziel gültig bis": target.validTo ?? "",
+    "Thema / Ziel": target.title,
+    "Beschreibung Thema / Ziel": target.notes,
+    "Thema / Ziel gültig ab": target.validFrom ?? "",
+    "Thema / Ziel gültig bis": target.validTo ?? "",
   });
 
   return [...clients]

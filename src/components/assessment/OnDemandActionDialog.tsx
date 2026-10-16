@@ -212,7 +212,7 @@ export function OnDemandActionDialog({
             ) : (
               <Select value={selectedActionId ?? undefined} onValueChange={selectAction}>
                 {/* Zweizeilig: dieselbe Handlung kann in mehreren Zielen geplant sein — der
-                    Pfad Disziplin › Ziel unterscheidet die Einträge. */}
+                    Pfad Disziplin › Thema / Ziel unterscheidet die Einträge. */}
                 <SelectTrigger className="h-auto min-h-10 py-1.5 text-left bg-background" aria-label="Handlung">
                   <SelectValue placeholder="Wählen…" />
                 </SelectTrigger>
@@ -225,7 +225,7 @@ export function OnDemandActionDialog({
                         <span className="text-xs opacity-70">
                           {disciplines.find((discipline) => discipline.id === option.disciplineId)?.title ??
                             "Ohne Disziplin"}{" "}
-                          › {option.targetTitle || "Ohne Ziel"}
+                          › {option.targetTitle || "Ohne Thema / Ziel"}
                         </span>
                         <span>
                           {option.action.title}

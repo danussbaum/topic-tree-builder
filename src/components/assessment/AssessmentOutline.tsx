@@ -1550,7 +1550,7 @@ export function AssessmentOutline({
                                                       : canConfirm
                                                         ? option.description
                                                         : targetClosed
-                                                          ? "Ziel abgeschlossen — Bestätigungen gesperrt"
+                                                          ? "Thema / Ziel abgeschlossen — Bestätigungen gesperrt"
                                                           : "Keine Umsetzung möglich (zu geringe Berechtigung)"}
                                                 </div>
                                               </div>
@@ -1607,7 +1607,7 @@ export function AssessmentOutline({
                                           <div className="max-w-[220px] space-y-0.5">
                                             <div className="font-medium">Umsetzung bearbeiten</div>
                                             <div className="text-xs text-muted-foreground">
-                                              {(bulkNotDoneMode || bulkDoneAsPlannedMode) ? "Im Mehrfachauswahl-Modus nicht verfügbar" : targetClosed ? "Ziel abgeschlossen — Bestätigungen gesperrt" : canConfirm ? "Umsetzungsstatus anpassen oder ändern" : "Keine Umsetzung möglich (zu geringe Berechtigung)"}
+                                              {(bulkNotDoneMode || bulkDoneAsPlannedMode) ? "Im Mehrfachauswahl-Modus nicht verfügbar" : targetClosed ? "Thema / Ziel abgeschlossen — Bestätigungen gesperrt" : canConfirm ? "Umsetzungsstatus anpassen oder ändern" : "Keine Umsetzung möglich (zu geringe Berechtigung)"}
                                             </div>
                                           </div>
                                         </TooltipContent>
@@ -1625,7 +1625,7 @@ export function AssessmentOutline({
                                       <TooltipTrigger asChild>
                                         <span
                                           tabIndex={0}
-                                          aria-label="Details zu Disziplin und Ziel anzeigen"
+                                          aria-label="Details zu Disziplin und Thema / Ziel anzeigen"
                                           className="ml-1.5 inline-flex h-6 w-6 shrink-0 cursor-help items-center justify-center rounded-full border border-border bg-background align-middle text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                                         >
                                           <Info className="h-3.5 w-3.5" aria-hidden="true" />
@@ -1637,7 +1637,7 @@ export function AssessmentOutline({
                                           <div className="mt-0.5 text-muted-foreground">{disciplineTitle}</div>
                                         </div>
                                         <div>
-                                          <div className="font-semibold text-foreground">Ziel</div>
+                                          <div className="font-semibold text-foreground">Thema / Ziel</div>
                                           <div className="mt-0.5 text-muted-foreground">{target.title}</div>
                                         </div>
                                       </TooltipContent>
@@ -1673,7 +1673,7 @@ export function AssessmentOutline({
                                 {!canConfirm && (
                                   <div className="mt-1 text-[11px] italic text-muted-foreground/70">
                                     {targetClosed
-                                      ? "Ziel abgeschlossen — Bestätigungen gesperrt"
+                                      ? "Thema / Ziel abgeschlossen — Bestätigungen gesperrt"
                                       : "Keine Umsetzung möglich (zu geringe Berechtigung)"}
                                   </div>
                                 )}
@@ -1865,7 +1865,7 @@ export function AssessmentOutline({
   if (targets.length === 0) {
     return (
       <div className="border border-dashed border-border rounded-sm p-12 text-center text-muted-foreground">
-        <p>Noch keine Ziele erfasst.</p>
+        <p>Noch keine Themen / Ziele erfasst.</p>
       </div>
     );
   }
@@ -1891,12 +1891,12 @@ export function AssessmentOutline({
                       <InlineEditable
                         value={target.title}
                         onChange={(v) => onUpdateTarget(target.id, "title", v)}
-                        placeholder="Ziel…"
+                        placeholder="Thema / Ziel…"
                         isEditing={editingTargetTitleId === target.id}
                         onStartEdit={() => setEditingTargetTitleId(target.id)}
                         onStopEdit={() => setEditingTargetTitleId(null)}
-                        editLabel="Ziel umbenennen"
-                        editHint="Titel des Ziels anpassen"
+                        editLabel="Thema / Ziel umbenennen"
+                        editHint="Titel des Themas / Ziels anpassen"
                         readOnly={targetClosed}
                         textClassName="text-lg font-medium"
                         hoverGroupClassName="group-hover/target:opacity-100"
@@ -1929,15 +1929,15 @@ export function AssessmentOutline({
                             <button
                               onClick={() => onReactivateTarget(target.id)}
                               className="p-1.5 hover:bg-primary/10 hover:text-primary rounded transition-colors"
-                              aria-label="Ziel wieder aktivieren"
+                              aria-label="Thema / Ziel wieder aktivieren"
                             >
                               <RotateCcw className="h-3.5 w-3.5" />
                             </button>
                           </TooltipTrigger>
                           <TooltipContent side="top">
                             <div className="max-w-[220px] space-y-0.5">
-                              <div className="font-medium">Ziel wieder aktivieren</div>
-                              <div className="text-xs text-muted-foreground">Abschlussdatum entfernen und Ziel reaktivieren</div>
+                              <div className="font-medium">Thema / Ziel wieder aktivieren</div>
+                              <div className="text-xs text-muted-foreground">Abschlussdatum entfernen und Thema / Ziel reaktivieren</div>
                             </div>
                           </TooltipContent>
                         </Tooltip>
@@ -1949,15 +1949,15 @@ export function AssessmentOutline({
                             <button
                               onClick={() => onDeleteTarget(target.id)}
                               className="opacity-0 group-hover/target:opacity-100 p-1.5 hover:bg-destructive/10 hover:text-destructive rounded transition-opacity"
-                              aria-label="Ziel löschen"
+                              aria-label="Thema / Ziel löschen"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
                           </TooltipTrigger>
                           <TooltipContent side="top">
                             <div className="max-w-[220px] space-y-0.5">
-                              <div className="font-medium">Ziel löschen</div>
-                              <div className="text-xs text-muted-foreground">Ziel mit allen Handlungen unwiderruflich entfernen</div>
+                              <div className="font-medium">Thema / Ziel löschen</div>
+                              <div className="text-xs text-muted-foreground">Thema / Ziel mit allen Handlungen unwiderruflich entfernen</div>
                             </div>
                           </TooltipContent>
                         </Tooltip>
@@ -1970,13 +1970,13 @@ export function AssessmentOutline({
                       <InlineEditable
                         value={target.notes}
                         onChange={(v) => onUpdateTarget(target.id, "notes", v)}
-                        placeholder="Freitext zum Ziel…"
+                        placeholder="Freitext zum Thema / Ziel…"
                         multiline
                         isEditing={editingTargetNotesId === target.id}
                         onStartEdit={() => setEditingTargetNotesId(target.id)}
                         onStopEdit={() => setEditingTargetNotesId(null)}
                         editLabel="Freitext bearbeiten"
-                        editHint="Freitext zum Ziel anpassen"
+                        editHint="Freitext zum Thema / Ziel anpassen"
                         readOnly={targetClosed}
                         textClassName="text-sm"
                         hoverGroupClassName="group-hover/target:opacity-100"
@@ -2109,7 +2109,7 @@ export function AssessmentOutline({
                             )}
                           >
                             <span className={cn("min-w-0 flex-1 whitespace-pre-wrap break-words", targetClosed && "line-through decoration-muted-foreground/50")}>
-                              {target.title || "Ziel…"}
+                              {target.title || "Thema / Ziel…"}
                             </span>
                             {targetClosed && <span className="sr-only"> (abgeschlossen)</span>}
                           </button>
@@ -2124,7 +2124,7 @@ export function AssessmentOutline({
                     className="inline-flex items-center gap-1 pl-2 text-sm text-muted-foreground transition-colors hover:text-primary"
                   >
                     <Plus className="h-4 w-4" />
-                    Ziel
+                    Thema / Ziel
                   </button>
                 </div>
               </section>
@@ -2138,7 +2138,7 @@ export function AssessmentOutline({
             <div className="space-y-10">{selectedTargets.map(renderTargetDetail)}</div>
           ) : (
             <div className="flex min-h-[240px] flex-col items-center justify-center gap-2 text-center text-muted-foreground">
-              <div>Ziel links wählen, um Handlungen zu sehen.</div>
+              <div>Thema / Ziel links wählen, um Handlungen zu sehen.</div>
             </div>
           )}
         </div>
@@ -3696,7 +3696,7 @@ export function ActionSidePanel({
               </ActionField>
               {(hasError("validFrom") || hasError("validTo")) && (targetValidFrom || targetValidTo) && (
                 <p className="col-span-2 text-xs text-destructive">
-                  Datum muss innerhalb des Ziel-Gültigkeitsbereichs liegen
+                  Datum muss innerhalb des Gültigkeitsbereichs des Themas / Ziels liegen
                   {targetValidFrom && targetValidTo
                     ? ` (${targetValidFrom.split("-").reverse().join(".")} – ${targetValidTo.split("-").reverse().join(".")})`
                     : targetValidFrom
