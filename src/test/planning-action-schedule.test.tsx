@@ -27,7 +27,7 @@ const openNewActionPanel = async (onAddAction = vi.fn()) => {
       selectedDate="2026-05-12"
       onSelectedDateChange={vi.fn()}
       targets={targets}
-      disciplines={[{ id: "discipline-ihp", title: "IHP", authorizedRoleIds: [] }]}
+      disciplines={[{ id: "discipline-ihp", title: "IHP", authorizedRoleIds: [], categoryIds: [] }]}
       onUpdateTarget={vi.fn()}
       onUpdateAction={vi.fn()}
       onUpdateActionField={vi.fn()}

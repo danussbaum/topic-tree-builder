@@ -5,8 +5,8 @@ import type { ActionPlanDiscipline } from "@/lib/action-plan-disciplines";
 import type { ActionNode, TargetNode } from "@/types/assessment";
 
 const disciplines: ActionPlanDiscipline[] = [
-  { id: "discipline-ihp", title: "IHP", authorizedRoleIds: [] },
-  { id: "discipline-physio", title: "Physiotherapie", authorizedRoleIds: [] },
+  { id: "discipline-ihp", title: "IHP", authorizedRoleIds: [], categoryIds: [] },
+  { id: "discipline-physio", title: "Physiotherapie", authorizedRoleIds: [], categoryIds: [] },
 ];
 
 const targets: TargetNode[] = [

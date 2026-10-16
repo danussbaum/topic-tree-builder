@@ -1,9 +1,14 @@
+import {
+  initialActionPlanCategories,
+  loadActionPlanCategories,
+} from "@/lib/action-plan-categories";
 import { APPLICATION_BROWSER_STORAGE_KEYS } from "@/lib/application-storage";
 
 export interface ActionPlanDiscipline {
   id: string;
   title: string;
   authorizedRoleIds: string[];
+  categoryIds: string[];
 }
 
 export interface ActionPlanAuthorizedRoleOption {
@@ -73,28 +78,33 @@ export const initialActionPlanDisciplines: ActionPlanDiscipline[] = [
     id: "discipline-inhouse-spitex",
     title: "Inhouse-Spitex",
     authorizedRoleIds: INHOUSE_SPITEX_DEFAULT_AUTHORIZED_ROLE_IDS,
+    categoryIds: initialActionPlanCategories.map((category) => category.id),
   },
-  { id: "discipline-ihp", title: "IHP", authorizedRoleIds: [] },
+  { id: "discipline-ihp", title: "IHP", authorizedRoleIds: [], categoryIds: [] },
   {
     id: "discipline-physiotherapie",
     title: "Physiotherapie",
     authorizedRoleIds: [],
+    categoryIds: [],
   },
   {
     id: "discipline-ergotherapie",
     title: "Ergotherapie",
     authorizedRoleIds: [],
+    categoryIds: [],
   },
   {
     id: "discipline-kja-foerderplanung",
     title: "KJA Förderplanung",
     authorizedRoleIds: [],
+    categoryIds: [],
   },
 ];
 
 const normalizeDiscipline = (
   discipline: Partial<ActionPlanDiscipline>,
   index: number,
+  validCategoryIds: Set<string>,
 ) => {
   const title =
     typeof discipline.title === "string" ? discipline.title.trim() : "";
@@ -115,11 +125,19 @@ const normalizeDiscipline = (
     : id === "discipline-inhouse-spitex" || title === "Inhouse-Spitex"
       ? INHOUSE_SPITEX_DEFAULT_AUTHORIZED_ROLE_IDS
       : [];
+  // Geloeschte Kategorien fallen hier heraus.
+  const categoryIds = Array.isArray(discipline.categoryIds)
+    ? discipline.categoryIds.filter(
+        (categoryId): categoryId is string =>
+          typeof categoryId === "string" && validCategoryIds.has(categoryId),
+      )
+    : [];
 
   return {
     id,
     title,
     authorizedRoleIds,
+    categoryIds,
   };
 };
 
@@ -131,8 +149,13 @@ export const loadActionPlanDisciplines = (): ActionPlanDiscipline[] => {
   try {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return initialActionPlanDisciplines;
+    const validCategoryIds = new Set(
+      loadActionPlanCategories().map((category) => category.id),
+    );
     return parsed
-      .map((discipline, index) => normalizeDiscipline(discipline, index))
+      .map((discipline, index) =>
+        normalizeDiscipline(discipline, index, validCategoryIds),
+      )
       .filter(
         (discipline): discipline is ActionPlanDiscipline => discipline !== null,
       );

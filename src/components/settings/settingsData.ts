@@ -178,7 +178,7 @@ export const settingsCategories: SettingsCategory[] = [
     icon: Tags,
     links: [
       { label: "Gruppierungen" },
-      { label: "Kategorien" },
+      { label: "Kategorien", implemented: true },
       { label: "Markierungen" },
     ],
   },

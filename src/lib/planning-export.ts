@@ -244,7 +244,7 @@ export const buildPlanningExportRows = (
                     Uhrzeit: scheduledTimesText(nodes),
                     "Gültig ab": action.validFrom ?? "",
                     "Gültig bis": action.validTo ?? "",
-                    Klassifizierung: action.category ? `KLV ${action.category.toUpperCase()}` : "",
+                    Klassifizierung: action.classification ? `KLV ${action.classification.toUpperCase()}` : "",
                     Leistungsarten: serviceTypesText(action),
                     "Optionale Leistungen": optionalServicesText(action),
                     Hilfsmittel: formatActionResources(action, resources),

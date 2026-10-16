@@ -8,6 +8,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AuthorizedRolesMultiSelect } from "@/components/settings/AuthorizedRolesMultiSelect";
+import { DisciplineMultiSelect } from "@/components/settings/DisciplineMultiSelect";
+import {
+  formatActionPlanCategory,
+  loadActionPlanCategories,
+  sortActionPlanCategories,
+} from "@/lib/action-plan-categories";
 import {
   loadActionPlanDisciplines,
   saveActionPlanDisciplines,
@@ -39,6 +45,15 @@ export const ActionPlanDisciplinesView = forwardRef<
   const [draftAuthorizedRoleIds, setDraftAuthorizedRoleIds] = useState<
     string[]
   >([]);
+  const [draftCategoryIds, setDraftCategoryIds] = useState<string[]>([]);
+  const categoryOptions = useMemo(
+    () =>
+      sortActionPlanCategories(loadActionPlanCategories()).map((category) => ({
+        id: category.id,
+        title: formatActionPlanCategory(category),
+      })),
+    [],
+  );
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
   const selectedDiscipline = useMemo(
@@ -69,6 +84,7 @@ export const ActionPlanDisciplinesView = forwardRef<
     setSelectedDisciplineId(null);
     setDraftTitle("Neue Disziplin");
     setDraftAuthorizedRoleIds([]);
+    setDraftCategoryIds([]);
     setIsPanelMounted(true);
   };
 
@@ -79,6 +95,7 @@ export const ActionPlanDisciplinesView = forwardRef<
     setSelectedDisciplineId(disciplineId);
     setDraftTitle(discipline.title);
     setDraftAuthorizedRoleIds(discipline.authorizedRoleIds);
+    setDraftCategoryIds(discipline.categoryIds);
     setIsPanelMounted(true);
   };
 
@@ -101,6 +118,7 @@ export const ActionPlanDisciplinesView = forwardRef<
           id: `discipline-${Date.now()}`,
           title,
           authorizedRoleIds: draftAuthorizedRoleIds,
+          categoryIds: draftCategoryIds,
         },
       ]);
       closePanel();
@@ -110,7 +128,12 @@ export const ActionPlanDisciplinesView = forwardRef<
     setDisciplines((prev) =>
       prev.map((entry) =>
         entry.id === selectedDiscipline.id
-          ? { ...entry, title, authorizedRoleIds: draftAuthorizedRoleIds }
+          ? {
+              ...entry,
+              title,
+              authorizedRoleIds: draftAuthorizedRoleIds,
+              categoryIds: draftCategoryIds,
+            }
           : entry,
       ),
     );
@@ -208,6 +231,18 @@ export const ActionPlanDisciplinesView = forwardRef<
                 <AuthorizedRolesMultiSelect
                   value={draftAuthorizedRoleIds}
                   onChange={setDraftAuthorizedRoleIds}
+                />
+                <span />
+
+                <label className="pt-2 text-sm text-foreground">
+                  Kategorien
+                </label>
+                <DisciplineMultiSelect
+                  options={categoryOptions}
+                  value={draftCategoryIds}
+                  onChange={setDraftCategoryIds}
+                  placeholder="Kategorien suchen..."
+                  toggleLabel="Kategorien anzeigen"
                 />
               </div>
             </div>

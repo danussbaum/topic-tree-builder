@@ -35,7 +35,7 @@ describe("AssessmentOutline confirmation actions", () => {
     window.localStorage.clear();
   });
 
-  it("allows confirming category A actions for the simulated Inhouse-Spitex A role", async () => {
+  it("allows confirming classification A actions for the simulated Inhouse-Spitex A role", async () => {
     render(
       <AssessmentOutline
         viewMode="confirmation"
@@ -50,7 +50,7 @@ describe("AssessmentOutline confirmation actions", () => {
             actions: [
               {
                 ...targets[0].actions[0],
-                category: "a",
+                classification: "a",
               },
             ],
           },
@@ -243,7 +243,7 @@ describe("AssessmentOutline confirmation actions", () => {
       ACTION_PLAN_TEMPLATES_STORAGE_KEY,
       JSON.stringify([
         {
-          id: "tpl-locked-category",
+          id: "tpl-locked-classification",
           name: "Kategorie gesperrt",
           disciplineIds: [],
           fields: {
@@ -252,7 +252,7 @@ describe("AssessmentOutline confirmation actions", () => {
             hilfsmittel: "resource-rutschbrett",
             dauer: "25",
             personen: "2",
-            kategorie: "b",
+            klassifizierung: "b",
             tageszeit: "Morgen",
             resultat: "required",
           },
@@ -263,7 +263,7 @@ describe("AssessmentOutline confirmation actions", () => {
             hilfsmittel: false,
             dauer: false,
             personen: false,
-            kategorie: false,
+            klassifizierung: false,
             tageszeit: false,
             resultat: false,
           },
@@ -314,7 +314,7 @@ describe("AssessmentOutline confirmation actions", () => {
             validFrom: "2026-05-01",
             recurrence: "monthly",
             recurrenceMonthlyPattern: "first_day",
-            category: "b",
+            classification: "b",
             dayPart: DAY_PART_SEED_IDS.morning,
             plannedMinutes: 25,
             requiredPersons: 2,
@@ -323,7 +323,7 @@ describe("AssessmentOutline confirmation actions", () => {
               "title",
               "notes",
               "resourceIds",
-              "category",
+              "classification",
               "dayPart",
               "scheduledTime",
               "plannedMinutes",

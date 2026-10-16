@@ -1,6 +1,7 @@
 import {
   Fragment,
   forwardRef,
+  useCallback,
   useEffect,
   useImperativeHandle,
   useMemo,
@@ -34,6 +35,8 @@ import {
   serializeLeistungsarten,
   parseOptionalLeistungsarten,
   serializeOptionalLeistungsarten,
+  getAvailableCategories,
+  resolveTemplateCategoryId,
   resolveTemplateDisciplineIds,
   saveActionPlanTemplates,
   serializeTageszeit,
@@ -48,6 +51,10 @@ import {
   type DayPartEntry,
 } from "@/lib/day-part-entries";
 import { loadActionPlanDisciplines } from "@/lib/action-plan-disciplines";
+import {
+  formatActionPlanCategory,
+  loadActionPlanCategories,
+} from "@/lib/action-plan-categories";
 import { DisciplineMultiSelect } from "@/components/settings/DisciplineMultiSelect";
 import { ResourceMultiSelect } from "@/components/settings/ResourceMultiSelect";
 import {
@@ -59,7 +66,7 @@ import {
   serializeResourceIds,
 } from "@/lib/action-plan-resources";
 
-type TemplateSortKey = "name" | "kategorie" | "leistungsart" | "wiederholung";
+type TemplateSortKey = "name" | "kategorie" | "klassifizierung" | "leistungsart" | "wiederholung";
 
 interface TemplateSortState {
   key: TemplateSortKey;
@@ -72,7 +79,7 @@ type TemplateFieldKey =
   | "hilfsmittel"
   | "dauer"
   | "personen"
-  | "kategorie"
+  | "klassifizierung"
   | "tageszeit"
   | "resultat"
   | "wiederholung"
@@ -101,7 +108,7 @@ const templateFieldMeta: TemplateFieldMeta[] = [
   { key: "dauer", label: "Geplante Dauer (Min.)", type: "text" },
   { key: "personen", label: "Anz. Personen", type: "text" },
   {
-    key: "kategorie",
+    key: "klassifizierung",
     label: "Klassifizierung",
     type: "select",
     options: [
@@ -201,6 +208,7 @@ export const ActionPlanTemplatesView = forwardRef<
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [draftName, setDraftName] = useState("");
   const [draftDisciplineIds, setDraftDisciplineIds] = useState<string[]>([]);
+  const [draftCategoryId, setDraftCategoryId] = useState<string | undefined>();
   const [importErrors, setImportErrors] = useState<string[]>([]);
   const [draftFields, setDraftFields] =
     useState<Record<TemplateFieldKey, string>>(buildDefaultFields);
@@ -223,6 +231,19 @@ export const ActionPlanTemplatesView = forwardRef<
     direction: "asc",
   });
   const disciplineOptions = loadActionPlanDisciplines();
+  const [categoryOptions] = useState(loadActionPlanCategories);
+  const getCategoryLabel = useCallback(
+    (categoryId?: string) => {
+      const category = categoryOptions.find((entry) => entry.id === categoryId);
+      return category ? formatActionPlanCategory(category) : "";
+    },
+    [categoryOptions],
+  );
+  const availableDraftCategories = getAvailableCategories(
+    draftDisciplineIds,
+    disciplineOptions,
+    categoryOptions,
+  );
   const resourceOptions = loadActionPlanResources();
 
   const allowedByField = useMemo(() => {
@@ -303,6 +324,8 @@ export const ActionPlanTemplatesView = forwardRef<
     const headerRow = rows[0] ?? [];
     const hasDisciplineColumn =
       headerRow[1]?.toLocaleLowerCase("de") === "disziplinen";
+    const hasCategoryColumn =
+      headerRow[hasDisciplineColumn ? 2 : 1]?.toLocaleLowerCase("de") === "kategorie";
     const hasUhrzeitColumn = headerRow.some(
       (h) => h.trim().toLocaleLowerCase("de") === "uhrzeit",
     );
@@ -323,6 +346,7 @@ export const ActionPlanTemplatesView = forwardRef<
       const nextEditable = buildDefaultEditable(true);
       const nextRequired = buildDefaultRequired();
       let nextDisciplineIds: string[] = [];
+      let nextCategoryId: string | undefined;
 
       let columnIndex = 1;
       if (hasDisciplineColumn) {
@@ -336,6 +360,15 @@ export const ActionPlanTemplatesView = forwardRef<
             `Disziplinen: unbekannte Werte ${invalidEntries.join(", ")}`,
           );
         }
+        columnIndex += 1;
+      }
+      if (hasCategoryColumn) {
+        const { categoryId, invalid } = resolveTemplateCategoryId(
+          row[columnIndex] ?? "",
+          categoryOptions,
+        );
+        nextCategoryId = categoryId;
+        if (invalid) errors.push(`Kategorie: unbekannter Wert ${row[columnIndex]}`);
         columnIndex += 1;
       }
       templateFieldMeta.forEach((field) => {
@@ -479,6 +512,7 @@ export const ActionPlanTemplatesView = forwardRef<
         id: existing?.id ?? `tpl-${Date.now()}-${rowIndex}`,
         name,
         disciplineIds: nextDisciplineIds,
+        categoryId: nextCategoryId,
         fields: nextFields,
         editable: nextEditable,
         required: nextRequired,
@@ -508,6 +542,7 @@ export const ActionPlanTemplatesView = forwardRef<
     const sorted = [...filtered].sort((a, b) => {
       const getSortValue = (template: ActionPlanTemplate) => {
         if (sortState.key === "name") return template.name;
+        if (sortState.key === "kategorie") return getCategoryLabel(template.categoryId);
         return getFieldOptionLabel(
           sortState.key,
           template.fields[sortState.key],
@@ -520,7 +555,7 @@ export const ActionPlanTemplatesView = forwardRef<
       return a.name.localeCompare(b.name, "de", { sensitivity: "base" });
     });
     return sortState.direction === "asc" ? sorted : sorted.reverse();
-  }, [searchQuery, sortState, templates]);
+  }, [getCategoryLabel, searchQuery, sortState, templates]);
 
   useEffect(() => {
     if (!isPanelMounted) return;
@@ -533,6 +568,7 @@ export const ActionPlanTemplatesView = forwardRef<
     setSelectedTemplateId(null);
     setDraftName("Neue Handlungsvorlage");
     setDraftDisciplineIds([]);
+    setDraftCategoryId(undefined);
     const fields = buildDefaultFields();
     setDraftFields(fields);
     setDraftDayPartEntries(withPositionalIds(parseTageszeit(fields.tageszeit)));
@@ -550,6 +586,7 @@ export const ActionPlanTemplatesView = forwardRef<
     setDraftDisciplineIds(
       normalizeTemplateDisciplineIds(template.disciplineIds, disciplineOptions),
     );
+    setDraftCategoryId(template.categoryId);
     setDraftFields({ ...template.fields });
     setDraftDayPartEntries(withPositionalIds(parseTageszeit(template.fields.tageszeit)));
     setDraftEditable({ ...template.editable });
@@ -585,6 +622,9 @@ export const ActionPlanTemplatesView = forwardRef<
     if (scheduleIssue) issues.push(`Tageszeit: ${scheduleIssue}`);
     setTemplateSaveErrors(issues);
     if (issues.length > 0) return;
+    const categoryId = availableDraftCategories.some((category) => category.id === draftCategoryId)
+      ? draftCategoryId
+      : undefined;
     if (isCreating) {
       setTemplates((prev) => [
         ...prev,
@@ -592,6 +632,7 @@ export const ActionPlanTemplatesView = forwardRef<
           id: `tpl-${Date.now()}`,
           name: draftName.trim(),
           disciplineIds: draftDisciplineIds,
+          categoryId,
           fields: draftFields,
           editable: draftEditable,
           required: draftRequired,
@@ -608,6 +649,7 @@ export const ActionPlanTemplatesView = forwardRef<
               ...entry,
               name: draftName.trim(),
               disciplineIds: draftDisciplineIds,
+              categoryId,
               fields: draftFields,
               editable: draftEditable,
               required: draftRequired,
@@ -642,6 +684,7 @@ export const ActionPlanTemplatesView = forwardRef<
     const headers = [
       "Name",
       "Disziplinen",
+      "Kategorie",
       ...templateFieldMeta.flatMap((field) =>
         field.editable === false
           ? [field.label]
@@ -657,6 +700,7 @@ export const ActionPlanTemplatesView = forwardRef<
         template.disciplineIds,
         disciplineOptions,
       ).join(", "),
+      categoryOptions.find((category) => category.id === template.categoryId)?.code ?? "",
       ...templateFieldMeta.flatMap((field) =>
         field.editable === false
           ? [templateFieldCsvValue(template, field.key)]
@@ -731,11 +775,14 @@ export const ActionPlanTemplatesView = forwardRef<
               <th className="w-64 px-4 py-2 text-left text-xs font-semibold text-foreground">
                 Disziplinen
               </th>
+              <th className="w-56 px-4 py-2 text-left text-xs font-semibold text-foreground">
+                {renderSortableHeader("kategorie", "Kategorie")}
+              </th>
               <th className="px-4 py-2 text-left text-xs font-semibold text-foreground">
                 {renderSortableHeader("name", "Name")}
               </th>
               <th className="w-32 px-4 py-2 text-left text-xs font-semibold text-foreground">
-                {renderSortableHeader("kategorie", "Klassifizierung")}
+                {renderSortableHeader("klassifizierung", "Klassifizierung")}
               </th>
               <th className="w-44 px-4 py-2 text-left text-xs font-semibold text-foreground">
                 {renderSortableHeader("leistungsart", "Leistungsart")}
@@ -758,11 +805,14 @@ export const ActionPlanTemplatesView = forwardRef<
                     disciplineOptions,
                   ).join(", ") || "Alle"}
                 </td>
+                <td className="px-4 py-2 text-[13px] text-muted-foreground">
+                  {getCategoryLabel(entry.categoryId)}
+                </td>
                 <td className="px-4 py-2 text-[13px] text-foreground">
                   {entry.name}
                 </td>
                 <td className="px-4 py-2 text-[13px] text-muted-foreground">
-                  {getFieldOptionLabel("kategorie", entry.fields.kategorie)}
+                  {getFieldOptionLabel("klassifizierung", entry.fields.klassifizierung)}
                 </td>
                 <td className="px-4 py-2 text-[13px] text-muted-foreground">
                   {parseLeistungsarten(entry.fields.leistungsart).map((e) => {
@@ -827,10 +877,43 @@ export const ActionPlanTemplatesView = forwardRef<
                 <DisciplineMultiSelect
                   options={disciplineOptions}
                   value={draftDisciplineIds}
-                  onChange={setDraftDisciplineIds}
+                  onChange={(disciplineIds) => {
+                    setDraftDisciplineIds(disciplineIds);
+                    const stillAvailable = getAvailableCategories(
+                      disciplineIds,
+                      disciplineOptions,
+                      categoryOptions,
+                    ).some((category) => category.id === draftCategoryId);
+                    if (!stillAvailable) setDraftCategoryId(undefined);
+                  }}
                 />
                 <span className="pt-2 text-xs text-muted-foreground">
                   leer = alle Disziplinen
+                </span>
+
+                <label className="pt-2 text-sm text-foreground">
+                  Kategorie
+                </label>
+                <Select
+                  value={draftCategoryId ?? "none"}
+                  onValueChange={(value) =>
+                    setDraftCategoryId(value === "none" ? undefined : value)
+                  }
+                >
+                  <SelectTrigger aria-label="Kategorie" className="bg-background">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Keine</SelectItem>
+                    {availableDraftCategories.map((category) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {formatActionPlanCategory(category)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="pt-2 text-xs text-muted-foreground">
+                  aus den Kategorien der Disziplinen
                 </span>
 
                 {templateFieldMeta.map((field) => {

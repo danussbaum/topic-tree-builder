@@ -48,10 +48,10 @@ describe("Beispielplanung Inhouse-Spitex", () => {
 
     it("nutzt dieselbe Klassifizierung wie die Handlungsart in den Vorlagen", () => {
       const categoryByTitle = new Map(
-        initialTemplates.map((template) => [template.name, template.fields.kategorie]),
+        initialTemplates.map((template) => [template.name, template.fields.klassifizierung]),
       );
       for (const action of onDemand) {
-        expect(action.category).toBe(categoryByTitle.get(action.title));
+        expect(action.classification).toBe(categoryByTitle.get(action.title));
       }
     });
 

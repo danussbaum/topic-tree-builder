@@ -59,7 +59,7 @@ export const buildInhouseSpitexSeedTargets = (): TargetNode[] => {
         action("10102 Ganzwäsche in Bad, Dusche oder am Lavabo", {
           scheduledTime: "07:30",
           plannedMinutes: 40,
-          category: "c",
+          classification: "c",
           serviceEntries: [{ serviceType: "spitex-klv-c" }],
           resourceIds: [
             "resource-duschstuhl",
@@ -70,14 +70,14 @@ export const buildInhouseSpitexSeedTargets = (): TargetNode[] => {
         action("10112 Zahnpflege", {
           scheduledTime: "08:15",
           plannedMinutes: 5,
-          category: "c",
+          classification: "c",
           serviceEntries: [{ serviceType: "spitex-klv-c" }],
           resourceIds: ["resource-zahnpflegeset"],
         }),
         action("10115 Kompressionsstrümpfe/-verband", {
           scheduledTime: "08:30",
           plannedMinutes: 10,
-          category: "b",
+          classification: "b",
           serviceEntries: [{ serviceType: "spitex-klv-b" }],
           resourceIds: ["resource-kompressionsstruempfe", "resource-anziehhilfe"],
         }),
@@ -86,7 +86,7 @@ export const buildInhouseSpitexSeedTargets = (): TargetNode[] => {
         action("10909 Pflegeanleitung/Beratung Klientin oder Angehörige", {
           dayPart: DAY_PART_SEED_IDS.afternoon,
           plannedMinutes: 15,
-          category: "a",
+          classification: "a",
           recurrence: "on_demand",
           resultRequirement: "required",
           serviceEntries: [{ serviceType: "spitex-klv-a" }],
@@ -104,7 +104,7 @@ export const buildInhouseSpitexSeedTargets = (): TargetNode[] => {
           // Tageszeit-Modus: findet irgendwann am Nachmittag statt, ohne fixe Uhrzeit.
           dayPart: DAY_PART_SEED_IDS.afternoon,
           plannedMinutes: 15,
-          category: "c",
+          classification: "c",
           recurrence: "monthly",
           recurrenceMonthlyPattern: "first_monday",
           resultRequirement: "optional",
@@ -125,7 +125,7 @@ export const buildInhouseSpitexSeedTargets = (): TargetNode[] => {
         action("10503 Aufstehen oder Hinlegen mit Hilfe", {
           scheduledTime: "07:15",
           plannedMinutes: 15,
-          category: "c",
+          classification: "c",
           serviceEntries: [{ serviceType: "spitex-klv-c" }],
           resourceIds: [
             "resource-rutschbrett",
@@ -141,7 +141,7 @@ export const buildInhouseSpitexSeedTargets = (): TargetNode[] => {
           ["22:00", "01:00", "04:00"],
           {
             plannedMinutes: 10,
-            category: "c",
+            classification: "c",
             serviceEntries: [{ serviceType: "spitex-klv-c" }],
             resourceIds: [
               "resource-lagerungskissen",
@@ -154,7 +154,7 @@ export const buildInhouseSpitexSeedTargets = (): TargetNode[] => {
         // Bei Unsicherheit wird der Toilettengang begleitet statt allein gewagt.
         action("10419 Begleitung bei Toilettengang", {
           plannedMinutes: 10,
-          category: "c",
+          classification: "c",
           recurrence: "on_demand",
           serviceEntries: [{ serviceType: "spitex-klv-c" }],
           resourceIds: ["resource-rollator", "resource-rutschbrett"],
@@ -171,7 +171,7 @@ export const buildInhouseSpitexSeedTargets = (): TargetNode[] => {
         action("10505 Hilfe beim Gehen", {
           dayPart: DAY_PART_SEED_IDS.afternoon,
           plannedMinutes: 20,
-          category: "b",
+          classification: "b",
           recurrence: "weekly",
           recurrenceWeekdays: ["monday", "wednesday", "friday"],
           resultRequirement: "required",
@@ -190,7 +190,7 @@ export const buildInhouseSpitexSeedTargets = (): TargetNode[] => {
         action("10702 Mittlerer Verband", {
           scheduledTime: "09:00",
           plannedMinutes: 20,
-          category: "b",
+          classification: "b",
           recurrence: "weekly",
           recurrenceWeekdays: ["monday", "thursday"],
           resultRequirement: "required",
@@ -208,7 +208,7 @@ export const buildInhouseSpitexSeedTargets = (): TargetNode[] => {
         action("10801 Gesundheitskontrolle (Vitalparameter)", {
           scheduledTime: "09:30",
           plannedMinutes: 10,
-          category: "b",
+          classification: "b",
           resultRequirement: "required",
           serviceEntries: [{ serviceType: "spitex-klv-b" }],
         }),
@@ -216,7 +216,7 @@ export const buildInhouseSpitexSeedTargets = (): TargetNode[] => {
         // geplanten Termin durchnässt oder verrutscht ist.
         action("10701 Kleiner Verband", {
           plannedMinutes: 15,
-          category: "b",
+          classification: "b",
           recurrence: "on_demand",
           resultRequirement: "required",
           serviceEntries: [{ serviceType: "spitex-klv-b" }],
@@ -232,7 +232,7 @@ export const buildInhouseSpitexSeedTargets = (): TargetNode[] => {
         // Nach Bedarf: Schmerzreserve, in der Regel vor dem Verbandwechsel.
         action("10603 Medikamentenverabreichung", {
           plannedMinutes: 10,
-          category: "b",
+          classification: "b",
           recurrence: "on_demand",
           resultRequirement: "optional",
           serviceEntries: [{ serviceType: "spitex-klv-b" }],

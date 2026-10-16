@@ -61,7 +61,7 @@ describe("buildPlanningExportRows", () => {
             validFrom: "2026-01-01",
             plannedMinutes: 20,
             requiredPersons: 2,
-            category: "b",
+            classification: "b",
             resultRequirement: "required",
           }),
         ]),

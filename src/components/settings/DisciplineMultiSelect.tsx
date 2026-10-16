@@ -13,12 +13,17 @@ interface DisciplineMultiSelectProps {
   options: DisciplineOption[];
   value: string[];
   onChange: (disciplineIds: string[]) => void;
+  // Wird auch fuer die Kategorien einer Disziplin wiederverwendet.
+  placeholder?: string;
+  toggleLabel?: string;
 }
 
 export const DisciplineMultiSelect = ({
   options,
   value,
   onChange,
+  placeholder = "Disziplinen suchen...",
+  toggleLabel = "Disziplinen anzeigen",
 }: DisciplineMultiSelectProps) => {
   const [query, setQuery] = useState("");
   const [isDropdownOpen, setDropdownOpen] = useState(false);
@@ -131,7 +136,7 @@ export const DisciplineMultiSelect = ({
                   setDropdownOpen(false);
                 }
               }}
-              placeholder="Disziplinen suchen..."
+              placeholder={placeholder}
               className="h-6 min-w-[16rem] border-0 bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0"
             />
           </div>
@@ -140,7 +145,7 @@ export const DisciplineMultiSelect = ({
           type="button"
           className="mt-0.5 rounded p-1 text-muted-foreground hover:bg-secondary/70"
           onClick={() => setDropdownOpen((prev) => !prev)}
-          aria-label="Disziplinen anzeigen"
+          aria-label={toggleLabel}
         >
           <ChevronUp
             className={cn(

@@ -27,7 +27,7 @@ describe("action plan disciplines", () => {
 
   it("persistiert angepasste Disziplinen im Browser-Cache", () => {
     const disciplines = [
-      { id: "discipline-custom", title: "Logopädie", authorizedRoleIds: [] },
+      { id: "discipline-custom", title: "Logopädie", authorizedRoleIds: [], categoryIds: [] },
     ];
 
     saveActionPlanDisciplines(disciplines);
@@ -50,12 +50,12 @@ describe("action plan disciplines", () => {
         title: "Inhouse-Spitex",
         authorizedRoleIds: INHOUSE_SPITEX_DEFAULT_AUTHORIZED_ROLE_IDS,
       }),
-      expect.objectContaining({ title: "IHP", authorizedRoleIds: [] }),
+      expect.objectContaining({ title: "IHP", authorizedRoleIds: [], categoryIds: [] }),
       expect.objectContaining({
         title: "Physiotherapie",
         authorizedRoleIds: [],
       }),
-      expect.objectContaining({ title: "Ergotherapie", authorizedRoleIds: [] }),
+      expect.objectContaining({ title: "Ergotherapie", authorizedRoleIds: [], categoryIds: [] }),
       expect.objectContaining({
         title: "KJA Förderplanung",
         authorizedRoleIds: [],
@@ -77,14 +77,15 @@ describe("action plan disciplines", () => {
         id: "discipline-inhouse-spitex",
         title: "Inhouse-Spitex",
         authorizedRoleIds: INHOUSE_SPITEX_DEFAULT_AUTHORIZED_ROLE_IDS,
+        categoryIds: [],
       },
-      { id: "discipline-ihp", title: "IHP", authorizedRoleIds: [] },
+      { id: "discipline-ihp", title: "IHP", authorizedRoleIds: [], categoryIds: [] },
     ]);
   });
 
   it("fällt bei gelöschtem Cache auf die Default-Disziplinen zurück", () => {
     saveActionPlanDisciplines([
-      { id: "discipline-custom", title: "Logopädie", authorizedRoleIds: [] },
+      { id: "discipline-custom", title: "Logopädie", authorizedRoleIds: [], categoryIds: [] },
     ]);
 
     window.localStorage.removeItem(ACTION_PLAN_DISCIPLINES_STORAGE_KEY);

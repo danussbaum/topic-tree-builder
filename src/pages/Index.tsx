@@ -380,13 +380,13 @@ const EVALUATION_DONE_STATUSES: ActionNode["status"][] = [
   "not_done",
 ];
 
-const KLV_CATEGORY_LABEL: Record<string, string> = {
+const KLV_CLASSIFICATION_LABEL: Record<string, string> = {
   a: "KLV A",
   b: "KLV B",
   c: "KLV C",
   none: "Ohne Klassifizierung",
 };
-const KLV_CATEGORY_ORDER = ["a", "b", "c", "none"];
+const KLV_CLASSIFICATION_ORDER = ["a", "b", "c", "none"];
 const STAFF_UNASSIGNED_LABEL = "Ohne Zuordnung";
 
 const formatEvalMinutes = (minutes: number) => `${Math.round(minutes)} Min`;
@@ -496,11 +496,11 @@ interface EvalDimension {
   sort: (nodes: EvalGroupNode[]) => EvalGroupNode[];
 }
 
-const CATEGORY_DIMENSION: EvalDimension = {
-  keyOf: (entry) => entry.action.category ?? "none",
-  labelOf: (entry) => KLV_CATEGORY_LABEL[entry.action.category ?? "none"] ?? (entry.action.category ?? "none"),
+const CLASSIFICATION_DIMENSION: EvalDimension = {
+  keyOf: (entry) => entry.action.classification ?? "none",
+  labelOf: (entry) => KLV_CLASSIFICATION_LABEL[entry.action.classification ?? "none"] ?? (entry.action.classification ?? "none"),
   sort: (nodes) =>
-    nodes.slice().sort((a, b) => KLV_CATEGORY_ORDER.indexOf(a.groupKey) - KLV_CATEGORY_ORDER.indexOf(b.groupKey)),
+    nodes.slice().sort((a, b) => KLV_CLASSIFICATION_ORDER.indexOf(a.groupKey) - KLV_CLASSIFICATION_ORDER.indexOf(b.groupKey)),
 };
 const CLIENT_DIMENSION: EvalDimension = {
   keyOf: (entry) => entry.clientId,
@@ -655,8 +655,8 @@ const buildEvaluation = (
   };
 };
 
-type AuswertungMode = "category" | "client" | "staff" | "resultObservation";
-type AuswertungTreeMode = "category" | "client" | "staff";
+type AuswertungMode = "classification" | "client" | "staff" | "resultObservation";
+type AuswertungTreeMode = "classification" | "client" | "staff";
 
 /** Effektives Datum/Uhrzeit einer Handlung: bei Verschiebung gilt der neue Termin. */
 const getEffectiveDateTime = (entry: EvaluationActionEntry) => {
@@ -671,25 +671,25 @@ const formatEvalDateTime = (entry: EvaluationActionEntry) => {
 };
 
 const EVALUATION_CONFIG: Record<AuswertungTreeMode, { dimensions: EvalDimension[]; expandLeaves: boolean; columnLabel: string }> = {
-  category: {
-    dimensions: [CATEGORY_DIMENSION, CLIENT_DIMENSION, DAY_DIMENSION],
+  classification: {
+    dimensions: [CLASSIFICATION_DIMENSION, CLIENT_DIMENSION, DAY_DIMENSION],
     expandLeaves: true,
     columnLabel: "Klassifizierung / Klient/in / Tag / Handlung",
   },
   client: {
-    dimensions: [CLIENT_DIMENSION, CATEGORY_DIMENSION, DAY_DIMENSION],
+    dimensions: [CLIENT_DIMENSION, CLASSIFICATION_DIMENSION, DAY_DIMENSION],
     expandLeaves: true,
     columnLabel: "Klient/in / Klassifizierung / Tag / Handlung",
   },
   staff: {
-    dimensions: [STAFF_DIMENSION, CATEGORY_DIMENSION, DAY_DIMENSION, CLIENT_DIMENSION],
+    dimensions: [STAFF_DIMENSION, CLASSIFICATION_DIMENSION, DAY_DIMENSION, CLIENT_DIMENSION],
     expandLeaves: true,
     columnLabel: "Mitarbeitende / Klassifizierung / Tag / Klient/in / Handlung",
   },
 };
 
 const AUSWERTUNG_TITLE: Record<AuswertungMode, string> = {
-  category: "Auswertung nach Klassifizierung",
+  classification: "Auswertung nach Klassifizierung",
   client: "Auswertung nach Klientin",
   staff: "Auswertung nach Mitarbeitenden",
   resultObservation: "Auswertung nach Resultat und Beobachtung",
@@ -838,7 +838,7 @@ const Index = () => {
   const [viewMode, setViewMode] = useState<"planning" | "confirmation" | "evaluation" | "auswertungen">(
     cached?.viewMode ?? "planning",
   );
-  const [auswertungMode, setAuswertungMode] = useState<AuswertungMode>("category");
+  const [auswertungMode, setAuswertungMode] = useState<AuswertungMode>("classification");
   const [auswertungDetail, setAuswertungDetail] = useState<EvaluationActionEntry | null>(null);
   const [auswertungOnlyWithDifference, setAuswertungOnlyWithDifference] = useState(false);
   const [auswertungOnlyWithResult, setAuswertungOnlyWithResult] = useState(false);
@@ -1001,7 +1001,7 @@ const Index = () => {
       f.differenceMinutes != null ||
       f.differencePercent != null ||
       (f.dayParts?.length ?? 0) > 0 ||
-      f.category != null ||
+      f.classification != null ||
       f.unplanned != null ||
       (f.disciplineIds?.length ?? 0) > 0 ||
       f.persons != null ||
@@ -1273,7 +1273,7 @@ const Index = () => {
         requiredResources: fields.hilfsmittel || undefined,
         plannedMinutes: Number.isFinite(plannedMinutes) ? plannedMinutes : undefined,
         requiredPersons: Number.isFinite(requiredPersons) ? requiredPersons : undefined,
-        category: fields.kategorie !== "none" ? (fields.kategorie as ActionNode["category"]) : undefined,
+        classification: fields.klassifizierung !== "none" ? (fields.klassifizierung as ActionNode["classification"]) : undefined,
         serviceEntries: templateServiceEntries ?? overrides?.serviceEntries,
         optionalServiceTypes: templateOptionalServiceTypes ?? overrides?.optionalServiceTypes,
         resultRequirement: fields.resultat !== "none"
@@ -1371,7 +1371,7 @@ const Index = () => {
       requiredPersons?: number;
       resultRequirement?: ActionNode["resultRequirement"];
       scheduledTime?: string;
-      category?: ActionNode["category"];
+      classification?: ActionNode["classification"];
       serviceEntries?: ActionServiceEntry[];
       optionalServiceTypes?: ActionServiceType[];
       optionalServices?: ConfirmedOptionalService[];
@@ -1521,7 +1521,7 @@ const Index = () => {
       | "reason"
       | "dayPart"
       | "scheduledTime"
-      | "category"
+      | "classification"
       | "validFrom"
       | "validTo"
       | "recurrence"
@@ -1965,7 +1965,7 @@ const Index = () => {
       // Tageszeit — der Export zeigt damit dieselbe Zuordnung wie die Umsetzung.
       "Tageszeit": (confirmation?.dayPartSnapshot ?? effectiveDayPart(action))?.title ?? "ohne",
       "Uhrzeit": action.scheduledTime ?? "",
-      Klassifizierung: action.category ? `KLV ${action.category.toUpperCase()}` : "",
+      Klassifizierung: action.classification ? `KLV ${action.classification.toUpperCase()}` : "",
       Leistungsarten: (action.serviceEntries ?? []).map((e) => {
         const label = ACTION_SERVICE_TYPE_SELECT_OPTIONS.find((o) => o.value === e.serviceType)?.label ?? e.serviceType;
         return e.maxMinutes != null ? `${label} (max. ${e.maxMinutes} Min.)` : label;
@@ -2240,7 +2240,7 @@ const Index = () => {
               <DropdownMenuContent align="start">
                 <DropdownMenuItem
                   onClick={() => {
-                    setAuswertungMode("category");
+                    setAuswertungMode("classification");
                     setViewMode("auswertungen");
                   }}
                 >
@@ -2586,14 +2586,14 @@ const Index = () => {
                     <div className="space-y-1">
                       <div className="text-xs font-medium">Klassifizierung</div>
                       <Select
-                        value={draftFilter.category ?? "all"}
+                        value={draftFilter.classification ?? "all"}
                         onValueChange={(value) =>
                           updateDraftFilter((prev) => ({
                             ...prev,
-                            category:
+                            classification:
                               value === "all"
                                 ? undefined
-                                : (value as AssessmentFilterModel["category"]),
+                                : (value as AssessmentFilterModel["classification"]),
                           }))
                         }
                       >

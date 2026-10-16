@@ -5,7 +5,7 @@ export type ActionStatus =
   | "not_done"
   | "postponed";
 
-export type ActionCategory = "a" | "b" | "c";
+export type ActionClassification = "a" | "b" | "c";
 export type ActionServiceType =
   | "spitex-klv-a"
   | "spitex-klv-b"
@@ -129,7 +129,7 @@ export interface ActionNode {
   /** Exakte Uhrzeit zur Durchführung (HH:mm) */
   scheduledTime?: string;
   /** Kategorie fuer optionale Einteilung */
-  category?: ActionCategory;
+  classification?: ActionClassification;
   /** Leistungsart fuer Abrechnung/Planung */
   serviceType?: ActionServiceType;
   /** Mehrere Leistungsarten mit optionaler Max-Minuten-Angabe */

@@ -3,10 +3,10 @@ import { Button } from "@/components/ui/button";
 import { AuthorizedRolesMultiSelect } from "@/components/settings/AuthorizedRolesMultiSelect";
 import {
   getAuthorizedRoleLabels,
-  loadActionPlanCategoryPermissions,
-  saveActionPlanCategoryPermissions,
-  type ActionPlanCategoryPermission,
-} from "@/lib/action-plan-categories";
+  loadActionPlanClassificationPermissions,
+  saveActionPlanClassificationPermissions,
+  type ActionPlanClassificationPermission,
+} from "@/lib/action-plan-classifications";
 
 type SortColumn = "name" | "roles";
 type SortDirection = "asc" | "desc";
@@ -17,8 +17,8 @@ const roleLabel = (authorizedRoleIds: string[]) => {
 };
 
 export const PermissionLevelsView = () => {
-  const [categories, setCategories] = useState<ActionPlanCategoryPermission[]>(
-    () => loadActionPlanCategoryPermissions(),
+  const [categories, setCategories] = useState<ActionPlanClassificationPermission[]>(
+    () => loadActionPlanClassificationPermissions(),
   );
   const [sortColumn, setSortColumn] = useState<SortColumn>("name");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
@@ -64,7 +64,7 @@ export const PermissionLevelsView = () => {
   };
 
   useEffect(() => {
-    saveActionPlanCategoryPermissions(categories);
+    saveActionPlanClassificationPermissions(categories);
   }, [categories]);
 
   useEffect(() => {

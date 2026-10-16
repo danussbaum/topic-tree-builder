@@ -9,14 +9,14 @@ const action: ActionNode = {
   notes: "",
   status: "open",
   done: false,
-  category: "b",
+  classification: "b",
 };
 
-describe("matchesAssessmentFilter / category", () => {
+describe("matchesAssessmentFilter / classification", () => {
   it("matched definierte Kategorie", () => {
     const filter: AssessmentFilterModel = {
       statuses: ["open"],
-      category: "b",
+      classification: "b",
     };
     expect(matchesAssessmentFilter({ action, status: "open" }, filter)).toBe(true);
   });
@@ -24,12 +24,12 @@ describe("matchesAssessmentFilter / category", () => {
   it("matched keine Kategorie nur wenn keine gesetzt ist", () => {
     const filter: AssessmentFilterModel = {
       statuses: ["open"],
-      category: "none",
+      classification: "none",
     };
     expect(matchesAssessmentFilter({ action, status: "open" }, filter)).toBe(false);
     expect(
       matchesAssessmentFilter(
-        { action: { ...action, category: undefined }, status: "open" },
+        { action: { ...action, classification: undefined }, status: "open" },
         filter,
       ),
     ).toBe(true);

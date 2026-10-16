@@ -6,6 +6,7 @@ import { SettingsTopBar } from "@/components/settings/SettingsTopBar";
 import { SettingsCategorySidebar } from "@/components/settings/SettingsCategorySidebar";
 import { SettingsGrid } from "@/components/settings/SettingsGrid";
 import { PermissionLevelsView } from "@/components/settings/PermissionLevelsView";
+import { CategoriesView } from "@/components/settings/CategoriesView";
 import {
   ActionPlanTemplatesView,
   type ActionPlanTemplatesHandle,
@@ -36,6 +37,7 @@ const Settings = () => {
     useState(false);
   const [showActionPlanResources, setShowActionPlanResources] = useState(false);
   const [showActionPlanDayParts, setShowActionPlanDayParts] = useState(false);
+  const [showCategories, setShowCategories] = useState(false);
   const templatesRef = useRef<ActionPlanTemplatesHandle | null>(null);
   const disciplinesRef = useRef<ActionPlanDisciplinesHandle | null>(null);
   const resourcesRef = useRef<ActionPlanResourcesHandle | null>(null);
@@ -51,17 +53,25 @@ const Settings = () => {
     setShowActionPlanDisciplines(false);
     setShowActionPlanResources(false);
     setShowActionPlanDayParts(false);
+    setShowCategories(false);
   };
 
   /** Nur eine Unterseite ist offen — Auswahl setzt die übrigen zurück. */
   const openSubPage = (
-    page: "permissions" | "templates" | "disciplines" | "resources" | "dayParts",
+    page:
+      | "permissions"
+      | "templates"
+      | "disciplines"
+      | "resources"
+      | "dayParts"
+      | "categories",
   ) => {
     setShowPermissionLevels(page === "permissions");
     setShowActionPlanTemplates(page === "templates");
     setShowActionPlanDisciplines(page === "disciplines");
     setShowActionPlanResources(page === "resources");
     setShowActionPlanDayParts(page === "dayParts");
+    setShowCategories(page === "categories");
   };
 
   const ribbonActions: SettingsRibbonAction[] = [
@@ -132,7 +142,9 @@ const Settings = () => {
           ? "Hilfsmittel"
           : showActionPlanDayParts
             ? "Tageszeiten"
-            : null;
+            : showCategories
+              ? "Kategorien"
+              : null;
 
   const searchQuery = showActionPlanTemplates
     ? templateSearchQuery
@@ -216,6 +228,8 @@ const Settings = () => {
               </div>
               {showPermissionLevels ? (
                 <PermissionLevelsView />
+              ) : showCategories ? (
+                <CategoriesView />
               ) : showActionPlanTemplates ? (
                 <ActionPlanTemplatesView
                   ref={templatesRef}
@@ -260,6 +274,9 @@ const Settings = () => {
                   }
                   if (catId === "handlungsplanung" && label === "Hilfsmittel") {
                     openSubPage("resources");
+                  }
+                  if (catId === "kategorien" && label === "Kategorien") {
+                    openSubPage("categories");
                   }
                   if (catId === "handlungsplanung" && label === "Tageszeiten") {
                     openSubPage("dayParts");

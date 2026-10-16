@@ -1,5 +1,5 @@
 import type {
-  ActionCategory,
+  ActionClassification,
   ActionConfirmation,
   ActionNode,
   ActionStatus,
@@ -27,7 +27,7 @@ export interface AssessmentFilterModel {
   differencePercent?: NumericRange;
   /** Tageszeit-IDs (siehe lib/day-parts) */
   dayParts?: string[];
-  category?: ActionCategory | "none";
+  classification?: ActionClassification | "none";
   persons?: PersonsFilter;
   result?: "none" | "with_result";
   disciplineIds?: string[];
@@ -107,9 +107,9 @@ export const matchesAssessmentFilter = (
     if (!dayPart || !filter.dayParts.includes(dayPart.id)) return false;
   }
 
-  if (filter.category != null) {
-    const category = action.category ?? "none";
-    if (category !== filter.category) return false;
+  if (filter.classification != null) {
+    const classification = action.classification ?? "none";
+    if (classification !== filter.classification) return false;
   }
 
   if (filter.persons) {

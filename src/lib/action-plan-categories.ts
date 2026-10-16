@@ -1,137 +1,81 @@
 import { APPLICATION_BROWSER_STORAGE_KEYS } from "@/lib/application-storage";
-import {
-  ACTION_PLAN_AUTHORIZED_ROLE_OPTIONS,
-  type ActionPlanAuthorizedRoleOption,
-} from "@/lib/action-plan-disciplines";
-import type { ActionCategory } from "@/types/assessment";
 
-export interface ActionPlanCategoryPermission {
-  id: ActionCategory;
+export interface ActionPlanCategory {
+  id: string;
+  code: string;
   name: string;
-  authorizedRoleIds: string[];
 }
 
-export const ACTION_PLAN_CURRENT_USER_ROLE_IDS = [
-  "kl-handlungen-planen-bestaetigen-inhouse-spitex-a",
+export const ACTION_PLAN_CATEGORIES_STORAGE_KEY = APPLICATION_BROWSER_STORAGE_KEYS[6];
+
+const seedCategory = (code: string, name: string): ActionPlanCategory => ({
+  id: `category-${code}`,
+  code,
+  name,
+});
+
+export const initialActionPlanCategories: ActionPlanCategory[] = [
+  seedCategory("100", "Psychiatrische Leistungen"),
+  seedCategory("101", "Hygiene und Komfort"),
+  seedCategory("102", "Atmung"),
+  seedCategory("103", "Ernährung / Diäten"),
+  seedCategory("104", "Ausscheidung"),
+  seedCategory("105", "Mobilisation"),
+  seedCategory("106", "Therapien"),
+  seedCategory("107", "Verbände und Hilfsmittel"),
+  seedCategory("108", "Messung Vitalzeichen / Pflegehandlungen für Diagnostik"),
+  seedCategory("109", "Abklärung, Koordination / Anleitung, Prävention, Beratung, Begleitung"),
+  seedCategory("200", "Wohnen / Haushalten / Verpflegung / Diverses"),
 ];
 
-export const ACTION_PLAN_CATEGORY_STORAGE_KEY = APPLICATION_BROWSER_STORAGE_KEYS[3];
+export const formatActionPlanCategory = (category: ActionPlanCategory) =>
+  category.code ? `${category.code} ${category.name}` : category.name;
 
-const CATEGORY_A_AUTHORIZED_ROLE_IDS = [
-  "kl-handlungen-planen-bestaetigen-inhouse-spitex-a",
-  "kl-alle-handlungen-sehen-inhouse-spitex-b",
-  "kl-alle-handlungen-sehen-inhouse-spitex-c",
-];
+export const sortActionPlanCategories = (categories: ActionPlanCategory[]) =>
+  [...categories].sort(
+    (a, b) =>
+      a.code.localeCompare(b.code, "de", { numeric: true }) ||
+      a.name.localeCompare(b.name, "de"),
+  );
 
-const CATEGORY_B_AUTHORIZED_ROLE_IDS = [
-  "kl-handlungen-planen-bestaetigen-inhouse-spitex-a",
-  "kl-handlungen-bestaetigen-inhouse-spitex-b",
-  "kl-alle-handlungen-sehen-inhouse-spitex-c",
-];
-
-const CATEGORY_C_AUTHORIZED_ROLE_IDS = [
-  "kl-handlungen-planen-bestaetigen-inhouse-spitex-a",
-  "kl-handlungen-bestaetigen-inhouse-spitex-b",
-  "kl-handlungen-bestaetigen-inhouse-spitex-c",
-];
-
-export const initialActionPlanCategoryPermissions: ActionPlanCategoryPermission[] = [
-  { id: "a", name: "KLV A", authorizedRoleIds: CATEGORY_A_AUTHORIZED_ROLE_IDS },
-  { id: "b", name: "KLV B", authorizedRoleIds: CATEGORY_B_AUTHORIZED_ROLE_IDS },
-  { id: "c", name: "KLV C", authorizedRoleIds: CATEGORY_C_AUTHORIZED_ROLE_IDS },
-];
-
-const validCategoryIds = new Set<ActionCategory>(["a", "b", "c"]);
-const validRoleIds = new Set(
-  ACTION_PLAN_AUTHORIZED_ROLE_OPTIONS.map((option) => option.id),
-);
-
-const normalizeCategoryPermission = (
-  category: Partial<ActionPlanCategoryPermission>,
-  index: number,
-) => {
-  const fallback = initialActionPlanCategoryPermissions[index];
-  const id =
-    typeof category.id === "string" && validCategoryIds.has(category.id as ActionCategory)
-      ? (category.id as ActionCategory)
-      : fallback?.id;
-  if (!id) return null;
-
-  const defaultCategory = initialActionPlanCategoryPermissions.find((entry) => entry.id === id);
-  const storedName =
-    typeof category.name === "string" && category.name.trim()
-      ? category.name.trim()
-      : null;
-  // Prototyp: alte Bezeichnungen ("A"/"B"/"C") auf die neuen Defaults ("KLV A"...) migrieren.
-  const isLegacyName = storedName === id.toUpperCase();
-  const name =
-    storedName && !isLegacyName
-      ? storedName
-      : (defaultCategory?.name ?? `KLV ${id.toUpperCase()}`);
-  const authorizedRoleIds = Array.isArray(category.authorizedRoleIds)
-    ? Array.from(
-        new Set(
-          category.authorizedRoleIds.filter(
-            (roleId): roleId is string =>
-              typeof roleId === "string" && validRoleIds.has(roleId),
-          ),
-        ),
-      )
-    : (defaultCategory?.authorizedRoleIds ?? []);
-
-  return { id, name, authorizedRoleIds };
+// Die Seed-Vorlagen tragen einen 5-stelligen Code (z.B. "10101 ..."), dessen
+// erste drei Ziffern dem Code der Kategorie entsprechen.
+export const getCategoryIdForTemplateName = (
+  name: string,
+  categories: ActionPlanCategory[] = initialActionPlanCategories,
+): string | undefined => {
+  const match = /^(\d{3})\d{2}\b/.exec(name.trim());
+  if (!match) return undefined;
+  return categories.find((category) => category.code === match[1])?.id;
 };
 
-export const loadActionPlanCategoryPermissions = (): ActionPlanCategoryPermission[] => {
-  if (typeof window === "undefined") return initialActionPlanCategoryPermissions;
-  const raw = window.localStorage.getItem(ACTION_PLAN_CATEGORY_STORAGE_KEY);
-  if (!raw) return initialActionPlanCategoryPermissions;
+const normalizeCategory = (category: Partial<ActionPlanCategory>, index: number) => {
+  const name = typeof category.name === "string" ? category.name.trim() : "";
+  if (!name) return null;
+  return {
+    id: typeof category.id === "string" && category.id.trim() ? category.id : `category-${index}`,
+    code: typeof category.code === "string" ? category.code.trim() : "",
+    name,
+  };
+};
+
+export const loadActionPlanCategories = (): ActionPlanCategory[] => {
+  if (typeof window === "undefined") return initialActionPlanCategories;
+  const raw = window.localStorage.getItem(ACTION_PLAN_CATEGORIES_STORAGE_KEY);
+  if (!raw) return initialActionPlanCategories;
 
   try {
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return initialActionPlanCategoryPermissions;
-    const normalized = parsed
-      .map((category, index) => normalizeCategoryPermission(category, index))
-      .filter(
-        (category): category is ActionPlanCategoryPermission => category !== null,
-      );
-
-    return initialActionPlanCategoryPermissions.map(
-      (defaultCategory) =>
-        normalized.find((category) => category.id === defaultCategory.id) ?? defaultCategory,
-    );
+    if (!Array.isArray(parsed)) return initialActionPlanCategories;
+    return parsed
+      .map((category, index) => normalizeCategory(category, index))
+      .filter((category): category is ActionPlanCategory => category !== null);
   } catch {
-    return initialActionPlanCategoryPermissions;
+    return initialActionPlanCategories;
   }
 };
 
-export const saveActionPlanCategoryPermissions = (
-  categories: ActionPlanCategoryPermission[],
-) => {
+export const saveActionPlanCategories = (categories: ActionPlanCategory[]) => {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(
-    ACTION_PLAN_CATEGORY_STORAGE_KEY,
-    JSON.stringify(categories),
-  );
-};
-
-export const getAuthorizedRoleLabels = (
-  authorizedRoleIds: string[],
-  roleOptions: ActionPlanAuthorizedRoleOption[] = ACTION_PLAN_AUTHORIZED_ROLE_OPTIONS,
-) => {
-  const labelById = new Map(roleOptions.map((role) => [role.id, role.label]));
-  return authorizedRoleIds.map((roleId) => labelById.get(roleId) ?? roleId);
-};
-
-export const canConfirmActionCategory = (
-  categoryId: ActionCategory | undefined,
-  categoryPermissions: ActionPlanCategoryPermission[],
-  currentUserRoleIds: string[] = ACTION_PLAN_CURRENT_USER_ROLE_IDS,
-) => {
-  if (!categoryId) return true;
-
-  const category = categoryPermissions.find((entry) => entry.id === categoryId);
-  if (!category || category.authorizedRoleIds.length === 0) return true;
-
-  return category.authorizedRoleIds.some((roleId) => currentUserRoleIds.includes(roleId));
+  window.localStorage.setItem(ACTION_PLAN_CATEGORIES_STORAGE_KEY, JSON.stringify(categories));
 };

@@ -91,11 +91,11 @@ describe("action plan template fields", () => {
       getTemplateLockedActionFields({
         editable: {
           ...buildDefaultTemplateEditable(true),
-          kategorie: false,
+          klassifizierung: false,
           beschreibung: false,
         },
       }),
-    ).toEqual(["notes", "category", "serviceEntries", "optionalServiceTypes"]);
+    ).toEqual(["notes", "classification", "serviceEntries", "optionalServiceTypes"]);
   });
 
   it("liefert Export-Labels für Leistungsarten", () => {
@@ -130,8 +130,8 @@ describe("action plan template fields", () => {
 
 describe("action plan template disciplines", () => {
   const disciplines = [
-    { id: "discipline-ihp", title: "IHP", authorizedRoleIds: [] },
-    { id: "discipline-physio", title: "Physiotherapie", authorizedRoleIds: [] },
+    { id: "discipline-ihp", title: "IHP", authorizedRoleIds: [], categoryIds: [] },
+    { id: "discipline-physio", title: "Physiotherapie", authorizedRoleIds: [], categoryIds: [] },
   ];
 
   it("zeigt Vorlagen ohne Disziplin für alle Planungs-Disziplinen an", () => {

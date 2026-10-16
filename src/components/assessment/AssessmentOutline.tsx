@@ -78,7 +78,7 @@ import {
 import type {
   ActionNode,
   ActionStatus,
-  ActionCategory,
+  ActionClassification,
   ActionServiceType,
   ActionServiceEntry,
   ConfirmedOptionalService,
@@ -157,9 +157,9 @@ import {
   type ActionPlanDiscipline,
 } from "@/lib/action-plan-disciplines";
 import {
-  canConfirmActionCategory,
-  loadActionPlanCategoryPermissions,
-} from "@/lib/action-plan-categories";
+  canConfirmActionClassification,
+  loadActionPlanClassificationPermissions,
+} from "@/lib/action-plan-classifications";
 
 // Die Nutzlast des Bestätigens liegt bei der Logik, die sie verarbeitet.
 type ConfirmPayload = ConfirmationPayload;
@@ -172,7 +172,7 @@ type ActionField =
   | "reason"
   | "dayPart"
   | "scheduledTime"
-  | "category"
+  | "classification"
   | "serviceEntries"
   | "validFrom"
   | "validTo"
@@ -195,7 +195,7 @@ type ActionDraftOverrides = Partial<Pick<ActionNode,
   | "resultRequirement"
   | "dayPart"
   | "scheduledTime"
-  | "category"
+  | "classification"
   | "validFrom"
   | "validTo"
   | "recurrence"
@@ -215,7 +215,7 @@ interface ActionDraft {
   resultRequirement: string;
   dayPart: string;
   scheduledTime: string;
-  category: string;
+  classification: string;
   serviceEntries: ActionServiceEntry[];
   optionalServiceTypes: ActionServiceType[];
   validFrom: string;
@@ -236,7 +236,7 @@ function emptyActionDraft(): ActionDraft {
     resultRequirement: "none",
     dayPart: "none",
     scheduledTime: "",
-    category: "none",
+    classification: "none",
     serviceEntries: [],
     optionalServiceTypes: [],
     validFrom: "",
@@ -258,7 +258,7 @@ function actionToDraft(action: ActionNode): ActionDraft {
     resultRequirement: action.resultRequirement ?? "none",
     dayPart: action.dayPart ?? "none",
     scheduledTime: action.scheduledTime ?? "",
-    category: action.category ?? "none",
+    classification: action.classification ?? "none",
     serviceEntries: action.serviceEntries ?? (action.serviceType ? [{ serviceType: action.serviceType }] : []),
     optionalServiceTypes: action.optionalServiceTypes ?? [],
     validFrom: action.validFrom ?? "",
@@ -286,7 +286,7 @@ function draftToOverrides(draft: ActionDraft): ActionDraftOverrides {
     dayPart:
       draft.scheduledTime || draft.dayPart === "none" ? undefined : draft.dayPart,
     scheduledTime: draft.scheduledTime || undefined,
-    category: draft.category !== "none" ? (draft.category as ActionCategory) : undefined,
+    classification: draft.classification !== "none" ? (draft.classification as ActionClassification) : undefined,
     validFrom: draft.validFrom || undefined,
     validTo: draft.validTo || undefined,
     recurrence: draft.recurrence !== "none" ? (draft.recurrence as ActionNode["recurrence"]) : undefined,
@@ -410,7 +410,7 @@ interface BulkDoneAsPlannedTarget {
   actionTitle: string;
 }
 
-const CATEGORY_LABEL: Record<ActionCategory, string> = {
+const CLASSIFICATION_LABEL: Record<ActionClassification, string> = {
   a: "KLV A",
   b: "KLV B",
   c: "KLV C",
@@ -453,10 +453,10 @@ const CONFIRMATION_MODE_OPTIONS: Array<{
   },
 ];
 
-const ACTION_PLAN_CATEGORY_PERMISSIONS = loadActionPlanCategoryPermissions();
+const ACTION_PLAN_CLASSIFICATION_PERMISSIONS = loadActionPlanClassificationPermissions();
 
 const canConfirmAction = (action: ActionNode) =>
-  canConfirmActionCategory(action.category, ACTION_PLAN_CATEGORY_PERMISSIONS);
+  canConfirmActionClassification(action.classification, ACTION_PLAN_CLASSIFICATION_PERMISSIONS);
 
 /**
  * "Erledigt wie geplant" per Mehrfachauswahl erfasst keine Eingaben. Handlungen mit
@@ -879,7 +879,7 @@ export function AssessmentOutline({
         resourceIds: draft.resourceIds.length > 0 ? draft.resourceIds : undefined,
         plannedMinutes: draft.plannedMinutes !== "" ? Math.max(0, Number(draft.plannedMinutes)) : undefined,
         requiredPersons: draft.requiredPersons !== "" ? Math.max(1, Math.floor(Number(draft.requiredPersons))) : undefined,
-        category: draft.category !== "none" ? (draft.category as ActionCategory) : undefined,
+        classification: draft.classification !== "none" ? (draft.classification as ActionClassification) : undefined,
         resultRequirement: draft.resultRequirement !== "none" ? (draft.resultRequirement as ActionNode["resultRequirement"]) : undefined,
         validFrom: draft.validFrom || undefined,
         validTo: draft.validTo || undefined,
@@ -1679,10 +1679,10 @@ export function AssessmentOutline({
                                 )}
                               </TableCell>
                               <TableCell className="px-3 py-3 align-top text-xs text-muted-foreground">
-                                {action.category ? (
+                                {action.classification ? (
                                   <div className="inline-flex items-center gap-1">
                                     <Tag className="h-3 w-3" />
-                                    {CATEGORY_LABEL[action.category]}
+                                    {CLASSIFICATION_LABEL[action.classification]}
                                   </div>
                                 ) : (
                                   <span className="text-muted-foreground/60">—</span>
@@ -2422,8 +2422,8 @@ export function ActionGroupRow({
           </span>
           <span className="self-center h-3 bg-border" />
           <span className="self-center truncate">
-            {representative.category
-              ? <span className="rounded bg-secondary px-1 font-medium">{CATEGORY_LABEL[representative.category]}</span>
+            {representative.classification
+              ? <span className="rounded bg-secondary px-1 font-medium">{CLASSIFICATION_LABEL[representative.classification]}</span>
               : <span className="opacity-40 italic">Keine Klassifizierung</span>}
           </span>
         </div>
@@ -2614,8 +2614,8 @@ export function ActionRow({
             </span>
             <span className="self-center h-3 bg-border" />
             <span className="self-center">
-              {action.category
-                ? <span className="rounded bg-secondary px-1 font-medium">{CATEGORY_LABEL[action.category]}</span>
+              {action.classification
+                ? <span className="rounded bg-secondary px-1 font-medium">{CLASSIFICATION_LABEL[action.classification]}</span>
                 : <span className="opacity-40 italic">Keine Klassifizierung</span>}
             </span>
 
@@ -2832,13 +2832,13 @@ export function ActionRow({
             />
           </label>
           <Select
-            value={action.category ?? "none"}
-            disabled={isFieldLocked("category")}
+            value={action.classification ?? "none"}
+            disabled={isFieldLocked("classification")}
             onValueChange={(v) =>
               onUpdateActionField(
                 targetId,
                 action.id,
-                "category",
+                "classification",
                 v === "none" ? undefined : v,
               )
             }
@@ -3220,7 +3220,7 @@ export function ActionSidePanel({
       resultRequirement: fields.resultat !== "none" ? fields.resultat : "none",
       dayPart: parsedDayParts.length > 0 ? parsedDayParts[0].dayPart : (initialDayPart && initialDayPart !== "none" ? initialDayPart : "none"),
       scheduledTime: parsedDayParts.length > 0 ? (parsedDayParts[0].scheduledTime ?? "") : "",
-      category: fields.kategorie !== "none" ? fields.kategorie : "none",
+      classification: fields.klassifizierung !== "none" ? fields.klassifizierung : "none",
       serviceEntries: parseLeistungsarten(fields.leistungsart),
       optionalServiceTypes: parseOptionalLeistungsarten(fields.optionaleLeistungsarten),
       // Gültigkeit kommt nicht aus der Vorlage: die Vorbelegung aus dem Ziel bleibt erhalten.
@@ -3268,7 +3268,7 @@ export function ActionSidePanel({
       case "resourceIds": return draft.resourceIds.length > 0 || draft.requiredResources.trim() !== "";
       case "plannedMinutes": return draft.plannedMinutes !== "" && Number(draft.plannedMinutes) > 0;
       case "requiredPersons": return draft.requiredPersons !== "" && Number(draft.requiredPersons) > 0;
-      case "category": return draft.category !== "none";
+      case "classification": return draft.classification !== "none";
       case "dayPart": return draft.dayPart !== "none";
       case "scheduledTime": return draft.scheduledTime !== "";
       case "resultRequirement": return draft.resultRequirement !== "none";
@@ -3646,9 +3646,9 @@ export function ActionSidePanel({
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <ActionField label="Klassifizierung" fieldKey="category">
-                <Select value={draft.category} disabled={isLocked("category")} onValueChange={(v) => { setDraft((p) => ({ ...p, category: v })); setValidationErrors((prev) => prev.filter((f) => f !== "category")); }}>
-                  <SelectTrigger className={cn("bg-background", hasError("category") && "border-destructive")}><SelectValue placeholder="Keine Angabe" /></SelectTrigger>
+              <ActionField label="Klassifizierung" fieldKey="classification">
+                <Select value={draft.classification} disabled={isLocked("classification")} onValueChange={(v) => { setDraft((p) => ({ ...p, classification: v })); setValidationErrors((prev) => prev.filter((f) => f !== "classification")); }}>
+                  <SelectTrigger className={cn("bg-background", hasError("classification") && "border-destructive")}><SelectValue placeholder="Keine Angabe" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Keine Angabe</SelectItem>
                     <SelectItem value="a">KLV A</SelectItem>
@@ -3940,7 +3940,7 @@ export function UnplannedActionDialog({
       resourceIds: parseResourceIds(fields.hilfsmittel),
       plannedMinutes: Number.isFinite(plannedMinutes) ? plannedMinutes : undefined,
       requiredPersons: Number.isFinite(requiredPersons) ? requiredPersons : undefined,
-      category: fields.kategorie !== "none" ? (fields.kategorie as ActionCategory) : undefined,
+      classification: fields.klassifizierung !== "none" ? (fields.klassifizierung as ActionClassification) : undefined,
       serviceEntries: parseLeistungsarten(fields.leistungsart),
       optionalServiceTypes: parseOptionalLeistungsarten(fields.optionaleLeistungsarten),
       dayPart: fallbackDayPart,
@@ -4061,7 +4061,7 @@ export function UnplannedActionDialog({
       case "resourceIds": return (draft.resourceIds?.length ?? 0) === 0 && !draft.requiredResources?.trim();
       case "plannedMinutes": return draft.plannedMinutes === undefined || draft.plannedMinutes === null;
       case "requiredPersons": return draft.requiredPersons === undefined || draft.requiredPersons === null;
-      case "category": return !draft.category;
+      case "classification": return !draft.classification;
       case "dayPart": return !draft.dayPart || draft.dayPart === "none";
       case "scheduledTime": return !draft.scheduledTime;
       case "resultRequirement": return !draft.resultRequirement || draft.resultRequirement === "none";
@@ -4399,9 +4399,9 @@ export function UnplannedActionDialog({
             <div className="space-y-1.5">
               <Label>Klassifizierung</Label>
               <Select
-                value={draft.category ?? "none"}
-                disabled={isDraftFieldLocked("category")}
-                onValueChange={(value) => updateDraft("category", value === "none" ? undefined : value as ActionCategory)}
+                value={draft.classification ?? "none"}
+                disabled={isDraftFieldLocked("classification")}
+                onValueChange={(value) => updateDraft("classification", value === "none" ? undefined : value as ActionClassification)}
               >
                 <SelectTrigger aria-label="Klassifizierung" className="bg-background"><SelectValue /></SelectTrigger>
                 <SelectContent>

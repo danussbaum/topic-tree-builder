@@ -25,7 +25,7 @@ export interface UnplannedActionDraft {
   requiredPersons?: number;
   resultRequirement?: ActionNode["resultRequirement"];
   scheduledTime?: string;
-  category?: ActionNode["category"];
+  classification?: ActionNode["classification"];
   serviceEntries?: ActionServiceEntry[];
   optionalServiceTypes?: ActionServiceType[];
   optionalServices?: ConfirmedOptionalService[];
@@ -101,7 +101,7 @@ export const buildUnplannedActionNodes = (
     dayPart:
       draft.scheduledTime?.trim() || selectedDayPart === "none" ? undefined : selectedDayPart,
     scheduledTime: draft.scheduledTime,
-    category: draft.category,
+    classification: draft.classification,
     serviceEntries: draft.serviceEntries,
     optionalServiceTypes: draft.optionalServiceTypes,
     optionalServices: draft.optionalServices,
