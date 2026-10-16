@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, Fragment, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
@@ -29,6 +29,8 @@ import {
   ChevronUp,
   Info,
   X,
+  Check,
+  MoreVertical,
 } from "lucide-react";
 import {
   Dialog,
@@ -54,6 +56,11 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import {
+  formatActionPlanCategory,
+  loadActionPlanCategories,
+  sortActionPlanCategories,
+} from "@/lib/action-plan-categories";
 import {
   Table,
   TableBody,
@@ -96,6 +103,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -132,6 +141,7 @@ import { isTargetClosed } from "@/lib/target-status";
 import {
   ACTION_SERVICE_TYPE_SELECT_OPTIONS,
   buildDefaultTemplateFields,
+  getActionCategoryId,
   getTemplateLockedActionFields,
   getTemplateRequiredActionFields,
   isTemplateLockedActionField,
@@ -140,6 +150,7 @@ import {
   type ActionPlanTemplate,
 } from "@/lib/action-plan-templates";
 import { DEFAULT_LAST_N_DAYS, type ConfirmationPeriod } from "@/lib/assessment-cache";
+import { PLANNING_GROUPING_SESSION_KEY } from "@/lib/application-storage";
 import { getRescheduleWindow } from "@/lib/reschedule";
 import { isBeforeConfirmationStart } from "@/lib/confirmation-window";
 import type { UnplannedActionDraft } from "@/lib/unplanned-action";
@@ -640,6 +651,11 @@ export function AssessmentOutline({
     // öffnen — sonst gibt es kein Feld, das den Fokus übernehmen könnte.
     setSelectedTargetIds(new Set([focusTargetId]));
     setEditingTargetTitleId(focusTargetId);
+    // Ein neues Ziel ist nur in der Ziel-Gruppierung sichtbar.
+    const focusDisciplineId = disciplineIdOfTarget(focusTargetId);
+    if (focusDisciplineId) {
+      setGroupingByDisciplineId((prev) => ({ ...prev, [focusDisciplineId]: "targets" }));
+    }
     // rAF: erst nach dem Rendern des Details und dem Schliessen von Popover/Dropdown
     // (Radix gibt sonst den Fokus an seinen Trigger zurück).
     const raf = requestAnimationFrame(() => {
@@ -651,6 +667,8 @@ export function AssessmentOutline({
       onFocusTargetHandled?.();
     });
     return () => cancelAnimationFrame(raf);
+  // Bewusst nur beim Fokussieren eines neuen Ziels, nicht bei jeder Änderung der Ziele.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusTargetId, onFocusTargetHandled]);
 
   const [panelContext, setPanelContext] = useState<{
@@ -743,6 +761,10 @@ export function AssessmentOutline({
   // Disziplin: eine Auswahl in einer anderen ersetzt die bisherige. Start: nichts gewählt.
   const resourceCatalog = getActionPlanResources();
   const [selectedTargetIds, setSelectedTargetIds] = useState<Set<string>>(new Set());
+  const [groupingByDisciplineId, setGroupingByDisciplineId] = useState<Record<string, DisciplineGrouping>>(
+    loadDisciplineGroupings,
+  );
+  useEffect(() => saveDisciplineGroupings(groupingByDisciplineId), [groupingByDisciplineId]);
   const [editingTargetTitleId, setEditingTargetTitleId] = useState<string | null>(null);
   const [editingTargetNotesId, setEditingTargetNotesId] = useState<string | null>(null);
 
@@ -762,26 +784,92 @@ export function AssessmentOutline({
   const keepDiscipline = (ids: Set<string>, disciplineId: string | undefined) =>
     new Set([...ids].filter((id) => disciplineIdOfTarget(id) === disciplineId));
 
-  const toggleTarget = (targetId: string) =>
+  const toggleTarget = (targetId: string) => {
+    setSelectedCategory(null);
     setSelectedTargetIds((prev) => {
       const next = keepDiscipline(prev, disciplineIdOfTarget(targetId));
       if (next.has(targetId)) next.delete(targetId);
       else next.add(targetId);
       return next;
     });
+  };
 
   // Sind schon alle Ziele der Disziplin gewählt, hebt der Klick die Auswahl wieder auf.
-  const toggleDisciplineTargets = (disciplineTargetIds: string[]) =>
+  const toggleDisciplineTargets = (disciplineTargetIds: string[]) => {
+    setSelectedCategory(null);
     setSelectedTargetIds((prev) => {
       const allSelected = disciplineTargetIds.every((id) => prev.has(id));
       return allSelected ? new Set() : new Set(disciplineTargetIds);
     });
+  };
 
-  const hasSelection = selectedTargetIds.size > 0;
-  // Erstes gewähltes Ziel in der Reihenfolge der Navigation — daran richtet sich das Detail aus.
-  const firstSelectedTargetId = targetDisciplineGroups
-    .flatMap((group) => group.targets)
-    .find((target) => selectedTargetIds.has(target.id) && (showClosedTargets || !isTargetClosed(target)))?.id;
+
+  // «Nach Kategorien»: links stehen die Kategorien der Disziplin statt der Ziele.
+  // Die Auswahl gilt wie bei den Zielen nur innerhalb einer Disziplin.
+  const [selectedCategory, setSelectedCategory] = useState<{ disciplineId: string; ids: Set<string> } | null>(null);
+  const categorySectionsByDiscipline = useMemo(
+    () =>
+      new Map(
+        targetDisciplineGroups
+          .filter(({ discipline }) => getDisciplineGrouping(groupingByDisciplineId, discipline.id) === "categories")
+          .map(({ discipline, targets: groupTargets }) => [
+            discipline.id,
+            buildCategorySections(groupTargets.filter((target) => showClosedTargets || !isTargetClosed(target))),
+          ]),
+      ),
+    // targetDisciplineGroups wird bei jedem Rendern neu gebildet; targets ist die Quelle.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [targets, disciplines, groupingByDisciplineId, showClosedTargets],
+  );
+
+  const toggleCategory = (disciplineId: string, categoryId: string) => {
+    setSelectedTargetIds(new Set());
+    setSelectedCategory((prev) => {
+      const ids = new Set(prev?.disciplineId === disciplineId ? prev.ids : []);
+      if (ids.has(categoryId)) ids.delete(categoryId);
+      else ids.add(categoryId);
+      return ids.size > 0 ? { disciplineId, ids } : null;
+    });
+  };
+
+  const toggleDisciplineCategories = (disciplineId: string, categoryIds: string[]) => {
+    setSelectedTargetIds(new Set());
+    setSelectedCategory((prev) => {
+      const allSelected =
+        prev?.disciplineId === disciplineId && categoryIds.every((id) => prev.ids.has(id));
+      return allSelected || categoryIds.length === 0 ? null : { disciplineId, ids: new Set(categoryIds) };
+    });
+  };
+
+  const changeGrouping = (disciplineId: string, grouping: DisciplineGrouping) => {
+    setGroupingByDisciplineId((prev) => ({ ...prev, [disciplineId]: grouping }));
+    // Die bisherige Auswahl dieser Disziplin passt nicht zur neuen Gruppierung.
+    setSelectedCategory((prev) => (prev?.disciplineId === disciplineId ? null : prev));
+    setSelectedTargetIds((prev) => new Set([...prev].filter((id) => disciplineIdOfTarget(id) !== disciplineId)));
+  };
+
+  const hasSelection = selectedTargetIds.size > 0 || selectedCategory !== null;
+
+  const categoryLookup = useMemo(
+    () => ({ categories: loadActionPlanCategories(), templates: loadActionPlanTemplates() }),
+    [],
+  );
+  const categoryLabelOf = (action: ActionNode) => {
+    const categoryId = getActionCategoryId(action, categoryLookup.templates);
+    const category = categoryLookup.categories.find((entry) => entry.id === categoryId);
+    // Wie links in der Kategorie-Ansicht: ohne (gültige) Kategorie gilt «Ohne Kategorie».
+    return category ? formatActionPlanCategory(category) : "Ohne Kategorie";
+  };
+  // Erste gewählte Zeile in der Reihenfolge der Navigation — daran richtet sich das Detail aus.
+  const firstSelectedTargetId = selectedCategory
+    ? `category:${selectedCategory.disciplineId}:${
+        (categorySectionsByDiscipline.get(selectedCategory.disciplineId) ?? []).find((section) =>
+          selectedCategory.ids.has(section.id),
+        )?.id
+      }`
+    : targetDisciplineGroups
+        .flatMap((group) => group.targets)
+        .find((target) => selectedTargetIds.has(target.id) && (showClosedTargets || !isTargetClosed(target)))?.id;
 
   const masterColumnRef = useRef<HTMLDivElement | null>(null);
   const disciplineSectionRefs = useRef<Map<string, HTMLElement>>(new Map());
@@ -815,7 +903,7 @@ export function AssessmentOutline({
     applyOffset();
     window.addEventListener("resize", applyOffset);
     return () => window.removeEventListener("resize", applyOffset);
-  }, [firstSelectedTargetId, targets]);
+  }, [firstSelectedTargetId, targets, groupingByDisciplineId]);
 
   useEffect(() => {
     if (!bulkNotDoneMode) {
@@ -890,6 +978,7 @@ export function AssessmentOutline({
         optionalServiceTypes: draft.optionalServiceTypes.length > 0 ? draft.optionalServiceTypes : undefined,
         templateId: action.templateId,
         templateName: action.templateName,
+        categoryId: action.categoryId,
         templateLockedFields: action.templateLockedFields,
         templateRequiredFields: action.templateRequiredFields,
       };
@@ -1985,28 +2074,8 @@ export function AssessmentOutline({
 
                     <div className="mt-3 space-y-1">
                       {(() => {
-                        // Bedarfs-Durchführungen entstehen erst in der Umsetzung; in der Planung
-                        // steht nur die Nach-Bedarf-Handlung selbst.
-                        // Ungeplante Handlungen hängen am Klienten und erreichen die Planung
-                        // gar nicht mehr — der Filter bleibt als Schutz gegen Altdaten.
-                        const plannedActions = target.actions.filter(
-                          (a) => !a.isUnplanned && !a.isOnDemandOccurrence,
-                        );
-                        if (plannedActions.length === 0) return null;
-
-                        const groupMap = new Map<string, ActionNode[]>();
-                        for (const action of plannedActions) {
-                          const gid = action.groupId;
-                          const existing = groupMap.get(gid) ?? [];
-                          existing.push(action);
-                          groupMap.set(gid, existing);
-                        }
-
-                        const groups = Array.from(groupMap.values()).sort((a, b) => {
-                          const aMin = a.map((n) => scheduleSortKey(n)).sort()[0] ?? "";
-                          const bMin = b.map((n) => scheduleSortKey(n)).sort()[0] ?? "";
-                          return aMin.localeCompare(bMin);
-                        });
+                        const groups = groupPlannedActions(target.actions);
+                        if (groups.length === 0) return null;
 
                         return (
                           <>
@@ -2021,6 +2090,7 @@ export function AssessmentOutline({
                                   targetValidTo={target.validTo}
                                   onDeleteActionGroup={onDeleteActionGroup}
                                   onOpenEditPanel={() => openEditPanel(target.id, representative)}
+                                  contextLabel={categoryLabelOf(representative)}
                                 />
                               );
                             })}
@@ -2054,6 +2124,10 @@ export function AssessmentOutline({
             const visibleTargets = groupTargets.filter(
               (target) => showClosedTargets || !isTargetClosed(target),
             );
+            const categorySections = categorySectionsByDiscipline.get(discipline.id);
+            const disciplineHasSelection = categorySections
+              ? selectedCategory?.disciplineId === discipline.id
+              : groupTargets.some((t) => selectedTargetIds.has(t.id));
             return (
               <section
                 key={discipline.id}
@@ -2063,69 +2137,120 @@ export function AssessmentOutline({
                 }}
                 className="scroll-mt-2 overflow-hidden rounded-xl border border-border bg-white"
               >
-                <button
-                  type="button"
-                  onClick={() => toggleDisciplineTargets(visibleTargets.map((target) => target.id))}
-                  disabled={visibleTargets.length === 0}
+                <div
                   className={cn(
-                    "block w-full border-b border-border bg-muted/60 px-4 py-2.5 text-left transition-opacity hover:bg-muted disabled:cursor-default",
+                    "flex items-center border-b border-border bg-muted/60 transition-opacity hover:bg-muted",
                     // Disziplin ohne gewähltes Ziel tritt zurück.
-                    hasSelection &&
-                      !groupTargets.some((t) => selectedTargetIds.has(t.id)) &&
-                      "opacity-50",
+                    hasSelection && !disciplineHasSelection && "opacity-50",
                   )}
                 >
-                  <h3 className="text-sm font-semibold tracking-wide text-foreground">
-                    {discipline.title}
-                  </h3>
-                </button>
-
-                <div className="space-y-1.5 p-4">
-                  <ul className="space-y-0.5">
-                    {visibleTargets.map((target) => {
-                      const isTargetSelected = selectedTargetIds.has(target.id);
-                      const targetClosed = isTargetClosed(target);
-                      return (
-                        <li
-                          key={target.id}
-                          ref={(el) => {
-                            if (el) targetRowRefs.current.set(target.id, el);
-                            else targetRowRefs.current.delete(target.id);
-                          }}
-                        >
-                          <button
-                            type="button"
-                            aria-pressed={isTargetSelected}
-                            onClick={() => toggleTarget(target.id)}
-                            className={cn(
-                              "flex w-full items-center rounded-md px-2 py-1.5 text-left text-base transition-colors",
-                              isTargetSelected
-                                ? "bg-primary/5 font-medium text-foreground ring-1 ring-primary/30"
-                                : "text-muted-foreground hover:bg-muted",
-                              // Abgeschlossene Ziele (nur sichtbar, wenn eingeblendet) heben sich ab.
-                              targetClosed && "text-muted-foreground/70",
-                              // Ist ein Ziel gewählt, treten die übrigen zurück.
-                              hasSelection && !isTargetSelected && "opacity-50 hover:opacity-100",
-                            )}
-                          >
-                            <span className={cn("min-w-0 flex-1 whitespace-pre-wrap break-words", targetClosed && "line-through decoration-muted-foreground/50")}>
-                              {target.title || "Thema / Ziel…"}
-                            </span>
-                            {targetClosed && <span className="sr-only"> (abgeschlossen)</span>}
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-
                   <button
                     type="button"
-                    onClick={() => setSelectedTargetIds(new Set([onAddTarget(discipline.id)]))}
-                    className="inline-flex items-center gap-1 pl-2 text-sm text-muted-foreground transition-colors hover:text-primary"
+                    onClick={() =>
+                      categorySections
+                        ? toggleDisciplineCategories(discipline.id, categorySections.map((section) => section.id))
+                        : toggleDisciplineTargets(visibleTargets.map((target) => target.id))
+                    }
+                    disabled={categorySections ? categorySections.length === 0 : visibleTargets.length === 0}
+                    className="block min-w-0 flex-1 px-4 py-2.5 text-left disabled:cursor-default"
                   >
-                    <Plus className="h-4 w-4" />
-                    Thema / Ziel
+                    <h3 className="text-sm font-semibold tracking-wide text-foreground">
+                      {discipline.title}
+                    </h3>
                   </button>
+                  <DisciplineGroupingMenu
+                    disciplineTitle={discipline.title}
+                    value={getDisciplineGrouping(groupingByDisciplineId, discipline.id)}
+                    onChange={(value) => changeGrouping(discipline.id, value)}
+                  />
+                </div>
+
+                <div className="space-y-1.5 p-4">
+                  {categorySections ? (
+                    categorySections.length === 0 ? (
+                      <div className="px-2 text-sm text-muted-foreground">Keine geplanten Handlungen.</div>
+                    ) : (
+                      <ul className="space-y-0.5" aria-label={`Kategorien ${discipline.title}`}>
+                        {categorySections.map((section) => {
+                          const isCategorySelected =
+                            selectedCategory?.disciplineId === discipline.id && selectedCategory.ids.has(section.id);
+                          const rowKey = `category:${discipline.id}:${section.id}`;
+                          return (
+                            <li
+                              key={rowKey}
+                              ref={(el) => {
+                                if (el) targetRowRefs.current.set(rowKey, el);
+                                else targetRowRefs.current.delete(rowKey);
+                              }}
+                            >
+                              <button
+                                type="button"
+                                aria-pressed={isCategorySelected}
+                                onClick={() => toggleCategory(discipline.id, section.id)}
+                                className={cn(
+                                  "flex w-full items-center rounded-md px-2 py-1.5 text-left text-base transition-colors",
+                                  isCategorySelected
+                                    ? "bg-primary/5 font-medium text-foreground ring-1 ring-primary/30"
+                                    : "text-muted-foreground hover:bg-muted",
+                                  hasSelection && !isCategorySelected && "opacity-50 hover:opacity-100",
+                                )}
+                              >
+                                <span className="min-w-0 flex-1 whitespace-pre-wrap break-words">{section.title}</span>
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )
+                  ) : (
+                    <>
+                      <ul className="space-y-0.5">
+                        {visibleTargets.map((target) => {
+                          const isTargetSelected = selectedTargetIds.has(target.id);
+                          const targetClosed = isTargetClosed(target);
+                          return (
+                            <li
+                              key={target.id}
+                              ref={(el) => {
+                                if (el) targetRowRefs.current.set(target.id, el);
+                                else targetRowRefs.current.delete(target.id);
+                              }}
+                            >
+                              <button
+                                type="button"
+                                aria-pressed={isTargetSelected}
+                                onClick={() => toggleTarget(target.id)}
+                                className={cn(
+                                  "flex w-full items-center rounded-md px-2 py-1.5 text-left text-base transition-colors",
+                                  isTargetSelected
+                                    ? "bg-primary/5 font-medium text-foreground ring-1 ring-primary/30"
+                                    : "text-muted-foreground hover:bg-muted",
+                                  // Abgeschlossene Ziele (nur sichtbar, wenn eingeblendet) heben sich ab.
+                                  targetClosed && "text-muted-foreground/70",
+                                  // Ist ein Ziel gewählt, treten die übrigen zurück.
+                                  hasSelection && !isTargetSelected && "opacity-50 hover:opacity-100",
+                                )}
+                              >
+                                <span className={cn("min-w-0 flex-1 whitespace-pre-wrap break-words", targetClosed && "line-through decoration-muted-foreground/50")}>
+                                  {target.title || "Thema / Ziel…"}
+                                </span>
+                                {targetClosed && <span className="sr-only"> (abgeschlossen)</span>}
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTargetIds(new Set([onAddTarget(discipline.id)]))}
+                        className="inline-flex items-center gap-1 pl-2 text-sm text-muted-foreground transition-colors hover:text-primary"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Thema / Ziel
+                      </button>
+                    </>
+                  )}
                 </div>
               </section>
             );
@@ -2134,11 +2259,19 @@ export function AssessmentOutline({
 
         {/* DETAIL: die gewählten Ziele mit ihren Handlungen */}
         <div className="min-w-0 rounded-xl border border-border bg-white p-5" style={{ marginTop: detailOffset }}>
-          {selectedTargets.length > 0 ? (
+          {selectedCategory ? (
+            <CategoryGroupedActions
+              sections={(categorySectionsByDiscipline.get(selectedCategory.disciplineId) ?? []).filter((section) =>
+                selectedCategory.ids.has(section.id),
+              )}
+              onDeleteActionGroup={onDeleteActionGroup}
+              onOpenEditPanel={openEditPanel}
+            />
+          ) : selectedTargets.length > 0 ? (
             <div className="space-y-10">{selectedTargets.map(renderTargetDetail)}</div>
           ) : (
             <div className="flex min-h-[240px] flex-col items-center justify-center gap-2 text-center text-muted-foreground">
-              <div>Thema / Ziel links wählen, um Handlungen zu sehen.</div>
+              <div>Thema / Ziel oder Kategorie links wählen, um Handlungen zu sehen.</div>
             </div>
           )}
         </div>
@@ -2180,6 +2313,171 @@ export function AssessmentOutline({
           clientName={clientName}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * Geplante Handlungen nach groupId gebündelt und nach Zeit sortiert.
+ * Bedarfs-Durchführungen entstehen erst in der Umsetzung; in der Planung steht nur
+ * die Nach-Bedarf-Handlung selbst. Ungeplante Handlungen hängen am Klienten und
+ * erreichen die Planung gar nicht mehr — der Filter bleibt als Schutz gegen Altdaten.
+ */
+function groupPlannedActions(actions: ActionNode[]): ActionNode[][] {
+  const groupMap = new Map<string, ActionNode[]>();
+  for (const action of actions) {
+    if (action.isUnplanned || action.isOnDemandOccurrence) continue;
+    const existing = groupMap.get(action.groupId) ?? [];
+    existing.push(action);
+    groupMap.set(action.groupId, existing);
+  }
+  return Array.from(groupMap.values()).sort((a, b) => {
+    const aMin = a.map((n) => scheduleSortKey(n)).sort()[0] ?? "";
+    const bMin = b.map((n) => scheduleSortKey(n)).sort()[0] ?? "";
+    return aMin.localeCompare(bMin);
+  });
+}
+
+type DisciplineGrouping = "targets" | "categories";
+
+const DISCIPLINE_GROUPING_OPTIONS: { value: DisciplineGrouping; label: string }[] = [
+  { value: "categories", label: "Nach Kategorien" },
+  { value: "targets", label: "Nach Thema / Ziel" },
+];
+
+// Standard ist «Nach Kategorien»; eine Umstellung gilt bis zum Logout (sessionStorage).
+const getDisciplineGrouping = (
+  groupings: Record<string, DisciplineGrouping>,
+  disciplineId: string,
+): DisciplineGrouping => groupings[disciplineId] ?? "categories";
+
+const loadDisciplineGroupings = (): Record<string, DisciplineGrouping> => {
+  try {
+    const parsed = JSON.parse(window.sessionStorage.getItem(PLANNING_GROUPING_SESSION_KEY) ?? "{}");
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+const saveDisciplineGroupings = (groupings: Record<string, DisciplineGrouping>) => {
+  try {
+    window.sessionStorage.setItem(PLANNING_GROUPING_SESSION_KEY, JSON.stringify(groupings));
+  } catch {
+    // Ohne sessionStorage gilt die Wahl nur bis zum Neuladen.
+  }
+};
+
+/** 3-Punkte-Menü wie in socialweb: die aktive Gruppierung ist nur im Menü markiert. */
+function DisciplineGroupingMenu({
+  disciplineTitle,
+  value,
+  onChange,
+}: {
+  disciplineTitle: string;
+  value: DisciplineGrouping;
+  onChange: (value: DisciplineGrouping) => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="mr-1 h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
+          aria-label={`Optionen ${disciplineTitle}`}
+        >
+          <MoreVertical className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" side="right" className="min-w-56">
+        <DropdownMenuLabel>Gruppierung</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {DISCIPLINE_GROUPING_OPTIONS.map((option) => (
+          <DropdownMenuItem
+            key={option.value}
+            role="menuitemradio"
+            aria-checked={value === option.value}
+            onClick={() => onChange(option.value)}
+            className="gap-2"
+          >
+            <Check className={cn("h-4 w-4", value !== option.value && "invisible")} />
+            {option.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+interface CategorySection {
+  /** Kategorie-ID, "" für «Ohne Kategorie» */
+  id: string;
+  title: string;
+  entries: { target: TargetNode; groupNodes: ActionNode[] }[];
+}
+
+/**
+ * Geplante Handlungen der Ziele einer Disziplin, gruppiert nach Kategorie.
+ * «Ohne Kategorie» steht zuoberst, danach nach Code; leere Kategorien entfallen.
+ */
+function buildCategorySections(targets: TargetNode[]): CategorySection[] {
+  const categories = sortActionPlanCategories(loadActionPlanCategories());
+  const templates = loadActionPlanTemplates();
+  const byCategory = new Map<string, CategorySection["entries"]>();
+  for (const target of targets) {
+    for (const groupNodes of groupPlannedActions(target.actions)) {
+      const categoryId = getActionCategoryId(groupNodes[0], templates) ?? "";
+      // Unbekannte (gelöschte) Kategorien landen bei «Ohne Kategorie».
+      const key = categories.some((category) => category.id === categoryId) ? categoryId : "";
+      const entries = byCategory.get(key) ?? [];
+      entries.push({ target, groupNodes });
+      byCategory.set(key, entries);
+    }
+  }
+  return [
+    { id: "", title: "Ohne Kategorie" },
+    ...categories.map((category) => ({ id: category.id, title: formatActionPlanCategory(category) })),
+  ]
+    .filter((section) => byCategory.has(section.id))
+    .map((section) => ({ ...section, entries: byCategory.get(section.id) ?? [] }));
+}
+
+/**
+ * Handlungen der gewählten Kategorien. Bewusst ohne Gültigkeit und Freitext der
+ * Ziele; neue Handlungen entstehen weiterhin am Ziel.
+ */
+function CategoryGroupedActions({
+  sections,
+  onDeleteActionGroup,
+  onOpenEditPanel,
+}: {
+  sections: CategorySection[];
+  onDeleteActionGroup: (targetId: string, groupId: string) => void;
+  onOpenEditPanel: (targetId: string, action: ActionNode) => void;
+}) {
+  return (
+    <div className="space-y-8">
+      {sections.map((section) => (
+        <section key={section.id || "none"} aria-label={section.title}>
+          <h4 className="mb-2 text-lg font-medium text-foreground">{section.title}</h4>
+          <div className="space-y-1">
+            {section.entries.map(({ target, groupNodes }) => (
+              <ActionGroupRow
+                key={groupNodes[0].groupId}
+                targetId={target.id}
+                groupNodes={groupNodes}
+                targetValidFrom={target.validFrom}
+                targetValidTo={target.validTo}
+                onDeleteActionGroup={onDeleteActionGroup}
+                onOpenEditPanel={() => onOpenEditPanel(target.id, groupNodes[0])}
+                contextLabel={target.title || "Thema / Ziel…"}
+              />
+            ))}
+          </div>
+        </section>
+      ))}
     </div>
   );
 }
@@ -2303,9 +2601,12 @@ export function ActionGroupRow({
   onDeleteActionGroup,
   onOpenEditPanel,
   readOnly = false,
+  contextLabel,
 }: {
   targetId: string;
   groupNodes: ActionNode[];
+  /** Je nach Gruppierung der Planung: Kategorie bzw. Thema / Ziel der Handlung */
+  contextLabel?: string;
   targetValidFrom?: string;
   targetValidTo?: string;
   onDeleteActionGroup?: Props["onDeleteActionGroup"];
@@ -2328,6 +2629,14 @@ export function ActionGroupRow({
   return (
     <li className="group/action flex items-start gap-3 rounded px-3 py-2.5 border border-border bg-white transition-colors hover:border-primary/40">
       <div className="flex-1 min-w-0">
+        {/* Eigene Zeile über dem Titel: so steht der Badge immer an derselben Stelle. */}
+        {contextLabel && (
+          <div className="mb-1">
+            <span className="inline-block max-w-full truncate rounded bg-secondary px-1.5 text-xs text-muted-foreground">
+              {contextLabel}
+            </span>
+          </div>
+        )}
         <div className="flex items-center gap-2 min-w-0">
           <span className={cn("text-base font-medium truncate", !representative.title && "text-muted-foreground/40")}>
             {representative.title || "Handlung…"}
@@ -3947,6 +4256,7 @@ export function UnplannedActionDialog({
       resultRequirement: fields.resultat !== "none" ? (fields.resultat as ActionNode["resultRequirement"]) : undefined,
       templateId: template.id,
       templateName: template.name,
+      categoryId: template.categoryId,
       templateLockedFields: getTemplateLockedActionFields(template),
       templateRequiredFields: getTemplateRequiredActionFields(template),
     });

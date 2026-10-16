@@ -172,6 +172,8 @@ export interface ActionNode {
   templateName?: string;
   templateLockedFields?: string[];
   templateRequiredFields?: string[];
+  /** Kategorie der Handlungsvorlage, bei der Erzeugung uebernommen */
+  categoryId?: string;
 }
 
 export type GoalStatus = "ja" | "nein" | "teilweise";

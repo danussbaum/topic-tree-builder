@@ -262,6 +262,22 @@ export const getTemplateDisciplineLabels = (
   return disciplineIds.map((disciplineId) => labelsById.get(disciplineId) ?? disciplineId);
 };
 
+// Handlungen tragen die Kategorie ihrer Vorlage; fehlt sie (aeltere Handlungen),
+// wird sie ueber die referenzierte Vorlage nachgeschlagen. Die Seed-Planung kennt
+// nur den Vorlagennamen, darum dieser als letzter Rueckfall.
+export const getActionCategoryId = (
+  action: Pick<ActionNode, "categoryId" | "templateId" | "templateName">,
+  templates: Pick<ActionPlanTemplate, "id" | "name" | "categoryId">[],
+): string | undefined => {
+  if (action.categoryId) return action.categoryId;
+  const template = action.templateId
+    ? templates.find((entry) => entry.id === action.templateId)
+    : action.templateName
+      ? templates.find((entry) => entry.name === action.templateName)
+      : undefined;
+  return template?.categoryId;
+};
+
 // Waehlbar sind die Kategorien aller zugeteilten Disziplinen (Vereinigung).
 export const getAvailableCategories = (
   disciplineIds: string[],

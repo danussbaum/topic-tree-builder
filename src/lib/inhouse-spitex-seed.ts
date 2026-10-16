@@ -1,5 +1,6 @@
 import type { ActionNode, TargetNode } from "@/types/assessment";
 import { DAY_PART_SEED_IDS } from "@/lib/day-parts";
+import { getCategoryIdForTemplateName } from "@/lib/action-plan-categories";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -28,6 +29,7 @@ export const buildInhouseSpitexSeedTargets = (): TargetNode[] => {
     status: "open",
     done: false,
     templateName: title,
+    categoryId: getCategoryIdForTemplateName(title),
     ...fields,
   });
 

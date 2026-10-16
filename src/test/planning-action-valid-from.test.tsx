@@ -2,6 +2,11 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AssessmentOutline } from "@/components/assessment/AssessmentOutline";
 import type { TargetNode } from "@/types/assessment";
+import { preferTargetGrouping } from "@/test/planning-grouping";
+
+beforeEach(() => {
+  preferTargetGrouping();
+});
 
 const targets: TargetNode[] = [
   {

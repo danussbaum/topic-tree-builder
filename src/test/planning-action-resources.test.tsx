@@ -9,6 +9,11 @@ import {
   saveActionPlanTemplates,
 } from "@/lib/action-plan-templates";
 import type { TargetNode } from "@/types/assessment";
+import { preferTargetGrouping } from "@/test/planning-grouping";
+
+beforeEach(() => {
+  preferTargetGrouping();
+});
 
 const targets: TargetNode[] = [
   { id: "goal-a", title: "Ziel A", notes: "", validFrom: "2026-06-01", actions: [], disciplineId: "discipline-ihp" },

@@ -4,6 +4,11 @@ import { AssessmentOutline } from "@/components/assessment/AssessmentOutline";
 import { matchesAssessmentFilter } from "@/types/assessment-filter";
 import type { ActionNode, TargetNode } from "@/types/assessment";
 import { DAY_PART_SEED_IDS } from "@/lib/day-parts";
+import { preferTargetGrouping } from "@/test/planning-grouping";
+
+beforeEach(() => {
+  preferTargetGrouping();
+});
 
 const dailyAction: ActionNode = {
   id: "action-daily",

@@ -2,6 +2,9 @@ import { resetThrottle } from "@/lib/auth";
 
 export const APPLICATION_LOGOUT_CLEARING_KEY = "topic-tree-builder:logout-clearing";
 
+/** Gruppierung der Planung pro Disziplin: gilt nur bis zum Logout. */
+export const PLANNING_GROUPING_SESSION_KEY = "planning-discipline-grouping-v1";
+
 export const APPLICATION_BROWSER_STORAGE_KEYS = [
   "assessment:cached-state:v2",
   "action-plan-templates-v2",
@@ -35,6 +38,7 @@ export const clearApplicationBrowserData = () => {
   if (typeof window === "undefined") return;
 
   window.sessionStorage.setItem(APPLICATION_LOGOUT_CLEARING_KEY, "true");
+  window.sessionStorage.removeItem(PLANNING_GROUPING_SESSION_KEY);
   [...APPLICATION_BROWSER_STORAGE_KEYS, ...LEGACY_BROWSER_STORAGE_KEYS].forEach((key) => {
     window.localStorage.removeItem(key);
   });

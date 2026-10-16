@@ -234,3 +234,34 @@ describe("buildPlanningExportRows", () => {
     ]);
   });
 });
+
+describe("buildPlanningExportRows / Kategorie", () => {
+  const categories = [
+    { id: "category-101", code: "101", name: "Hygiene und Komfort" },
+    { id: "category-102", code: "102", name: "Atmung" },
+  ];
+
+  it("exportiert die Kategorie der Handlung und fällt auf die Vorlage zurück", () => {
+    const rows = buildPlanningExportRows(
+      [
+        withPlan([
+          action({ id: "a1", groupId: "g1", title: "Waschen", categoryId: "category-101" }),
+          action({ id: "a2", groupId: "g2", title: "Inhalieren", templateId: "tpl-atmung" }),
+          action({ id: "a3", groupId: "g3", title: "Ohne" }),
+          action({ id: "a4", groupId: "g4", title: "Seed", templateName: "10201 Atemtherapie" }),
+        ]),
+      ],
+      { ...options, categories, templates: [{ id: "tpl-atmung", name: "10201 Atemtherapie", categoryId: "category-102" }] },
+    );
+
+    expect(PLANNING_EXPORT_HEADERS.indexOf("Kategorie")).toBe(
+      PLANNING_EXPORT_HEADERS.indexOf("Klassifizierung") + 1,
+    );
+    expect(Object.fromEntries(rows.map((row) => [row.Handlung, row.Kategorie]))).toEqual({
+      Waschen: "101 Hygiene und Komfort",
+      Inhalieren: "102 Atmung",
+      Ohne: "",
+      Seed: "102 Atmung",
+    });
+  });
+});

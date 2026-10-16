@@ -84,4 +84,13 @@ describe("buildUnplannedActionNodes", () => {
       expect(n.templateLockedFields).toEqual(["title", "notes"]);
     });
   });
+
+  it("übernimmt Vorlage und Kategorie in die ungeplante Handlung", () => {
+    const [node] = buildUnplannedActionNodes(
+      "morning",
+      baseDraft({ templateId: "tpl-x", categoryId: "category-101" }),
+      "2026-07-08",
+    );
+    expect(node).toMatchObject({ templateId: "tpl-x", categoryId: "category-101" });
+  });
 });

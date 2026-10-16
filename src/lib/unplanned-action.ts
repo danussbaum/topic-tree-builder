@@ -31,6 +31,7 @@ export interface UnplannedActionDraft {
   optionalServices?: ConfirmedOptionalService[];
   templateId?: string;
   templateName?: string;
+  categoryId?: string;
   templateLockedFields?: string[];
   templateRequiredFields?: string[];
   /** Tageszeit-ID oder "none" */
@@ -111,6 +112,7 @@ export const buildUnplannedActionNodes = (
     isUnplanned: true,
     templateId: draft.templateId,
     templateName: draft.templateName,
+    categoryId: draft.categoryId,
     templateLockedFields: draft.templateLockedFields,
   }));
 };

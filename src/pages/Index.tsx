@@ -78,6 +78,7 @@ import { createSimpleXlsxBlob } from "@/lib/xlsx";
 import { buildClientReferenceNumbers, CLIENT_REFERENCE_HEADER } from "@/lib/client-reference-number";
 import {
   buildPlanningExportRows,
+  formatActionCategory,
   PLANNING_EXPORT_DATE_HEADERS,
   PLANNING_EXPORT_HEADERS,
   PLANNING_EXPORT_NUMBER_HEADERS,
@@ -103,6 +104,7 @@ import {
   parseOptionalLeistungsarten,
   parseTageszeit,
 } from "@/lib/action-plan-templates";
+import { loadActionPlanCategories } from "@/lib/action-plan-categories";
 import {
   DEFAULT_LAST_N_DAYS,
   loadCachedAssessmentState,
@@ -422,6 +424,7 @@ const CONFIRMATION_EXPORT_HEADERS = [
   "Tageszeit",
   "Uhrzeit",
   "Klassifizierung",
+  "Kategorie",
   "Leistungsarten",
   "Optionale Leistungen",
   "Minuten geplant",
@@ -1288,6 +1291,7 @@ const Index = () => {
         done: false,
         templateId: template?.id,
         templateName: template?.name,
+        categoryId: template?.categoryId,
         templateLockedFields: getTemplateLockedActionFields(template),
         templateRequiredFields: getTemplateRequiredActionFields(template),
       };
@@ -1917,6 +1921,10 @@ const Index = () => {
     URL.revokeObjectURL(url);
   };
 
+  // Einmal pro Seitenaufruf laden statt pro exportierter Zeile.
+  const exportCategories = useMemo(() => loadActionPlanCategories(), []);
+  const exportTemplates = useMemo(() => loadActionPlanTemplates(), []);
+
   const toConfirmationExportRecord = (
     client: Client,
     { dueDate, target, action, confirmationDate, status }: ReturnType<typeof getVisibleConfirmationRows>[number],
@@ -1966,6 +1974,7 @@ const Index = () => {
       "Tageszeit": (confirmation?.dayPartSnapshot ?? effectiveDayPart(action))?.title ?? "ohne",
       "Uhrzeit": action.scheduledTime ?? "",
       Klassifizierung: action.classification ? `KLV ${action.classification.toUpperCase()}` : "",
+      Kategorie: formatActionCategory(action, exportCategories, exportTemplates),
       Leistungsarten: (action.serviceEntries ?? []).map((e) => {
         const label = ACTION_SERVICE_TYPE_SELECT_OPTIONS.find((o) => o.value === e.serviceType)?.label ?? e.serviceType;
         return e.maxMinutes != null ? `${label} (max. ${e.maxMinutes} Min.)` : label;

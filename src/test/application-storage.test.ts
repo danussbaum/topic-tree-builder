@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   APPLICATION_BROWSER_STORAGE_KEYS,
   APPLICATION_LOGOUT_CLEARING_KEY,
+  PLANNING_GROUPING_SESSION_KEY,
   clearApplicationBrowserData,
   isApplicationLogoutClearing,
 } from "@/lib/application-storage";
@@ -17,6 +18,7 @@ describe("application browser storage", () => {
       window.localStorage.setItem(key, "cached");
     });
     window.localStorage.setItem("unrelated-key", "keep");
+    window.sessionStorage.setItem(PLANNING_GROUPING_SESSION_KEY, "{}");
 
     clearApplicationBrowserData();
 
@@ -25,6 +27,7 @@ describe("application browser storage", () => {
     });
     expect(window.localStorage.getItem("unrelated-key")).toBe("keep");
     expect(window.sessionStorage.getItem(APPLICATION_LOGOUT_CLEARING_KEY)).toBe("true");
+    expect(window.sessionStorage.getItem(PLANNING_GROUPING_SESSION_KEY)).toBeNull();
     expect(isApplicationLogoutClearing()).toBe(true);
   });
 });

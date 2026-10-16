@@ -1,8 +1,13 @@
 ﻿import { render, screen, within, fireEvent } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 import { AssessmentOutline } from "@/components/assessment/AssessmentOutline";
 import type { ActionPlanDiscipline } from "@/lib/action-plan-disciplines";
 import type { ActionNode, TargetNode } from "@/types/assessment";
+import { preferTargetGrouping } from "@/test/planning-grouping";
+
+beforeEach(() => {
+  preferTargetGrouping();
+});
 
 const disciplines: ActionPlanDiscipline[] = [
   { id: "discipline-ihp", title: "IHP", authorizedRoleIds: [], categoryIds: [] },
@@ -106,7 +111,7 @@ describe("AssessmentOutline planning master-detail", () => {
     renderPlanningOutline({ targets: targetsWithGoals });
 
     expect(screen.queryByText("Handlung A1")).not.toBeInTheDocument();
-    expect(screen.getByText(/Ziel links wählen/)).toBeInTheDocument();
+    expect(screen.getByText(/links wählen/)).toBeInTheDocument();
   });
 
   it("zeigt nur das gewählte Ziel mit seinen Handlungen", () => {
@@ -148,7 +153,7 @@ describe("AssessmentOutline planning master-detail", () => {
     fireEvent.click(screen.getByRole("button", { name: /Ziel A/ }));
 
     expect(screen.queryByText("Handlung A1")).not.toBeInTheDocument();
-    expect(screen.getByText(/Ziel links wählen/)).toBeInTheDocument();
+    expect(screen.getByText(/links wählen/)).toBeInTheDocument();
   });
 
   it("wählt mit Klick auf die Disziplin alle ihre Ziele, einzelne lassen sich abwählen", () => {
@@ -182,7 +187,7 @@ describe("AssessmentOutline planning master-detail", () => {
     fireEvent.click(screen.getByRole("button", { name: "IHP" }));
 
     expect(screen.queryByText("Handlung A1")).not.toBeInTheDocument();
-    expect(screen.getByText(/Ziel links wählen/)).toBeInTheDocument();
+    expect(screen.getByText(/links wählen/)).toBeInTheDocument();
   });
 });
 
@@ -334,5 +339,76 @@ describe("Mehrfache Durchführungen pro Tageszeit", () => {
 
     expect(onUpdateActionGroup).not.toHaveBeenCalled();
     expect(screen.getByText(/Durchführung mit Bestätigungen entfernen/i)).toBeInTheDocument();
+  });
+});
+
+describe("AssessmentOutline planning / Gruppierung nach Kategorien", () => {
+  const categorizedTargets: TargetNode[] = [
+    {
+      id: "goal-a",
+      disciplineId: "discipline-ihp",
+      title: "Ziel A",
+      notes: "Freitext A",
+      validFrom: "2026-01-01",
+      actions: [
+        { ...action("act-a1", "grp-a1", "Waschen"), categoryId: "category-101" },
+        action("act-a2", "grp-a2", "Ohne Kat"),
+      ],
+    },
+    {
+      id: "goal-b",
+      disciplineId: "discipline-ihp",
+      title: "Ziel B",
+      notes: "Freitext B",
+      actions: [{ ...action("act-b1", "grp-b1", "Inhalieren"), categoryId: "category-102" }],
+    },
+  ];
+
+  // Radix öffnet das Dropdown auf pointerdown; in jsdom greift zuverlässig die Tastatur.
+  const openMenu = () =>
+    fireEvent.keyDown(screen.getByRole("button", { name: "Optionen IHP" }), { key: "Enter" });
+
+  it("zeigt standardmässig die Kategorien links und das Thema / Ziel auf der Handlung", async () => {
+    window.sessionStorage.clear();
+    renderPlanningOutline({ targets: categorizedTargets });
+
+    const nav = screen.getByRole("list", { name: "Kategorien IHP" });
+    expect(within(nav).getAllByRole("button").map((b) => b.textContent)).toEqual([
+      "Ohne Kategorie",
+      "101 Hygiene und Komfort",
+      "102 Atmung",
+    ]);
+    expect(screen.queryByRole("button", { name: "Ziel A" })).not.toBeInTheDocument();
+
+    fireEvent.click(within(nav).getByRole("button", { name: "102 Atmung" }));
+    const section = screen.getByRole("region", { name: "102 Atmung" });
+    expect(within(section).getByText("Inhalieren")).toBeInTheDocument();
+    expect(within(section).getByText("Ziel B")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "101 Hygiene und Komfort" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Freitext B")).not.toBeInTheDocument();
+    expect(screen.queryByText("Gültig ab:")).not.toBeInTheDocument();
+
+    openMenu();
+    const items = await screen.findAllByRole("menuitemradio");
+    expect(items.map((item) => item.textContent)).toEqual(["Nach Kategorien", "Nach Thema / Ziel"]);
+    expect(items[0]).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("zeigt nach dem Umschalten die Ziele links und die Kategorie auf der Handlung", async () => {
+    window.sessionStorage.clear();
+    renderPlanningOutline({ targets: categorizedTargets });
+
+    openMenu();
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: "Nach Thema / Ziel" }));
+    expect(screen.queryByRole("list", { name: "Kategorien IHP" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Ziel A" }));
+    expect(screen.getByText("Freitext A")).toBeInTheDocument();
+    expect(screen.getByText("101 Hygiene und Komfort")).toBeInTheDocument();
+    expect(screen.getByText("Ohne Kategorie")).toBeInTheDocument();
+    // Die Wahl gilt für die Sitzung.
+    expect(JSON.parse(window.sessionStorage.getItem("planning-discipline-grouping-v1") ?? "{}")).toMatchObject({
+      "discipline-ihp": "targets",
+    });
   });
 });

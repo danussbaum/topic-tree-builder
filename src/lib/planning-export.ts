@@ -5,8 +5,16 @@ import {
 } from "@/lib/action-plan-resources";
 import {
   ACTION_SERVICE_TYPE_SELECT_OPTIONS,
+  getActionCategoryId,
   getActionServiceTypeLabel,
+  loadActionPlanTemplates,
+  type ActionPlanTemplate,
 } from "@/lib/action-plan-templates";
+import {
+  formatActionPlanCategory,
+  loadActionPlanCategories,
+  type ActionPlanCategory,
+} from "@/lib/action-plan-categories";
 import { initialActionPlanDisciplines, type ActionPlanDiscipline } from "@/lib/action-plan-disciplines";
 import { buildClientReferenceNumbers, CLIENT_REFERENCE_HEADER } from "@/lib/client-reference-number";
 import { getDayParts, type DayPartDefinition } from "@/lib/day-parts";
@@ -39,6 +47,7 @@ export const PLANNING_EXPORT_HEADERS = [
   "Gültig ab",
   "Gültig bis",
   "Klassifizierung",
+  "Kategorie",
   "Leistungsarten",
   "Optionale Leistungen",
   "Hilfsmittel",
@@ -46,6 +55,16 @@ export const PLANNING_EXPORT_HEADERS = [
   "Personen",
   "Resultat erforderlich",
 ] as const;
+
+export const formatActionCategory = (
+  action: ActionNode,
+  categories: ActionPlanCategory[] = loadActionPlanCategories(),
+  templates: Pick<ActionPlanTemplate, "id" | "name" | "categoryId">[] = loadActionPlanTemplates(),
+): string => {
+  const categoryId = getActionCategoryId(action, templates);
+  const category = categories.find((entry) => entry.id === categoryId);
+  return category ? formatActionPlanCategory(category) : "";
+};
 
 export const PLANNING_EXPORT_DATE_HEADERS = new Set([
   "Thema / Ziel gültig ab",
@@ -158,6 +177,8 @@ export type PlanningExportRow = Record<string, string | number>;
 
 export interface PlanningExportOptions {
   disciplines?: ActionPlanDiscipline[];
+  categories?: ActionPlanCategory[];
+  templates?: Pick<ActionPlanTemplate, "id" | "name" | "categoryId">[];
   resources?: ActionPlanResource[];
   dayParts?: DayPartDefinition[];
   /**
@@ -180,6 +201,8 @@ export const buildPlanningExportRows = (
     resources = getActionPlanResources(),
     dayParts = getDayParts(),
     clientReferenceNumbers = buildClientReferenceNumbers(clients),
+    categories = loadActionPlanCategories(),
+    templates = loadActionPlanTemplates(),
   }: PlanningExportOptions = {},
 ): PlanningExportRow[] => {
   const disciplineTitle = (target: TargetNode) =>
@@ -245,6 +268,7 @@ export const buildPlanningExportRows = (
                     "Gültig ab": action.validFrom ?? "",
                     "Gültig bis": action.validTo ?? "",
                     Klassifizierung: action.classification ? `KLV ${action.classification.toUpperCase()}` : "",
+                    Kategorie: formatActionCategory(action, categories, templates),
                     Leistungsarten: serviceTypesText(action),
                     "Optionale Leistungen": optionalServicesText(action),
                     Hilfsmittel: formatActionResources(action, resources),

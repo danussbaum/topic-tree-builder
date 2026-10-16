@@ -8,6 +8,11 @@ import {
   buildDefaultTemplateEditable,
   buildDefaultTemplateFields,
 } from "@/lib/action-plan-templates";
+import { preferTargetGrouping } from "@/test/planning-grouping";
+
+beforeEach(() => {
+  preferTargetGrouping();
+});
 
 const targets: TargetNode[] = [
   {

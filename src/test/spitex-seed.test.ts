@@ -11,6 +11,15 @@ describe("Beispielplanung Inhouse-Spitex", () => {
 
   const umlagern = actions.filter((a) => a.title === "10501 Lagerung der Klientin im Bett");
 
+  it("übernimmt die Kategorie der gleichnamigen Vorlage", () => {
+    const categoryByName = new Map(initialTemplates.map((t) => [t.name, t.categoryId]));
+    expect(actions.length).toBeGreaterThan(0);
+    for (const action of actions) {
+      expect(action.categoryId).toBeDefined();
+      expect(action.categoryId).toBe(categoryByName.get(action.title));
+    }
+  });
+
   it("plant das nächtliche Umlagern dreimal pro Nacht in einer Gruppe", () => {
     expect(umlagern).toHaveLength(3);
     expect(new Set(umlagern.map((a) => a.groupId)).size).toBe(1);
