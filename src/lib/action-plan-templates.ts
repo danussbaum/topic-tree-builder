@@ -35,6 +35,8 @@ export interface ActionPlanTemplate {
   name: string;
   disciplineIds: string[];
   categoryId?: string;
+  /** Fehlt der Wert, ist die Kategorie veraenderbar. */
+  categoryEditable?: boolean;
   fields: Record<TemplateFieldKey, string>;
   editable: Record<TemplateFieldKey, boolean>;
   required: Record<TemplateFieldKey, boolean>;
@@ -167,13 +169,14 @@ export const getTemplateValidationIssues = (
 };
 
 export const getTemplateLockedActionFields = (
-  template?: Pick<ActionPlanTemplate, "editable">,
+  template?: Pick<ActionPlanTemplate, "editable" | "categoryEditable">,
 ): string[] => {
   if (!template) return [];
 
-  return (Object.entries(template.editable) as Array<[TemplateFieldKey, boolean]>)
+  const lockedFields = (Object.entries(template.editable) as Array<[TemplateFieldKey, boolean]>)
     .filter(([, editable]) => !editable)
     .map(([field]) => TEMPLATE_FIELD_TO_ACTION_FIELD[field]);
+  return template.categoryEditable === false ? [...lockedFields, "categoryId"] : lockedFields;
 };
 
 export const getTemplateRequiredActionFields = (
@@ -269,7 +272,8 @@ export const getActionCategoryId = (
   action: Pick<ActionNode, "categoryId" | "templateId" | "templateName">,
   templates: Pick<ActionPlanTemplate, "id" | "name" | "categoryId">[],
 ): string | undefined => {
-  if (action.categoryId) return action.categoryId;
+  // "" heisst: bewusst «Ohne Kategorie» zugeteilt, kein Rueckfall auf die Vorlage.
+  if (action.categoryId !== undefined) return action.categoryId || undefined;
   const template = action.templateId
     ? templates.find((entry) => entry.id === action.templateId)
     : action.templateName
@@ -7987,6 +7991,8 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
 export const initialTemplates: ActionPlanTemplate[] = seedTemplates.map((template) => ({
   ...template,
   categoryId: getCategoryIdForTemplateName(template.name),
+  // Geseedete Kategorien sind fest, die uebrigen Vorlagen frei.
+  categoryEditable: !getCategoryIdForTemplateName(template.name),
 }));
 
 
@@ -8085,6 +8091,7 @@ export const loadActionPlanTemplates = (): ActionPlanTemplate[] => {
         typeof template.categoryId === "string" && validCategoryIds.has(template.categoryId)
           ? template.categoryId
           : undefined,
+      categoryEditable: template.categoryEditable !== false,
       disciplineIds: Array.isArray(template.disciplineIds)
         ? template.disciplineIds.filter((disciplineId): disciplineId is string => typeof disciplineId === "string")
         : [],

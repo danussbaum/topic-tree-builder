@@ -55,8 +55,16 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  assignCategoryToActionGroups,
+  moveActionGroupsToTarget,
+} from "@/lib/action-reassignment";
+import type { PlanningReassignMode } from "@/components/assessment/AssessmentOutline";
 import { AssessmentOutline, UnplannedActionDialog, ActionRow, ActionGroupRow, ActionOriginBadges, ConfirmActionDialog } from "@/components/assessment/AssessmentOutline";
 import { ApplicationLogoutButton } from "@/components/ApplicationLogoutButton";
 import type {
@@ -895,6 +903,15 @@ const Index = () => {
   } | null>(null);
   const [bulkNotDoneClientIds, setBulkNotDoneClientIds] = useState<Set<string>>(new Set());
   const [bulkDoneAsPlannedClientIds, setBulkDoneAsPlannedClientIds] = useState<Set<string>>(new Set());
+  // Planung: Mehrfachauswahl zum Zuteilen an ein Thema / Ziel bzw. eine Kategorie, pro Klient/in.
+  const [reassignModeByClientId, setReassignModeByClientId] = useState<Record<string, PlanningReassignMode>>({});
+  const setClientReassignMode = (clientId: string, mode: PlanningReassignMode | null) =>
+    setReassignModeByClientId((prev) => {
+      const next = { ...prev };
+      if (mode) next[clientId] = mode;
+      else delete next[clientId];
+      return next;
+    });
   const [personUnplannedClientId, setPersonUnplannedClientId] = useState<string | null>(null);
   const [personOnDemandClientId, setPersonOnDemandClientId] = useState<string | null>(null);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
@@ -2303,12 +2320,9 @@ const Index = () => {
             <RibbonButton
               icon={ImportIcon}
               label="BESA/Qsys"
-              disabled={viewMode === "confirmation" || viewMode === "evaluation"}
-              title={
-                viewMode !== "planning"
-                  ? "Import ist nur in der Planungsansicht verfügbar"
-                  : "Leistungsplanung aus BESA/Qsys (InterRAI-HC) importieren"
-              }
+              // Im Prototyp nicht umgesetzt, darum immer deaktiviert.
+              disabled
+              title="Import aus BESA/Qsys (InterRAI-HC) ist im Prototyp nicht verfügbar"
             />
             <RibbonButton
               icon={ExcelIcon}
@@ -3261,31 +3275,53 @@ const Index = () => {
                       {viewMode === "planning" && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <button
+                            <Button
                               type="button"
-                              className="shrink-0 inline-flex items-center gap-1 text-sm text-primary transition-colors hover:underline"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 shrink-0 text-muted-foreground"
+                              aria-label="Aktionen für Klient/in öffnen"
                             >
-                              <Plus className="h-4 w-4" />
-                              Thema / Ziel
-                            </button>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent
                             align="end"
-                            className="min-w-56"
+                            className="min-w-64"
                             onCloseAutoFocus={(e) => e.preventDefault()}
                           >
-                            <div className="px-2 py-1.5 text-xs uppercase tracking-widest text-muted-foreground">
-                              Disziplin wählen
-                            </div>
-                            {(availableDisciplines.length > 0 ? availableDisciplines : initialActionPlanDisciplines).map(
-                              (discipline) => (
-                                <DropdownMenuItem
-                                  key={discipline.id}
-                                  onClick={() => addTarget(client.id, discipline.id)}
-                                >
-                                  {discipline.title}
-                                </DropdownMenuItem>
-                              ),
+                            <DropdownMenuSub>
+                              <DropdownMenuSubTrigger>Thema / Ziel hinzufügen</DropdownMenuSubTrigger>
+                              <DropdownMenuSubContent className="min-w-56">
+                                {(availableDisciplines.length > 0 ? availableDisciplines : initialActionPlanDisciplines).map(
+                                  (discipline) => (
+                                    <DropdownMenuItem
+                                      key={discipline.id}
+                                      onClick={() => addTarget(client.id, discipline.id)}
+                                    >
+                                      {discipline.title}
+                                    </DropdownMenuItem>
+                                  ),
+                                )}
+                              </DropdownMenuSubContent>
+                            </DropdownMenuSub>
+                            {reassignModeByClientId[client.id] === "target" ? (
+                              <DropdownMenuItem onClick={() => setClientReassignMode(client.id, null)}>
+                                Mehrfachauswahl beenden
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem onClick={() => setClientReassignMode(client.id, "target")}>
+                                Mehrere einem Thema / Ziel zuteilen
+                              </DropdownMenuItem>
+                            )}
+                            {reassignModeByClientId[client.id] === "category" ? (
+                              <DropdownMenuItem onClick={() => setClientReassignMode(client.id, null)}>
+                                Mehrfachauswahl beenden
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem onClick={() => setClientReassignMode(client.id, "category")}>
+                                Mehrere einer Kategorie zuteilen
+                              </DropdownMenuItem>
                             )}
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -3394,6 +3430,18 @@ const Index = () => {
                       }
                       onDeleteActionGroup={(targetId, groupId) =>
                         deleteActionGroup(client.id, targetId, groupId)
+                      }
+                      reassignMode={viewMode === "planning" ? reassignModeByClientId[client.id] : undefined}
+                      onMoveActionGroups={(groupIds, toTargetId) =>
+                        updateClientTargetsFor(client.id, (targets) =>
+                          moveActionGroupsToTarget(targets, groupIds, toTargetId),
+                        )
+                      }
+                      onExitReassignMode={() => setClientReassignMode(client.id, null)}
+                      onAssignCategory={(groupIds, categoryId) =>
+                        updateClientTargetsFor(client.id, (targets) =>
+                          assignCategoryToActionGroups(targets, groupIds, categoryId),
+                        )
                       }
                     />
                     {personOnDemandClientId === client.id && (

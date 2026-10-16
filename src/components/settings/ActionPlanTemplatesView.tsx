@@ -209,6 +209,7 @@ export const ActionPlanTemplatesView = forwardRef<
   const [draftName, setDraftName] = useState("");
   const [draftDisciplineIds, setDraftDisciplineIds] = useState<string[]>([]);
   const [draftCategoryId, setDraftCategoryId] = useState<string | undefined>();
+  const [draftCategoryEditable, setDraftCategoryEditable] = useState(true);
   const [importErrors, setImportErrors] = useState<string[]>([]);
   const [draftFields, setDraftFields] =
     useState<Record<TemplateFieldKey, string>>(buildDefaultFields);
@@ -326,6 +327,9 @@ export const ActionPlanTemplatesView = forwardRef<
       headerRow[1]?.toLocaleLowerCase("de") === "disziplinen";
     const hasCategoryColumn =
       headerRow[hasDisciplineColumn ? 2 : 1]?.toLocaleLowerCase("de") === "kategorie";
+    const hasCategoryEditableColumn =
+      hasCategoryColumn &&
+      headerRow[hasDisciplineColumn ? 3 : 2]?.toLocaleLowerCase("de") === "kategorie veränderbar";
     const hasUhrzeitColumn = headerRow.some(
       (h) => h.trim().toLocaleLowerCase("de") === "uhrzeit",
     );
@@ -347,6 +351,7 @@ export const ActionPlanTemplatesView = forwardRef<
       const nextRequired = buildDefaultRequired();
       let nextDisciplineIds: string[] = [];
       let nextCategoryId: string | undefined;
+      let nextCategoryEditable = true;
 
       let columnIndex = 1;
       if (hasDisciplineColumn) {
@@ -369,6 +374,16 @@ export const ActionPlanTemplatesView = forwardRef<
         );
         nextCategoryId = categoryId;
         if (invalid) errors.push(`Kategorie: unbekannter Wert ${row[columnIndex]}`);
+        columnIndex += 1;
+      }
+      if (hasCategoryEditableColumn) {
+        const editableValue = row[columnIndex] ?? "";
+        const editable = editableValue.trim() ? normalizeEditable(editableValue) : true;
+        if (editable === null) {
+          errors.push(`Kategorie veränderbar: ungültiger Wert "${editableValue}" (erlaubt: Ja/Nein)`);
+        } else {
+          nextCategoryEditable = editable;
+        }
         columnIndex += 1;
       }
       templateFieldMeta.forEach((field) => {
@@ -513,6 +528,7 @@ export const ActionPlanTemplatesView = forwardRef<
         name,
         disciplineIds: nextDisciplineIds,
         categoryId: nextCategoryId,
+        categoryEditable: nextCategoryEditable,
         fields: nextFields,
         editable: nextEditable,
         required: nextRequired,
@@ -569,6 +585,7 @@ export const ActionPlanTemplatesView = forwardRef<
     setDraftName("Neue Handlungsvorlage");
     setDraftDisciplineIds([]);
     setDraftCategoryId(undefined);
+    setDraftCategoryEditable(true);
     const fields = buildDefaultFields();
     setDraftFields(fields);
     setDraftDayPartEntries(withPositionalIds(parseTageszeit(fields.tageszeit)));
@@ -587,6 +604,7 @@ export const ActionPlanTemplatesView = forwardRef<
       normalizeTemplateDisciplineIds(template.disciplineIds, disciplineOptions),
     );
     setDraftCategoryId(template.categoryId);
+    setDraftCategoryEditable(template.categoryEditable !== false);
     setDraftFields({ ...template.fields });
     setDraftDayPartEntries(withPositionalIds(parseTageszeit(template.fields.tageszeit)));
     setDraftEditable({ ...template.editable });
@@ -633,6 +651,7 @@ export const ActionPlanTemplatesView = forwardRef<
           name: draftName.trim(),
           disciplineIds: draftDisciplineIds,
           categoryId,
+          categoryEditable: draftCategoryEditable,
           fields: draftFields,
           editable: draftEditable,
           required: draftRequired,
@@ -650,6 +669,7 @@ export const ActionPlanTemplatesView = forwardRef<
               name: draftName.trim(),
               disciplineIds: draftDisciplineIds,
               categoryId,
+              categoryEditable: draftCategoryEditable,
               fields: draftFields,
               editable: draftEditable,
               required: draftRequired,
@@ -685,6 +705,7 @@ export const ActionPlanTemplatesView = forwardRef<
       "Name",
       "Disziplinen",
       "Kategorie",
+      "Kategorie veränderbar",
       ...templateFieldMeta.flatMap((field) =>
         field.editable === false
           ? [field.label]
@@ -701,6 +722,7 @@ export const ActionPlanTemplatesView = forwardRef<
         disciplineOptions,
       ).join(", "),
       categoryOptions.find((category) => category.id === template.categoryId)?.code ?? "",
+      template.categoryEditable === false ? "Nein" : "Ja",
       ...templateFieldMeta.flatMap((field) =>
         field.editable === false
           ? [templateFieldCsvValue(template, field.key)]
@@ -912,9 +934,14 @@ export const ActionPlanTemplatesView = forwardRef<
                     ))}
                   </SelectContent>
                 </Select>
-                <span className="pt-2 text-xs text-muted-foreground">
-                  aus den Kategorien der Disziplinen
-                </span>
+                <label className="inline-flex items-center gap-2 pt-2 text-xs text-muted-foreground">
+                  <Checkbox
+                    aria-label="Kategorie veränderbar"
+                    checked={draftCategoryEditable}
+                    onCheckedChange={(checked) => setDraftCategoryEditable(checked === true)}
+                  />
+                  veränderbar
+                </label>
 
                 {templateFieldMeta.map((field) => {
                   if (

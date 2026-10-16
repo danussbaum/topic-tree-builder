@@ -54,6 +54,12 @@ import { Input } from "@/components/ui/input";
 import { DatePickerInput } from "@/components/ui/date-picker-input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  getConfirmationDatesOutsideTarget,
+  isCategoryLocked,
+  isPlanningOutsideTarget,
+} from "@/lib/action-reassignment";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -392,7 +398,15 @@ interface Props {
   onReactivateTarget: (targetId: string) => void;
   onDeleteAction: (targetId: string, actionId: string) => void;
   onDeleteActionGroup: (targetId: string, groupId: string) => void;
+  /** Planung: aktive Mehrfachauswahl (über das Menü der Klient/in) */
+  reassignMode?: PlanningReassignMode;
+  onMoveActionGroups?: (groupIds: Set<string>, toTargetId: string) => void;
+  /** categoryId "" = «Ohne Kategorie» */
+  onAssignCategory?: (groupIds: Set<string>, categoryId: string) => void;
+  onExitReassignMode?: () => void;
 }
+
+export type PlanningReassignMode = "target" | "category";
 
 type ConfirmationMode = "done_as_planned" | "done_with_deviation" | "not_done" | "postponed";
 
@@ -642,6 +656,10 @@ export function AssessmentOutline({
   onReactivateTarget,
   onDeleteAction,
   onDeleteActionGroup,
+  reassignMode,
+  onMoveActionGroups,
+  onAssignCategory,
+  onExitReassignMode,
 }: Props) {
   const targetInputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
 
@@ -843,6 +861,7 @@ export function AssessmentOutline({
 
   const changeGrouping = (disciplineId: string, grouping: DisciplineGrouping) => {
     setGroupingByDisciplineId((prev) => ({ ...prev, [disciplineId]: grouping }));
+    setSelectedGroupIds(new Set());
     // Die bisherige Auswahl dieser Disziplin passt nicht zur neuen Gruppierung.
     setSelectedCategory((prev) => (prev?.disciplineId === disciplineId ? null : prev));
     setSelectedTargetIds((prev) => new Set([...prev].filter((id) => disciplineIdOfTarget(id) !== disciplineId)));
@@ -859,6 +878,73 @@ export function AssessmentOutline({
     const category = categoryLookup.categories.find((entry) => entry.id === categoryId);
     // Wie links in der Kategorie-Ansicht: ohne (gültige) Kategorie gilt «Ohne Kategorie».
     return category ? formatActionPlanCategory(category) : "Ohne Kategorie";
+  };
+
+  // Mehrfachauswahl der Planung: ausgewählt werden ganze Handlungsgruppen, und nur
+  // innerhalb einer Disziplin — Handlungen anderer Disziplinen sind dann gesperrt.
+  const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set());
+  const [isReassignDialogOpen, setReassignDialogOpen] = useState(false);
+  useEffect(() => {
+    setSelectedGroupIds(new Set());
+    setReassignDialogOpen(false);
+  }, [reassignMode]);
+
+  const plannedGroupsById = new Map<string, { target: TargetNode; groupNodes: ActionNode[] }>();
+  for (const target of targets) {
+    for (const groupNodes of groupPlannedActions(target.actions)) {
+      plannedGroupsById.set(groupNodes[0].groupId, { target, groupNodes });
+    }
+  }
+  const selectedGroups = [...selectedGroupIds]
+    .map((groupId) => plannedGroupsById.get(groupId))
+    .filter((entry): entry is { target: TargetNode; groupNodes: ActionNode[] } => Boolean(entry));
+  const selectionDisciplineId = selectedGroups[0] ? getTargetDisciplineId(selectedGroups[0].target) : undefined;
+
+  const getGroupSelection = (target: TargetNode, groupNodes: ActionNode[]): GroupSelection | undefined => {
+    if (!reassignMode) return undefined;
+    const groupId = groupNodes[0].groupId;
+    const disabledReason = isTargetClosed(target)
+      ? "Thema / Ziel ist abgeschlossen"
+      : reassignMode === "category" && groupNodes.some(isCategoryLocked)
+        ? "Kategorie ist durch die Handlungsvorlage festgelegt"
+        : selectionDisciplineId && selectionDisciplineId !== getTargetDisciplineId(target)
+          ? "Ausgewählt werden kann nur innerhalb einer Disziplin"
+          : undefined;
+    return {
+      checked: selectedGroupIds.has(groupId),
+      disabled: Boolean(disabledReason),
+      disabledReason,
+      onToggle: () =>
+        setSelectedGroupIds((prev) => {
+          const next = new Set(prev);
+          if (next.has(groupId)) next.delete(groupId);
+          else next.add(groupId);
+          return next;
+        }),
+    };
+  };
+
+  /** «Alle» eines Abschnitts (Thema / Ziel bzw. Kategorie): nur auswählbare Gruppen zählen. */
+  const getSectionSelection = (
+    entries: { target: TargetNode; groupNodes: ActionNode[] }[],
+  ): SectionSelection | undefined => {
+    if (!reassignMode) return undefined;
+    const selectableIds = entries
+      .filter(({ target, groupNodes }) => !getGroupSelection(target, groupNodes)?.disabled)
+      .map(({ groupNodes }) => groupNodes[0].groupId);
+    const selectedCount = selectableIds.filter((id) => selectedGroupIds.has(id)).length;
+    return {
+      state:
+        selectedCount === 0 ? false : selectedCount === selectableIds.length ? true : "indeterminate",
+      disabled: selectableIds.length === 0,
+      onToggle: () =>
+        setSelectedGroupIds((prev) => {
+          const next = new Set(prev);
+          const allSelected = selectableIds.every((id) => next.has(id));
+          selectableIds.forEach((id) => (allSelected ? next.delete(id) : next.add(id)));
+          return next;
+        }),
+    };
   };
   // Erste gewählte Zeile in der Reihenfolge der Navigation — daran richtet sich das Detail aus.
   const firstSelectedTargetId = selectedCategory
@@ -1966,9 +2052,19 @@ export function AssessmentOutline({
 
   const renderTargetDetail = (target: TargetNode) => {
               const targetClosed = isTargetClosed(target);
+              const targetSelection = getSectionSelection(
+                groupPlannedActions(target.actions).map((groupNodes) => ({ target, groupNodes })),
+              );
               return (
                 <div key={target.id} className="group/target">
                   <div className="flex items-start gap-3">
+                    {targetSelection && (
+                      <SectionSelectCheckbox
+                        selection={targetSelection}
+                        label={`Alle Handlungen von ${target.title || "Thema / Ziel"} auswählen`}
+                        className="mt-1.5"
+                      />
+                    )}
                     <div className="flex-1 min-w-0">
                       {targetClosed && (
                         <div className="mb-1">
@@ -2091,6 +2187,7 @@ export function AssessmentOutline({
                                   onDeleteActionGroup={onDeleteActionGroup}
                                   onOpenEditPanel={() => openEditPanel(target.id, representative)}
                                   contextLabel={categoryLabelOf(representative)}
+                                  selection={getGroupSelection(target, groupNodes)}
                                 />
                               );
                             })}
@@ -2259,6 +2356,15 @@ export function AssessmentOutline({
 
         {/* DETAIL: die gewählten Ziele mit ihren Handlungen */}
         <div className="min-w-0 rounded-xl border border-border bg-white p-5" style={{ marginTop: detailOffset }}>
+          {reassignMode && (
+            <ReassignActionBar
+              mode={reassignMode}
+              selectedCount={selectedGroups.length}
+              onOpenDialog={() => setReassignDialogOpen(true)}
+              onClear={() => setSelectedGroupIds(new Set())}
+              onExit={onExitReassignMode}
+            />
+          )}
           {selectedCategory ? (
             <CategoryGroupedActions
               sections={(categorySectionsByDiscipline.get(selectedCategory.disciplineId) ?? []).filter((section) =>
@@ -2266,6 +2372,8 @@ export function AssessmentOutline({
               )}
               onDeleteActionGroup={onDeleteActionGroup}
               onOpenEditPanel={openEditPanel}
+              getGroupSelection={getGroupSelection}
+              getSectionSelection={getSectionSelection}
             />
           ) : selectedTargets.length > 0 ? (
             <div className="space-y-10">{selectedTargets.map(renderTargetDetail)}</div>
@@ -2292,6 +2400,39 @@ export function AssessmentOutline({
             closeConfirmDialog();
           }}
           clientName={clientName}
+        />
+      )}
+
+      {reassignMode === "target" && isReassignDialogOpen && (
+        <ReassignTargetDialog
+          open
+          groups={selectedGroups}
+          candidateTargets={targets.filter(
+            (target) => getTargetDisciplineId(target) === selectionDisciplineId && !isTargetClosed(target),
+          )}
+          onClose={() => setReassignDialogOpen(false)}
+          onConfirm={(toTargetId, groupIds) => {
+            onMoveActionGroups?.(groupIds, toTargetId);
+            setReassignDialogOpen(false);
+            setSelectedGroupIds(new Set());
+          }}
+        />
+      )}
+      {reassignMode === "category" && isReassignDialogOpen && (
+        <AssignCategoryDialog
+          open
+          selectedCount={selectedGroups.length}
+          categories={sortActionPlanCategories(
+            categoryLookup.categories.filter((category) =>
+              disciplines.find((d) => d.id === selectionDisciplineId)?.categoryIds.includes(category.id),
+            ),
+          ).map((category) => ({ id: category.id, title: formatActionPlanCategory(category) }))}
+          onClose={() => setReassignDialogOpen(false)}
+          onConfirm={(categoryId) => {
+            onAssignCategory?.(new Set(selectedGroups.map(({ groupNodes }) => groupNodes[0].groupId)), categoryId);
+            setReassignDialogOpen(false);
+            setSelectedGroupIds(new Set());
+          }}
         />
       )}
 
@@ -2452,16 +2593,30 @@ function CategoryGroupedActions({
   sections,
   onDeleteActionGroup,
   onOpenEditPanel,
+  getGroupSelection,
+  getSectionSelection,
 }: {
   sections: CategorySection[];
   onDeleteActionGroup: (targetId: string, groupId: string) => void;
   onOpenEditPanel: (targetId: string, action: ActionNode) => void;
+  getGroupSelection: (target: TargetNode, groupNodes: ActionNode[]) => GroupSelection | undefined;
+  getSectionSelection: (entries: CategorySection["entries"]) => SectionSelection | undefined;
 }) {
   return (
     <div className="space-y-8">
-      {sections.map((section) => (
+      {sections.map((section) => {
+        const sectionSelection = getSectionSelection(section.entries);
+        return (
         <section key={section.id || "none"} aria-label={section.title}>
-          <h4 className="mb-2 text-lg font-medium text-foreground">{section.title}</h4>
+          <div className="mb-2 flex items-center gap-3">
+            {sectionSelection && (
+              <SectionSelectCheckbox
+                selection={sectionSelection}
+                label={`Alle Handlungen von ${section.title} auswählen`}
+              />
+            )}
+            <h4 className="text-lg font-medium text-foreground">{section.title}</h4>
+          </div>
           <div className="space-y-1">
             {section.entries.map(({ target, groupNodes }) => (
               <ActionGroupRow
@@ -2473,12 +2628,230 @@ function CategoryGroupedActions({
                 onDeleteActionGroup={onDeleteActionGroup}
                 onOpenEditPanel={() => onOpenEditPanel(target.id, groupNodes[0])}
                 contextLabel={target.title || "Thema / Ziel…"}
+                selection={getGroupSelection(target, groupNodes)}
               />
             ))}
           </div>
         </section>
-      ))}
+        );
+      })}
     </div>
+  );
+}
+
+interface GroupSelection {
+  checked: boolean;
+  disabled: boolean;
+  disabledReason?: string;
+  onToggle: () => void;
+}
+
+interface SectionSelection {
+  state: boolean | "indeterminate";
+  disabled: boolean;
+  onToggle: () => void;
+}
+
+function SectionSelectCheckbox({
+  selection,
+  label,
+  className,
+}: {
+  selection: SectionSelection;
+  label: string;
+  className?: string;
+}) {
+  return (
+    <Checkbox
+      aria-label={label}
+      checked={selection.state}
+      disabled={selection.disabled}
+      onCheckedChange={selection.onToggle}
+      className={className}
+    />
+  );
+}
+
+/** Leiste über dem Detail, solange die Mehrfachauswahl der Planung aktiv ist. */
+function ReassignActionBar({
+  mode,
+  selectedCount,
+  onOpenDialog,
+  onClear,
+  onExit,
+}: {
+  mode: PlanningReassignMode;
+  selectedCount: number;
+  onOpenDialog: () => void;
+  onClear: () => void;
+  onExit?: () => void;
+}) {
+  return (
+    <div className="sticky top-0 z-10 mb-5 flex flex-wrap items-center gap-3 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+      <span className="font-medium text-foreground">
+        {selectedCount === 0
+          ? "Handlungen auswählen"
+          : `${selectedCount} ${selectedCount === 1 ? "Handlung" : "Handlungen"} ausgewählt`}
+      </span>
+      <Button type="button" size="sm" disabled={selectedCount === 0} onClick={onOpenDialog}>
+        {mode === "target" ? "Zu Thema / Ziel zuteilen…" : "Kategorie zuteilen…"}
+      </Button>
+      <Button type="button" size="sm" variant="ghost" disabled={selectedCount === 0} onClick={onClear}>
+        Auswahl aufheben
+      </Button>
+      {onExit && (
+        <Button type="button" size="sm" variant="ghost" className="ml-auto" onClick={onExit}>
+          <X className="h-4 w-4" />
+          Mehrfachauswahl beenden
+        </Button>
+      )}
+    </div>
+  );
+}
+
+const formatIsoDate = (date: string) => date.split("-").reverse().join(".");
+
+/**
+ * Ziel für die ausgewählten Handlungen wählen. Bestätigte Daten ausserhalb des
+ * Ziels sperren die betroffene Handlung; eine geplante Gültigkeit über das Ziel
+ * hinaus ergibt nur einen Hinweis.
+ */
+function ReassignTargetDialog({
+  open,
+  groups,
+  candidateTargets,
+  onClose,
+  onConfirm,
+}: {
+  open: boolean;
+  groups: { target: TargetNode; groupNodes: ActionNode[] }[];
+  candidateTargets: TargetNode[];
+  onClose: () => void;
+  onConfirm: (toTargetId: string, groupIds: Set<string>) => void;
+}) {
+  const [toTargetId, setToTargetId] = useState("");
+  const toTarget = candidateTargets.find((target) => target.id === toTargetId);
+  const assessed = toTarget
+    ? groups
+        .filter(({ target }) => target.id !== toTarget.id)
+        .map(({ groupNodes }) => ({
+          groupNodes,
+          blockedDates: getConfirmationDatesOutsideTarget(groupNodes, toTarget),
+          outsidePlanning: isPlanningOutsideTarget(groupNodes, toTarget),
+        }))
+    : [];
+  const movable = assessed.filter((entry) => entry.blockedDates.length === 0);
+  const blocked = assessed.filter((entry) => entry.blockedDates.length > 0);
+  const warned = movable.filter((entry) => entry.outsidePlanning);
+
+  return (
+    <Dialog open={open} onOpenChange={(value) => (!value ? onClose() : null)}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Zu Thema / Ziel zuteilen</DialogTitle>
+          <DialogDescription>
+            {groups.length} {groups.length === 1 ? "Handlung" : "Handlungen"} in ein Thema / Ziel derselben Disziplin verschieben.
+          </DialogDescription>
+        </DialogHeader>
+        <RadioGroup value={toTargetId} onValueChange={setToTargetId} aria-label="Thema / Ziel" className="max-h-60 overflow-y-auto">
+          {candidateTargets.map((target) => (
+            <label key={target.id} className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted">
+              <RadioGroupItem value={target.id} aria-label={target.title || "Thema / Ziel…"} />
+              <span className="min-w-0 flex-1 truncate">{target.title || "Thema / Ziel…"}</span>
+              <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                {target.validFrom ? formatIsoDate(target.validFrom) : "offen"} – {target.validTo ? formatIsoDate(target.validTo) : "offen"}
+              </span>
+            </label>
+          ))}
+        </RadioGroup>
+        {blocked.length > 0 && (
+          <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-sm">
+            <div className="font-medium text-destructive">Nicht verschiebbar (Bestätigungen ausserhalb des Themas / Ziels):</div>
+            <ul className="mt-1 space-y-0.5">
+              {blocked.map(({ groupNodes, blockedDates }) => (
+                <li key={groupNodes[0].groupId}>
+                  {groupNodes[0].title} — bestätigt am {blockedDates.map(formatIsoDate).join(", ")}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {warned.length > 0 && (
+          <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-sm">
+            <div className="font-medium">Hinweis: Gültigkeit reicht über das Thema / Ziel hinaus:</div>
+            <ul className="mt-1 space-y-0.5">
+              {warned.map(({ groupNodes }) => (
+                <li key={groupNodes[0].groupId}>{groupNodes[0].title}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Abbrechen</Button>
+          <Button
+            disabled={!toTarget || movable.length === 0}
+            onClick={() =>
+              toTarget &&
+              onConfirm(toTarget.id, new Set(movable.map(({ groupNodes }) => groupNodes[0].groupId)))
+            }
+          >
+            {movable.length > 0 ? `${movable.length} zuteilen` : "Zuteilen"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AssignCategoryDialog({
+  open,
+  selectedCount,
+  categories,
+  onClose,
+  onConfirm,
+}: {
+  open: boolean;
+  selectedCount: number;
+  categories: { id: string; title: string }[];
+  onClose: () => void;
+  onConfirm: (categoryId: string) => void;
+}) {
+  const [categoryId, setCategoryId] = useState<string | null>(null);
+  const options = [{ id: "", title: "Ohne Kategorie" }, ...categories];
+  return (
+    <Dialog open={open} onOpenChange={(value) => (!value ? onClose() : null)}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Kategorie zuteilen</DialogTitle>
+          <DialogDescription>
+            Kategorie für {selectedCount} {selectedCount === 1 ? "Handlung" : "Handlungen"} festlegen.
+          </DialogDescription>
+        </DialogHeader>
+        <RadioGroup
+          value={categoryId ?? undefined}
+          onValueChange={setCategoryId}
+          aria-label="Kategorie"
+          className="max-h-72 overflow-y-auto"
+        >
+          {options.map((option) => (
+            <label key={option.id || "none"} className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted">
+              {/* Radix verlangt einen nicht-leeren Wert; "none" steht für «Ohne Kategorie». */}
+              <RadioGroupItem value={option.id || "none"} aria-label={option.title} />
+              <span>{option.title}</span>
+            </label>
+          ))}
+        </RadioGroup>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Abbrechen</Button>
+          <Button
+            disabled={categoryId === null}
+            onClick={() => categoryId !== null && onConfirm(categoryId === "none" ? "" : categoryId)}
+          >
+            Zuteilen
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -2602,9 +2975,12 @@ export function ActionGroupRow({
   onOpenEditPanel,
   readOnly = false,
   contextLabel,
+  selection,
 }: {
   targetId: string;
   groupNodes: ActionNode[];
+  /** Nur im Auswahlmodus der Planung */
+  selection?: GroupSelection;
   /** Je nach Gruppierung der Planung: Kategorie bzw. Thema / Ziel der Handlung */
   contextLabel?: string;
   targetValidFrom?: string;
@@ -2628,6 +3004,19 @@ export function ActionGroupRow({
 
   return (
     <li className="group/action flex items-start gap-3 rounded px-3 py-2.5 border border-border bg-white transition-colors hover:border-primary/40">
+      {selection && (
+        <span className="mt-1 inline-flex shrink-0 items-center gap-1" title={selection.disabledReason}>
+          <Checkbox
+            aria-label={`${representative.title || "Handlung"} auswählen`}
+            checked={selection.checked}
+            disabled={selection.disabled}
+            onCheckedChange={selection.onToggle}
+          />
+          {selection.disabled && selection.disabledReason?.startsWith("Kategorie") && (
+            <Lock className="h-3.5 w-3.5 text-muted-foreground/60" aria-hidden="true" />
+          )}
+        </span>
+      )}
       <div className="flex-1 min-w-0">
         {/* Eigene Zeile über dem Titel: so steht der Badge immer an derselben Stelle. */}
         {contextLabel && (
