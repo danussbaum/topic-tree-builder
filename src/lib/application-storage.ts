@@ -29,7 +29,8 @@ const LEGACY_BROWSER_STORAGE_KEYS = [
  * mehr zu bestehenden Browserdaten passt — Anwenderinnen müssen diese dann nach dem
  * Login zwingend löschen.
  */
-export const APPLICATION_DATA_VERSION = 1;
+// 2: Seed-Codes der Inhouse-Spitex-Vorlagen mit Katalog-Präfix "HC-LK-".
+export const APPLICATION_DATA_VERSION = 2;
 const APPLICATION_DATA_VERSION_KEY = "application-data-version";
 
 /** Veraltet heisst: Es liegen Daten im Browser, aber nicht in der aktuellen Version. */

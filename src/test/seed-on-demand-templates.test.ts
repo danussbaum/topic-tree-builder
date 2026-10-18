@@ -27,7 +27,7 @@ const spitexTemplates = initialTemplates.filter((template) =>
   template.disciplineIds.includes("discipline-inhouse-spitex"),
 );
 
-const numberOf = (name: string) => /^(\d{5})\b/.exec(name)?.[1] ?? null;
+const numberOf = (code: string) => /^HC-LK-(\d{5})$/.exec(code)?.[1] ?? null;
 
 describe("Nach-Bedarf-Handlungsarten im Inhouse-Spitex-Seed", () => {
   it("kennt jede geforderte Nummer als Handlungsart", () => {

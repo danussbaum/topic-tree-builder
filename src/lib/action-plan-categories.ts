@@ -38,13 +38,14 @@ export const sortActionPlanCategories = (categories: ActionPlanCategory[]) =>
       a.name.localeCompare(b.name, "de"),
   );
 
-// Die Seed-Vorlagen tragen einen 5-stelligen Code (z.B. "10101 ..."), dessen
-// erste drei Ziffern dem Code der Kategorie entsprechen.
+// Die Seed-Vorlagen tragen eine 5-stellige Leistungsnummer, im Code mit
+// Katalog-Präfix ("HC-LK-10101") oder im Titel vorne ("10101 ..."). Deren erste
+// drei Ziffern entsprechen dem Code der Kategorie.
 export const getCategoryIdForTemplateName = (
   name: string,
   categories: ActionPlanCategory[] = initialActionPlanCategories,
 ): string | undefined => {
-  const match = /^(\d{3})\d{2}\b/.exec(name.trim());
+  const match = /^(?:[A-Za-z]+-)*(\d{3})\d{2}\b/.exec(name.trim());
   if (!match) return undefined;
   return categories.find((category) => category.code === match[1])?.id;
 };

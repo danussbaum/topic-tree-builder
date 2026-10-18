@@ -33,7 +33,7 @@ export type TemplateFieldKey =
 export interface ActionPlanTemplate {
   id: string;
   /**
-   * Leistungsschlüssel, alphanumerisch (z. B. "10101"), eindeutig oder leer.
+   * Leistungsschlüssel mit Katalog-Präfix (z. B. "HC-LK-10101"), eindeutig oder leer.
    * Schlüssel für den Abgleich mit extern (BESA/Qsys) erfassten Handlungen.
    */
   code: string;
@@ -154,9 +154,10 @@ export const getTemplateRecurrenceIssues = (
   return issues;
 };
 
-// Alphanumerisch, damit bei Bedarf ein Präfix vor die Leistungsnummer passt (z. B. "Q10101").
-export const TEMPLATE_CODE_PATTERN = /^[A-Za-z0-9]+$/;
-const TEMPLATE_CODE_FORMAT_ISSUE = "Code: nur Buchstaben und Ziffern erlaubt";
+// Alphanumerisch mit Bindestrich, damit der Katalog als Präfix vor die
+// Leistungsnummer passt (z. B. "HC-LK-10101").
+export const TEMPLATE_CODE_PATTERN = /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/;
+const TEMPLATE_CODE_FORMAT_ISSUE = "Code: nur Buchstaben, Ziffern und Bindestrich erlaubt";
 
 export const getTemplateLabel = (template: Pick<ActionPlanTemplate, "code" | "fields">): string =>
   template.fields.titel?.trim() || template.code || "Ohne Titel";
@@ -463,7 +464,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-2",
-    code: "10101",
+    code: "HC-LK-10101",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10101 Ganzwäsche bettlägerige Klientin",
@@ -513,7 +514,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-3",
-    code: "10102",
+    code: "HC-LK-10102",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10102 Ganzwäsche in Bad, Dusche oder am Lavabo",
@@ -563,7 +564,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-4",
-    code: "10103",
+    code: "HC-LK-10103",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10103 Teilwäsche im Bett (inkl. Intimpflege)",
@@ -613,7 +614,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-5",
-    code: "10104",
+    code: "HC-LK-10104",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10104 Teilwäsche am Lavabo (inkl. Intimpflege)",
@@ -663,7 +664,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-6",
-    code: "10105",
+    code: "HC-LK-10105",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10105 Intimpflege (im Bett oder am Lavabo)",
@@ -713,7 +714,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-7",
-    code: "10106",
+    code: "HC-LK-10106",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10106 Rasur (in Kombination mit Ganz- oder Teilwäsche)",
@@ -763,7 +764,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-8",
-    code: "10107",
+    code: "HC-LK-10107",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10107 Haare waschen",
@@ -813,7 +814,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-9",
-    code: "10108",
+    code: "HC-LK-10108",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10108 Nägel schneiden Finger",
@@ -863,7 +864,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-10",
-    code: "10109",
+    code: "HC-LK-10109",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10109 Nägel schneiden Zehen",
@@ -913,7 +914,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-11",
-    code: "10110",
+    code: "HC-LK-10110",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10110 Nägel schneiden Zehen bei Diabetikern",
@@ -963,7 +964,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-12",
-    code: "10112",
+    code: "HC-LK-10112",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10112 Zahnpflege",
@@ -1013,7 +1014,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-13",
-    code: "10113",
+    code: "HC-LK-10113",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10113 Mundpflege (z.B. in Palliativsituation)",
@@ -1063,7 +1064,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-14",
-    code: "10114",
+    code: "HC-LK-10114",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10114 Hilfe An-/Auskleiden",
@@ -1113,7 +1114,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-15",
-    code: "10115",
+    code: "HC-LK-10115",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10115 Kompressionsstrümpfe/-verband",
@@ -1163,7 +1164,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-16",
-    code: "10201",
+    code: "HC-LK-10201",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10201 Atemtherapie / Sekret aushusten helfen",
@@ -1213,7 +1214,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-17",
-    code: "10202",
+    code: "HC-LK-10202",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10202 Inhalation vorbereiten",
@@ -1263,7 +1264,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-18",
-    code: "10203",
+    code: "HC-LK-10203",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10203 Inhalationen mit konstanter Präsenz",
@@ -1313,7 +1314,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-19",
-    code: "10204",
+    code: "HC-LK-10204",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10204 O2 -Verabreichung",
@@ -1363,7 +1364,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-20",
-    code: "10205",
+    code: "HC-LK-10205",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10205 Absaugen",
@@ -1413,7 +1414,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-21",
-    code: "10206",
+    code: "HC-LK-10206",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10206 Tracheostomapflege",
@@ -1463,7 +1464,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-22",
-    code: "10207",
+    code: "HC-LK-10207",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10207 Luftbefeuchter",
@@ -1513,7 +1514,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-23",
-    code: "10301",
+    code: "HC-LK-10301",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10301 Beim Trinken unterstützen",
@@ -1563,7 +1564,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-24",
-    code: "10302",
+    code: "HC-LK-10302",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10302 Beim Essen helfen",
@@ -1613,7 +1614,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-25",
-    code: "10303",
+    code: "HC-LK-10303",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10303 Anleitung für Essen/Diät",
@@ -1663,7 +1664,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-26",
-    code: "10304",
+    code: "HC-LK-10304",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10304 Sondenernährung",
@@ -1713,7 +1714,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-27",
-    code: "10305",
+    code: "HC-LK-10305",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10305 Einlegen einer Magensonde",
@@ -1763,7 +1764,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-28",
-    code: "10306",
+    code: "HC-LK-10306",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10306 Gastrostomapflege (PEG Sonde)",
@@ -1813,7 +1814,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-29",
-    code: "10401",
+    code: "HC-LK-10401",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10401 Schüssel/Topf/Steckbecken",
@@ -1863,7 +1864,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-30",
-    code: "10402",
+    code: "HC-LK-10402",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10402 Urinflasche",
@@ -1913,7 +1914,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-31",
-    code: "10403",
+    code: "HC-LK-10403",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10403 Manualstimulation der Blase",
@@ -1963,7 +1964,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-32",
-    code: "10404",
+    code: "HC-LK-10404",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10404 Blasenspülung",
@@ -2013,7 +2014,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-33",
-    code: "10405",
+    code: "HC-LK-10405",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10405 Urostoma- / Nephrostomapflege",
@@ -2063,7 +2064,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-34",
-    code: "10406",
+    code: "HC-LK-10406",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10406 Pflege/Überwachung Blasenkatheter",
@@ -2113,7 +2114,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-35",
-    code: "10407",
+    code: "HC-LK-10407",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10407 Blasenkatheter legen, Dauer/Einmal",
@@ -2163,7 +2164,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-36",
-    code: "10408",
+    code: "HC-LK-10408",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10408 Dauerblasenkatheter entfernen",
@@ -2213,7 +2214,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-37",
-    code: "10409",
+    code: "HC-LK-10409",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10409 Rectalsonde einlegen (Wind)",
@@ -2263,7 +2264,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-38",
-    code: "10410",
+    code: "HC-LK-10410",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10410 Practoclyss",
@@ -2313,7 +2314,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-39",
-    code: "10411",
+    code: "HC-LK-10411",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10411 Einlauf",
@@ -2363,7 +2364,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-40",
-    code: "10412",
+    code: "HC-LK-10412",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10412 Manuelle Ampullenausräumung",
@@ -2413,7 +2414,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-41",
-    code: "10413",
+    code: "HC-LK-10413",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10413 Anziehen von Einlagen / Urinal anlegen",
@@ -2463,7 +2464,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-42",
-    code: "10414",
+    code: "HC-LK-10414",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10414 Stomasackentleerung",
@@ -2513,7 +2514,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-43",
-    code: "10415",
+    code: "HC-LK-10415",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10415 Pflege von Stoma",
@@ -2563,7 +2564,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-44",
-    code: "10417",
+    code: "HC-LK-10417",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10417 Stomaspülung",
@@ -2613,7 +2614,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-45",
-    code: "10418",
+    code: "HC-LK-10418",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10418 Flüssigkeitsbilanz 24h",
@@ -2663,7 +2664,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-46",
-    code: "10419",
+    code: "HC-LK-10419",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10419 Begleitung bei Toilettengang",
@@ -2713,7 +2714,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-47",
-    code: "10420",
+    code: "HC-LK-10420",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10420 Peritonealdialyse",
@@ -2763,7 +2764,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-48",
-    code: "10501",
+    code: "HC-LK-10501",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10501 Lagerung der Klientin im Bett",
@@ -2813,7 +2814,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-49",
-    code: "10502",
+    code: "HC-LK-10502",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10502 Lagerung der Klientin im Bett inkl. Bett machen / Bettwäsche wechseln",
@@ -2863,7 +2864,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-50",
-    code: "10503",
+    code: "HC-LK-10503",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10503 Aufstehen oder Hinlegen mit Hilfe",
@@ -2913,7 +2914,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-51",
-    code: "10504",
+    code: "HC-LK-10504",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10504 Aufstehen oder Hinlegen mit Lift oder 2 Personen",
@@ -2963,7 +2964,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-52",
-    code: "10505",
+    code: "HC-LK-10505",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10505 Hilfe beim Gehen",
@@ -3013,7 +3014,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-53",
-    code: "10506",
+    code: "HC-LK-10506",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10506 Aktive/passive Bewegungsunterstützung",
@@ -3063,7 +3064,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-54",
-    code: "10507",
+    code: "HC-LK-10507",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10507 Gehbegleitung ausserhalb Haus",
@@ -3113,7 +3114,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-55",
-    code: "10508",
+    code: "HC-LK-10508",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10508 Hilfsmittel anbringen/entfernen",
@@ -3163,7 +3164,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-56",
-    code: "10601",
+    code: "HC-LK-10601",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10601 Medikamente richten",
@@ -3213,7 +3214,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-57",
-    code: "10602",
+    code: "HC-LK-10602",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10602 Verabreichung gerichtete Medikamente, s.c. oder i.m.",
@@ -3263,7 +3264,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-58",
-    code: "10603",
+    code: "HC-LK-10603",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10603 Medikamentenverabreichung",
@@ -3313,7 +3314,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-59",
-    code: "10604",
+    code: "HC-LK-10604",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10604 i.v. Medikamentenverabreichung",
@@ -3363,7 +3364,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-60",
-    code: "10605",
+    code: "HC-LK-10605",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10605 i.v. Medikamentenverabreichung über Dreiweghahn",
@@ -3413,7 +3414,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-61",
-    code: "10606",
+    code: "HC-LK-10606",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10606 Infusionstherapie mit Venenpunktion",
@@ -3463,7 +3464,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-62",
-    code: "10607",
+    code: "HC-LK-10607",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10607 Medikamentenverabreichung bei liegendem Venenkatheter/ inkl. Port-aCath",
@@ -3513,7 +3514,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-63",
-    code: "10608",
+    code: "HC-LK-10608",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10608 Anwesenheit bei Infusionstherapie",
@@ -3563,7 +3564,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-64",
-    code: "10609",
+    code: "HC-LK-10609",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10609 Besuch zur Infusionskontrolle",
@@ -3613,7 +3614,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-65",
-    code: "10610",
+    code: "HC-LK-10610",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10610 Bluttransfusion",
@@ -3663,7 +3664,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-66",
-    code: "10612",
+    code: "HC-LK-10612",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10612 Anlegen von Dauervenenzugängen",
@@ -3713,7 +3714,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-67",
-    code: "10613",
+    code: "HC-LK-10613",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10613 Lavage von Katheter Typ Hickman/Port-aCath",
@@ -3763,7 +3764,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-68",
-    code: "10614",
+    code: "HC-LK-10614",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10614 s.c. Infusionstherapie oder Pumpentherapie",
@@ -3813,7 +3814,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-69",
-    code: "10615",
+    code: "HC-LK-10615",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10615 Medizinal-Teilbad oder Wickel",
@@ -3863,7 +3864,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-70",
-    code: "10616",
+    code: "HC-LK-10616",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10616 Massnahmen zur Dekubitusprophylaxe",
@@ -3913,7 +3914,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-71",
-    code: "10617",
+    code: "HC-LK-10617",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10617 Haut einreiben (therapeutisch verordnet)",
@@ -3963,7 +3964,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-72",
-    code: "10618",
+    code: "HC-LK-10618",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10618 Augentropfen",
@@ -4013,7 +4014,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-73",
-    code: "10701",
+    code: "HC-LK-10701",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10701 Kleiner Verband",
@@ -4063,7 +4064,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-74",
-    code: "10702",
+    code: "HC-LK-10702",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10702 Mittlerer Verband",
@@ -4113,7 +4114,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-75",
-    code: "10703",
+    code: "HC-LK-10703",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10703 Grosser Verband",
@@ -4163,7 +4164,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-76",
-    code: "10704",
+    code: "HC-LK-10704",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10704 Auslieferung von Hilfsmitteln und Sanitätsmaterial",
@@ -4213,7 +4214,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-77",
-    code: "10801",
+    code: "HC-LK-10801",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10801 Gesundheitskontrolle (Vitalparameter)",
@@ -4263,7 +4264,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-78",
-    code: "10802",
+    code: "HC-LK-10802",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10802 Blutdruckmessung",
@@ -4313,7 +4314,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-79",
-    code: "10803",
+    code: "HC-LK-10803",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10803 Pulskontrolle",
@@ -4363,7 +4364,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-80",
-    code: "10804",
+    code: "HC-LK-10804",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10804 Atmungsbeobachtung oder -kontrolle",
@@ -4413,7 +4414,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-81",
-    code: "10805",
+    code: "HC-LK-10805",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10805 Temperaturmessung",
@@ -4463,7 +4464,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-82",
-    code: "10806",
+    code: "HC-LK-10806",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10806 Gewichtskontrolle",
@@ -4513,7 +4514,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-83",
-    code: "10808",
+    code: "HC-LK-10808",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10808 Kapillarblutentnahme incl. Glucosebestimmung",
@@ -4563,7 +4564,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-84",
-    code: "10809",
+    code: "HC-LK-10809",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10809 Venenpunktion",
@@ -4613,7 +4614,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-85",
-    code: "10810",
+    code: "HC-LK-10810",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10810 Blutentnahme über Zentralvenenkatheter/ Port-a-cath",
@@ -4663,7 +4664,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-86",
-    code: "10811",
+    code: "HC-LK-10811",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10811 Sekretentnahme zur Analyse",
@@ -4713,7 +4714,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-87",
-    code: "10812",
+    code: "HC-LK-10812",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10812 Urin abnehmen / Uricult anlegen / Glucosebestimmung",
@@ -4763,7 +4764,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-88",
-    code: "10901",
+    code: "HC-LK-10901",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10901 Erstassessment",
@@ -4813,7 +4814,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-89",
-    code: "10902",
+    code: "HC-LK-10902",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10902 Reassessment",
@@ -4863,7 +4864,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-90",
-    code: "10903",
+    code: "HC-LK-10903",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10903 Hauswirtschaftsplanung erstmalig im Rahmen der Bedarfsabklärung",
@@ -4913,7 +4914,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-91",
-    code: "10904",
+    code: "HC-LK-10904",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10904 Pflegeplanung erstmalig im Rahmen der Bedarfsabklärung",
@@ -4963,7 +4964,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-92",
-    code: "10905",
+    code: "HC-LK-10905",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10905 Dienstleistungsbedarf Hauswirtschaft bestimmen im Rahmen der Bedarfsabklärung (Leistungskatalog)",
@@ -5013,7 +5014,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-93",
-    code: "10906",
+    code: "HC-LK-10906",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10906 Pflegebedarf bestimmen und evaluieren",
@@ -5063,7 +5064,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-94",
-    code: "10907",
+    code: "HC-LK-10907",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10907 Konsultation Arzt – Spitex zur Bedarfsabklärung",
@@ -5113,7 +5114,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-95",
-    code: "10912",
+    code: "HC-LK-10912",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10912 Koordination",
@@ -5163,7 +5164,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-96",
-    code: "10913",
+    code: "HC-LK-10913",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10913 Bedarfsabklärung Hauswirtschaft",
@@ -5213,7 +5214,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-97",
-    code: "10908",
+    code: "HC-LK-10908",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10908 Unterstützende Massnahmen, Gespräch mit Klientin/Angehörigen (wenn separate Dienstleistung)",
@@ -5263,7 +5264,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-98",
-    code: "10909",
+    code: "HC-LK-10909",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10909 Pflegeanleitung/Beratung Klientin oder Angehörige",
@@ -5313,7 +5314,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-99",
-    code: "10910",
+    code: "HC-LK-10910",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10910 Begleitung, Betreuung, Anwesenheit nach Zeit",
@@ -5363,7 +5364,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-100",
-    code: "10911",
+    code: "HC-LK-10911",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10911 Beraten bei Gefahren / Änderungen in der Wohnung veranlassen",
@@ -5413,7 +5414,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-101",
-    code: "10999",
+    code: "HC-LK-10999",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10999 Nicht aufgeführte Leistungen, Pflege/Betreuung",
@@ -5463,7 +5464,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-102",
-    code: "10001",
+    code: "HC-LK-10001",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10001 Beratung / Anleitung mit Person",
@@ -5513,7 +5514,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-103",
-    code: "10002",
+    code: "HC-LK-10002",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10002 Erarbeiten und Einüben von Bewältigungsstrategien",
@@ -5563,7 +5564,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-104",
-    code: "10003",
+    code: "HC-LK-10003",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10003 Unterstützung Begleitung bei der Bewältigung von Krisen und in schwierigen Lebensphasen",
@@ -5613,7 +5614,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-105",
-    code: "10004",
+    code: "HC-LK-10004",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10004 Trainieren von Verrichtungen und Alltagsfertigkeiten (z.B.: Einkaufen, Essenszubereitung)",
@@ -5663,7 +5664,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-106",
-    code: "10005",
+    code: "HC-LK-10005",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10005 Erarbeiten und Einüben einer angepassten Tagesstruktur",
@@ -5713,7 +5714,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-107",
-    code: "10006",
+    code: "HC-LK-10006",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10006 Trainieren der sozialen Kontaktaufnahme und der Gestaltung von Beziehungen",
@@ -5763,7 +5764,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-108",
-    code: "10007",
+    code: "HC-LK-10007",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10007 Aktivitätsaufbau",
@@ -5813,7 +5814,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-109",
-    code: "10008",
+    code: "HC-LK-10008",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10008 Verabreichen und/oder Kontrolle der Medikamente",
@@ -5863,7 +5864,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-110",
-    code: "10009",
+    code: "HC-LK-10009",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10009 Anleiten / Unterstützen bei der Wohnungspflege",
@@ -5913,7 +5914,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-111",
-    code: "10010",
+    code: "HC-LK-10010",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10010 Anleiten / Unterstützen bei der Körperpflege",
@@ -5963,7 +5964,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-112",
-    code: "10011",
+    code: "HC-LK-10011",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10011 Begleiten zu Arzt, Klinik, anderen Institutionen, Behörden",
@@ -6013,7 +6014,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-113",
-    code: "10012",
+    code: "HC-LK-10012",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10012 Anleiten der Person zu Besorgungen",
@@ -6063,7 +6064,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-114",
-    code: "10013",
+    code: "HC-LK-10013",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10013 Planen, Organisation, Koordination der Behandlung mit Arzt und anderen Diensten, Behörden",
@@ -6113,7 +6114,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-115",
-    code: "10014",
+    code: "HC-LK-10014",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10014 Anleitung im Umgang mit Aggression, Angst und Wahnvorstellungen",
@@ -6163,7 +6164,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-116",
-    code: "10015",
+    code: "HC-LK-10015",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10015 Unterstützung zur Vermeidung von akuter Selbst- oder Fremdgefährdung",
@@ -6213,7 +6214,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-117",
-    code: "10016",
+    code: "HC-LK-10016",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10016 Unterstützung beim Einsatz von Orientierungshilfen und Sicherheitsmassnahmen",
@@ -6263,7 +6264,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-118",
-    code: "10099",
+    code: "HC-LK-10099",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10099 Nicht aufgeführte psychiatrische Leistungen",
@@ -6313,7 +6314,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-119",
-    code: "20001",
+    code: "HC-LK-20001",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20001 Kontrollbesuch",
@@ -6363,7 +6364,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-120",
-    code: "20002",
+    code: "HC-LK-20002",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20002 Bett machen",
@@ -6413,7 +6414,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-121",
-    code: "20003",
+    code: "HC-LK-20003",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20003 Bett frisch beziehen",
@@ -6463,7 +6464,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-122",
-    code: "20004",
+    code: "HC-LK-20004",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20004 Kleiderpflege",
@@ -6513,7 +6514,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-123",
-    code: "20005",
+    code: "HC-LK-20005",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20005 Waschen Hand/Maschine",
@@ -6563,7 +6564,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-124",
-    code: "20006",
+    code: "HC-LK-20006",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20006 Bügeln, flicken",
@@ -6613,7 +6614,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-125",
-    code: "20007",
+    code: "HC-LK-20007",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20007 Aufräumen, Ordnung",
@@ -6663,7 +6664,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-126",
-    code: "20008",
+    code: "HC-LK-20008",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20008 Abwaschen",
@@ -6713,7 +6714,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-127",
-    code: "20009",
+    code: "HC-LK-20009",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20009 Wochenkehr 1-Zimmer-Wohnung",
@@ -6763,7 +6764,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-128",
-    code: "20010",
+    code: "HC-LK-20010",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20010 Wochenkehr 2-Zimmer-Wohnung",
@@ -6813,7 +6814,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-129",
-    code: "20011",
+    code: "HC-LK-20011",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20011 Wochenkehr 3-Zimmer-Wohnung",
@@ -6863,7 +6864,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-130",
-    code: "20012",
+    code: "HC-LK-20012",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20012 Wochenkehr 4-Zimmer-Wohnung",
@@ -6913,7 +6914,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-131",
-    code: "20013",
+    code: "HC-LK-20013",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20013 Wochenkehr mehr als 4 Zimmer",
@@ -6963,7 +6964,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-132",
-    code: "20014",
+    code: "HC-LK-20014",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20014 Küche/Bad reinigen",
@@ -7013,7 +7014,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-133",
-    code: "20015",
+    code: "HC-LK-20015",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20015 Andere Putzarbeiten",
@@ -7063,7 +7064,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-134",
-    code: "20016",
+    code: "HC-LK-20016",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20016 Heizen, lüften",
@@ -7113,7 +7114,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-135",
-    code: "20017",
+    code: "HC-LK-20017",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20017 Briefkasten leeren",
@@ -7163,7 +7164,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-136",
-    code: "20018",
+    code: "HC-LK-20018",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20018 Tier-, Pflanzenpflege",
@@ -7213,7 +7214,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-137",
-    code: "20019",
+    code: "HC-LK-20019",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20019 Abfall/Altpapier entsorgen",
@@ -7263,7 +7264,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-138",
-    code: "20020",
+    code: "HC-LK-20020",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20020 Haushalt organisieren",
@@ -7313,7 +7314,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-139",
-    code: "20031",
+    code: "HC-LK-20031",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20031 Einkaufen ohne Klientin",
@@ -7363,7 +7364,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-140",
-    code: "20032",
+    code: "HC-LK-20032",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20032 Einkaufen mit Klientin",
@@ -7413,7 +7414,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-141",
-    code: "20033",
+    code: "HC-LK-20033",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20033 Morgen- und Abendessen zubereiten",
@@ -7463,7 +7464,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-142",
-    code: "20034",
+    code: "HC-LK-20034",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20034 Mittagessen kochen",
@@ -7513,7 +7514,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-143",
-    code: "20035",
+    code: "HC-LK-20035",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20035 Diät kochen",
@@ -7563,7 +7564,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-144",
-    code: "20036",
+    code: "HC-LK-20036",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20036 Menüplan aufstellen",
@@ -7613,7 +7614,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-145",
-    code: "20038",
+    code: "HC-LK-20038",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20038 Mahlzeitendienst organisieren",
@@ -7663,7 +7664,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-146",
-    code: "20039",
+    code: "HC-LK-20039",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20039 Mahlzeiten nach Hause bringen",
@@ -7713,7 +7714,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-147",
-    code: "20041",
+    code: "HC-LK-20041",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20041 Kleine finanzielle, administrative Aufgaben",
@@ -7763,7 +7764,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-148",
-    code: "20042",
+    code: "HC-LK-20042",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20042 Säuglings- oder Kinderbetreuung (nicht Kinderspitex)",
@@ -7813,7 +7814,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-149",
-    code: "20043",
+    code: "HC-LK-20043",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20043 Beziehung herstellen, informieren, motivieren",
@@ -7863,7 +7864,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-150",
-    code: "20044",
+    code: "HC-LK-20044",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20044 Gespräch bei einsamen Klient/-innen",
@@ -7913,7 +7914,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-151",
-    code: "20045",
+    code: "HC-LK-20045",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20045 Religiöse Aktivitäten ermöglichen",
@@ -7963,7 +7964,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-152",
-    code: "20099",
+    code: "HC-LK-20099",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20099 Nicht aufgeführte hauswirtschaftliche Leistungen",

@@ -120,10 +120,12 @@ describe("getTemplateValidationIssues", () => {
 
   it("erlaubt einen leeren oder alphanumerischen Code", () => {
     expect(getTemplateValidationIssues("", fields, editable)).toEqual([]);
-    expect(getTemplateValidationIssues("Q10112", fields, editable)).toEqual([]);
-    expect(getTemplateValidationIssues("101 12", fields, editable)).toEqual([
-      "Code: nur Buchstaben und Ziffern erlaubt",
-    ]);
+    expect(getTemplateValidationIssues("HC-LK-10112", fields, editable)).toEqual([]);
+    ["101 12", "HC--10112", "-10112"].forEach((code) =>
+      expect(getTemplateValidationIssues(code, fields, editable)).toEqual([
+        "Code: nur Buchstaben, Ziffern und Bindestrich erlaubt",
+      ]),
+    );
   });
 
   it("verlangt einen Titel, wenn er in der Planung nicht erfassbar ist", () => {

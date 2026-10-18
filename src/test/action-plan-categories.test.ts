@@ -47,12 +47,13 @@ describe("Kategorien", () => {
   it("leitet die Kategorie aus dem Zahlencode der Vorlage ab", () => {
     expect(getCategoryIdForTemplateName("10101 Ganzwäsche")).toBe("category-101");
     expect(getCategoryIdForTemplateName("20099 Diverses")).toBe("category-200");
+    expect(getCategoryIdForTemplateName("HC-LK-10201")).toBe("category-102");
     expect(getCategoryIdForTemplateName("Morgenroutine")).toBeUndefined();
   });
 
   it("ergänzt alle Seed-Vorlagen mit Code um die passende Kategorie", () => {
     initialTemplates.forEach((template) => {
-      const code = /^(\d{3})\d{2}/.exec(template.code)?.[1];
+      const code = /^HC-LK-(\d{3})\d{2}$/.exec(template.code)?.[1];
       expect(template.categoryId).toBe(code ? `category-${code}` : undefined);
     });
     expect(initialTemplates.filter((t) => t.categoryId).length).toBe(151);
