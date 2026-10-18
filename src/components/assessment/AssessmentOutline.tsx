@@ -2090,7 +2090,23 @@ export function AssessmentOutline({
                           else targetInputRefs.current.delete(target.id);
                         }}
                       />
-                      <div className="flex items-center gap-3 mt-1.5">
+                      <div className={cn("mt-1", targetClosed && "opacity-60")}>
+                        <InlineEditable
+                          value={target.notes}
+                          onChange={(v) => onUpdateTarget(target.id, "notes", v)}
+                          placeholder="Freitext zum Thema / Ziel…"
+                          multiline
+                          isEditing={editingTargetNotesId === target.id}
+                          onStartEdit={() => setEditingTargetNotesId(target.id)}
+                          onStopEdit={() => setEditingTargetNotesId(null)}
+                          editLabel="Freitext bearbeiten"
+                          editHint="Freitext zum Thema / Ziel anpassen"
+                          readOnly={targetClosed}
+                          textClassName="text-sm text-foreground/80"
+                          hoverGroupClassName="group-hover/target:opacity-100"
+                        />
+                      </div>
+                      <div className="flex items-center gap-3 mt-3">
                         <DateField
                           label="Gültig ab"
                           value={target.validFrom}
@@ -2151,24 +2167,7 @@ export function AssessmentOutline({
                   </div>
 
                   <div className={cn("pl-6", targetClosed && "pointer-events-none opacity-60")}>
-                    <div className="mt-2 -ml-6">
-                      <InlineEditable
-                        value={target.notes}
-                        onChange={(v) => onUpdateTarget(target.id, "notes", v)}
-                        placeholder="Freitext zum Thema / Ziel…"
-                        multiline
-                        isEditing={editingTargetNotesId === target.id}
-                        onStartEdit={() => setEditingTargetNotesId(target.id)}
-                        onStopEdit={() => setEditingTargetNotesId(null)}
-                        editLabel="Freitext bearbeiten"
-                        editHint="Freitext zum Thema / Ziel anpassen"
-                        readOnly={targetClosed}
-                        textClassName="text-sm"
-                        hoverGroupClassName="group-hover/target:opacity-100"
-                      />
-                    </div>
-
-                    <div className="mt-3 space-y-1">
+                    <div className="mt-4 space-y-1">
                       {(() => {
                         const groups = groupPlannedActions(target.actions);
                         if (groups.length === 0) return null;
@@ -2376,7 +2375,9 @@ export function AssessmentOutline({
               getSectionSelection={getSectionSelection}
             />
           ) : selectedTargets.length > 0 ? (
-            <div className="space-y-10">{selectedTargets.map(renderTargetDetail)}</div>
+            <div className="divide-y-2 divide-border [&>*:not(:first-child)]:pt-8 [&>*:not(:last-child)]:pb-8">
+              {selectedTargets.map(renderTargetDetail)}
+            </div>
           ) : (
             <div className="flex min-h-[240px] flex-col items-center justify-center gap-2 text-center text-muted-foreground">
               <div>Thema / Ziel oder Kategorie links wählen, um Handlungen zu sehen.</div>
@@ -2603,7 +2604,7 @@ function CategoryGroupedActions({
   getSectionSelection: (entries: CategorySection["entries"]) => SectionSelection | undefined;
 }) {
   return (
-    <div className="space-y-8">
+    <div className="divide-y-2 divide-border [&>*:not(:first-child)]:pt-8 [&>*:not(:last-child)]:pb-8">
       {sections.map((section) => {
         const sectionSelection = getSectionSelection(section.entries);
         return (
