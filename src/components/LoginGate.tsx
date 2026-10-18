@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { Loader2, Lock } from "lucide-react";
+import { Loader2, Lock, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,44 @@ import {
   registerFailedAttempt,
   resetThrottle,
 } from "@/lib/auth";
+import {
+  clearApplicationBrowserData,
+  isApplicationDataOutdated,
+  markApplicationDataCurrent,
+} from "@/lib/application-storage";
+
+/**
+ * Lokale Daten aus einer älteren, nicht mehr passenden Programmversion: Die App
+ * startet erst, wenn sie gelöscht sind — wie beim Logout, aber ohne Abmeldung.
+ */
+const OutdatedDataNotice = () => (
+  <div className="flex min-h-screen items-center justify-center bg-muted/40 p-4">
+    <Card className="w-full max-w-md" role="alertdialog" aria-labelledby="outdated-data-title">
+      <CardHeader className="space-y-2 text-center">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
+          <AlertTriangle className="h-6 w-6 text-destructive" />
+        </div>
+        <CardTitle id="outdated-data-title">Lokale Daten veraltet</CardTitle>
+        <CardDescription>
+          Die im Browser gespeicherten Daten passen nicht mehr zur aktuellen Programmversion. Sie
+          müssen gelöscht werden, bevor du weiterarbeiten kannst. Danach startet die Applikation
+          mit den Beispieldaten neu.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Button
+          className="w-full"
+          onClick={() => {
+            clearApplicationBrowserData();
+            window.location.assign("/");
+          }}
+        >
+          Lokale Daten löschen und neu starten
+        </Button>
+      </CardContent>
+    </Card>
+  </div>
+);
 
 interface LoginGateProps {
   children: ReactNode;
@@ -86,6 +124,8 @@ export const LoginGate = ({ children }: LoginGateProps) => {
   }
 
   if (status === "authed") {
+    if (isApplicationDataOutdated()) return <OutdatedDataNotice />;
+    markApplicationDataCurrent();
     return <>{children}</>;
   }
 

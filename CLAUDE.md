@@ -66,6 +66,17 @@ Lokal immer mit `npx vercel dev` starten, damit der Auth-Endpoint `/api/auth` mi
 
 Kein DB-Backend. Nutzdaten liegen im **localStorage** (siehe `APPLICATION_BROWSER_STORAGE_KEYS` in `application-storage.ts`). Beim Logout werden diese Keys gezielt geleert.
 
+### Datenversion (`APPLICATION_DATA_VERSION` in `application-storage.ts`)
+
+Passt die im Browser gespeicherte Version nicht zur aktuellen, sperrt der LoginGate nach dem Login die App, bis die lokalen Daten gelöscht sind (wie beim Logout).
+
+**Version um 1 erhöhen**, wenn eine Änderung bestehende Browserdaten unbrauchbar oder irreführend macht und **keine** Lese-Migration dafür eingebaut wird, z. B.:
+- Struktur gespeicherter Objekte geändert (Felder umbenannt/entfernt, andere Bedeutung, anderer Typ)
+- Seed-Daten fachlich geändert und die neuen Werte sollen bei allen ankommen (gespeicherte Seeds überdecken sonst den neuen Stand, z. B. neue Beschreibungen in Vorlagen)
+- Referenzen/IDs geändert, sodass alte Daten ins Leere zeigen
+
+**Nicht erhöhen** bei reinen UI-/Logik-Änderungen, neuen optionalen Feldern mit sinnvollem Default oder wenn eine Migration beim Laden (z. B. `loadActionPlanTemplates`) die alten Daten sauber überführt. Im Zweifel: Migration bevorzugen, Erhöhung im Commit erwähnen.
+
 ## Auth (wichtig)
 
 - Passwort wird **ausschliesslich serverseitig** in `api/auth.ts` gegen Env-Vars geprüft (`APP_USER`, `APP_PASSWORD`) — landet nie im Browser-Bundle.

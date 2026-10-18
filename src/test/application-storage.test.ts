@@ -1,10 +1,13 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   APPLICATION_BROWSER_STORAGE_KEYS,
+  APPLICATION_DATA_VERSION,
   APPLICATION_LOGOUT_CLEARING_KEY,
   PLANNING_GROUPING_SESSION_KEY,
   clearApplicationBrowserData,
+  isApplicationDataOutdated,
   isApplicationLogoutClearing,
+  markApplicationDataCurrent,
 } from "@/lib/application-storage";
 
 afterEach(() => {
@@ -29,5 +32,28 @@ describe("application browser storage", () => {
     expect(window.sessionStorage.getItem(APPLICATION_LOGOUT_CLEARING_KEY)).toBe("true");
     expect(window.sessionStorage.getItem(PLANNING_GROUPING_SESSION_KEY)).toBeNull();
     expect(isApplicationLogoutClearing()).toBe(true);
+  });
+});
+
+describe("Datenversion der Browserdaten", () => {
+  it("gilt ohne gespeicherte Daten nicht als veraltet", () => {
+    expect(isApplicationDataOutdated()).toBe(false);
+  });
+
+  it("meldet Daten ohne oder mit fremder Version als veraltet", () => {
+    window.localStorage.setItem(APPLICATION_BROWSER_STORAGE_KEYS[1], "[]");
+    expect(isApplicationDataOutdated()).toBe(true);
+
+    window.localStorage.setItem("application-data-version", String(APPLICATION_DATA_VERSION - 1));
+    expect(isApplicationDataOutdated()).toBe(true);
+  });
+
+  it("akzeptiert Daten in der aktuellen Version und vergisst die Version beim Löschen", () => {
+    window.localStorage.setItem(APPLICATION_BROWSER_STORAGE_KEYS[1], "[]");
+    markApplicationDataCurrent();
+    expect(isApplicationDataOutdated()).toBe(false);
+
+    clearApplicationBrowserData();
+    expect(window.localStorage.getItem("application-data-version")).toBeNull();
   });
 });

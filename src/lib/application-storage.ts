@@ -24,6 +24,31 @@ const LEGACY_BROWSER_STORAGE_KEYS = [
   "action-plan-categories-v1",
 ] as const;
 
+/**
+ * Version der lokal gespeicherten Daten. Erhöhen, wenn eine Programmänderung nicht
+ * mehr zu bestehenden Browserdaten passt — Anwenderinnen müssen diese dann nach dem
+ * Login zwingend löschen.
+ */
+export const APPLICATION_DATA_VERSION = 1;
+const APPLICATION_DATA_VERSION_KEY = "application-data-version";
+
+/** Veraltet heisst: Es liegen Daten im Browser, aber nicht in der aktuellen Version. */
+export const isApplicationDataOutdated = () => {
+  if (typeof window === "undefined") return false;
+  const hasData = APPLICATION_BROWSER_STORAGE_KEYS.some(
+    (key) => window.localStorage.getItem(key) !== null,
+  );
+  return (
+    hasData &&
+    window.localStorage.getItem(APPLICATION_DATA_VERSION_KEY) !== String(APPLICATION_DATA_VERSION)
+  );
+};
+
+export const markApplicationDataCurrent = () => {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(APPLICATION_DATA_VERSION_KEY, String(APPLICATION_DATA_VERSION));
+};
+
 export const isApplicationLogoutClearing = () => {
   if (typeof window === "undefined") return false;
   return window.sessionStorage.getItem(APPLICATION_LOGOUT_CLEARING_KEY) === "true";
@@ -39,7 +64,11 @@ export const clearApplicationBrowserData = () => {
 
   window.sessionStorage.setItem(APPLICATION_LOGOUT_CLEARING_KEY, "true");
   window.sessionStorage.removeItem(PLANNING_GROUPING_SESSION_KEY);
-  [...APPLICATION_BROWSER_STORAGE_KEYS, ...LEGACY_BROWSER_STORAGE_KEYS].forEach((key) => {
+  [
+    ...APPLICATION_BROWSER_STORAGE_KEYS,
+    ...LEGACY_BROWSER_STORAGE_KEYS,
+    APPLICATION_DATA_VERSION_KEY,
+  ].forEach((key) => {
     window.localStorage.removeItem(key);
   });
   resetThrottle();
