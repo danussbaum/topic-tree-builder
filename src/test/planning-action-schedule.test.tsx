@@ -90,7 +90,7 @@ describe("Vorbelegung der Zeitangabe in der Planung", () => {
     saveActionPlanTemplates([
       {
         id: "tpl-1",
-        name,
+        code: "",
         disciplineIds: ["discipline-ihp"],
         fields: { ...buildDefaultTemplateFields(), titel: name, tageszeit },
         editable: buildDefaultTemplateEditable(true),

@@ -1,6 +1,7 @@
 import type { ActionNode, TargetNode } from "@/types/assessment";
 import { DAY_PART_SEED_IDS } from "@/lib/day-parts";
 import { getCategoryIdForTemplateName } from "@/lib/action-plan-categories";
+import { initialTemplates } from "@/lib/action-plan-templates";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -22,7 +23,8 @@ export const buildInhouseSpitexSeedTargets = (): TargetNode[] => {
     id: uid(),
     groupId: uid(),
     title,
-    notes: "",
+    // Beschreibung wie beim Planen aus der Vorlage übernommen
+    notes: initialTemplates.find((template) => template.fields.titel === title)?.fields.beschreibung ?? "",
     requiredPersons: 1,
     validFrom: SPITEX_SEED_START,
     recurrence: "daily",

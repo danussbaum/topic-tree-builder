@@ -136,7 +136,7 @@ import {
   type ConfirmationDayPartKey,
 } from "@/lib/day-part-rollover";
 import { getDayParts, resolveDayPart, spansMidnight, toMinutes } from "@/lib/day-parts";
-import { parseLeistungsarten, parseOptionalLeistungsarten, parseTageszeit } from "@/lib/action-plan-templates";
+import { getTemplateLabel, parseLeistungsarten, parseOptionalLeistungsarten, parseTageszeit } from "@/lib/action-plan-templates";
 import {
   DEFAULT_ASSESSMENT_FILTER,
   matchesAssessmentFilter,
@@ -3891,7 +3891,7 @@ export function ActionSidePanel({
   const filteredTemplates = hasTemplateInput
     ? availableTemplates.filter((t) => {
         const pattern = templateFilterQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s/g, ".*");
-        return new RegExp(pattern).test(t.name.toLocaleLowerCase("de"));
+        return new RegExp(pattern).test(`${t.code} ${getTemplateLabel(t)}`.toLocaleLowerCase("de"));
       })
     : availableTemplates.slice(0, 20);
 
@@ -3909,7 +3909,7 @@ export function ActionSidePanel({
       .filter((v): v is Weekday => Boolean(v));
     const parsedDayParts = parseTageszeit(fields.tageszeit);
     setDraft((prev) => ({
-      title: template.name,
+      title: fields.titel,
       notes: fields.beschreibung,
       // Hilfsmittel kommen als Katalog-IDs aus der Vorlage; der Freitext bleibt frei.
       requiredResources: "",
@@ -4101,7 +4101,7 @@ export function ActionSidePanel({
                   <div className="flex items-center gap-2 px-3 py-2">
                     <input
                       ref={templateInputRef}
-                      value={selectedTemplateId && !templateQuery ? (availableTemplates.find((t) => t.id === selectedTemplateId)?.name ?? templateQuery) : templateQuery}
+                      value={selectedTemplateId && !templateQuery ? (availableTemplates.find((t) => t.id === selectedTemplateId)?.fields.titel ?? templateQuery) : templateQuery}
                       onChange={(e) => { setTemplateQuery(e.target.value); setDropdownOpen(true); if (selectedTemplateId) clearTemplate(); }}
                       onFocus={() => setDropdownOpen(true)}
                       onKeyDown={(e) => {
@@ -4136,7 +4136,7 @@ export function ActionSidePanel({
                               activeIndex === idx && "bg-primary/10 text-primary",
                             )}
                           >
-                            <span className="truncate">{t.name}</span>
+                            <span className="truncate">{getTemplateLabel(t)}</span>
                           </button>
                         ))
                       )}
@@ -4633,7 +4633,7 @@ export function UnplannedActionDialog({
       );
     }
     setDraft({
-      title: template.name,
+      title: fields.titel,
       notes: fields.beschreibung,
       requiredResources: undefined,
       resourceIds: parseResourceIds(fields.hilfsmittel),
@@ -4645,7 +4645,7 @@ export function UnplannedActionDialog({
       dayPart: fallbackDayPart,
       resultRequirement: fields.resultat !== "none" ? (fields.resultat as ActionNode["resultRequirement"]) : undefined,
       templateId: template.id,
-      templateName: template.name,
+      templateName: getTemplateLabel(template),
       categoryId: template.categoryId,
       templateLockedFields: getTemplateLockedActionFields(template),
       templateRequiredFields: getTemplateRequiredActionFields(template),
@@ -4666,7 +4666,9 @@ export function UnplannedActionDialog({
           .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
           .replace(/\s/g, ".*");
 
-        return new RegExp(wildcardQuery).test(template.name.toLocaleLowerCase("de"));
+        return new RegExp(wildcardQuery).test(
+          `${template.code} ${getTemplateLabel(template)}`.toLocaleLowerCase("de"),
+        );
       })
     : [];
 
@@ -4879,7 +4881,7 @@ export function UnplannedActionDialog({
                           variant="secondary"
                           className="h-6 max-w-full gap-1 rounded-sm border border-border/60 bg-secondary/40 px-1.5 font-normal text-foreground/90"
                         >
-                          <span className="truncate">{selectedTemplate.name}</span>
+                          <span className="truncate">{getTemplateLabel(selectedTemplate)}</span>
                           <button
                             type="button"
                             aria-label="Vorlage entfernen"
@@ -4961,7 +4963,7 @@ export function UnplannedActionDialog({
                               selectedTemplateId === template.id && "font-medium",
                             )}
                           >
-                            <span className="truncate">{template.name}</span>
+                            <span className="truncate">{getTemplateLabel(template)}</span>
                           </button>
                         );
                       })

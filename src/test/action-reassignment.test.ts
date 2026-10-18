@@ -5,7 +5,7 @@ import {
   isPlanningOutsideTarget,
   moveActionGroupsToTarget,
 } from "@/lib/action-reassignment";
-import { getActionCategoryId, getTemplateLockedActionFields, initialTemplates } from "@/lib/action-plan-templates";
+import { buildDefaultTemplateFields, getActionCategoryId, getTemplateLockedActionFields, initialTemplates } from "@/lib/action-plan-templates";
 import type { ActionConfirmation, ActionNode, TargetNode } from "@/types/assessment";
 
 const node = (overrides: Partial<ActionNode> = {}): ActionNode => ({
@@ -84,7 +84,7 @@ describe("Verschieben und Zuteilen", () => {
     const result = assignCategoryToActionGroups(withLock, new Set(["g1", "g2"]), "");
     expect(result[0].actions[0].categoryId).toBe("category-101");
     expect(result[0].actions[1].categoryId).toBe("");
-    expect(getActionCategoryId(result[0].actions[1], [{ id: "tpl-x", name: "X", categoryId: "category-102" }])).toBeUndefined();
+    expect(getActionCategoryId(result[0].actions[1], [{ id: "tpl-x", fields: buildDefaultTemplateFields(), categoryId: "category-102" }])).toBeUndefined();
   });
 });
 

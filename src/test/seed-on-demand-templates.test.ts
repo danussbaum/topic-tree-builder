@@ -32,7 +32,7 @@ const numberOf = (name: string) => /^(\d{5})\b/.exec(name)?.[1] ?? null;
 describe("Nach-Bedarf-Handlungsarten im Inhouse-Spitex-Seed", () => {
   it("kennt jede geforderte Nummer als Handlungsart", () => {
     const existing = new Set(
-      spitexTemplates.map((template) => numberOf(template.name)).filter(Boolean),
+      spitexTemplates.map((template) => numberOf(template.code)).filter(Boolean),
     );
     const missing = ON_DEMAND_NUMBERS.filter((number) => !existing.has(number));
 
@@ -42,7 +42,7 @@ describe("Nach-Bedarf-Handlungsarten im Inhouse-Spitex-Seed", () => {
   it("setzt genau bei diesen Nummern die Wiederholung auf Nach Bedarf", () => {
     const actual = spitexTemplates
       .filter((template) => template.fields.wiederholung === "on_demand")
-      .map((template) => numberOf(template.name))
+      .map((template) => numberOf(template.code))
       .sort();
 
     expect(actual).toEqual([...ON_DEMAND_NUMBERS].sort());
@@ -52,7 +52,7 @@ describe("Nach-Bedarf-Handlungsarten im Inhouse-Spitex-Seed", () => {
     const notEditable = spitexTemplates
       .filter((template) => template.fields.wiederholung === "on_demand")
       .filter((template) => !template.editable.wiederholung)
-      .map((template) => template.name);
+      .map((template) => template.fields.titel);
 
     expect(notEditable).toEqual([]);
   });
@@ -60,7 +60,7 @@ describe("Nach-Bedarf-Handlungsarten im Inhouse-Spitex-Seed", () => {
   it("lässt alle übrigen Handlungsarten unverändert wiederkehrend", () => {
     const wanted = new Set(ON_DEMAND_NUMBERS);
     const others = spitexTemplates.filter((template) => {
-      const number = numberOf(template.name);
+      const number = numberOf(template.code);
       return !number || !wanted.has(number);
     });
 

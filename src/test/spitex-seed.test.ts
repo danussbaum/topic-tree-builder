@@ -12,7 +12,7 @@ describe("Beispielplanung Inhouse-Spitex", () => {
   const umlagern = actions.filter((a) => a.title === "10501 Lagerung der Klientin im Bett");
 
   it("übernimmt die Kategorie der gleichnamigen Vorlage", () => {
-    const categoryByName = new Map(initialTemplates.map((t) => [t.name, t.categoryId]));
+    const categoryByName = new Map(initialTemplates.map((t) => [t.fields.titel, t.categoryId]));
     expect(actions.length).toBeGreaterThan(0);
     for (const action of actions) {
       expect(action.categoryId).toBeDefined();
@@ -57,7 +57,7 @@ describe("Beispielplanung Inhouse-Spitex", () => {
 
     it("nutzt dieselbe Klassifizierung wie die Handlungsart in den Vorlagen", () => {
       const categoryByTitle = new Map(
-        initialTemplates.map((template) => [template.name, template.fields.klassifizierung]),
+        initialTemplates.map((template) => [template.fields.titel, template.fields.klassifizierung]),
       );
       for (const action of onDemand) {
         expect(action.classification).toBe(categoryByTitle.get(action.title));

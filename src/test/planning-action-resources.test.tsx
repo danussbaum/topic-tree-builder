@@ -61,7 +61,7 @@ describe("Hilfsmittel-Auswahl in der Planung", () => {
     saveActionPlanTemplates([
       {
         id: "template-1",
-        name: "Testvorlage",
+        code: "",
         disciplineIds: ["discipline-ihp"],
         fields: { ...buildDefaultTemplateFields(), titel: "Testvorlage", hilfsmittel: "r-ihp" },
         editable: buildDefaultTemplateEditable(true),

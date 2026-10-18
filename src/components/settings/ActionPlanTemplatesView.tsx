@@ -24,7 +24,9 @@ import {
   buildDefaultTemplateEditable as buildDefaultEditable,
   buildDefaultTemplateFields as buildDefaultFields,
   buildDefaultTemplateRequired as buildDefaultRequired,
+  getTemplateCodeIssues,
   getTemplateDisciplineLabels,
+  getTemplateLabel,
   getTemplateValidationIssues,
   type ActionPlanTemplate,
   loadActionPlanTemplates,
@@ -66,7 +68,7 @@ import {
   serializeResourceIds,
 } from "@/lib/action-plan-resources";
 
-type TemplateSortKey = "name" | "kategorie" | "klassifizierung" | "leistungsart" | "wiederholung";
+type TemplateSortKey = "code" | "titel" | "kategorie" | "klassifizierung" | "leistungsart" | "wiederholung";
 
 interface TemplateSortState {
   key: TemplateSortKey;
@@ -206,7 +208,7 @@ export const ActionPlanTemplatesView = forwardRef<
   const [isCreating, setIsCreating] = useState(false);
   const [isPanelMounted, setIsPanelMounted] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
-  const [draftName, setDraftName] = useState("");
+  const [draftCode, setDraftCode] = useState("");
   const [draftDisciplineIds, setDraftDisciplineIds] = useState<string[]>([]);
   const [draftCategoryId, setDraftCategoryId] = useState<string | undefined>();
   const [draftCategoryEditable, setDraftCategoryEditable] = useState(true);
@@ -228,7 +230,7 @@ export const ActionPlanTemplatesView = forwardRef<
     useState<Record<TemplateFieldKey, boolean>>(buildDefaultRequired);
   const [filePickerKey, setFilePickerKey] = useState(0);
   const [sortState, setSortState] = useState<TemplateSortState>({
-    key: "name",
+    key: "code",
     direction: "asc",
   });
   const disciplineOptions = loadActionPlanDisciplines();
@@ -323,6 +325,7 @@ export const ActionPlanTemplatesView = forwardRef<
     const normalizedText = text.startsWith(utf8Bom) ? text.slice(1) : text;
     const rows = parseCsvRows(normalizedText);
     const headerRow = rows[0] ?? [];
+    const hasLegacyNameColumn = headerRow[0]?.toLocaleLowerCase("de") === "name";
     const hasDisciplineColumn =
       headerRow[1]?.toLocaleLowerCase("de") === "disziplinen";
     const hasCategoryColumn =
@@ -344,7 +347,10 @@ export const ActionPlanTemplatesView = forwardRef<
     dataRows.forEach((row, rowIndex) => {
       const rowNumber = rowIndex + 2;
       const errors: string[] = [];
-      const name = row[0]?.trim() ?? "";
+      // Ältere Exporte führen statt "Code" den früheren Namen ("10101 Ganzwäsche …").
+      const code = hasLegacyNameColumn
+        ? (/^(\d+)\b/.exec(row[0]?.trim() ?? "")?.[1] ?? "")
+        : (row[0]?.trim() ?? "");
 
       const nextFields = buildDefaultFields();
       const nextEditable = buildDefaultEditable(true);
@@ -511,21 +517,27 @@ export const ActionPlanTemplatesView = forwardRef<
         }
       });
 
-      // Name, Bezeichnung und Wiederholung sind zwingend — sonst entstünden
+      // Bezeichnung und Wiederholung sind zwingend — sonst entstünden
       // Handlungen ohne Bezeichnung oder solche, die nie in der Umsetzung erscheinen.
-      getTemplateValidationIssues(name, nextFields, nextEditable).forEach((issue) =>
+      getTemplateValidationIssues(code, nextFields, nextEditable).forEach((issue) =>
         errors.push(issue),
       );
+      if (code && validRows.some((template) => template.code === code)) {
+        errors.push(`Code: ${code} kommt in der Datei mehrfach vor`);
+      }
 
       if (errors.length > 0) {
         rowErrors.push(`Zeile ${rowNumber}: ${errors.join("; ")}`);
         return;
       }
 
-      const existing = templates.find((template) => template.name === name);
+      // Abgleich über den Code; Vorlagen ohne Code über den Titel.
+      const existing = code
+        ? templates.find((template) => template.code === code)
+        : templates.find((template) => !template.code && template.fields.titel === nextFields.titel);
       validRows.push({
         id: existing?.id ?? `tpl-${Date.now()}-${rowIndex}`,
-        name,
+        code,
         disciplineIds: nextDisciplineIds,
         categoryId: nextCategoryId,
         categoryEditable: nextCategoryEditable,
@@ -539,9 +551,9 @@ export const ActionPlanTemplatesView = forwardRef<
     if (validRows.length === 0) return;
 
     setTemplates((prev) => {
-      const byName = new Map(prev.map((tpl) => [tpl.name, tpl]));
-      validRows.forEach((tpl) => byName.set(tpl.name, tpl));
-      return Array.from(byName.values());
+      const byId = new Map(prev.map((tpl) => [tpl.id, tpl]));
+      validRows.forEach((tpl) => byId.set(tpl.id, tpl));
+      return Array.from(byId.values());
     });
   };
 
@@ -550,28 +562,35 @@ export const ActionPlanTemplatesView = forwardRef<
     [templates, selectedTemplateId],
   );
 
-  const visibleTemplates = useMemo(() => {
-    const query = searchQuery.trim().toLocaleLowerCase("de");
-    const filtered = templates.filter((entry) =>
-      entry.name.toLocaleLowerCase("de").includes(query),
-    );
-    const sorted = [...filtered].sort((a, b) => {
+  // Auch der Export folgt der am Bildschirm gewählten Sortierung.
+  const sortTemplates = useCallback((entries: ActionPlanTemplate[]) => {
+    const sorted = [...entries].sort((a, b) => {
       const getSortValue = (template: ActionPlanTemplate) => {
-        if (sortState.key === "name") return template.name;
+        if (sortState.key === "code") return template.code;
         if (sortState.key === "kategorie") return getCategoryLabel(template.categoryId);
         return getFieldOptionLabel(
           sortState.key,
           template.fields[sortState.key],
         );
       };
-      const result = getSortValue(a).localeCompare(getSortValue(b), "de", {
-        sensitivity: "base",
-      });
+      const compareOptions = { sensitivity: "base", numeric: true } as const;
+      const result = getSortValue(a).localeCompare(getSortValue(b), "de", compareOptions);
       if (result !== 0) return result;
-      return a.name.localeCompare(b.name, "de", { sensitivity: "base" });
+      return getTemplateLabel(a).localeCompare(getTemplateLabel(b), "de", compareOptions);
     });
     return sortState.direction === "asc" ? sorted : sorted.reverse();
-  }, [getCategoryLabel, searchQuery, sortState, templates]);
+  }, [getCategoryLabel, sortState]);
+
+  const visibleTemplates = useMemo(() => {
+    const query = searchQuery.trim().toLocaleLowerCase("de");
+    return sortTemplates(
+      templates.filter(
+        (entry) =>
+          entry.code.includes(query) ||
+          getTemplateLabel(entry).toLocaleLowerCase("de").includes(query),
+      ),
+    );
+  }, [searchQuery, sortTemplates, templates]);
 
   useEffect(() => {
     if (!isPanelMounted) return;
@@ -582,7 +601,7 @@ export const ActionPlanTemplatesView = forwardRef<
   const openCreatePanel = () => {
     setIsCreating(true);
     setSelectedTemplateId(null);
-    setDraftName("Neue Handlungsvorlage");
+    setDraftCode("");
     setDraftDisciplineIds([]);
     setDraftCategoryId(undefined);
     setDraftCategoryEditable(true);
@@ -599,7 +618,7 @@ export const ActionPlanTemplatesView = forwardRef<
     if (!template) return;
     setIsCreating(false);
     setSelectedTemplateId(templateId);
-    setDraftName(template.name);
+    setDraftCode(template.code);
     setDraftDisciplineIds(
       normalizeTemplateDisciplineIds(template.disciplineIds, disciplineOptions),
     );
@@ -631,7 +650,13 @@ export const ActionPlanTemplatesView = forwardRef<
       return;
     }
     setLeistungsartenSaveError(false);
-    const issues = getTemplateValidationIssues(draftName, draftFields, draftEditable);
+    const code = draftCode.trim();
+    const issues = [
+      ...getTemplateCodeIssues(code, templates, isCreating ? null : selectedTemplateId),
+      ...getTemplateValidationIssues(code, draftFields, draftEditable).filter(
+        (issue) => !issue.startsWith("Code:"),
+      ),
+    ];
     // Eine angelegte, aber leere Uhrzeit darf nicht still als "ohne Zeitangabe" landen.
     const scheduleIssue = scheduleEntriesError(
       draftDayPartEntries,
@@ -648,7 +673,7 @@ export const ActionPlanTemplatesView = forwardRef<
         ...prev,
         {
           id: `tpl-${Date.now()}`,
-          name: draftName.trim(),
+          code,
           disciplineIds: draftDisciplineIds,
           categoryId,
           categoryEditable: draftCategoryEditable,
@@ -666,7 +691,7 @@ export const ActionPlanTemplatesView = forwardRef<
         entry.id === selectedTemplate.id
           ? {
               ...entry,
-              name: draftName.trim(),
+              code,
               disciplineIds: draftDisciplineIds,
               categoryId,
               categoryEditable: draftCategoryEditable,
@@ -702,7 +727,7 @@ export const ActionPlanTemplatesView = forwardRef<
 
   const exportTemplatesCsv = () => {
     const headers = [
-      "Name",
+      "Code",
       "Disziplinen",
       "Kategorie",
       "Kategorie veränderbar",
@@ -715,8 +740,8 @@ export const ActionPlanTemplatesView = forwardRef<
       ),
     ];
 
-    const rows = templates.map((template) => [
-      template.name,
+    const rows = sortTemplates(templates).map((template) => [
+      template.code,
       getTemplateDisciplineLabels(
         template.disciplineIds,
         disciplineOptions,
@@ -800,8 +825,11 @@ export const ActionPlanTemplatesView = forwardRef<
               <th className="w-56 px-4 py-2 text-left text-xs font-semibold text-foreground">
                 {renderSortableHeader("kategorie", "Kategorie")}
               </th>
+              <th className="w-24 px-4 py-2 text-left text-xs font-semibold text-foreground">
+                {renderSortableHeader("code", "Code")}
+              </th>
               <th className="px-4 py-2 text-left text-xs font-semibold text-foreground">
-                {renderSortableHeader("name", "Name")}
+                {renderSortableHeader("titel", "Titel")}
               </th>
               <th className="w-32 px-4 py-2 text-left text-xs font-semibold text-foreground">
                 {renderSortableHeader("klassifizierung", "Klassifizierung")}
@@ -830,8 +858,11 @@ export const ActionPlanTemplatesView = forwardRef<
                 <td className="px-4 py-2 text-[13px] text-muted-foreground">
                   {getCategoryLabel(entry.categoryId)}
                 </td>
+                <td className="px-4 py-2 text-[13px] tabular-nums text-muted-foreground">
+                  {entry.code}
+                </td>
                 <td className="px-4 py-2 text-[13px] text-foreground">
-                  {entry.name}
+                  {getTemplateLabel(entry)}
                 </td>
                 <td className="px-4 py-2 text-[13px] text-muted-foreground">
                   {getFieldOptionLabel("klassifizierung", entry.fields.klassifizierung)}
@@ -861,7 +892,7 @@ export const ActionPlanTemplatesView = forwardRef<
           >
             <div className="flex items-center justify-between border-b border-border px-6 py-4">
               <h2 className="text-3xl font-light text-foreground">
-                {isCreating ? "Neue Handlungsvorlage" : draftName}
+                {isCreating ? "Neue Handlungsvorlage" : getTemplateLabel({ code: draftCode, fields: draftFields })}
               </h2>
               <button
                 type="button"
@@ -874,23 +905,24 @@ export const ActionPlanTemplatesView = forwardRef<
             <div className="flex-1 space-y-4 overflow-y-auto px-6 py-6">
               <div className="grid grid-cols-[200px_minmax(0,1fr)_auto] items-start gap-x-4 gap-y-3">
                 <label className="pt-2 text-sm text-foreground">
-                  Handlungsvorlagenname
+                  Code
                 </label>
                 <Input
-                  value={draftName}
+                  value={draftCode}
+                  placeholder="z. B. 10101"
                   onChange={(event) => {
-                    setDraftName(event.target.value);
+                    setDraftCode(event.target.value);
                     setTemplateSaveErrors((prev) =>
-                      prev.filter((message) => !message.startsWith("Handlungsvorlagenname")),
+                      prev.filter((message) => !message.startsWith("Code")),
                     );
                   }}
                   className={cn(
-                    templateSaveErrors.some((message) => message.startsWith("Handlungsvorlagenname")) &&
+                    templateSaveErrors.some((message) => message.startsWith("Code")) &&
                       "border-destructive",
                   )}
                 />
                 <span className="pt-2 text-xs text-muted-foreground">
-                  immer editierbar
+                  Buchstaben/Ziffern, eindeutig
                 </span>
 
                 <label className="pt-2 text-sm text-foreground">

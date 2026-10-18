@@ -290,7 +290,8 @@ const collectUsedDayPartIds = (): Map<string, DayPartUsage> => {
   // Vorlagen: das Feld "tageszeit" enthält im Tageszeit-Modus die Titel.
   try {
     const raw = window.localStorage.getItem(APPLICATION_BROWSER_STORAGE_KEYS[1]);
-    const templates: Array<{ name?: string; fields?: Record<string, string> }> = raw
+    // "name" nur noch in Altbeständen, die die Vorlagenansicht noch nicht migriert hat.
+    const templates: Array<{ name?: string; code?: string; fields?: Record<string, string> }> = raw
       ? JSON.parse(raw)
       : [];
     const known = loadDayParts();
@@ -300,7 +301,10 @@ const collectUsedDayPartIds = (): Map<string, DayPartUsage> => {
       for (const part of value.split(",").map((entry) => entry.trim())) {
         const match =
           findDayPartByTitle(part, known) ?? findDayPartById(LEGACY_DAY_PART_IDS[part], known);
-        if (match) add(match.id, "templateNames", template.name ?? "Unbenannte Vorlage");
+        if (match) {
+          const label = template.fields?.titel || template.name || template.code || "Unbenannte Vorlage";
+          add(match.id, "templateNames", label);
+        }
       }
     }
   } catch {

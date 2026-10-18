@@ -52,7 +52,7 @@ describe("Kategorien", () => {
 
   it("ergänzt alle Seed-Vorlagen mit Code um die passende Kategorie", () => {
     initialTemplates.forEach((template) => {
-      const code = /^(\d{3})\d{2}/.exec(template.name)?.[1];
+      const code = /^(\d{3})\d{2}/.exec(template.code)?.[1];
       expect(template.categoryId).toBe(code ? `category-${code}` : undefined);
     });
     expect(initialTemplates.filter((t) => t.categoryId).length).toBe(151);

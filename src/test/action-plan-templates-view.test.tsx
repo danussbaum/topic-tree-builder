@@ -17,10 +17,11 @@ const createTemplate = (
   wiederholung = "daily",
 ): ActionPlanTemplate => ({
   id,
-  name,
+  code: /^(\d+)\b/.exec(name)?.[1] ?? "",
   disciplineIds: [],
   fields: {
     ...buildDefaultTemplateFields(),
+    titel: name,
     klassifizierung,
     leistungsart,
     wiederholung,
@@ -57,22 +58,22 @@ describe("ActionPlanTemplatesView", () => {
     expect(screen.getByRole("button", { name: /Klassifizierung/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Leistungsart/i })).toBeInTheDocument();
     expect(getRowTexts()).toEqual([
-      ["Alle", "", "Alpha", "KLV C", "Spitex, KLV c", "Täglich"],
-      ["Alle", "", "Beta", "KLV A", "Spitex, KLV a", "Täglich"],
+      ["Alle", "", "", "Alpha", "KLV C", "Spitex, KLV c", "Täglich"],
+      ["Alle", "", "", "Beta", "KLV A", "Spitex, KLV a", "Täglich"],
     ]);
 
     fireEvent.click(screen.getByRole("button", { name: /Klassifizierung/i }));
 
     expect(getRowTexts()).toEqual([
-      ["Alle", "", "Beta", "KLV A", "Spitex, KLV a", "Täglich"],
-      ["Alle", "", "Alpha", "KLV C", "Spitex, KLV c", "Täglich"],
+      ["Alle", "", "", "Beta", "KLV A", "Spitex, KLV a", "Täglich"],
+      ["Alle", "", "", "Alpha", "KLV C", "Spitex, KLV c", "Täglich"],
     ]);
 
     fireEvent.click(screen.getByRole("button", { name: /Leistungsart/i }));
 
     expect(getRowTexts()).toEqual([
-      ["Alle", "", "Beta", "KLV A", "Spitex, KLV a", "Täglich"],
-      ["Alle", "", "Alpha", "KLV C", "Spitex, KLV c", "Täglich"],
+      ["Alle", "", "", "Beta", "KLV A", "Spitex, KLV a", "Täglich"],
+      ["Alle", "", "", "Alpha", "KLV C", "Spitex, KLV c", "Täglich"],
     ]);
   });
 
@@ -88,7 +89,7 @@ describe("ActionPlanTemplatesView", () => {
 
     render(<ActionPlanTemplatesView searchQuery="" />);
 
-    expect(getRowTexts().map((cells) => cells[5])).toEqual([
+    expect(getRowTexts().map((cells) => cells[6])).toEqual([
       "Nach Bedarf",
       "Wöchentlich",
       "Monatlich",
@@ -97,7 +98,7 @@ describe("ActionPlanTemplatesView", () => {
     // Sortiert wird nach der angezeigten Bezeichnung, nicht nach dem internen Wert.
     fireEvent.click(screen.getByRole("button", { name: /Wiederholung/i }));
 
-    expect(getRowTexts().map((cells) => [cells[2], cells[5]])).toEqual([
+    expect(getRowTexts().map((cells) => [cells[3], cells[6]])).toEqual([
       ["Gamma", "Monatlich"],
       ["Alpha", "Nach Bedarf"],
       ["Beta", "Wöchentlich"],
@@ -105,7 +106,7 @@ describe("ActionPlanTemplatesView", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Wiederholung/i }));
 
-    expect(getRowTexts().map((cells) => cells[5])).toEqual([
+    expect(getRowTexts().map((cells) => cells[6])).toEqual([
       "Wöchentlich",
       "Nach Bedarf",
       "Monatlich",
@@ -179,7 +180,7 @@ describe("ActionPlanTemplatesView / Kategorie", () => {
     render(<ActionPlanTemplatesView searchQuery="" />);
 
     const headers = screen.getAllByRole("columnheader").map((cell) => cell.textContent);
-    expect(headers.slice(0, 3)).toEqual(["Disziplinen", "Kategorie", "Name↑"]);
-    expect(getRowTexts()[0].slice(0, 3)).toEqual(["Inhouse-Spitex", "102 Atmung", "10201 Atemtherapie"]);
+    expect(headers.slice(0, 4)).toEqual(["Disziplinen", "Kategorie", "Code↑", "Titel"]);
+    expect(getRowTexts()[0].slice(0, 4)).toEqual(["Inhouse-Spitex", "102 Atmung", "10201", "10201 Atemtherapie"]);
   });
 });

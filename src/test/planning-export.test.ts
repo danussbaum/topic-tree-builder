@@ -5,6 +5,7 @@ import {
 } from "@/lib/planning-export";
 import { DAY_PART_SEED_IDS, initialDayParts } from "@/lib/day-parts";
 import { initialActionPlanResources } from "@/lib/action-plan-resources";
+import { buildDefaultTemplateFields } from "@/lib/action-plan-templates";
 import { initialActionPlanDisciplines } from "@/lib/action-plan-disciplines";
 import { buildClientReferenceNumbers } from "@/lib/client-reference-number";
 import type { ActionNode, Client } from "@/types/assessment";
@@ -251,7 +252,7 @@ describe("buildPlanningExportRows / Kategorie", () => {
           action({ id: "a4", groupId: "g4", title: "Seed", templateName: "10201 Atemtherapie" }),
         ]),
       ],
-      { ...options, categories, templates: [{ id: "tpl-atmung", name: "10201 Atemtherapie", categoryId: "category-102" }] },
+      { ...options, categories, templates: [{ id: "tpl-atmung", fields: { ...buildDefaultTemplateFields(), titel: "10201 Atemtherapie" }, categoryId: "category-102" }] },
     );
 
     expect(PLANNING_EXPORT_HEADERS.indexOf("Kategorie")).toBe(

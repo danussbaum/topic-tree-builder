@@ -59,7 +59,7 @@ export const PLANNING_EXPORT_HEADERS = [
 export const formatActionCategory = (
   action: ActionNode,
   categories: ActionPlanCategory[] = loadActionPlanCategories(),
-  templates: Pick<ActionPlanTemplate, "id" | "name" | "categoryId">[] = loadActionPlanTemplates(),
+  templates: Pick<ActionPlanTemplate, "id" | "fields" | "categoryId">[] = loadActionPlanTemplates(),
 ): string => {
   const categoryId = getActionCategoryId(action, templates);
   const category = categories.find((entry) => entry.id === categoryId);
@@ -178,7 +178,7 @@ export type PlanningExportRow = Record<string, string | number>;
 export interface PlanningExportOptions {
   disciplines?: ActionPlanDiscipline[];
   categories?: ActionPlanCategory[];
-  templates?: Pick<ActionPlanTemplate, "id" | "name" | "categoryId">[];
+  templates?: Pick<ActionPlanTemplate, "id" | "fields" | "categoryId">[];
   resources?: ActionPlanResource[];
   dayParts?: DayPartDefinition[];
   /**

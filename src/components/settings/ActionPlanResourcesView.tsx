@@ -1,5 +1,6 @@
 import {
   forwardRef,
+  useCallback,
   useEffect,
   useImperativeHandle,
   useMemo,
@@ -57,16 +58,23 @@ export const ActionPlanResourcesView = forwardRef<
     [resources, selectedResourceId],
   );
 
+  // Auch der Export folgt der am Bildschirm gewählten Sortierung.
+  const sortResources = useCallback(
+    (entries: ActionPlanResource[]) => {
+      const sorted = [...entries].sort((a, b) =>
+        a.name.localeCompare(b.name, "de", { sensitivity: "base" }),
+      );
+      return sortDirection === "asc" ? sorted : sorted.reverse();
+    },
+    [sortDirection],
+  );
+
   const visibleResources = useMemo(() => {
     const query = searchQuery.trim().toLocaleLowerCase("de");
-    const filtered = resources.filter((entry) =>
-      entry.name.toLocaleLowerCase("de").includes(query),
+    return sortResources(
+      resources.filter((entry) => entry.name.toLocaleLowerCase("de").includes(query)),
     );
-    const sorted = [...filtered].sort((a, b) =>
-      a.name.localeCompare(b.name, "de", { sensitivity: "base" }),
-    );
-    return sortDirection === "asc" ? sorted : sorted.reverse();
-  }, [resources, searchQuery, sortDirection]);
+  }, [resources, searchQuery, sortResources]);
 
   useEffect(() => {
     if (!isPanelMounted) return;
@@ -197,7 +205,7 @@ export const ActionPlanResourcesView = forwardRef<
   };
 
   const exportResourcesCsv = () => {
-    const rows = resources.map((resource) => [
+    const rows = sortResources(resources).map((resource) => [
       resource.name,
       resource.description,
       disciplineLabels(resource.disciplineIds),

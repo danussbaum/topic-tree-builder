@@ -107,9 +107,9 @@ describe("getTemplateRecurrenceIssues", () => {
   it("hält alle vorgeseedeten Handlungsarten regelkonform", () => {
     initialTemplates.forEach((template) => {
       expect({
-        name: template.name,
-        issues: getTemplateValidationIssues(template.name, template.fields, template.editable),
-      }).toEqual({ name: template.name, issues: [] });
+        code: template.code,
+        issues: getTemplateValidationIssues(template.code, template.fields, template.editable),
+      }).toEqual({ code: template.code, issues: [] });
     });
   });
 });
@@ -118,18 +118,19 @@ describe("getTemplateValidationIssues", () => {
   const fields = { ...buildDefaultTemplateFields(), titel: "Zahnpflege" };
   const editable = buildDefaultTemplateEditable(true);
 
-  it("verlangt einen Handlungsvorlagennamen", () => {
-    expect(getTemplateValidationIssues("   ", fields, editable)).toEqual([
-      "Handlungsvorlagenname: zwingend",
+  it("erlaubt einen leeren oder alphanumerischen Code", () => {
+    expect(getTemplateValidationIssues("", fields, editable)).toEqual([]);
+    expect(getTemplateValidationIssues("Q10112", fields, editable)).toEqual([]);
+    expect(getTemplateValidationIssues("101 12", fields, editable)).toEqual([
+      "Code: nur Buchstaben und Ziffern erlaubt",
     ]);
-    expect(getTemplateValidationIssues("Zahnpflege", fields, editable)).toEqual([]);
   });
 
   it("verlangt einen Titel, wenn er in der Planung nicht erfassbar ist", () => {
     const withoutTitle = { ...fields, titel: "" };
-    expect(getTemplateValidationIssues("Vorlage", withoutTitle, editable)).toEqual([]);
+    expect(getTemplateValidationIssues("", withoutTitle, editable)).toEqual([]);
     expect(
-      getTemplateValidationIssues("Vorlage", withoutTitle, { ...editable, titel: false }),
+      getTemplateValidationIssues("", withoutTitle, { ...editable, titel: false }),
     ).toHaveLength(1);
   });
 });

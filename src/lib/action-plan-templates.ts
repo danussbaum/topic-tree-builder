@@ -32,7 +32,11 @@ export type TemplateFieldKey =
 
 export interface ActionPlanTemplate {
   id: string;
-  name: string;
+  /**
+   * Leistungsschlüssel, alphanumerisch (z. B. "10101"), eindeutig oder leer.
+   * Schlüssel für den Abgleich mit extern (BESA/Qsys) erfassten Handlungen.
+   */
+  code: string;
   disciplineIds: string[];
   categoryId?: string;
   /** Fehlt der Wert, ist die Kategorie veraenderbar. */
@@ -150,18 +154,39 @@ export const getTemplateRecurrenceIssues = (
   return issues;
 };
 
+// Alphanumerisch, damit bei Bedarf ein Präfix vor die Leistungsnummer passt (z. B. "Q10101").
+export const TEMPLATE_CODE_PATTERN = /^[A-Za-z0-9]+$/;
+const TEMPLATE_CODE_FORMAT_ISSUE = "Code: nur Buchstaben und Ziffern erlaubt";
+
+export const getTemplateLabel = (template: Pick<ActionPlanTemplate, "code" | "fields">): string =>
+  template.fields.titel?.trim() || template.code || "Ohne Titel";
+
+/** Der Code ist optional, muss aber numerisch und über alle Vorlagen eindeutig sein. */
+export const getTemplateCodeIssues = (
+  code: string,
+  templates: Pick<ActionPlanTemplate, "id" | "code">[],
+  ownId?: string | null,
+): string[] => {
+  const trimmed = code.trim();
+  if (!trimmed) return [];
+  if (!TEMPLATE_CODE_PATTERN.test(trimmed)) return [TEMPLATE_CODE_FORMAT_ISSUE];
+  return templates.some((template) => template.id !== ownId && template.code === trimmed)
+    ? [`Code: ${trimmed} ist bereits vergeben`]
+    : [];
+};
+
 /**
- * Vollständige Prüfung einer Handlungsart: Vorlagename und Bezeichnung sind
- * zwingend, dazu die Wiederholungsregeln. Die Bezeichnung darf nur leer bleiben,
- * wenn sie in der Planung erfasst werden kann.
+ * Vollständige Prüfung einer Handlungsart: Code-Format, Bezeichnung und
+ * Wiederholungsregeln. Die Bezeichnung darf nur leer bleiben, wenn sie in der
+ * Planung erfasst werden kann.
  */
 export const getTemplateValidationIssues = (
-  name: string,
+  code: string,
   fields: Record<TemplateFieldKey, string>,
   editable: Record<TemplateFieldKey, boolean>,
 ): string[] => {
   const issues: string[] = [];
-  if (name.trim() === "") issues.push("Handlungsvorlagenname: zwingend");
+  if (code.trim() && !TEMPLATE_CODE_PATTERN.test(code.trim())) issues.push(TEMPLATE_CODE_FORMAT_ISSUE);
   if ((fields.titel?.trim() ?? "") === "" && !editable.titel) {
     issues.push("Titel: zwingend, wenn das Feld in der Planung nicht veränderbar ist");
   }
@@ -266,18 +291,18 @@ export const getTemplateDisciplineLabels = (
 };
 
 // Handlungen tragen die Kategorie ihrer Vorlage; fehlt sie (aeltere Handlungen),
-// wird sie ueber die referenzierte Vorlage nachgeschlagen. Die Seed-Planung kennt
-// nur den Vorlagennamen, darum dieser als letzter Rueckfall.
+// wird sie ueber die referenzierte Vorlage nachgeschlagen. Aeltere Handlungen kennen
+// nur den frueheren Vorlagennamen (= Titel), darum dieser als letzter Rueckfall.
 export const getActionCategoryId = (
   action: Pick<ActionNode, "categoryId" | "templateId" | "templateName">,
-  templates: Pick<ActionPlanTemplate, "id" | "name" | "categoryId">[],
+  templates: Pick<ActionPlanTemplate, "id" | "fields" | "categoryId">[],
 ): string | undefined => {
   // "" heisst: bewusst «Ohne Kategorie» zugeteilt, kein Rueckfall auf die Vorlage.
   if (action.categoryId !== undefined) return action.categoryId || undefined;
   const template = action.templateId
     ? templates.find((entry) => entry.id === action.templateId)
     : action.templateName
-      ? templates.find((entry) => entry.name === action.templateName)
+      ? templates.find((entry) => entry.fields.titel === action.templateName)
       : undefined;
   return template?.categoryId;
 };
@@ -388,10 +413,10 @@ export const buildDefaultTemplateRequired = (): Record<TemplateFieldKey, boolean
 const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   {
     id: "tpl-1",
-    name: "Morgenroutine",
+    code: "",
     disciplineIds: [],
     fields: {
-      titel: "Tagesstart begleiten",
+      titel: "Morgenroutine",
       beschreibung: "Begleitung bei der Morgenhygiene und Planung des Tagesablaufs.",
       hilfsmittel: "",
       dauer: "20",
@@ -438,11 +463,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-2",
-    name: "10101 Ganzwäsche bettlägerige Klientin",
+    code: "10101",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10101 Ganzwäsche bettlägerige Klientin",
-      beschreibung: "",
+      beschreibung: "Bett vorbereiten und Klientin ausziehen\nKlientin waschen und abtrocknen\nHautpflegelotion einreiben (falls notwendig)\nKlientin anziehen\nHaare kämmen\nBettwäsche wechseln oder Bett neu machen (falls notwendig)\nKlientin neu lagern",
       hilfsmittel: "resource-waschschuessel|resource-einmalwaschlappen|resource-einmalhandschuhe",
       dauer: "40",
       personen: "1",
@@ -488,11 +513,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-3",
-    name: "10102 Ganzwäsche in Bad, Dusche oder am Lavabo",
+    code: "10102",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10102 Ganzwäsche in Bad, Dusche oder am Lavabo",
-      beschreibung: "",
+      beschreibung: "Begleitung oder Transfer (Rollstuhl) der Klientin ins Badezimmer\nKlientin ausziehen\nKlientin in Badewanne/Dusche oder vor Lavabo hinsetzen\nKlientin waschen\nRücktransfer aus Badewanne/Dusche\nKlientin abtrocknen\nHautpflegelotion einreiben (falls notwendig)\nKlientin anziehen und kämmen\nTransfer der Klientin aus Badezimmer\nBad oder Dusche reinigen",
       hilfsmittel: "resource-duschstuhl|resource-duschrollstuhl|resource-einmalwaschlappen",
       dauer: "40",
       personen: "1",
@@ -538,11 +563,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-4",
-    name: "10103 Teilwäsche im Bett (inkl. Intimpflege)",
+    code: "10103",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10103 Teilwäsche im Bett (inkl. Intimpflege)",
-      beschreibung: "",
+      beschreibung: "Bett vorbereiten und Nachthemd ausziehen\nKörperteile der Klientin waschen und abtrocknen\nIntimpflege\nHautpflegelotion einreiben (falls notwendig)\nKlientin anziehen\nHaare kämmen\nBettwäsche wechseln oder Bett neu machen (falls notwendig)",
       hilfsmittel: "",
       dauer: "20",
       personen: "1",
@@ -588,11 +613,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-5",
-    name: "10104 Teilwäsche am Lavabo (inkl. Intimpflege)",
+    code: "10104",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10104 Teilwäsche am Lavabo (inkl. Intimpflege)",
-      beschreibung: "",
+      beschreibung: "Klientin vor dem Lavabo hinsetzen (helfen)\nKörperteil waschen und trocknen\nIntimpflege\nHautpflegelotion einreiben (falls notwendig)\nHaare kämmen\nAnziehen\nTransfer der Klientin aus dem Badezimmer",
       hilfsmittel: "",
       dauer: "26",
       personen: "1",
@@ -638,11 +663,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-6",
-    name: "10105 Intimpflege (im Bett oder am Lavabo)",
+    code: "10105",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10105 Intimpflege (im Bett oder am Lavabo)",
-      beschreibung: "",
+      beschreibung: "Bettschutz und Schutz der Kleider / des Nachhemds\nHilfsmittel entfernen (Urinal, Einlagen u.ä.)\nIntimpflege durchführen\nHautpflegelotion einreiben (falls notwendig)\nHilfsmittel anlegen (Urinal, Einlagen u.ä.)\nAnziehen im Intimbereich und Klientin bequem platzieren\nBettwäsche wechseln (falls notwendig)",
       hilfsmittel: "",
       dauer: "15",
       personen: "1",
@@ -688,11 +713,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-7",
-    name: "10106 Rasur (in Kombination mit Ganz- oder Teilwäsche)",
+    code: "10106",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10106 Rasur (in Kombination mit Ganz- oder Teilwäsche)",
-      beschreibung: "",
+      beschreibung: "Trocken oder feucht rasieren\nAfter Shave einreiben",
       hilfsmittel: "",
       dauer: "10",
       personen: "1",
@@ -738,11 +763,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-8",
-    name: "10107 Haare waschen",
+    code: "10107",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10107 Haare waschen",
-      beschreibung: "",
+      beschreibung: "Vorbereitung der Klientin im Bett oder am Lavabo (inklusive Transfer)\nHaare waschen\nHaarpflegemittel auftragen, einreiben und spülen (falls notwendig)\nTrocknen mit Föhn\nKämmen\nLagerung der Klientin oder Rücktransfer (falls notwendig)",
       hilfsmittel: "",
       dauer: "15",
       personen: "1",
@@ -788,11 +813,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-9",
-    name: "10108 Nägel schneiden Finger",
+    code: "10108",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10108 Nägel schneiden Finger",
-      beschreibung: "",
+      beschreibung: "Hände der Klientin waschen\nNägel schneiden, reinigen und feilen\nLotion oder Creme auftragen",
       hilfsmittel: "resource-nagelset",
       dauer: "15",
       personen: "1",
@@ -838,11 +863,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-10",
-    name: "10109 Nägel schneiden Zehen",
+    code: "10109",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10109 Nägel schneiden Zehen",
-      beschreibung: "",
+      beschreibung: "Füsse der Klientin waschen\nNägel schneiden, reinigen\nLotion oder Creme auftragen",
       hilfsmittel: "resource-nagelset",
       dauer: "15",
       personen: "1",
@@ -888,11 +913,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-11",
-    name: "10110 Nägel schneiden Zehen bei Diabetikern",
+    code: "10110",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10110 Nägel schneiden Zehen bei Diabetikern",
-      beschreibung: "",
+      beschreibung: "Füsse der Klientin waschen und gut trocknen (falls notwendig)\nNägel schneiden und reinigen\nLotion oder Creme auftragen\nHaut an den Füssen kontrollieren und allfällige kleine Läsionen versorgen",
       hilfsmittel: "",
       dauer: "20",
       personen: "1",
@@ -938,11 +963,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-12",
-    name: "10112 Zahnpflege",
+    code: "10112",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10112 Zahnpflege",
-      beschreibung: "",
+      beschreibung: "Zahnreinigung\nProthesenreinigung (falls notwendig)",
       hilfsmittel: "resource-zahnpflegeset",
       dauer: "5",
       personen: "1",
@@ -988,11 +1013,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-13",
-    name: "10113 Mundpflege (z.B. in Palliativsituation)",
+    code: "10113",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10113 Mundpflege (z.B. in Palliativsituation)",
-      beschreibung: "",
+      beschreibung: "Mundpflege bei Klienten, bei welchen normale Zahnpflege nicht möglich ist\nZahn- und Mundreinigung\nProthesenreinigung\nFeucht halten der Mundschleimhaut",
       hilfsmittel: "",
       dauer: "10",
       personen: "1",
@@ -1038,11 +1063,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-14",
-    name: "10114 Hilfe An-/Auskleiden",
+    code: "10114",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10114 Hilfe An-/Auskleiden",
-      beschreibung: "",
+      beschreibung: "Vorbereitung der Kleider\nUnterstützung beim An- oder Ausziehen\nKleider versorgen",
       hilfsmittel: "",
       dauer: "15",
       personen: "1",
@@ -1088,11 +1113,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-15",
-    name: "10115 Kompressionsstrümpfe/-verband",
+    code: "10115",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10115 Kompressionsstrümpfe/-verband",
-      beschreibung: "",
+      beschreibung: "Hautkontrolle\nKompressionsstrümpfe anziehen / Kompressionsverband anlegen\nStrümpfe/Hosen anziehen\nKompressionsstrümpfe / Kompressionsverband ausziehen, Hautkontrolle, Hautpflege",
       hilfsmittel: "resource-kompressionsstruempfe|resource-anziehhilfe",
       dauer: "10",
       personen: "1",
@@ -1138,11 +1163,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-16",
-    name: "10201 Atemtherapie / Sekret aushusten helfen",
+    code: "10201",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10201 Atemtherapie / Sekret aushusten helfen",
-      beschreibung: "",
+      beschreibung: "Klientin während der Atemübung anleiten\nHilfe beim Aushusten von Sekret\nAusklopfen\nAnleitung zu Atemübungen, Atemstimulation\nAnleitung zur Apparatebenutzung und Wartung\nAtemfrequenzkontrolle und Kontrolle der Brustkastenbewegung",
       hilfsmittel: "",
       dauer: "14",
       personen: "1",
@@ -1188,11 +1213,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-17",
-    name: "10202 Inhalation vorbereiten",
+    code: "10202",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10202 Inhalation vorbereiten",
-      beschreibung: "",
+      beschreibung: "Medikament in Apparat einfüllen\nFunktionstest des Apparats\nAnleitung zur korrekten Apparatebenutzung und Wartung\nRegelmässige Apparatekontrolle und Apparateunterhalt veranlassen",
       hilfsmittel: "resource-inhalationsgeraet",
       dauer: "5",
       personen: "1",
@@ -1238,11 +1263,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-18",
-    name: "10203 Inhalationen mit konstanter Präsenz",
+    code: "10203",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10203 Inhalationen mit konstanter Präsenz",
-      beschreibung: "",
+      beschreibung: "Medikament in Apparat einfüllen\nFunktionstest des Apparats\nAnleitung zur korrekten Inhalation und Apparatebenutzung während der ganzen Inhalationsdauer\nRegelmässige Apparatekontrolle und Apparateunterhalt veranlassen",
       hilfsmittel: "resource-inhalationsgeraet",
       dauer: "15",
       personen: "1",
@@ -1288,11 +1313,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-19",
-    name: "10204 O2 -Verabreichung",
+    code: "10204",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10204 O2 -Verabreichung",
-      beschreibung: "",
+      beschreibung: "O2-Behälter installieren\nAquapak anschliessen\nO2-Fluss kontrollieren\nLeck ausschliessen\nSonde oder Maske anschliessen\nDurchgängigkeit der oberen Atemwege verifizieren\nSonde befestigen oder Maske aufsetzen\nFluss (Liter pro Minute) einstellen\nO2-Nachschub sicherstellen",
       hilfsmittel: "resource-sauerstoffkonzentrator",
       dauer: "9",
       personen: "1",
@@ -1338,11 +1363,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-20",
-    name: "10205 Absaugen",
+    code: "10205",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10205 Absaugen",
-      beschreibung: "",
+      beschreibung: "Absauggerät bereitstellen\nFunktionsprüfung des Absauggerätes\nHandschuhe anziehen\nKlientin richtig lagern\nSekrete absaugen\nAbsauggerät leeren, reinigen und vorbereiten\nEntsorgung der Sekrete\nRegelmässige Apparatekontrolle und Apparateunterhalt veranlassen",
       hilfsmittel: "resource-absauggeraet|resource-einmalhandschuhe",
       dauer: "15",
       personen: "1",
@@ -1388,11 +1413,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-21",
-    name: "10206 Tracheostomapflege",
+    code: "10206",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10206 Tracheostomapflege",
-      beschreibung: "",
+      beschreibung: "Handschuhe und Mundschutz anziehen\nKanüle entfernen\nHaut um das Tracheostoma reinigen und pflegen\nKanüle reinigen\nKanüle einsetzen, Kompressen und Bänder fixieren",
       hilfsmittel: "",
       dauer: "9",
       personen: "1",
@@ -1438,11 +1463,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-22",
-    name: "10207 Luftbefeuchter",
+    code: "10207",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10207 Luftbefeuchter",
-      beschreibung: "",
+      beschreibung: "Luftbefeuchter vorbereiten\nWasserqualität periodisch kontrollieren\nRegelmässige Apparatekontrolle und Apparateunterhalt veranlassen",
       hilfsmittel: "resource-luftbefeuchter",
       dauer: "9",
       personen: "1",
@@ -1488,11 +1513,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-23",
-    name: "10301 Beim Trinken unterstützen",
+    code: "10301",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10301 Beim Trinken unterstützen",
-      beschreibung: "",
+      beschreibung: "Führen und beurteilen der Trinkbilanz\nAusscheidung beurteilen\nAnleitung der Klientin oder deren Angehörige über Wichtigkeit, genügend Flüssigkeit aufzunehmen",
       hilfsmittel: "",
       dauer: "0",
       personen: "1",
@@ -1538,11 +1563,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-24",
-    name: "10302 Beim Essen helfen",
+    code: "10302",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10302 Beim Essen helfen",
-      beschreibung: "",
+      beschreibung: "Anleitung/ Ermunterung zum Essen oder Essen eingeben\nHände der Klientin reinigen/ Mund spülen\nAnleitung der Klientin oder deren Angehörige (falls notwendig)",
       hilfsmittel: "",
       dauer: "0",
       personen: "1",
@@ -1588,11 +1613,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-25",
-    name: "10303 Anleitung für Essen/Diät",
+    code: "10303",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10303 Anleitung für Essen/Diät",
-      beschreibung: "",
+      beschreibung: "Beurteilung der üblichen Ernährung der Klientin\nInformationen und Motivation für eine ausgeglichene, gesunde Ernährung geben\nKlientin oder informelles Netz anleiten",
       hilfsmittel: "",
       dauer: "9",
       personen: "1",
@@ -1638,11 +1663,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-26",
-    name: "10304 Sondenernährung",
+    code: "10304",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10304 Sondenernährung",
-      beschreibung: "",
+      beschreibung: "Notwendige Flüssigkeits- und Nährstoffmenge pro Tag festlegen\nNährlösung vorbereiten\nKlientin lagern\nSicherstellen, dass die Magensonde/ PEG-Sonde an korrekter Stelle liegt\nNährlösung an Sonde anschliessen und Ablaufgeschwindigkeit regulieren oder Nährlösung mit Spritze instillieren\nSonde spülen und Sonde verschliessen\nMund- oder Nasenhöhlen pflegen oder PEG-Verband kontrollieren\nSondenfixierung und Sondenlage kontrollieren",
       hilfsmittel: "",
       dauer: "15",
       personen: "1",
@@ -1688,11 +1713,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-27",
-    name: "10305 Einlegen einer Magensonde",
+    code: "10305",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10305 Einlegen einer Magensonde",
-      beschreibung: "",
+      beschreibung: "Lagerung der Klientin nach fachlichen Richtlinien\nHandschuhe anziehen (nach Richtlinien der Institution)\nSondenlänge messen\nSonde nasal einführen\nÜberprüfen bzw. sicherstellen, dass die Sonde im Magen liegt\nSonde fixieren",
       hilfsmittel: "",
       dauer: "20",
       personen: "1",
@@ -1738,11 +1763,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-28",
-    name: "10306 Gastrostomapflege (PEG Sonde)",
+    code: "10306",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10306 Gastrostomapflege (PEG Sonde)",
-      beschreibung: "",
+      beschreibung: "Lagerung der Klientin\nHandschuhe anziehen (nach Richtlinien der Institution)\nEntfernung des Materials\nHaut um das Stoma reinigen,kontrollieren und pflegen\nNeues Material anbringen",
       hilfsmittel: "",
       dauer: "13",
       personen: "1",
@@ -1788,11 +1813,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-29",
-    name: "10401 Schüssel/Topf/Steckbecken",
+    code: "10401",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10401 Schüssel/Topf/Steckbecken",
-      beschreibung: "",
+      beschreibung: "Vorbereitung der Klientin\nHandschuhe anziehen\nLeere Schüssel bringen, unterschieben, wegnehmen, leeren\nBeurteilung des Inhalts\nSchüssel, Topf, Steckbecken reinigen",
       hilfsmittel: "resource-steckbecken|resource-einmalhandschuhe",
       dauer: "8",
       personen: "1",
@@ -1838,11 +1863,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-30",
-    name: "10402 Urinflasche",
+    code: "10402",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10402 Urinflasche",
-      beschreibung: "",
+      beschreibung: "Vorbereitung der Klientin\nHandschuhe anziehen\nUrinflasche bringen, unterschieben, wegnehmen, leeren\nBeurteilung des Inhalts\nUrinflasche reinigen",
       hilfsmittel: "resource-urinflasche|resource-einmalhandschuhe",
       dauer: "5",
       personen: "1",
@@ -1888,11 +1913,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-31",
-    name: "10403 Manualstimulation der Blase",
+    code: "10403",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10403 Manualstimulation der Blase",
-      beschreibung: "",
+      beschreibung: "Lagerung und Vorbereitung der Klientin\nUnterlegen von Schutzmaterial oder Schüssel\nKlopfen über der Blase bis zur Entleerung derselben\nSchüssel leeren, reinigen und Schutzmaterial entfernen",
       hilfsmittel: "",
       dauer: "7",
       personen: "1",
@@ -1938,11 +1963,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-32",
-    name: "10404 Blasenspülung",
+    code: "10404",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10404 Blasenspülung",
-      beschreibung: "",
+      beschreibung: "Vorbereitung der Klientin\nHandschuhe anziehen\nKathetersack entfernen oder Katheterventil öffnen\nUnterlegen von Schutzmaterial\nSpüllösung auf Körpertemperatur erwärmen\nInstillieren\nKontrolle der zurückfliessenden Flüssigkeit (qualitativ, quantitativ)\nUrinsack anlegen oder Ventil schliessen\nLage des Kathetersacks kontrollieren\nBeim Anziehen helfen",
       hilfsmittel: "",
       dauer: "15",
       personen: "1",
@@ -1988,11 +2013,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-33",
-    name: "10405 Urostoma- / Nephrostomapflege",
+    code: "10405",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10405 Urostoma- / Nephrostomapflege",
-      beschreibung: "",
+      beschreibung: "Lagerung der Klientin\nHandschuhe anziehen\nUnterlegen von Schutzmaterial\nStomasack entfernen\nHaut um das Stoma reinigen und trocknen\nHautpflegemittel auftragen, falls indiziert\nNeuen Stomasack anbringen",
       hilfsmittel: "",
       dauer: "16",
       personen: "1",
@@ -2038,11 +2063,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-34",
-    name: "10406 Pflege/Überwachung Blasenkatheter",
+    code: "10406",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10406 Pflege/Überwachung Blasenkatheter",
-      beschreibung: "",
+      beschreibung: "Katheterposition und Urinabfluss kontrollieren\nUrinmenge und Qualität kontrollieren\nHandschuhe anziehen\nBlasenkathetersack wechseln oder leeren",
       hilfsmittel: "resource-katheterset|resource-einmalhandschuhe",
       dauer: "5",
       personen: "1",
@@ -2088,11 +2113,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-35",
-    name: "10407 Blasenkatheter legen, Dauer/Einmal",
+    code: "10407",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10407 Blasenkatheter legen, Dauer/Einmal",
-      beschreibung: "",
+      beschreibung: "Lagerung der Klientin\nHandschuhe anziehen\nIntimwäsche\nUnterlegen von Schutzmaterial\nEinlegen des Katheters bei Dauerkatheter: Fixation desselben\nAblaufkontrolle\nUrinsack anbringen oder Ventil schliessen bzw. Einmalkatheter wieder entfernen\nKorrekte Weiterleitung der Urinproben in Arztpraxis oder Labor gewährleisten",
       hilfsmittel: "resource-katheterset|resource-einmalhandschuhe|resource-desinfektionsmittel",
       dauer: "30",
       personen: "1",
@@ -2138,11 +2163,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-36",
-    name: "10408 Dauerblasenkatheter entfernen",
+    code: "10408",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10408 Dauerblasenkatheter entfernen",
-      beschreibung: "",
+      beschreibung: "Lagerung der Klientin\nHandschuhe anziehen\nSchutzmaterial unterlegen\nKatheterballon mit Spritze entleeren\nKatheter ziehen",
       hilfsmittel: "",
       dauer: "4",
       personen: "1",
@@ -2188,11 +2213,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-37",
-    name: "10409 Rectalsonde einlegen (Wind)",
+    code: "10409",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10409 Rectalsonde einlegen (Wind)",
-      beschreibung: "",
+      beschreibung: "Lagerung der Klientin\nHandschuhe anziehen\nSchutzmaterial unterlegen\nKlientin anleiten\nRectalsonde einführen\nKontrolle des Abdomens\nSonde entfernen",
       hilfsmittel: "",
       dauer: "7",
       personen: "1",
@@ -2238,11 +2263,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-38",
-    name: "10410 Practoclyss",
+    code: "10410",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10410 Practoclyss",
-      beschreibung: "",
+      beschreibung: "Lagerung der Klientin\nKlientin anleiten\nHandschuhe anziehen\nSchutzmaterial unterlegen\nPractokliss auf Körpertemperatur aufwärmen\nPractokliss infundieren\nSonde entfernen",
       hilfsmittel: "",
       dauer: "16",
       personen: "1",
@@ -2288,11 +2313,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-39",
-    name: "10411 Einlauf",
+    code: "10411",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10411 Einlauf",
-      beschreibung: "",
+      beschreibung: "Lagerung der Klientin\nKlientin anleiten\nLösung auf Körpertemperatur erwärmen\nHandschuhe anziehen\nSchutzmaterial unterlegen\nRectalsonde einführen\nLösung infundieren\nKontrolle des Abdomens\nSonde entfernen",
       hilfsmittel: "",
       dauer: "21",
       personen: "1",
@@ -2338,11 +2363,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-40",
-    name: "10412 Manuelle Ampullenausräumung",
+    code: "10412",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10412 Manuelle Ampullenausräumung",
-      beschreibung: "",
+      beschreibung: "Lagerung der Klientin\nEine Stunde vor Ausräumung ein Suppositorium Glycerin verabreichen\nHandschuhe anziehen\nSchutzmaterial unterlegen\nAbdominalmassage\nAusräumung der Ampulle\nReinigung Gesäss",
       hilfsmittel: "",
       dauer: "20",
       personen: "1",
@@ -2388,11 +2413,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-41",
-    name: "10413 Anziehen von Einlagen / Urinal anlegen",
+    code: "10413",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10413 Anziehen von Einlagen / Urinal anlegen",
-      beschreibung: "",
+      beschreibung: "Lagerung der Klientin\nHandschuhe anziehen\nGebrauchte Einlagen / gebrauchtes Urinal entfernen\nNeue Einlagen einlegen / Urinal anlegen\nKlientin anleiten",
       hilfsmittel: "",
       dauer: "8",
       personen: "1",
@@ -2438,11 +2463,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-42",
-    name: "10414 Stomasackentleerung",
+    code: "10414",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10414 Stomasackentleerung",
-      beschreibung: "",
+      beschreibung: "Lagerung der Klientin\nHandschuhe anziehen\nStomasack leeren oder wechseln\nHautkontrolle\nNeuen Stomasack anbringen",
       hilfsmittel: "",
       dauer: "8",
       personen: "1",
@@ -2488,11 +2513,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-43",
-    name: "10415 Pflege von Stoma",
+    code: "10415",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10415 Pflege von Stoma",
-      beschreibung: "",
+      beschreibung: "Lagerung der Klientin\nSchutzmaterial unterlegen\nHandschuhe anziehen\nStomasack und Platte entfernen\nHaut um das Stoma reinigen und trocknen\nBenötigte Creme oder Salbe applizieren\nNeue Platte und Stomasack anbringen",
       hilfsmittel: "resource-stomamaterial|resource-einmalhandschuhe",
       dauer: "15",
       personen: "1",
@@ -2538,11 +2563,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-44",
-    name: "10417 Stomaspülung",
+    code: "10417",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10417 Stomaspülung",
-      beschreibung: "",
+      beschreibung: "Transfer der Klientin auf Toilette, Nachtstuhl oder Schüssel\nSchutzmaterial unterlegen\nHandschuhe anziehen\nStomasack entfernen\nDarmeingang (Stoma) verifizieren\nSpülsystem einführen und Spülung durchführen\nSpülsystem entfernen\nHaut um das Stoma reinigen und trocknen\nNeuen Stomasack anbringen",
       hilfsmittel: "",
       dauer: "20",
       personen: "1",
@@ -2588,11 +2613,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-45",
-    name: "10418 Flüssigkeitsbilanz 24h",
+    code: "10418",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10418 Flüssigkeitsbilanz 24h",
-      beschreibung: "",
+      beschreibung: "Anleitung zum Selber-Führen einer 24-Stunden-Flüssigkeitsbilanz\nKontrolle und Überprüfung des Resultats\nÖdeme erkennen und dokumentieren\nArzt informieren",
       hilfsmittel: "",
       dauer: "4",
       personen: "1",
@@ -2638,11 +2663,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-46",
-    name: "10419 Begleitung bei Toilettengang",
+    code: "10419",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10419 Begleitung bei Toilettengang",
-      beschreibung: "",
+      beschreibung: "Auf Toilette/Nachtstuhl begleiten\nBeim Aus- und Anziehen helfen\nRufzeichen abmachen und warten\nBei der Reinigung helfen\nIns Zimmer zurück begleiten",
       hilfsmittel: "",
       dauer: "10",
       personen: "1",
@@ -2688,11 +2713,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-47",
-    name: "10420 Peritonealdialyse",
+    code: "10420",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10420 Peritonealdialyse",
-      beschreibung: "",
+      beschreibung: "Installation\nInstallation des Cyclers oder Anschluss des Dialysates nach Standard\nInjektion von Medikamente in die Dialysebeutel\nAnschliessen des Cyclers\nStart und Funktionskontrolle der Behandlung\nDeinstallation\nDeinstallation des Cyclers oder des Dialysates\nEntnahme von Untersuchungsmaterial zu Laborzwecken\nKlinische Überwachung\nMaterialnachschub sichern",
       hilfsmittel: "",
       dauer: "0",
       personen: "1",
@@ -2738,11 +2763,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-48",
-    name: "10501 Lagerung der Klientin im Bett",
+    code: "10501",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10501 Lagerung der Klientin im Bett",
-      beschreibung: "",
+      beschreibung: "Lagerungshilfen aus dem Bett nehmen\nBeachten und verschieben von medizinisch technischen Hilfsmitteln (Infusionen, Pumpen, Redon, Urinsack, etc.)\nKlientin lagern\nLagerungshilfen und Druckschutzhilfen positionieren\nIn der neuen Position der Klientin sicherstellen, dass technische Instrumente wie Infusionen, Sonden etc. funktionieren",
       hilfsmittel: "resource-lagerungskissen|resource-rutschtuch|resource-kinaesthetik-block",
       dauer: "8",
       personen: "1",
@@ -2788,11 +2813,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-49",
-    name: "10502 Lagerung der Klientin im Bett inkl. Bett machen / Bettwäsche wechseln",
+    code: "10502",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10502 Lagerung der Klientin im Bett inkl. Bett machen / Bettwäsche wechseln",
-      beschreibung: "",
+      beschreibung: "Lagerungshilfen aus dem Bett nehmen\nBeachten und verschieben von medizinisch technischen Hilfsmitteln (Infusionen, Pumpen, Redon, Urinsack, etc.)\nBettwäsche wechseln (falls notwendig)\nKlientin lagern\nLagerungshilfen und Druckschutzhilfen positionieren\nIn der neuen Position der Klientin sicherstellen, dass technische Instrumente wie Infusionen, Sonden etc. funktionieren",
       hilfsmittel: "resource-lagerungskissen|resource-rutschtuch|resource-antidekubitus-matratze",
       dauer: "15",
       personen: "1",
@@ -2838,11 +2863,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-50",
-    name: "10503 Aufstehen oder Hinlegen mit Hilfe",
+    code: "10503",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10503 Aufstehen oder Hinlegen mit Hilfe",
-      beschreibung: "",
+      beschreibung: "Beschreibung \"Aufstehen\":\nHilfe bei passiver Bewegung im Bett; passive Bettgymnastik (falls notwendig)\nGehhilfen wie Rollator, Stöcke etc. anbieten (ausgenommen Prothesen; s. 10509)\nHilfe bei Transfer auf Lehnstuhl, Rollstuhl o.ä.\nLagerung im Lehnstuhl, Rollstuhl o.ä. und Kontrolle der Haltung\nBeachten und verschieben von medizinisch technischen Hilfsmitteln (Infusionen, Pumpen, Redon, Urinsack, etc.)\nIn der neuen Position der Klientin sicherstellen, dass technische Mittel wie Infusionen, Sonden etc. funktionieren.\nBeschreibung \"Hinlegen\":\nTransfer mit Hilfe zurück ins Bett\nBeachten und verschieben von medizinisch technischen Hilfsmitteln (Infusionen, Pumpen, Redon, Urinsack, etc.)\nLagerung der Klientin im Bett (falls notwendig)\nIn der neuen Position der Klientin sicherstellen, dass technische Mittel wie Infusionen, Sonden etc. funktionieren.",
       hilfsmittel: "resource-rutschbrett|resource-rutschtuch|resource-drehscheibe|resource-kinaesthetik-block|resource-bettgalgen",
       dauer: "5",
       personen: "1",
@@ -2888,11 +2913,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-51",
-    name: "10504 Aufstehen oder Hinlegen mit Lift oder 2 Personen",
+    code: "10504",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10504 Aufstehen oder Hinlegen mit Lift oder 2 Personen",
-      beschreibung: "",
+      beschreibung: "Beschreibung \"Aufstehen\": ev. Hilfe bei passiver Bewegung im Bett; passive Bettgymnastik\nGehhilfen wie Rollator, Stöcke etc. anbieten (ausgenommen Prothesen; s. 10508)\nHilfe bei Transfer mit Lift oder 2 Personen auf Lehnstuhl, Rollstuhl o.ä.\nLagerung im Lehnstuhl, Rollstuhl o.ä. und Kontrolle der Haltung\nBeachten und verschieben von medizinisch technischen Hilfsmitteln (Infusionen, Pumpen, Redon, Urinsack, etc.)\nIn der neuen Position der Klientin sicherstellen, dass technische Mittel wie Infusionen, Sonden etc. funktionieren.\nBeschreibung \"Hinlegen\":\nTransfer mit Lift oder 2 Personen zurück ins Bett\nBeachten und verschieben von medizinisch technischen Hilfsmitteln (Infusionen, Pumpen, Redon, Urinsack, etc.) ev. Lagerung der Klientin im Bett\nIn der neuen Position der Klientin sicherstellen, dass technische Mittel wie Infusionen, Sonden etc. funktionieren.",
       hilfsmittel: "resource-patientenlifter|resource-rutschtuch|resource-drehscheibe",
       dauer: "10",
       personen: "1",
@@ -2938,11 +2963,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-52",
-    name: "10505 Hilfe beim Gehen",
+    code: "10505",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10505 Hilfe beim Gehen",
-      beschreibung: "",
+      beschreibung: "Beim Aufstehen helfen.\nGehhilfen wie Rollator, Stöcke etc. anbieten (ausgenommen Prothesen; s. 10508)\nKontrolle der Haltung.\nBeachten und verschieben von medizinisch technischen Hilfsmitteln (Infusionen, Pumpen, Redon, Urinsack, etc.)\nHilfe beim Gehen in der Wohnung (oder beim Treppensteigen, falls notwendig)\nHilfe beim Absitzen in den Lehnstuhl oder beim Abliegen ins Bett\nIn der neuen Position der Klientin sicherstellen, dass technische Mittel wie Infusionen, Sonden etc. funktionieren",
       hilfsmittel: "resource-rollator|resource-gehstock",
       dauer: "8",
       personen: "1",
@@ -2988,11 +3013,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-53",
-    name: "10506 Aktive/passive Bewegungsunterstützung",
+    code: "10506",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10506 Aktive/passive Bewegungsunterstützung",
-      beschreibung: "",
+      beschreibung: "Ausführung der aktiven/passiven Gelenks- und/oder Muskelbewegungsübungen unter Benützung geeigneter Hilfsmittel",
       hilfsmittel: "",
       dauer: "17",
       personen: "1",
@@ -3038,11 +3063,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-54",
-    name: "10507 Gehbegleitung ausserhalb Haus",
+    code: "10507",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10507 Gehbegleitung ausserhalb Haus",
-      beschreibung: "",
+      beschreibung: "Hilfe beim Aussuchen und Anziehen adäquater Kleidung\nGehhilfen wie Rollator, Stöcke etc. anbieten (ausgenommen Prothesen; s. 10508)\nBeachten und verschieben von medizinisch technischen Hilfsmitteln (Infusionen, Pumpen, Redon, Urinsack, etc.)\nNach Heimkehr: Kleider und Hilfsmittel versorgen\nSicherstellen, dass technische Mittel wie Infusionen, Sonden etc. funktionieren.",
       hilfsmittel: "resource-rollator|resource-elektrorollstuhl",
       dauer: "20",
       personen: "1",
@@ -3088,11 +3113,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-55",
-    name: "10508 Hilfsmittel anbringen/entfernen",
+    code: "10508",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10508 Hilfsmittel anbringen/entfernen",
-      beschreibung: "",
+      beschreibung: "Beschreibung \"Anbringen\":\nKörperteil entkleiden\nAnbringen des/der Hilfsmittel wie Prothesen, Orthesen, Schienen, Splints, usw.\nKontrolle der korrekten Lage und Funktion des Hilfsmittels\nBeschreibung \"Entfernen\":\nKörperteil entkleiden\nEntfernen des/der Hilfsmittel wie Prothesen, Orthesen, Schienen, Splints, usw.\nKontrolle und Hautpflege (falls notwendig)",
       hilfsmittel: "",
       dauer: "10",
       personen: "1",
@@ -3138,11 +3163,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-56",
-    name: "10601 Medikamente richten",
+    code: "10601",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10601 Medikamente richten",
-      beschreibung: "",
+      beschreibung: "Aktualität und Korrektheit der verordneten Dosierung prüfen\nMedikamente in der geeigneten Form für täglichen oder wöchentlichen Bedarf gemäss Arztverordnung bereit machen\nMedikamentennachschub sichern\nEventuell führen einer Medikamentennachschubliste für den Arzt oder Apotheker\nAktualisierung der Medikamentenliste sicherstellen",
       hilfsmittel: "",
       dauer: "0",
       personen: "1",
@@ -3188,11 +3213,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-57",
-    name: "10602 Verabreichung gerichtete Medikamente, s.c. oder i.m.",
+    code: "10602",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10602 Verabreichung gerichtete Medikamente, s.c. oder i.m.",
-      beschreibung: "",
+      beschreibung: "Ärztliche Verordnung konsultieren\nMedikamentenverabreichung nach ärztlicher Verordnung",
       hilfsmittel: "",
       dauer: "6",
       personen: "1",
@@ -3238,11 +3263,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-58",
-    name: "10603 Medikamentenverabreichung",
+    code: "10603",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10603 Medikamentenverabreichung",
-      beschreibung: "",
+      beschreibung: "Arztverordnung konsultieren\nMedikamentenprospekt konsultieren (falls notwendig)\nFachgerechte Injektionsvorbereitung\nLagerung der Klientin (falls notwendig)\nFachgerechte Verabreichung des Pharmakons\nReaktion der Klientin beobachten",
       hilfsmittel: "",
       dauer: "10",
       personen: "1",
@@ -3288,11 +3313,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-59",
-    name: "10604 i.v. Medikamentenverabreichung",
+    code: "10604",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10604 i.v. Medikamentenverabreichung",
-      beschreibung: "",
+      beschreibung: "Arztverordnung konsultieren\nMedikamentenprospekt konsultieren (falls notwendig)\nLagerung der Klientin (falls notwendig)\nFachgerechte Injektionsvorbereitung\nFachgerechte Venenpunktion und Injektion des Pharmakons\nReaktion der Klientin beobachten",
       hilfsmittel: "",
       dauer: "20",
       personen: "1",
@@ -3338,11 +3363,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-60",
-    name: "10605 i.v. Medikamentenverabreichung über Dreiweghahn",
+    code: "10605",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10605 i.v. Medikamentenverabreichung über Dreiweghahn",
-      beschreibung: "",
+      beschreibung: "Arztverordnung konsultieren\nMedikamentenprospekt konsultieren (falls notwendig)\nFachgerechte Injektionsvorbereitung\nKlientin lagern\nRefluxkontrolle beim Dreiweghahn\nFachgerechte Verabreichung des Pharmakons\nReaktion der Klientin beobachten\nWiedereinfluss der Infusion sicherstellen.",
       hilfsmittel: "",
       dauer: "9",
       personen: "1",
@@ -3388,11 +3413,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-61",
-    name: "10606 Infusionstherapie mit Venenpunktion",
+    code: "10606",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10606 Infusionstherapie mit Venenpunktion",
-      beschreibung: "",
+      beschreibung: "Arztverordnung konsultieren\nMedikamentenprospekt konsultieren (falls notwendig)\nFachgerechte Injektionsvorbereitung\nLuftfreie Infusionskanüle mit Venenzugang verbinden\nInfusionsgeschwindigkeit regulieren und beobachten\nFixieren des Venenkatheters\nErneut Infusionsgeschwindigkeit kontrollieren\nKomfort der Klientin sicherstellen\nBeobachtung der Reaktion der Klientin",
       hilfsmittel: "",
       dauer: "20",
       personen: "1",
@@ -3438,11 +3463,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-62",
-    name: "10607 Medikamentenverabreichung bei liegendem Venenkatheter/ inkl. Port-aCath",
+    code: "10607",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10607 Medikamentenverabreichung bei liegendem Venenkatheter/ inkl. Port-aCath",
-      beschreibung: "",
+      beschreibung: "Arztverordnung konsultieren\nMedikamentenprospekt konsultieren (falls notwendig)\nFachgerechte Injektionsvorbereitung\nBlutrückfluss aus liegendem Venenkatheter verifizieren\nFachgerechte Verabreichung des Pharmakons\nKomfort der Klientin sicherstellen\nBeobachtung der Reaktion der Klientin\nVenenkatheter abstöpseln oder ziehen",
       hilfsmittel: "",
       dauer: "15",
       personen: "1",
@@ -3488,11 +3513,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-63",
-    name: "10608 Anwesenheit bei Infusionstherapie",
+    code: "10608",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10608 Anwesenheit bei Infusionstherapie",
-      beschreibung: "",
+      beschreibung: "Arztverordnung konsultieren\nMedikamentenprospekt konsultieren (falls notwendig)\nInfusionskontrolle\nKontrolle der Vitalzeichen und Beobachtung der Reaktion der Klientin\nInfusion herausziehen oder abstöpseln",
       hilfsmittel: "",
       dauer: "44",
       personen: "1",
@@ -3538,11 +3563,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-64",
-    name: "10609 Besuch zur Infusionskontrolle",
+    code: "10609",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10609 Besuch zur Infusionskontrolle",
-      beschreibung: "",
+      beschreibung: "Kontrolle des Allgemeinzustandes und der Vitalzeichen der Klientin\nSich bei der Klientin oder Ihren Angehörigen über die regelrechte Verabreichung der Infusion informieren\nBlutrückflusskontrolle als Prüfung der korrekten intravenösen Katheterlage\nInfusionsgeschwindigkeit kontrollieren\nInfusionsstelle kontrollieren",
       hilfsmittel: "",
       dauer: "12",
       personen: "1",
@@ -3588,11 +3613,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-65",
-    name: "10610 Bluttransfusion",
+    code: "10610",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10610 Bluttransfusion",
-      beschreibung: "",
+      beschreibung: "Blutgruppenkontrolle mit einer Gegenkontrolle durch eine Kollegin\nBeachtung der ärztlichen Verordnungen und der Anweisungen des Blutspendezentrums/Labors\nBlutbeutel vorbereiten\nFachgerechte Venenpunktion\nLuftleere Transfusionsleitung mit Venenzugang verbinden\nFluss der Transfusion kontrollieren\nBeobachtung der Reaktion der Klientin\nArmposition kontrollieren\nBetreuung der Klientin während der Transfusion\nKontrolle der Vitalzeichen vor, während und nach der Transfusion\nFachgerechte Versorgung der Einstichstelle nach Ziehen der Transfusion\nInformation der Klientin über Verhalten bei Nebenwirkungen (spätere Komplikationen)\nDokumentation der Transfusionsnummer und des Allgemeinzustandes der Klientin",
       hilfsmittel: "",
       dauer: "120",
       personen: "1",
@@ -3638,11 +3663,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-66",
-    name: "10612 Anlegen von Dauervenenzugängen",
+    code: "10612",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10612 Anlegen von Dauervenenzugängen",
-      beschreibung: "",
+      beschreibung: "Anlegen von peripheren Dauervenenzugängen (z.B. Butterfly, Venflon, Braunüle etc.) nach ärztlicher Verordnung\nFachgerechte Venenpunktion und Einlegen Nadel, Kanüle oder Katheter\nFixieren der Kanüle und abstöpseln\nAnleitung der Klientin",
       hilfsmittel: "",
       dauer: "12",
       personen: "1",
@@ -3688,11 +3713,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-67",
-    name: "10613 Lavage von Katheter Typ Hickman/Port-aCath",
+    code: "10613",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10613 Lavage von Katheter Typ Hickman/Port-aCath",
-      beschreibung: "",
+      beschreibung: "Lagerung der Klientin nach Anleitung\nKatheterspülung nach Anleitung\nInspektion und evtl. Behandlung der umgebenden Haut\nAnleitung der Klientin",
       hilfsmittel: "",
       dauer: "11",
       personen: "1",
@@ -3738,11 +3763,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-68",
-    name: "10614 s.c. Infusionstherapie oder Pumpentherapie",
+    code: "10614",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10614 s.c. Infusionstherapie oder Pumpentherapie",
-      beschreibung: "",
+      beschreibung: "Beschreibung: Subkutane Infusionstherapie:\nFachgerechte Infusionsvorbereitung\nNach ärztlicher Verordnung evtl. resorbtionsförderndes Medikament zufügen\nFachgerechte Punktion subkutan und Infusion anschliessen\nInfusionsfluss kontrollieren\nAllgemeinzustand der Klientin kontrollieren\nAnleitung der Klientin oder der Angehörigen\nBeschreibung: Subkutane Pumpentherapie:\nFachgerechte Infusionsvorbereitung\nFachgerechte Punktion subkutan\nNadel fachgerecht fixieren\nNadel mit Pumpenschlauch verbinden\nParameter der Pumpe nach ärztlicher Anordnung einstellen\nAnleitung der Klientin oder der Angehörigen",
       hilfsmittel: "",
       dauer: "20",
       personen: "1",
@@ -3788,11 +3813,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-69",
-    name: "10615 Medizinal-Teilbad oder Wickel",
+    code: "10615",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10615 Medizinal-Teilbad oder Wickel",
-      beschreibung: "",
+      beschreibung: "Ärztliche Verordnung konsultieren\nWickel oder Medizinal-Teilbad auf gewünschte Temperatur bringen\nLagerung der Klientin oder Wickel applizieren\nÜberwachung der Klientin während der Applikationszeit\nHilfe beim Abtrocknen und Anziehen",
       hilfsmittel: "",
       dauer: "30",
       personen: "1",
@@ -3838,11 +3863,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-70",
-    name: "10616 Massnahmen zur Dekubitusprophylaxe",
+    code: "10616",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10616 Massnahmen zur Dekubitusprophylaxe",
-      beschreibung: "",
+      beschreibung: "Massnahme zur Dekubitusprophylaxe durchführen\nLagerung",
       hilfsmittel: "resource-antidekubitus-matratze|resource-lagerungskissen",
       dauer: "20",
       personen: "1",
@@ -3888,11 +3913,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-71",
-    name: "10617 Haut einreiben (therapeutisch verordnet)",
+    code: "10617",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10617 Haut einreiben (therapeutisch verordnet)",
-      beschreibung: "",
+      beschreibung: "Zu massierende Körperteile entkleiden\nMittel auftragen und einreiben\nAnziehen",
       hilfsmittel: "",
       dauer: "20",
       personen: "1",
@@ -3938,11 +3963,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-72",
-    name: "10618 Augentropfen",
+    code: "10618",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10618 Augentropfen",
-      beschreibung: "",
+      beschreibung: "Augentropfen verabreichen",
       hilfsmittel: "",
       dauer: "10",
       personen: "1",
@@ -3988,11 +4013,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-73",
-    name: "10701 Kleiner Verband",
+    code: "10701",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10701 Kleiner Verband",
-      beschreibung: "",
+      beschreibung: "Steriles und nicht steriles Material vorbereiten\nSteriles oder nicht steriles Feld vorbereiten\nBisherigen Verband wegnehmen\nWunde und die umgebende Haut reinigen und desinfizieren\nWundversorgung gemäss ärztlicher Verordnung\nNeuen Verband anbringen und fixieren",
       hilfsmittel: "resource-verbandmaterial-klein|resource-wundauflage-steril|resource-kompressen|resource-einmalhandschuhe|resource-desinfektionsmittel",
       dauer: "15",
       personen: "1",
@@ -4038,11 +4063,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-74",
-    name: "10702 Mittlerer Verband",
+    code: "10702",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10702 Mittlerer Verband",
-      beschreibung: "",
+      beschreibung: "Steriles und nicht steriles Material vorbereiten\nSteriles Feld vorbereiten (falls notwendig)\nBisherigen Verband wegnehmen\nWunde und die umgebende Haut reinigen und desinfizieren\nWundversorgung gemäss ärztlicher Verordnung\nNeuen Verband anbringen und fixieren",
       hilfsmittel: "resource-verbandmaterial-mittel|resource-wundauflage-steril|resource-kompressen|resource-fixierbinde|resource-einmalhandschuhe|resource-desinfektionsmittel",
       dauer: "24",
       personen: "1",
@@ -4088,11 +4113,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-75",
-    name: "10703 Grosser Verband",
+    code: "10703",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10703 Grosser Verband",
-      beschreibung: "",
+      beschreibung: "Steriles und nicht steriles Material vorbereiten\nSteriles Feld vorbereiten (falls notwendig)\nBisherigen Verband entfernen\nWunde und die umgebende Haut reinigen und desinfizieren\nWundversorgung gemäss ärztlicher Verordnung\nNeuen Verband anbringen und fixieren",
       hilfsmittel: "resource-verbandmaterial-gross|resource-wundauflage-steril|resource-kompressen|resource-fixierbinde|resource-einmalhandschuhe|resource-desinfektionsmittel",
       dauer: "40",
       personen: "1",
@@ -4138,11 +4163,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-76",
-    name: "10704 Auslieferung von Hilfsmitteln und Sanitätsmaterial",
+    code: "10704",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10704 Auslieferung von Hilfsmitteln und Sanitätsmaterial",
-      beschreibung: "",
+      beschreibung: "Lieferung des benötigten Hilfsmittels/Sanitätsmaterials\nFunktionsprobe\nQuittierung durch Klientin",
       hilfsmittel: "",
       dauer: "11",
       personen: "1",
@@ -4188,11 +4213,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-77",
-    name: "10801 Gesundheitskontrolle (Vitalparameter)",
+    code: "10801",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10801 Gesundheitskontrolle (Vitalparameter)",
-      beschreibung: "",
+      beschreibung: "Allgemeinzustand beurteilen\nVorbereitung der Klientin\nVitalzeichen (Blutdruck, Puls und Atmung) messen, beurteilen und dokumentieren",
       hilfsmittel: "",
       dauer: "5",
       personen: "1",
@@ -4238,11 +4263,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-78",
-    name: "10802 Blutdruckmessung",
+    code: "10802",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10802 Blutdruckmessung",
-      beschreibung: "",
+      beschreibung: "Vorbereitung der Klientin\nBlutdruck messen und Messwert dokumentieren",
       hilfsmittel: "",
       dauer: "5",
       personen: "1",
@@ -4288,11 +4313,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-79",
-    name: "10803 Pulskontrolle",
+    code: "10803",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10803 Pulskontrolle",
-      beschreibung: "",
+      beschreibung: "Puls kontrollieren und Messwert dokumentieren",
       hilfsmittel: "",
       dauer: "5",
       personen: "1",
@@ -4338,11 +4363,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-80",
-    name: "10804 Atmungsbeobachtung oder -kontrolle",
+    code: "10804",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10804 Atmungsbeobachtung oder -kontrolle",
-      beschreibung: "",
+      beschreibung: "Atemzüge pro Zeiteinheit zählen sowie die Atemcharakteristika beurteilen und dokumentieren (Frequenz, Tiefe, Atemgeräusche).",
       hilfsmittel: "",
       dauer: "5",
       personen: "1",
@@ -4388,11 +4413,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-81",
-    name: "10805 Temperaturmessung",
+    code: "10805",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10805 Temperaturmessung",
-      beschreibung: "",
+      beschreibung: "Körpertemperatur messen und Messwert dokumentieren",
       hilfsmittel: "",
       dauer: "5",
       personen: "1",
@@ -4438,11 +4463,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-82",
-    name: "10806 Gewichtskontrolle",
+    code: "10806",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10806 Gewichtskontrolle",
-      beschreibung: "",
+      beschreibung: "Klientin möglichst zur selben Zeit und in denselben Kleidern wägen\nÖdeme dokumentieren",
       hilfsmittel: "",
       dauer: "5",
       personen: "1",
@@ -4488,11 +4513,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-83",
-    name: "10808 Kapillarblutentnahme incl. Glucosebestimmung",
+    code: "10808",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10808 Kapillarblutentnahme incl. Glucosebestimmung",
-      beschreibung: "",
+      beschreibung: "Fachgerechte Vorbereitung und Durchführung der kapillaren Blutentnahme\nApparat für Glucosebestimmung nach Anleitung betätigen oder korrekte Weiterverarbeitung der Blutprobe garantieren\nResultat festhalten",
       hilfsmittel: "",
       dauer: "10",
       personen: "1",
@@ -4538,11 +4563,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-84",
-    name: "10809 Venenpunktion",
+    code: "10809",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10809 Venenpunktion",
-      beschreibung: "",
+      beschreibung: "Laborformular konsultieren\nFachgerechte Vorbereitung des Entnahme- und Beschriftungsmaterials\nFachgerechte Venenpunktion\nNotwendige Blutmenge entnehmen\nKorrekte Weiterverarbeitung der Blutproben sicherstellen",
       hilfsmittel: "",
       dauer: "15",
       personen: "1",
@@ -4588,11 +4613,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-85",
-    name: "10810 Blutentnahme über Zentralvenenkatheter/ Port-a-cath",
+    code: "10810",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10810 Blutentnahme über Zentralvenenkatheter/ Port-a-cath",
-      beschreibung: "",
+      beschreibung: "Fachgerechte Lagerung der Klientin\nLaborformular konsultieren\nFachgerechte Vorbereitung des Entnahme- und Beschriftungsmaterials\nNotwendige Blutmenge entnehmen\nInfusion wieder mit Katheter verbinden oder Katheter nach Anleitung spülen\nInfusionsflusskontrolle\nKorrekte Weiterverarbeitung der Blutproben sicherstellen",
       hilfsmittel: "",
       dauer: "10",
       personen: "1",
@@ -4638,11 +4663,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-86",
-    name: "10811 Sekretentnahme zur Analyse",
+    code: "10811",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10811 Sekretentnahme zur Analyse",
-      beschreibung: "",
+      beschreibung: "Fachgerechte Vorbereitung des Entnahme- und Beschriftungsmaterials\nNotwendige Sekretmenge entnehmen\nVerwendetes Material ordnen und entsorgen\nWeiterverarbeitung der Sekretproben sicherstellen",
       hilfsmittel: "",
       dauer: "15",
       personen: "1",
@@ -4688,11 +4713,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-87",
-    name: "10812 Urin abnehmen / Uricult anlegen / Glucosebestimmung",
+    code: "10812",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10812 Urin abnehmen / Uricult anlegen / Glucosebestimmung",
-      beschreibung: "",
+      beschreibung: "Fachgerechte Vorbereitung des Entnahme- und Beschriftungsmaterials\nNotwendige Urinmenge nach Anleitung entnehmen\nDurchführen des Glucosetests (falls notwendig)\nWeiterverarbeitung der Urinproben sicherstellen (falls notwendig)",
       hilfsmittel: "",
       dauer: "10",
       personen: "1",
@@ -4738,11 +4763,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-88",
-    name: "10901 Erstassessment",
+    code: "10901",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10901 Erstassessment",
-      beschreibung: "",
+      beschreibung: "Abklärung mit den Formularen SDA und interRAI-Instrumenten und/oder weiteren benötigten Assessmentinstrumenten\nEinholen fremdanamnestischer Angaben (falls angezeigt und die Klientin die Einwilligung gegeben hat)\nIdentifikation und Beurteilung von Komplexität und Stabilität",
       hilfsmittel: "",
       dauer: "60",
       personen: "1",
@@ -4788,11 +4813,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-89",
-    name: "10902 Reassessment",
+    code: "10902",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10902 Reassessment",
-      beschreibung: "",
+      beschreibung: "Abklärung mit den Formularen SDA und interRAI-Instrumenten und/oder weiteren benötigten Assessmentinstrumenten\nFokus-Assessment mit wissenschaftlich evaluierten Instrumenten (z.B. Schmerz-, Sturz-, Malnutrition-Assessments, etc.)\nEinholen fremdanamnestischer Angaben (falls angezeigt und die Klientin die Einwilligung gegeben hat)\nIdentifikation und Beurteilung von Komplexität und Stabilität",
       hilfsmittel: "",
       dauer: "60",
       personen: "1",
@@ -4838,11 +4863,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-90",
-    name: "10903 Hauswirtschaftsplanung erstmalig im Rahmen der Bedarfsabklärung",
+    code: "10903",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10903 Hauswirtschaftsplanung erstmalig im Rahmen der Bedarfsabklärung",
-      beschreibung: "",
+      beschreibung: "Dieser Punkt umfasst die fachgerechten Analyse der Klientinnensituation anhand des Assessments, die Zielsetzung sowie das Festlegen der geeigneten hauswirtschaftlichen Massnahmen",
       hilfsmittel: "",
       dauer: "30",
       personen: "1",
@@ -4888,11 +4913,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-91",
-    name: "10904 Pflegeplanung erstmalig im Rahmen der Bedarfsabklärung",
+    code: "10904",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10904 Pflegeplanung erstmalig im Rahmen der Bedarfsabklärung",
-      beschreibung: "",
+      beschreibung: "Dieser Punkt umfasst die fachgerechten Analyse der Klientinnensituation anhand des Assessments, die Zielsetzung sowie das Festlegen der notwendigen pflegerischen Massnahmen",
       hilfsmittel: "",
       dauer: "30",
       personen: "1",
@@ -4938,11 +4963,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-92",
-    name: "10905 Dienstleistungsbedarf Hauswirtschaft bestimmen im Rahmen der Bedarfsabklärung (Leistungskatalog)",
+    code: "10905",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10905 Dienstleistungsbedarf Hauswirtschaft bestimmen im Rahmen der Bedarfsabklärung (Leistungskatalog)",
-      beschreibung: "",
+      beschreibung: "Quantifizierung der notwendigen hauswirtschaftlichen Leistungen mit Hilfe des Leistungskatalogs",
       hilfsmittel: "",
       dauer: "15",
       personen: "1",
@@ -4988,11 +5013,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-93",
-    name: "10906 Pflegebedarf bestimmen und evaluieren",
+    code: "10906",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10906 Pflegebedarf bestimmen und evaluieren",
-      beschreibung: "",
+      beschreibung: "Quantifizierung der notwendigen Pflegemassnahmen mit Hilfe des Leistungskatalogs\nVorbereitung/Bearbeitung der Unterlagen zur Genehmigung durch den Hausarzt\nEvaluation und Anpassung der fortlaufenden Pflegeplanung",
       hilfsmittel: "",
       dauer: "15",
       personen: "1",
@@ -5038,11 +5063,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-94",
-    name: "10907 Konsultation Arzt – Spitex zur Bedarfsabklärung",
+    code: "10907",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10907 Konsultation Arzt – Spitex zur Bedarfsabklärung",
-      beschreibung: "",
+      beschreibung: "Den Arzt über die objektiven und subjektiven Befunde und Befindlichkeiten informieren, die für die gute interdisziplinäre Behandlung und Betreuung von Belang sind\nPatientenuntersuchung gemeinsam mit dem Arzt\nAktualisierung der ärztlichen Verordnungen",
       hilfsmittel: "",
       dauer: "11",
       personen: "1",
@@ -5088,11 +5113,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-95",
-    name: "10912 Koordination",
+    code: "10912",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10912 Koordination",
-      beschreibung: "",
+      beschreibung: "Identifikation und Beurteilung von komplexen und instabilen Situationen\nIdentifizieren und Festlegen der Koordinationsrolle mit definierter Zielsetzung\nGezielte Koordination mit mehreren Beteiligten ausserhalb der eigenen Organisation zur Optimierung von Pflege und Behandlung\nDokumentation der daraus resultierenden festgelegten Massnahmen (Bsp. Beschlussprotokoll)\nVersorgungsplanung und Umsetzung der Massnahmen zur Verhinderung von Komplikationen.\nKoordinations-Monitoring",
       hilfsmittel: "",
       dauer: "0",
       personen: "1",
@@ -5138,11 +5163,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-96",
-    name: "10913 Bedarfsabklärung Hauswirtschaft",
+    code: "10913",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10913 Bedarfsabklärung Hauswirtschaft",
-      beschreibung: "",
+      beschreibung: "Abklärung mit den Formularen Stammdaten und Angaben, Hauswirtschaft.\nEinholen fremdanamnestischer Angaben (falls angezeigt und die Klientin die Einwilligung gegeben hat).",
       hilfsmittel: "",
       dauer: "60",
       personen: "1",
@@ -5188,11 +5213,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-97",
-    name: "10908 Unterstützende Massnahmen, Gespräch mit Klientin/Angehörigen (wenn separate Dienstleistung)",
+    code: "10908",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10908 Unterstützende Massnahmen, Gespräch mit Klientin/Angehörigen (wenn separate Dienstleistung)",
-      beschreibung: "",
+      beschreibung: "Zuhören, ermutigen, trösten und unterstützen der Klientin und ihrer Nächsten in Phasen von Krankheit, Veränderung, Trauer oder Verlust mit dem Ziel, Ressourcen für den zukünftigen Lebensweg zu erkennen",
       hilfsmittel: "",
       dauer: "20",
       personen: "1",
@@ -5238,11 +5263,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-98",
-    name: "10909 Pflegeanleitung/Beratung Klientin oder Angehörige",
+    code: "10909",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10909 Pflegeanleitung/Beratung Klientin oder Angehörige",
-      beschreibung: "",
+      beschreibung: "Anleitung und Beratung zur Erlangung pflegerischer Fertigkeiten (z.B. Verband selbständig anlegen, Injektionen wie Fraxiparin oder Insulin beim Diabetiker applizieren, Atemübungen, Stomapflege oder Katheterpflege, Symptomkontrolle und Dokumentation etc.) und dem Umgang mit Krankheitssymptomen\nÜberprüfung, ob Anleitung verstanden wurde und richtig umgesetzt wird",
       hilfsmittel: "",
       dauer: "15",
       personen: "1",
@@ -5288,11 +5313,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-99",
-    name: "10910 Begleitung, Betreuung, Anwesenheit nach Zeit",
+    code: "10910",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10910 Begleitung, Betreuung, Anwesenheit nach Zeit",
-      beschreibung: "",
+      beschreibung: "Begleitung und Betreuung der Klientin während einer festgelegten Zeitspanne",
       hilfsmittel: "",
       dauer: "0",
       personen: "1",
@@ -5338,11 +5363,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-100",
-    name: "10911 Beraten bei Gefahren / Änderungen in der Wohnung veranlassen",
+    code: "10911",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10911 Beraten bei Gefahren / Änderungen in der Wohnung veranlassen",
-      beschreibung: "",
+      beschreibung: "Gefahrenquellen erkennen\nDer Klientin helfen, Gefahrenquellen zu beseitigen: z.B. Möbelumstellung, Teppiche fixieren\nKleinere Reparaturen ausführen\nReparaturen, die Spezialisten erfordern, veranlassen",
       hilfsmittel: "",
       dauer: "20",
       personen: "1",
@@ -5388,11 +5413,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-101",
-    name: "10999 Nicht aufgeführte Leistungen, Pflege/Betreuung",
+    code: "10999",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10999 Nicht aufgeführte Leistungen, Pflege/Betreuung",
-      beschreibung: "",
+      beschreibung: "Diese Rubrik steht Ihnen für die Dokumentation von benötigten Leistungen aus dem Bereich Pflege/Betreuung offen, die nicht im Leistungskatalog aufgeführt sind.",
       hilfsmittel: "",
       dauer: "0",
       personen: "1",
@@ -5438,7 +5463,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-102",
-    name: "10001 Beratung / Anleitung mit Person",
+    code: "10001",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10001 Beratung / Anleitung mit Person",
@@ -5488,7 +5513,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-103",
-    name: "10002 Erarbeiten und Einüben von Bewältigungsstrategien",
+    code: "10002",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10002 Erarbeiten und Einüben von Bewältigungsstrategien",
@@ -5538,7 +5563,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-104",
-    name: "10003 Unterstützung Begleitung bei der Bewältigung von Krisen und in schwierigen Lebensphasen",
+    code: "10003",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10003 Unterstützung Begleitung bei der Bewältigung von Krisen und in schwierigen Lebensphasen",
@@ -5588,7 +5613,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-105",
-    name: "10004 Trainieren von Verrichtungen und Alltagsfertigkeiten (z.B.: Einkaufen, Essenszubereitung)",
+    code: "10004",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10004 Trainieren von Verrichtungen und Alltagsfertigkeiten (z.B.: Einkaufen, Essenszubereitung)",
@@ -5638,7 +5663,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-106",
-    name: "10005 Erarbeiten und Einüben einer angepassten Tagesstruktur",
+    code: "10005",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10005 Erarbeiten und Einüben einer angepassten Tagesstruktur",
@@ -5688,7 +5713,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-107",
-    name: "10006 Trainieren der sozialen Kontaktaufnahme und der Gestaltung von Beziehungen",
+    code: "10006",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10006 Trainieren der sozialen Kontaktaufnahme und der Gestaltung von Beziehungen",
@@ -5738,7 +5763,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-108",
-    name: "10007 Aktivitätsaufbau",
+    code: "10007",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10007 Aktivitätsaufbau",
@@ -5788,7 +5813,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-109",
-    name: "10008 Verabreichen und/oder Kontrolle der Medikamente",
+    code: "10008",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10008 Verabreichen und/oder Kontrolle der Medikamente",
@@ -5838,7 +5863,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-110",
-    name: "10009 Anleiten / Unterstützen bei der Wohnungspflege",
+    code: "10009",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10009 Anleiten / Unterstützen bei der Wohnungspflege",
@@ -5888,7 +5913,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-111",
-    name: "10010 Anleiten / Unterstützen bei der Körperpflege",
+    code: "10010",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10010 Anleiten / Unterstützen bei der Körperpflege",
@@ -5938,7 +5963,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-112",
-    name: "10011 Begleiten zu Arzt, Klinik, anderen Institutionen, Behörden",
+    code: "10011",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10011 Begleiten zu Arzt, Klinik, anderen Institutionen, Behörden",
@@ -5988,7 +6013,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-113",
-    name: "10012 Anleiten der Person zu Besorgungen",
+    code: "10012",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10012 Anleiten der Person zu Besorgungen",
@@ -6038,7 +6063,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-114",
-    name: "10013 Planen, Organisation, Koordination der Behandlung mit Arzt und anderen Diensten, Behörden",
+    code: "10013",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10013 Planen, Organisation, Koordination der Behandlung mit Arzt und anderen Diensten, Behörden",
@@ -6088,7 +6113,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-115",
-    name: "10014 Anleitung im Umgang mit Aggression, Angst und Wahnvorstellungen",
+    code: "10014",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10014 Anleitung im Umgang mit Aggression, Angst und Wahnvorstellungen",
@@ -6138,7 +6163,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-116",
-    name: "10015 Unterstützung zur Vermeidung von akuter Selbst- oder Fremdgefährdung",
+    code: "10015",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10015 Unterstützung zur Vermeidung von akuter Selbst- oder Fremdgefährdung",
@@ -6188,7 +6213,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-117",
-    name: "10016 Unterstützung beim Einsatz von Orientierungshilfen und Sicherheitsmassnahmen",
+    code: "10016",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10016 Unterstützung beim Einsatz von Orientierungshilfen und Sicherheitsmassnahmen",
@@ -6238,11 +6263,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-118",
-    name: "10099 Nicht aufgeführte psychiatrische Leistungen",
+    code: "10099",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "10099 Nicht aufgeführte psychiatrische Leistungen",
-      beschreibung: "",
+      beschreibung: "Diese Rubrik steht Ihnen für die Dokumentation von benötigten psychiatrischen Leistungen offen, die nicht im Leistungskatalog aufgeführt sind.",
       hilfsmittel: "",
       dauer: "0",
       personen: "1",
@@ -6288,11 +6313,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-119",
-    name: "20001 Kontrollbesuch",
+    code: "20001",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20001 Kontrollbesuch",
-      beschreibung: "",
+      beschreibung: "Gespräch mit Klientin\nAllgemeinzustand der Klientin und der Wohnsituation beurteilen\nBesuchszeit, Beobachtungen, Befunde und Veranlassungen dokumentieren",
       hilfsmittel: "",
       dauer: "5",
       personen: "1",
@@ -6338,11 +6363,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-120",
-    name: "20002 Bett machen",
+    code: "20002",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20002 Bett machen",
-      beschreibung: "",
+      beschreibung: "Bett machen (Klientin nicht im Bett; sonst 502)",
       hilfsmittel: "",
       dauer: "6",
       personen: "1",
@@ -6388,11 +6413,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-121",
-    name: "20003 Bett frisch beziehen",
+    code: "20003",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20003 Bett frisch beziehen",
-      beschreibung: "",
+      beschreibung: "Bett mit frischer Bettwäsche beziehen und Bett machen (Klientin nicht im Bett; sonst 502)\nGebrauchte Bettwäsche wegbringen",
       hilfsmittel: "",
       dauer: "10",
       personen: "1",
@@ -6438,11 +6463,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-122",
-    name: "20004 Kleiderpflege",
+    code: "20004",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20004 Kleiderpflege",
-      beschreibung: "",
+      beschreibung: "Vorbereitung der Tageskleidung: Lüften, bürsten, Fuseln entfernen etc.\nFleckenentfernung (falls notwendig)",
       hilfsmittel: "",
       dauer: "10",
       personen: "1",
@@ -6488,11 +6513,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-123",
-    name: "20005 Waschen Hand/Maschine",
+    code: "20005",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20005 Waschen Hand/Maschine",
-      beschreibung: "",
+      beschreibung: "Wäsche zur Wäscherei bringen oder abholen respektive diese Leistungen veranlassen\nWäsche zum Trocken aufhängen oder in Tumbler geben\nWäsche falten und in Wäscheschrank versorgen kleine Flickarbeiten ausführen (falls notwendig; vgl. Punkt 006)\nKontrolle: Maschinen und Geräte reinigen und für Waschmittelnachschub sorgen",
       hilfsmittel: "",
       dauer: "40",
       personen: "1",
@@ -6538,11 +6563,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-124",
-    name: "20006 Bügeln, flicken",
+    code: "20006",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20006 Bügeln, flicken",
-      beschreibung: "",
+      beschreibung: "Materialbeschaffung\nWäsche und Kleider bügeln\nFlickarbeiten ausführen (falls notwendig)\nIn Kleider oder Wäscheschrank versorgen\nKontrolle der Geräte\nMaterial aufräumen",
       hilfsmittel: "",
       dauer: "40",
       personen: "1",
@@ -6588,11 +6613,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-125",
-    name: "20007 Aufräumen, Ordnung",
+    code: "20007",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20007 Aufräumen, Ordnung",
-      beschreibung: "",
+      beschreibung: "Aufräumen und Ordnung herstellen\nMaterial und Gerätekontrolle\nKontrolle: Maschinen und Geräte reinigen und für Reinigungsmaterialnachschub sorgen",
       hilfsmittel: "",
       dauer: "30",
       personen: "1",
@@ -6638,11 +6663,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-126",
-    name: "20008 Abwaschen",
+    code: "20008",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20008 Abwaschen",
-      beschreibung: "",
+      beschreibung: "Geschirr Abwaschen und abtrocknen\nMaterialgerechte Reinigung der Flächen\nApparatereinigung nach Bedienungsanleitung (falls notwendig)\nGeschirr versorgen",
       hilfsmittel: "",
       dauer: "20",
       personen: "1",
@@ -6688,11 +6713,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-127",
-    name: "20009 Wochenkehr 1-Zimmer-Wohnung",
+    code: "20009",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20009 Wochenkehr 1-Zimmer-Wohnung",
-      beschreibung: "",
+      beschreibung: "Vorhänge, Fenster öffnen\nAbfälle entsorgen und Herumliegendes versorgen\nTischtücher wechseln (falls notwendig)\nAbstauben\nBoden reinigen oder Teppiche saugen (inkl. Balkon)\nArbeitsgeräte warten und wegräumen",
       hilfsmittel: "",
       dauer: "30",
       personen: "1",
@@ -6738,11 +6763,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-128",
-    name: "20010 Wochenkehr 2-Zimmer-Wohnung",
+    code: "20010",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20010 Wochenkehr 2-Zimmer-Wohnung",
-      beschreibung: "",
+      beschreibung: "Vorhänge, Fenster öffnen\nAbfälle entsorgen und Herumliegendes versorgen\nTischtücher wechseln (falls notwendig)\nAbstauben\nBoden reinigen oder Teppiche saugen (inkl. Balkon)\nArbeitsgeräte warten und wegräumen",
       hilfsmittel: "",
       dauer: "60",
       personen: "1",
@@ -6788,11 +6813,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-129",
-    name: "20011 Wochenkehr 3-Zimmer-Wohnung",
+    code: "20011",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20011 Wochenkehr 3-Zimmer-Wohnung",
-      beschreibung: "",
+      beschreibung: "Vorhänge, Fenster öffnen\nAbfälle entsorgen und Herumliegendes versorgen\nTischtücher wechseln (falls notwendig)\nAbstauben\nBoden reinigen oder Teppiche saugen (inkl. Balkon)\nArbeitsgeräte warten und wegräumen",
       hilfsmittel: "",
       dauer: "75",
       personen: "1",
@@ -6838,11 +6863,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-130",
-    name: "20012 Wochenkehr 4-Zimmer-Wohnung",
+    code: "20012",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20012 Wochenkehr 4-Zimmer-Wohnung",
-      beschreibung: "",
+      beschreibung: "Vorhänge, Fenster öffnen\nAbfälle entsorgen und Herumliegendes versorgen\nTischtücher wechseln (falls notwendig)\nAbstauben\nBoden reinigen oder Teppiche saugen (inkl. Balkon)\nArbeitsgeräte warten und wegräumen",
       hilfsmittel: "",
       dauer: "90",
       personen: "1",
@@ -6888,11 +6913,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-131",
-    name: "20013 Wochenkehr mehr als 4 Zimmer",
+    code: "20013",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20013 Wochenkehr mehr als 4 Zimmer",
-      beschreibung: "",
+      beschreibung: "Vorhänge, Fenster öffnen\nAbfälle entsorgen und Herumliegendes versorgen\nTischtücher wechseln (falls notwendig)\nAbstauben\nBoden reinigen oder Teppiche saugen (inkl. Balkon)\nArbeitsgeräte warten und wegräumen",
       hilfsmittel: "",
       dauer: "120",
       personen: "1",
@@ -6938,11 +6963,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-132",
-    name: "20014 Küche/Bad reinigen",
+    code: "20014",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20014 Küche/Bad reinigen",
-      beschreibung: "",
+      beschreibung: "Bewegliche Gegenstände wegräumen und putzen\nMaterialgerechtes Reinigen der Flächen und Fronten\nMaterialgerechte Bodenreinigung\nOrdnung wiederherstellen\nWäsche wechseln\nAbfälle entsorgen\nArbeitsgeräte warten und wegräumen",
       hilfsmittel: "",
       dauer: "20",
       personen: "1",
@@ -6988,11 +7013,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-133",
-    name: "20015 Andere Putzarbeiten",
+    code: "20015",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20015 Andere Putzarbeiten",
-      beschreibung: "",
+      beschreibung: "Vereinbarte Putzarbeiten ausführen\nArbeitsgeräte warten und wegräumen\nFenster reinigen (kein Frühlingsputz)",
       hilfsmittel: "",
       dauer: "20",
       personen: "1",
@@ -7038,11 +7063,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-134",
-    name: "20016 Heizen, lüften",
+    code: "20016",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20016 Heizen, lüften",
-      beschreibung: "",
+      beschreibung: "Einheizen je nach Heizungsart\nSicherheitskontrolle\nMöglichst kurz und intensiv durchlüften\nFür Heizmaterialnachschub besorgt sein\nPeriodische Heizgerätekontrolle nach Gebrauchsanweisung",
       hilfsmittel: "",
       dauer: "5",
       personen: "1",
@@ -7088,11 +7113,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-135",
-    name: "20017 Briefkasten leeren",
+    code: "20017",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20017 Briefkasten leeren",
-      beschreibung: "",
+      beschreibung: "Täglich den Briefkasten leeren",
       hilfsmittel: "",
       dauer: "5",
       personen: "1",
@@ -7138,11 +7163,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-136",
-    name: "20018 Tier-, Pflanzenpflege",
+    code: "20018",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20018 Tier-, Pflanzenpflege",
-      beschreibung: "",
+      beschreibung: "Artgerechte Pflege der Pflanzen und Tiere\nTierkäfig reinigen (falls notwendig)\nFür Nahrungsnachschub besorgt sein",
       hilfsmittel: "",
       dauer: "10",
       personen: "1",
@@ -7188,11 +7213,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-137",
-    name: "20019 Abfall/Altpapier entsorgen",
+    code: "20019",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20019 Abfall/Altpapier entsorgen",
-      beschreibung: "",
+      beschreibung: "Abfall/Altpapier nach örtlichen Richtlinien vors Haus oder in entsprechendes Behältnis entsorgen\nAbfallbehältnis und Abfallfach säubern",
       hilfsmittel: "",
       dauer: "7",
       personen: "1",
@@ -7238,11 +7263,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-138",
-    name: "20020 Haushalt organisieren",
+    code: "20020",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20020 Haushalt organisieren",
-      beschreibung: "",
+      beschreibung: "Haushaltorganisation mit der Klientin besprechen und sie entsprechend beraten\nVereinbarte Haushaltorganisation in für die Klientin geeigneter Weise festhalten\nKlientin auf Besonderes aufmerksam machen und Unterstützung in der Durchführung",
       hilfsmittel: "",
       dauer: "60",
       personen: "1",
@@ -7288,11 +7313,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-139",
-    name: "20031 Einkaufen ohne Klientin",
+    code: "20031",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20031 Einkaufen ohne Klientin",
-      beschreibung: "",
+      beschreibung: "Einkaufsliste (für Dinge des täglichen Bedarfs) mit Klientin machen\nEinkaufen\nEingekaufte Dinge versorgen\nAbrechnung mit Klientin oder deren Angehörigen erstellen",
       hilfsmittel: "",
       dauer: "45",
       personen: "1",
@@ -7338,11 +7363,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-140",
-    name: "20032 Einkaufen mit Klientin",
+    code: "20032",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20032 Einkaufen mit Klientin",
-      beschreibung: "",
+      beschreibung: "Einkaufsliste (für Dinge des täglichen Bedarfs) mit Klientin machen\nTransportmittel organisieren (falls notwendig)\nEinkaufen zusammen mit Klientin\nEingekaufte Dinge versorgen\nAbrechnung mit Klientin oder deren Angehörigen erstellen",
       hilfsmittel: "",
       dauer: "90",
       personen: "1",
@@ -7388,11 +7413,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-141",
-    name: "20033 Morgen- und Abendessen zubereiten",
+    code: "20033",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20033 Morgen- und Abendessen zubereiten",
-      beschreibung: "",
+      beschreibung: "Vorbereitetes Essen erwärmen oder Vorbereitung oder Kochen von Essen mit frischen Zutaten\nAbwaschen und Flächen reinigen",
       hilfsmittel: "",
       dauer: "15",
       personen: "1",
@@ -7438,11 +7463,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-142",
-    name: "20034 Mittagessen kochen",
+    code: "20034",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20034 Mittagessen kochen",
-      beschreibung: "",
+      beschreibung: "Vorbereitetes Essen erwärmen oder Vorbereitung oder Kochen von Essen mit frischen Zutaten\nAbwaschen und Flächen reinigen",
       hilfsmittel: "",
       dauer: "25",
       personen: "1",
@@ -7488,11 +7513,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-143",
-    name: "20035 Diät kochen",
+    code: "20035",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20035 Diät kochen",
-      beschreibung: "",
+      beschreibung: "Nach ärztlicher Verordnung oder nach Anleitung Ernährungsberatung (evtl. mit Klientin) Diätkost zubereiten:\nDiät erklären\nDiät kochen\nAbwaschen und Flächen reinigen",
       hilfsmittel: "",
       dauer: "40",
       personen: "1",
@@ -7538,11 +7563,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-144",
-    name: "20036 Menüplan aufstellen",
+    code: "20036",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20036 Menüplan aufstellen",
-      beschreibung: "",
+      beschreibung: "Menüplan aufstellen\nMenüplan in für die Klientin geeigneter Form festhalten\nDas Notwendige zur Umsetzung des Menüplans veranlassen\nVerifizierung der Umsetzung des Menüplans",
       hilfsmittel: "",
       dauer: "20",
       personen: "1",
@@ -7588,11 +7613,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-145",
-    name: "20038 Mahlzeitendienst organisieren",
+    code: "20038",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20038 Mahlzeitendienst organisieren",
-      beschreibung: "",
+      beschreibung: "Mahlzeitendienst organisieren\nKontrolle",
       hilfsmittel: "",
       dauer: "10",
       personen: "1",
@@ -7638,11 +7663,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-146",
-    name: "20039 Mahlzeiten nach Hause bringen",
+    code: "20039",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20039 Mahlzeiten nach Hause bringen",
-      beschreibung: "",
+      beschreibung: "Essen (z.B. aus Restaurant, Stadtküche etc.) der Patientin vorbeibringen\nBeim Aufwärmen helfen (falls notwendig)",
       hilfsmittel: "",
       dauer: "10",
       personen: "1",
@@ -7688,11 +7713,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-147",
-    name: "20041 Kleine finanzielle, administrative Aufgaben",
+    code: "20041",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20041 Kleine finanzielle, administrative Aufgaben",
-      beschreibung: "",
+      beschreibung: "Die zu übernehmenden Aufgaben mit Klientin oder deren Angehörigen genau festlegen\nDurchführung im Beisein der Klientin\nGenaue Abrechnung mit Klientin oder deren Angehörigen",
       hilfsmittel: "",
       dauer: "30",
       personen: "1",
@@ -7738,11 +7763,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-148",
-    name: "20042 Säuglings- oder Kinderbetreuung (nicht Kinderspitex)",
+    code: "20042",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20042 Säuglings- oder Kinderbetreuung (nicht Kinderspitex)",
-      beschreibung: "",
+      beschreibung: "Mit der Mutter, dem Vater oder den verantwortlichen Angehörigen die Bedürfnisse genau besprechen\nSäugling/Kinder betreuen\nRückmeldung über Verlauf der Betreuung an zuständige Person\nAuf Besonderheiten hinweisen.\nNotwendige Dokumentation erstellen",
       hilfsmittel: "",
       dauer: "0",
       personen: "1",
@@ -7788,11 +7813,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-149",
-    name: "20043 Beziehung herstellen, informieren, motivieren",
+    code: "20043",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20043 Beziehung herstellen, informieren, motivieren",
-      beschreibung: "",
+      beschreibung: "Informieren, stimulieren, anleiten und fördern der Klientin oder deren Angehörigen, wie die Klientin zu vermehrter Selbständigkeit in ihren Alltagsaktivitäten kommt oder wie sie dazu beitragen kann, ihren Heilungsprozess zu fördern\nInformationen in für die Klientin verständlicher Form festhalten (falls notwendig)",
       hilfsmittel: "",
       dauer: "15",
       personen: "1",
@@ -7838,11 +7863,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-150",
-    name: "20044 Gespräch bei einsamen Klient/-innen",
+    code: "20044",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20044 Gespräch bei einsamen Klient/-innen",
-      beschreibung: "",
+      beschreibung: "Gespräche zur Linderung des Einsamkeitsgefühls bei einsamen Klient/innen",
       hilfsmittel: "",
       dauer: "30",
       personen: "1",
@@ -7888,11 +7913,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-151",
-    name: "20045 Religiöse Aktivitäten ermöglichen",
+    code: "20045",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20045 Religiöse Aktivitäten ermöglichen",
-      beschreibung: "",
+      beschreibung: "Der Klientin die Möglichkeit geben zur Ausübung religiöser Bedürfnisse und Aktivitäten\nZur Kirche oder anderen religiösen Veranstaltungen begleiten oder dort abholen\nBesuche durch Pfarrpersonen, Kirchgemeindearbeiter u. ä. organisieren helfen",
       hilfsmittel: "",
       dauer: "20",
       personen: "1",
@@ -7938,11 +7963,11 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
   },
   {
     id: "tpl-152",
-    name: "20099 Nicht aufgeführte hauswirtschaftliche Leistungen",
+    code: "20099",
     disciplineIds: ["discipline-inhouse-spitex"],
     fields: {
       titel: "20099 Nicht aufgeführte hauswirtschaftliche Leistungen",
-      beschreibung: "",
+      beschreibung: "Diese Rubrik steht Ihnen für die Dokumentation von benötigten hauswirtschaftlichen Leistungen offen, die nicht im Leistungskatalog aufgeführt.",
       hilfsmittel: "",
       dauer: "0",
       personen: "1",
@@ -7990,9 +8015,9 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
 
 export const initialTemplates: ActionPlanTemplate[] = seedTemplates.map((template) => ({
   ...template,
-  categoryId: getCategoryIdForTemplateName(template.name),
+  categoryId: getCategoryIdForTemplateName(template.code),
   // Geseedete Kategorien sind fest, die uebrigen Vorlagen frei.
-  categoryEditable: !getCategoryIdForTemplateName(template.name),
+  categoryEditable: !getCategoryIdForTemplateName(template.code),
 }));
 
 
@@ -8085,8 +8110,13 @@ export const loadActionPlanTemplates = (): ActionPlanTemplate[] => {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return initialTemplates;
     const validCategoryIds = new Set(loadActionPlanCategories().map((category) => category.id));
-    return parsed.map((template) => ({
+    return parsed.map(({ name: legacyName, ...template }) => ({
       ...template,
+      // Frueher "name" (z. B. "10101 Ganzwaesche …"): Code = fuehrende Ziffern.
+      code:
+        typeof template.code === "string"
+          ? template.code.trim()
+          : (/^(\d+)\b/.exec(typeof legacyName === "string" ? legacyName.trim() : "")?.[1] ?? ""),
       categoryId:
         typeof template.categoryId === "string" && validCategoryIds.has(template.categoryId)
           ? template.categoryId
@@ -8095,7 +8125,10 @@ export const loadActionPlanTemplates = (): ActionPlanTemplate[] => {
       disciplineIds: Array.isArray(template.disciplineIds)
         ? template.disciplineIds.filter((disciplineId): disciplineId is string => typeof disciplineId === "string")
         : [],
-      fields: migrateTemplateFields(template.fields ?? {}),
+      fields: migrateTemplateFields({
+        ...template.fields,
+        titel: template.fields?.titel || (typeof legacyName === "string" ? legacyName : ""),
+      }),
       editable: { ...buildDefaultTemplateEditable(true), ...(template.editable ?? {}) },
       required: {
         ...buildDefaultTemplateRequired(),

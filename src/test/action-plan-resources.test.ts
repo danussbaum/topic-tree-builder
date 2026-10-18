@@ -72,7 +72,7 @@ describe("Hilfsmittel-Katalog", () => {
 
   it("hat für die Inhouse-Spitex-Handlungsarten Hilfsmittel hinterlegt", () => {
     const verband = initialTemplates.find((template) =>
-      template.name.startsWith("10702"),
+      template.code === "10702",
     );
     expect(
       getResourceNames(
