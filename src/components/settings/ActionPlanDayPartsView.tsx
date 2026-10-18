@@ -14,6 +14,7 @@ import {
   validateDayParts,
   type DayPartDefinition,
   type DayPartUsage,
+  type DayPartValidationError,
 } from "@/lib/day-parts";
 
 export interface ActionPlanDayPartsHandle {
@@ -35,6 +36,16 @@ const usageLabel = (usage?: DayPartUsage): string | null => {
   }
   return parts.length > 0 ? parts.join(" · ") : null;
 };
+
+// Wie in socialweb: Meldung direkt unter dem Feld; die Spaltenüberschrift ist das Label.
+const FieldErrors = ({ errors }: { errors: DayPartValidationError[] }) =>
+  errors.length > 0 ? (
+    <div className="mt-1 space-y-0.5 text-xs text-destructive">
+      {errors.map((error) => (
+        <p key={error.message}>{error.message}</p>
+      ))}
+    </div>
+  ) : null;
 
 /**
  * Tageszeiten als Stammdaten. Anders als die übrigen Stammdaten-Ansichten wird hier
@@ -60,6 +71,8 @@ export const ActionPlanDayPartsView = forwardRef<
   const errorFor = (id: string, field: "title" | "from" | "to") =>
     errors.find((error) => error.dayPartId === id && error.field === field);
   const listErrors = errors.filter((error) => !error.dayPartId);
+  const errorsFor = (id: string, field: "title" | "from" | "to") =>
+    errors.filter((error) => error.dayPartId === id && error.field === field);
 
   const isDirty = useMemo(
     () => JSON.stringify(draft) !== JSON.stringify(saved),
@@ -164,6 +177,7 @@ export const ActionPlanDayPartsView = forwardRef<
                         showErrors && errorFor(entry.id, "title") && "border-destructive",
                       )}
                     />
+                    {showErrors && <FieldErrors errors={errorsFor(entry.id, "title")} />}
                   </td>
                   <td className="px-4 py-2">
                     <Input
@@ -176,6 +190,7 @@ export const ActionPlanDayPartsView = forwardRef<
                         showErrors && errorFor(entry.id, "from") && "border-destructive",
                       )}
                     />
+                    {showErrors && <FieldErrors errors={errorsFor(entry.id, "from")} />}
                   </td>
                   <td className="px-4 py-2">
                     <Input
@@ -188,6 +203,7 @@ export const ActionPlanDayPartsView = forwardRef<
                         showErrors && errorFor(entry.id, "to") && "border-destructive",
                       )}
                     />
+                    {showErrors && <FieldErrors errors={errorsFor(entry.id, "to")} />}
                     {spansMidnight(entry) && (
                       <span className="text-[11px] text-muted-foreground">über Mitternacht</span>
                     )}
@@ -223,9 +239,9 @@ export const ActionPlanDayPartsView = forwardRef<
           Tageszeit hinzufügen
         </Button>
 
-        {showErrors && errors.length > 0 && (
+        {showErrors && listErrors.length > 0 && (
           <ul className="space-y-1 text-xs text-destructive">
-            {[...listErrors, ...errors.filter((error) => error.dayPartId)].map((error, index) => (
+            {listErrors.map((error, index) => (
               <li key={`${error.dayPartId ?? "list"}-${index}`}>{error.message}</li>
             ))}
           </ul>

@@ -95,3 +95,4 @@ Passt die im Browser gespeicherte Version nicht zur aktuellen, sperrt der LoginG
 - Kommentare nur, wo das *Warum* nicht offensichtlich ist (bestehender Code macht das gut vor — an dessen Dichte/Stil halten).
 - Import-Alias `@/` → `src/`.
 - Kein Overengineering; im Stil des umgebenden Codes bleiben.
+- **Feldvalidierung wie in socialweb:** Meldung direkt **unterhalb** des betroffenen Eingabefelds (rot, `text-xs text-destructive`), Feld rot umrandet (`border-destructive`, `aria-invalid`, Meldung per `aria-describedby` verknüpft). Hat das Feld ein Label, steht der Feldname **nicht** nochmals in der Meldung. Hat es kein Label, steht der Feldname **oberhalb** des Felds. Keine Sammelmeldungen fernab vom Feld (z. B. nur in der Fusszeile) für feldbezogene Fehler.

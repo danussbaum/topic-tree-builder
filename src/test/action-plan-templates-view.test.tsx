@@ -157,10 +157,34 @@ describe("ActionPlanTemplatesView", () => {
       fireEvent.click(screen.getByRole("button", { name: "Uhrzeiten" }));
       fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
-      expect(screen.getByText(/Tageszeit: .*unterschiedliche Uhrzeit/)).toBeInTheDocument();
+      // Unter dem Feld, darum ohne vorangestellten Feldnamen.
+      expect(screen.getByText(/unterschiedliche Uhrzeit/)).toBeInTheDocument();
+      expect(screen.queryByText(/Tageszeit: /)).not.toBeInTheDocument();
       const stored = JSON.parse(window.localStorage.getItem(ACTION_PLAN_TEMPLATES_STORAGE_KEY)!);
       expect(stored[0].fields.tageszeit).toBe("none");
     });
+  });
+});
+
+describe("ActionPlanTemplatesView / Code", () => {
+  it("zeigt einen bereits vergebenen Code als Meldung direkt unter dem Feld", () => {
+    window.localStorage.setItem(
+      ACTION_PLAN_TEMPLATES_STORAGE_KEY,
+      JSON.stringify([
+        { ...createTemplate("tpl-a", "Alpha", "none", "none"), code: "HC-LK-10101" },
+        { ...createTemplate("tpl-b", "Beta", "none", "none"), code: "HC-LK-10102" },
+      ]),
+    );
+    render(<ActionPlanTemplatesView searchQuery="" />);
+    fireEvent.click(screen.getByText("Beta"));
+
+    const codeInput = screen.getByLabelText("Code");
+    fireEvent.change(codeInput, { target: { value: "HC-LK-10101" } });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    // Das Feld hat ein Label, darum steht der Feldname nicht noch einmal in der Meldung.
+    expect(codeInput).toHaveAccessibleDescription("HC-LK-10101 ist bereits vergeben");
+    expect(codeInput).toHaveAttribute("aria-invalid", "true");
   });
 });
 

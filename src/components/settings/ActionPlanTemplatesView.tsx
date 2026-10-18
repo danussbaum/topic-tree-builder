@@ -224,6 +224,7 @@ export const ActionPlanTemplatesView = forwardRef<
   const [leistungsartenAddError, setLeistungsartenAddError] = useState(false);
   const [leistungsartenSaveError, setLeistungsartenSaveError] = useState(false);
   const [templateSaveErrors, setTemplateSaveErrors] = useState<string[]>([]);
+  const codeErrors = templateSaveErrors.filter((message) => message.startsWith("Code"));
   const [draftEditable, setDraftEditable] =
     useState<Record<TemplateFieldKey, boolean>>(buildDefaultEditable);
   const [draftRequired, setDraftRequired] =
@@ -347,9 +348,13 @@ export const ActionPlanTemplatesView = forwardRef<
     dataRows.forEach((row, rowIndex) => {
       const rowNumber = rowIndex + 2;
       const errors: string[] = [];
-      // Ältere Exporte führen statt "Code" den früheren Namen ("10101 Ganzwäsche …").
+      // Ältere Exporte führen statt "Code" den früheren Namen ("10101 Ganzwäsche …");
+      // die Nummer trifft eine bestehende Vorlage auch mit Katalog-Präfix ("HC-LK-10101").
+      const legacyNumber = hasLegacyNameColumn ? (/^(\d+)\b/.exec(row[0]?.trim() ?? "")?.[1] ?? "") : "";
       const code = hasLegacyNameColumn
-        ? (/^(\d+)\b/.exec(row[0]?.trim() ?? "")?.[1] ?? "")
+        ? (legacyNumber &&
+            (templates.find((template) => template.code.endsWith(`-${legacyNumber}`))?.code ??
+              legacyNumber))
         : (row[0]?.trim() ?? "");
 
       const nextFields = buildDefaultFields();
@@ -904,25 +909,35 @@ export const ActionPlanTemplatesView = forwardRef<
             </div>
             <div className="flex-1 space-y-4 overflow-y-auto px-6 py-6">
               <div className="grid grid-cols-[200px_minmax(0,1fr)_auto] items-start gap-x-4 gap-y-3">
-                <label className="pt-2 text-sm text-foreground">
+                <label htmlFor="template-code" className="pt-2 text-sm text-foreground">
                   Code
                 </label>
-                <Input
-                  value={draftCode}
-                  placeholder="z. B. 10101"
-                  onChange={(event) => {
-                    setDraftCode(event.target.value);
-                    setTemplateSaveErrors((prev) =>
-                      prev.filter((message) => !message.startsWith("Code")),
-                    );
-                  }}
-                  className={cn(
-                    templateSaveErrors.some((message) => message.startsWith("Code")) &&
-                      "border-destructive",
+                <div>
+                  <Input
+                    id="template-code"
+                    value={draftCode}
+                    placeholder="z. B. HC-LK-10101"
+                    aria-invalid={codeErrors.length > 0}
+                    aria-describedby={codeErrors.length > 0 ? "template-code-error" : undefined}
+                    onChange={(event) => {
+                      setDraftCode(event.target.value);
+                      setTemplateSaveErrors((prev) =>
+                        prev.filter((message) => !message.startsWith("Code")),
+                      );
+                    }}
+                    className={cn(codeErrors.length > 0 && "border-destructive")}
+                  />
+                  {/* Wie in socialweb: Meldung direkt unter dem Feld; das Feld hat ein Label, darum ohne Feldnamen. */}
+                  {codeErrors.length > 0 && (
+                    <div id="template-code-error" className="mt-1 space-y-0.5 text-xs text-destructive">
+                      {codeErrors.map((message) => (
+                        <p key={message}>{message.replace(/^Code:\s*/, "")}</p>
+                      ))}
+                    </div>
                   )}
-                />
+                </div>
                 <span className="pt-2 text-xs text-muted-foreground">
-                  Buchstaben/Ziffern, eindeutig
+                  Buchstaben, Ziffern, Bindestrich; eindeutig
                 </span>
 
                 <label className="pt-2 text-sm text-foreground">
@@ -1244,12 +1259,35 @@ export const ActionPlanTemplatesView = forwardRef<
                       />
                     );
 
+                  const fieldErrors = [
+                    ...templateSaveErrors
+                      .filter((message) => message.startsWith(`${field.label}:`))
+                      .map((message) => message.slice(field.label.length + 1).trim()),
+                    ...(field.key === "leistungsart" && leistungsartenSaveError
+                      ? ["Alle ausser der letzten Leistungsart brauchen eine Max. Zeit — die letzte darf keine haben."]
+                      : []),
+                  ];
+
                   return (
                     <Fragment key={field.key}>
                       <label className="pt-2 text-sm text-foreground">
                         {field.label}
                       </label>
-                      <div>{control}</div>
+                      <div
+                        className={cn(
+                          fieldErrors.length > 0 &&
+                            "[&_[role=combobox]]:border-destructive [&_input]:border-destructive [&_textarea]:border-destructive",
+                        )}
+                      >
+                        {control}
+                        {fieldErrors.length > 0 && (
+                          <div className="mt-1 space-y-0.5 text-xs text-destructive">
+                            {fieldErrors.map((message) => (
+                              <p key={message}>{message}</p>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                       {field.editable === false ? (
                         <span aria-hidden="true" />
                       ) : (
@@ -1318,12 +1356,16 @@ export const ActionPlanTemplatesView = forwardRef<
                 )}
               </div>
               <div className="flex flex-col items-end gap-1">
-                {templateSaveErrors.map((message) => (
-                  <p key={message} className="text-xs text-primary-foreground/80">{message}</p>
-                ))}
-                {leistungsartenSaveError && (
-                  <p className="text-xs text-primary-foreground/80">Alle ausser der letzten Leistungsart brauchen eine Max. Zeit — die letzte darf keine haben.</p>
-                )}
+                {/* Rückfall für Meldungen ohne zugehöriges Feld; feldbezogene stehen unter dem Feld. */}
+                {templateSaveErrors
+                  .filter(
+                    (message) =>
+                      !message.startsWith("Code") &&
+                      !templateFieldMeta.some((field) => message.startsWith(`${field.label}:`)),
+                  )
+                  .map((message) => (
+                    <p key={message} className="text-xs text-primary-foreground/80">{message}</p>
+                  ))}
                 <Button
                   type="button"
                   variant="ghost"
