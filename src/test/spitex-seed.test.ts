@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { buildInhouseSpitexSeedTargets } from "@/lib/inhouse-spitex-seed";
-import { effectiveDayPart, rollsToNextDay } from "@/lib/day-part-rollover";
+import { effectiveDayPart } from "@/lib/day-part-schedule";
 import { collectOnDemandCandidates, isOnDemandPlanAction } from "@/lib/on-demand-action";
 import { initialTemplates } from "@/lib/action-plan-templates";
 import { DAY_PART_SEED_IDS } from "@/lib/day-parts";
@@ -24,17 +24,12 @@ describe("Beispielplanung Inhouse-Spitex", () => {
     expect(umlagern).toHaveLength(3);
     expect(new Set(umlagern.map((a) => a.groupId)).size).toBe(1);
     expect(umlagern.map((a) => a.scheduledTime).sort()).toEqual(["01:00", "04:00", "22:00"]);
-    // Uhrzeit-Modus: die Tageszeit wird abgeleitet und nicht gespeichert.
-    expect(umlagern.every((a) => a.dayPart === undefined)).toBe(true);
+    // Die Tageszeit ist zusammen mit der Uhrzeit gespeichert.
+    expect(umlagern.every((a) => a.dayPart === DAY_PART_SEED_IDS.night)).toBe(true);
     expect(umlagern.every((a) => effectiveDayPart(a)?.title === "Nacht")).toBe(true);
     expect(umlagern.every((a) => a.recurrence === "daily")).toBe(true);
     // Jede Durchführung ist ein eigener Knoten und damit einzeln bestätigbar.
     expect(new Set(umlagern.map((a) => a.id)).size).toBe(3);
-  });
-
-  it("verschiebt 01:00 und 04:00 auf den Folgetag, 22:00 nicht", () => {
-    const rolled = umlagern.filter((a) => rollsToNextDay(a)).map((a) => a.scheduledTime).sort();
-    expect(rolled).toEqual(["01:00", "04:00"]);
   });
 
   it("gibt allen übrigen Handlungen weiterhin eine eigene Gruppe", () => {

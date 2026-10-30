@@ -72,11 +72,10 @@ export interface ActionConfirmation {
   /** Snapshot der Leistungsart zum Zeitpunkt der Umsetzung */
   serviceType?: ActionServiceType;
   /**
-   * Snapshot der Tageszeit zum Zeitpunkt der Umsetzung. Im Uhrzeit-Modus wird die
-   * Tageszeit sonst laufend aus der Konfiguration abgeleitet — festgehalten bleibt
-   * die Historie von späteren Änderungen an den Stammdaten unabhängig.
+   * Snapshot der Tageszeit zum Zeitpunkt der Umsetzung — die Historie bleibt von
+   * späteren Änderungen am Plan unabhängig.
    */
-  dayPartSnapshot?: { id: string; title: string; from: string; to: string };
+  dayPartSnapshot?: { id: string; title: string };
   actualMinutes?: number;
   /**
    * Tatsächlich eingesetzte Anzahl Personen. Nur bei "mit Abweichung" erfassbar und
@@ -95,6 +94,8 @@ export interface ActionConfirmation {
   postponedToDate?: string;
   /** New scheduled time when this occurrence was postponed (HH:mm) */
   postponedToTime?: string;
+  /** Neue Tageszeit-ID bei einer Neuplanung; "none" = ohne Zeitangabe */
+  postponedToDayPart?: string;
   /** Mandatory reason why this occurrence was postponed */
   postponedReason?: string;
   /** User who postponed this occurrence */

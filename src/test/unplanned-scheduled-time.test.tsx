@@ -26,28 +26,39 @@ const openScratchMode = async () => {
   return dialog;
 };
 
-describe("Ungeplante Handlung: Uhrzeit innerhalb der Tageszeit", () => {
-  it("erlaubt die Eingabe einer Uhrzeit bei fixer Tageszeit", async () => {
+describe("Ungeplante Handlung: Uhrzeit zur Tageszeit", () => {
+  it("erlaubt die Eingabe einer Uhrzeit bei fixer Tageszeit ohne Grenzen", async () => {
     renderForDayPart();
     const dialog = await screen.findByRole("dialog");
 
     expect(within(dialog).getByLabelText("Uhrzeit")).toBeEnabled();
-    // Grenzen der Tageszeit "Morgen" (06:00 bis 11:00, bis exklusiv).
-    expect(within(dialog).getByLabelText("Uhrzeit")).toHaveAttribute("min", "06:00");
-    expect(within(dialog).getByLabelText("Uhrzeit")).toHaveAttribute("max", "10:59");
+    expect(within(dialog).getByLabelText("Uhrzeit")).not.toHaveAttribute("min");
+    expect(within(dialog).getByLabelText("Uhrzeit")).not.toHaveAttribute("max");
   });
 
-  it("meldet eine Uhrzeit ausserhalb der Tageszeit und bestätigt nicht", async () => {
+  it("übernimmt eine Uhrzeit ausserhalb der üblichen Zeit ohne Meldung", async () => {
     const onConfirm = renderForDayPart();
     const dialog = await openScratchMode();
 
-    fireEvent.change(within(dialog).getByLabelText("Uhrzeit"), { target: { value: "15:30" } });
-
-    expect(within(dialog).getByText(/Uhrzeit muss im Bereich der Tageszeit/)).toBeInTheDocument();
-
-    expect(within(dialog).getByRole("button", { name: "Bestätigen" })).toBeDisabled();
+    fireEvent.change(within(dialog).getByLabelText("Uhrzeit"), { target: { value: "23:30" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Bestätigen" }));
-    expect(onConfirm).not.toHaveBeenCalled();
+    expect(onConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({ scheduledTime: "23:30" }),
+      undefined,
+    );
+  });
+
+  it("bietet ohne Tageszeit keine Uhrzeit an", async () => {
+    render(
+      <UnplannedActionDialog
+        target={{ dueDate: "2026-05-12", dayPart: "none" }}
+        fixedDayPart="none"
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+      />,
+    );
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).queryByLabelText("Uhrzeit")).not.toBeInTheDocument();
   });
 
   it("übernimmt eine Uhrzeit innerhalb der Tageszeit", async () => {
@@ -55,8 +66,6 @@ describe("Ungeplante Handlung: Uhrzeit innerhalb der Tageszeit", () => {
     const dialog = await openScratchMode();
 
     fireEvent.change(within(dialog).getByLabelText("Uhrzeit"), { target: { value: "07:15" } });
-
-    expect(within(dialog).queryByText(/Uhrzeit muss im Bereich der Tageszeit/)).not.toBeInTheDocument();
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Bestätigen" }));
     expect(onConfirm).toHaveBeenCalledWith(

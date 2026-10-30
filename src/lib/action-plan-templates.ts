@@ -423,7 +423,7 @@ const seedTemplates: Omit<ActionPlanTemplate, "categoryId">[] = [
       dauer: "20",
       personen: "1",
       klassifizierung: "a",
-      tageszeit: "07:30",
+      tageszeit: "Morgen 07:30",
       resultat: "required",
       wiederholung: "daily",
       wiederholungMonatlich: "none",
@@ -8027,20 +8027,14 @@ export interface TemplateScheduleEntry {
   scheduledTime?: string;
 }
 
-/** Uhrzeit-Eintrag im Vorlagen-Feld, z. B. "07:30". */
-const TEMPLATE_TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+/** Eintrag im Vorlagen-Feld: Tageszeit-Titel, optional mit Uhrzeit, z. B. "Morgen 07:30". */
+const TEMPLATE_ENTRY_PATTERN = /^(.*?)(?:\s+(\d{2}:\d{2}))?$/;
 
 /**
- * Alte Kombiform "morning(07:30)" aus der Zeit, in der eine Tageszeit eine optionale
- * Uhrzeit tragen konnte. Wird nur noch gelesen: die Uhrzeit gewinnt, die Tageszeit
- * entfällt — dieselbe Regel wie bei der Migration bestehender Handlungen.
- */
-const LEGACY_COMBINED_PATTERN = /^([a-z]+)\((\d{2}:\d{2})\)$/;
-
-/**
- * Das Vorlagen-Feld codiert genau einen Modus: "none", eine Liste von
- * Tageszeit-Titeln ("Morgen,Abend") oder eine Liste von Uhrzeiten ("07:30,11:00").
- * Titel und nicht IDs, damit der Wert im CSV lesbar und tippbar bleibt.
+ * Das Vorlagen-Feld ist "none" oder eine Liste von Tageszeiten mit optionaler
+ * Uhrzeit ("Morgen 07:30,Morgen 09:00,Abend"). Titel und nicht IDs, damit der
+ * Wert im CSV lesbar und tippbar bleibt. Eine Uhrzeit ohne Tageszeit bleibt als
+ * Eintrag ohne Tageszeit erhalten, damit die Prüfung sie melden kann.
  */
 export function parseTageszeit(
   value: string,
@@ -8048,58 +8042,38 @@ export function parseTageszeit(
 ): TemplateScheduleEntry[] {
   if (!value) return [];
 
-  const parts = value
+  return value
     .split(",")
     .map((entry) => entry.trim())
-    .filter(Boolean)
-    .filter((entry) => entry !== "none");
-
-  const legacyTimes = parts
-    .map((entry) => entry.match(LEGACY_COMBINED_PATTERN)?.[2])
-    .filter((time): time is string => !!time);
-  if (legacyTimes.length > 0) {
-    return legacyTimes.map((scheduledTime) => ({ scheduledTime }));
-  }
-
-  const times = parts.filter((entry) => TEMPLATE_TIME_PATTERN.test(entry));
-  if (times.length > 0) {
-    return times.map((scheduledTime) => ({ scheduledTime }));
-  }
-
-  return parts.flatMap((entry) => {
-    const dayPart =
-      findDayPartByTitle(entry, dayParts) ??
-      findDayPartById(LEGACY_DAY_PART_IDS[entry] ?? entry, dayParts);
-    return dayPart ? [{ dayPart: dayPart.id }] : [];
-  });
+    .filter((entry) => entry && entry !== "none")
+    .flatMap((entry): TemplateScheduleEntry[] => {
+      const [, label = "", time] = entry.match(TEMPLATE_ENTRY_PATTERN) ?? [];
+      if (!label && time) return [{ scheduledTime: time }];
+      if (/^\d{2}:\d{2}$/.test(label)) return [{ scheduledTime: label }];
+      const dayPart =
+        findDayPartByTitle(label, dayParts) ??
+        findDayPartById(LEGACY_DAY_PART_IDS[label] ?? label, dayParts);
+      if (!dayPart) return [];
+      return [time ? { dayPart: dayPart.id, scheduledTime: time } : { dayPart: dayPart.id }];
+    });
 }
 
 export function serializeTageszeit(
   entries: TemplateScheduleEntry[],
   dayParts: DayPartDefinition[] = getDayParts(),
 ): string {
-  const times = entries
-    .map((entry) => entry.scheduledTime?.trim())
-    .filter((time): time is string => !!time);
-  if (times.length > 0) return times.join(",");
-
-  const titles = entries
-    .map((entry) => findDayPartById(entry.dayPart, dayParts)?.title)
-    .filter((title): title is string => !!title);
-  return titles.length > 0 ? titles.join(",") : "none";
+  const parts = entries.flatMap((entry) => {
+    const title = findDayPartById(entry.dayPart, dayParts)?.title;
+    const time = entry.scheduledTime?.trim();
+    if (!title) return time ? [time] : [];
+    return [time ? `${title} ${time}` : title];
+  });
+  return parts.length > 0 ? parts.join(",") : "none";
 }
 
 const migrateTemplateFields = (fields: Record<string, string>): Record<TemplateFieldKey, string> => {
   const defaults = buildDefaultTemplateFields();
-  const tageszeit = fields.tageszeit ?? defaults.tageszeit;
-  const uhrzeit = (fields as Record<string, string>).uhrzeit ?? "";
-
-  let normalizedTageszeit = tageszeit;
-  if (tageszeit && tageszeit !== "none" && !tageszeit.includes(",") && !tageszeit.includes("(") && uhrzeit) {
-    normalizedTageszeit = `${tageszeit}(${uhrzeit})`;
-  }
-
-  const { uhrzeit: _dropped, ...rest } = { ...defaults, ...fields, tageszeit: normalizedTageszeit } as Record<string, string>;
+  const { uhrzeit: _dropped, ...rest } = { ...defaults, ...fields } as Record<string, string>;
   return rest as Record<TemplateFieldKey, string>;
 };
 

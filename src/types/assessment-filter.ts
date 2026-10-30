@@ -4,7 +4,7 @@ import type {
   ActionNode,
   ActionStatus,
 } from "@/types/assessment";
-import { effectiveDayPart } from "@/lib/day-part-rollover";
+import { effectiveDayPart, scheduleOf } from "@/lib/day-part-schedule";
 import { getDayParts, type DayPartDefinition } from "@/lib/day-parts";
 
 export type NumericComparison = {
@@ -100,10 +100,9 @@ export const matchesAssessmentFilter = (
   if (!matchesNumericRange(differencePercent, filter.differencePercent)) return false;
 
   if (filter.dayParts && filter.dayParts.length > 0) {
-    // Im Uhrzeit-Modus ist die Tageszeit nicht gespeichert, sondern abgeleitet.
-    // Bei bestätigten Durchführungen gilt der Snapshot — gefiltert wird nach
+    // Nach einer Neuplanung gilt deren Tageszeit. Bei bestätigten Durchführungen gilt der Snapshot — gefiltert wird nach
     // derselben Tageszeit, die die Umsetzung anzeigt.
-    const dayPart = confirmation?.dayPartSnapshot ?? effectiveDayPart(action, dayParts);
+    const dayPart = confirmation?.dayPartSnapshot ?? effectiveDayPart(scheduleOf(action, confirmation));
     if (!dayPart || !filter.dayParts.includes(dayPart.id)) return false;
   }
 

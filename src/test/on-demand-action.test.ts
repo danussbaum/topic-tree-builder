@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DAY_PART_SEED_IDS } from "@/lib/day-parts";
 import {
   buildOnDemandOccurrence,
   collectOnDemandCandidates,
@@ -68,13 +69,13 @@ describe("Nach-Bedarf-Handlungen", () => {
   });
 
   it("erzeugt eine Durchführung für genau einen Tag mit den Plan-Werten", () => {
-    const occurrence = buildOnDemandOccurrence(onDemandAction, "2026-05-12", "none", "18:30");
+    const occurrence = buildOnDemandOccurrence(onDemandAction, "2026-05-12", DAY_PART_SEED_IDS.evening, "18:30");
 
     expect(occurrence.validFrom).toBe("2026-05-12");
     expect(occurrence.validTo).toBe("2026-05-12");
     expect(occurrence.recurrence).toBe("daily");
-    // Strikte Trennung: mit Uhrzeit bleibt die Tageszeit leer und wird abgeleitet.
-    expect(occurrence.dayPart).toBeUndefined();
+    // Eine Uhrzeit gibt es nur zusammen mit einer Tageszeit.
+    expect(occurrence.dayPart).toBe(DAY_PART_SEED_IDS.evening);
     expect(occurrence.scheduledTime).toBe("18:30");
     // Geplante Zeit stammt aus dem Plan — "Erledigt wie geplant" bleibt darum möglich.
     expect(occurrence.plannedMinutes).toBe(15);

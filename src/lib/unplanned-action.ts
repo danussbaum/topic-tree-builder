@@ -98,10 +98,9 @@ export const buildUnplannedActionNodes = (
     plannedMinutes: 0,
     requiredPersons: draft.requiredPersons,
     resultRequirement: draft.resultRequirement,
-    // Strikte Trennung: mit Uhrzeit wird die Tageszeit abgeleitet, nicht gespeichert.
-    dayPart:
-      draft.scheduledTime?.trim() || selectedDayPart === "none" ? undefined : selectedDayPart,
-    scheduledTime: draft.scheduledTime,
+    // Eine Uhrzeit gibt es nur zusammen mit einer Tageszeit.
+    dayPart: selectedDayPart === "none" ? undefined : selectedDayPart,
+    scheduledTime: selectedDayPart === "none" ? undefined : draft.scheduledTime,
     classification: draft.classification,
     serviceEntries: draft.serviceEntries,
     optionalServiceTypes: draft.optionalServiceTypes,

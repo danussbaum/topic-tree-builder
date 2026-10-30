@@ -8,6 +8,7 @@ import {
 } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 import { DisciplineMultiSelect } from "@/components/settings/DisciplineMultiSelect";
 import { loadActionPlanDisciplines } from "@/lib/action-plan-disciplines";
@@ -46,6 +47,7 @@ export const ActionPlanResourcesView = forwardRef<
   const [isPanelMounted, setIsPanelMounted] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [draftName, setDraftName] = useState("");
+  const [showMissingName, setShowMissingName] = useState(false);
   const [draftDescription, setDraftDescription] = useState("");
   const [draftDisciplineIds, setDraftDisciplineIds] = useState<string[]>([]);
   const [importErrors, setImportErrors] = useState<string[]>([]);
@@ -94,7 +96,8 @@ export const ActionPlanResourcesView = forwardRef<
   const openCreatePanel = () => {
     setIsCreating(true);
     setSelectedResourceId(null);
-    setDraftName("Neues Hilfsmittel");
+    setDraftName("");
+    setShowMissingName(false);
     setDraftDescription("");
     setDraftDisciplineIds([]);
     setIsPanelMounted(true);
@@ -106,6 +109,7 @@ export const ActionPlanResourcesView = forwardRef<
     setIsCreating(false);
     setSelectedResourceId(resourceId);
     setDraftName(resource.name);
+    setShowMissingName(false);
     setDraftDescription(resource.description);
     setDraftDisciplineIds(resource.disciplineIds);
     setIsPanelMounted(true);
@@ -121,7 +125,11 @@ export const ActionPlanResourcesView = forwardRef<
   };
 
   const saveResource = () => {
-    const name = draftName.trim() || "Neues Hilfsmittel";
+    const name = draftName.trim();
+    if (!name) {
+      setShowMissingName(true);
+      return;
+    }
     if (isCreating) {
       setResources((prev) => [
         ...prev,
@@ -324,10 +332,23 @@ export const ActionPlanResourcesView = forwardRef<
             <div className="flex-1 overflow-y-auto px-6 py-6">
               <div className="grid grid-cols-[200px_minmax(0,1fr)_auto] items-start gap-x-4 gap-y-3">
                 <label className="pt-2 text-sm text-foreground">Name</label>
-                <Input
-                  value={draftName}
-                  onChange={(event) => setDraftName(event.target.value)}
-                />
+                <div>
+                  <Input
+                    value={draftName}
+                    aria-invalid={showMissingName}
+                    aria-describedby={showMissingName ? "resource-name-error" : undefined}
+                    onChange={(event) => {
+                      setDraftName(event.target.value);
+                      setShowMissingName(false);
+                    }}
+                    className={cn(showMissingName && "border-destructive")}
+                  />
+                  {showMissingName && (
+                    <p id="resource-name-error" className="mt-1 text-xs text-destructive">
+                      Der Name ist zwingend.
+                    </p>
+                  )}
+                </div>
                 <span />
 
                 <label className="pt-2 text-sm text-foreground">Beschreibung</label>

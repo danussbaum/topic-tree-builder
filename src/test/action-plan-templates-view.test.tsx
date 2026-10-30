@@ -132,34 +132,42 @@ describe("ActionPlanTemplatesView", () => {
       expect(screen.getByLabelText("Klassifizierung zwingend")).toBeInTheDocument();
     });
 
-    it("legt im Uhrzeit-Modus über den Link eine weitere Uhrzeit an", () => {
+    it("speichert eine Tageszeit mit mehreren Uhrzeiten", () => {
       openPanel();
 
-      fireEvent.click(screen.getByRole("button", { name: "Uhrzeiten" }));
-      expect(screen.getByLabelText("Uhrzeit 1")).toBeInTheDocument();
-
+      fireEvent.click(screen.getByRole("button", { name: "Morgen" }));
+      fireEvent.change(screen.getByLabelText("Uhrzeit Morgen 1"), { target: { value: "07:30" } });
       // Regression: die neue Zeile wurde aus dem Vorlagen-String abgeleitet und
       // verschwand darum sofort wieder, weil eine leere Uhrzeit dort fehlt.
-      fireEvent.click(screen.getByRole("button", { name: "Weitere Uhrzeit" }));
-      expect(screen.getByLabelText("Uhrzeit 2")).toBeInTheDocument();
-
-      fireEvent.change(screen.getByLabelText("Uhrzeit 1"), { target: { value: "07:30" } });
-      fireEvent.change(screen.getByLabelText("Uhrzeit 2"), { target: { value: "11:00" } });
+      fireEvent.click(screen.getByRole("button", { name: "Weitere Uhrzeit Morgen" }));
+      fireEvent.change(screen.getByLabelText("Uhrzeit Morgen 2"), { target: { value: "09:00" } });
+      fireEvent.click(screen.getByRole("button", { name: "Abend" }));
       fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
       const stored = JSON.parse(window.localStorage.getItem(ACTION_PLAN_TEMPLATES_STORAGE_KEY)!);
-      expect(stored[0].fields.tageszeit).toBe("07:30,11:00");
+      expect(stored[0].fields.tageszeit).toBe("Morgen 07:30,Morgen 09:00,Abend");
     });
 
-    it("verweigert das Speichern einer leeren Uhrzeit", () => {
+    it("verweigert zwei Durchführungen derselben Tageszeit ohne Uhrzeit", () => {
       openPanel();
 
-      fireEvent.click(screen.getByRole("button", { name: "Uhrzeiten" }));
+      fireEvent.click(screen.getByRole("button", { name: "Mittag" }));
+      fireEvent.click(screen.getByRole("button", { name: "Weitere Uhrzeit Mittag" }));
       fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
       // Unter dem Feld, darum ohne vorangestellten Feldnamen.
-      expect(screen.getByText(/unterschiedliche Uhrzeit/)).toBeInTheDocument();
+      expect(screen.getByText(/eigene, unterschiedliche Uhrzeit/)).toBeInTheDocument();
       expect(screen.queryByText(/Tageszeit: /)).not.toBeInTheDocument();
+      const stored = JSON.parse(window.localStorage.getItem(ACTION_PLAN_TEMPLATES_STORAGE_KEY)!);
+      expect(stored[0].fields.tageszeit).toBe("none");
+    });
+
+    it("speichert ohne gewählte Tageszeit als ohne Zeitangabe", () => {
+      openPanel();
+
+      expect(screen.getByText("Ohne Zeitangabe")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
       const stored = JSON.parse(window.localStorage.getItem(ACTION_PLAN_TEMPLATES_STORAGE_KEY)!);
       expect(stored[0].fields.tageszeit).toBe("none");
     });

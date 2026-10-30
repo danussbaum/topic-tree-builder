@@ -11,10 +11,21 @@ const SPITEX_SEED_START = "2026-08-01";
  * Beispielplanung Inhouse-Spitex: Handlungen entsprechen den vorgeseedeten
  * Handlungsarten samt deren Hilfsmitteln und starten alle am selben Datum.
  *
- * Bewusst gemischt: die meisten Handlungen sind im Uhrzeit-Modus erfasst (ihre
- * Tageszeit wird abgeleitet), zwei im Tageszeit-Modus ohne Uhrzeit — genau der
- * Fall, für den die Umsetzung die konfigurierten Tageszeiten braucht.
+ * Bewusst gemischt: die meisten Handlungen haben eine Tageszeit mit Uhrzeit, zwei
+ * nur eine Tageszeit. Die Tageszeit der Uhrzeit-Einträge ergibt sich aus den
+ * früher üblichen Bereichen (siehe seedDayPartForTime).
  */
+const seedDayPartForTime = (time: string): string =>
+  time < "06:00" || time >= "22:00"
+    ? DAY_PART_SEED_IDS.night
+    : time < "11:00"
+      ? DAY_PART_SEED_IDS.morning
+      : time < "14:00"
+        ? DAY_PART_SEED_IDS.noon
+        : time < "17:00"
+          ? DAY_PART_SEED_IDS.afternoon
+          : DAY_PART_SEED_IDS.evening;
+
 export const buildInhouseSpitexSeedTargets = (): TargetNode[] => {
   const action = (
     title: string,
@@ -33,6 +44,7 @@ export const buildInhouseSpitexSeedTargets = (): TargetNode[] => {
     templateName: title,
     categoryId: getCategoryIdForTemplateName(title),
     ...fields,
+    ...(fields.scheduledTime ? { dayPart: seedDayPartForTime(fields.scheduledTime) } : {}),
   });
 
   /**
@@ -105,7 +117,7 @@ export const buildInhouseSpitexSeedTargets = (): TargetNode[] => {
       validFrom: SPITEX_SEED_START,
       actions: [
         action("10109 Nägel schneiden Zehen", {
-          // Tageszeit-Modus: findet irgendwann am Nachmittag statt, ohne fixe Uhrzeit.
+          // Nur Tageszeit: findet irgendwann am Nachmittag statt, ohne fixe Uhrzeit.
           dayPart: DAY_PART_SEED_IDS.afternoon,
           plannedMinutes: 15,
           classification: "c",
@@ -138,8 +150,8 @@ export const buildInhouseSpitexSeedTargets = (): TargetNode[] => {
             "resource-bettgalgen",
           ],
         }),
-        // Umlagern zur Dekubitusprophylaxe: dreimal pro Nacht. 01:00 und 04:00
-        // sind laut Rollover-Regel am Folgetag fällig, 22:00 am Planungstag.
+        // Umlagern zur Dekubitusprophylaxe: dreimal pro Nacht, alle am Planungsdatum
+        // fällig — auch 01:00 und 04:00.
         ...repeatedAction(
           "10501 Lagerung der Klientin im Bett",
           ["22:00", "01:00", "04:00"],

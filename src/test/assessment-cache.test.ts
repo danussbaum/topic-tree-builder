@@ -147,7 +147,7 @@ describe("assessment browser cache", () => {
       loadCachedAssessmentState("2026-01-01", fallbackFilter)!.clients[0].targets[0]
         .actions;
 
-    it("überführt Tageszeit plus Uhrzeit in den Uhrzeit-Modus", () => {
+    it("behält Tageszeit und Uhrzeit zusammen (Regression: Tageszeit ging beim Laden verloren)", () => {
       window.localStorage.setItem(
         ASSESSMENT_CACHE_KEY,
         JSON.stringify(
@@ -166,7 +166,7 @@ describe("assessment browser cache", () => {
         ),
       );
 
-      expect(loadActions()[0]).toMatchObject({ dayPart: undefined, scheduledTime: "01:00" });
+      expect(loadActions()[0]).toMatchObject({ dayPart: DAY_PART_SEED_IDS.night, scheduledTime: "01:00" });
     });
 
     it("bildet alte Tageszeit-Schlüssel ohne Uhrzeit auf die Tageszeit-ID ab", () => {

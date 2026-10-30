@@ -11,7 +11,6 @@ export const APPLICATION_BROWSER_STORAGE_KEYS = [
   "action-plan-disciplines-v2",
   "action-plan-classifications-v2",
   "action-plan-resources-v1",
-  "action-plan-day-parts-v1",
   "action-plan-category-list-v1",
 ] as const;
 
@@ -22,6 +21,7 @@ const LEGACY_BROWSER_STORAGE_KEYS = [
   "action-plan-templates-v1",
   "action-plan-disciplines-v1",
   "action-plan-categories-v1",
+  "action-plan-day-parts-v1",
 ] as const;
 
 /**
@@ -30,7 +30,8 @@ const LEGACY_BROWSER_STORAGE_KEYS = [
  * Login zwingend löschen.
  */
 // 2: Seed-Codes der Inhouse-Spitex-Vorlagen mit Katalog-Präfix "HC-LK-".
-export const APPLICATION_DATA_VERSION = 2;
+// 3: Feste Tageszeiten, Uhrzeit nur zusammen mit einer Tageszeit (kein Uhrzeit-Modus mehr).
+export const APPLICATION_DATA_VERSION = 3;
 const APPLICATION_DATA_VERSION_KEY = "application-data-version";
 
 /** Veraltet heisst: Es liegen Daten im Browser, aber nicht in der aktuellen Version. */

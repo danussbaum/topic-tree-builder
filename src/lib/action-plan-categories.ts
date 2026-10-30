@@ -6,7 +6,7 @@ export interface ActionPlanCategory {
   name: string;
 }
 
-export const ACTION_PLAN_CATEGORIES_STORAGE_KEY = APPLICATION_BROWSER_STORAGE_KEYS[6];
+export const ACTION_PLAN_CATEGORIES_STORAGE_KEY = APPLICATION_BROWSER_STORAGE_KEYS[5];
 
 const seedCategory = (code: string, name: string): ActionPlanCategory => ({
   id: `category-${code}`,

@@ -104,7 +104,7 @@ describe("action plan template fields", () => {
     expect(getActionServiceTypeLabel()).toBe("");
   });
 
-  it("überführt die Uhrzeit älterer Vorlagen in das Tageszeit-Feld", () => {
+  it("verwirft das alte separate Uhrzeit-Feld", () => {
     window.localStorage.setItem(
       ACTION_PLAN_TEMPLATES_STORAGE_KEY,
       JSON.stringify([
@@ -118,11 +118,11 @@ describe("action plan template fields", () => {
     );
 
     const loaded = loadActionPlanTemplates()[0];
-    // Das separate uhrzeit-Feld wird in tageszeit zusammengeführt und verworfen.
+    // Das separate uhrzeit-Feld wird verworfen (Datenversion 3, keine Migration).
     expect(loaded.fields).not.toHaveProperty("uhrzeit");
     expect(loaded).toMatchObject({
       disciplineIds: [],
-      fields: { titel: "Alte Handlung", tageszeit: "afternoon(14:00)", leistungsart: "none" },
+      fields: { titel: "Alte Handlung", tageszeit: "afternoon", leistungsart: "none" },
       editable: { titel: false, leistungsart: false },
     });
   });

@@ -9,12 +9,11 @@ const action = (
   dayPart: ActionNode["dayPart"],
   scheduledTime?: string,
 ): ActionNode => ({
-  // Strikte Trennung: mit Uhrzeit wird die Tageszeit abgeleitet, nicht gesetzt.
   id: `action-${title}`,
   groupId: `grp-${title}`,
   title,
   notes: "",
-  dayPart: scheduledTime ? undefined : dayPart,
+  dayPart,
   scheduledTime,
   plannedMinutes: 10,
   validFrom: "2026-05-01",
@@ -30,10 +29,10 @@ const targets: TargetNode[] = [
     notes: "",
     actions: [
       action("Zweite ohne Uhrzeit", DAY_PART_SEED_IDS.morning),
-      action("Spät am Morgen", undefined, "09:45"),
+      action("Spät am Morgen", DAY_PART_SEED_IDS.morning, "09:45"),
       action("Erste ohne Uhrzeit", DAY_PART_SEED_IDS.morning),
-      action("Früh am Morgen", undefined, "07:05"),
-      action("Am Nachmittag", undefined, "14:00"),
+      action("Früh am Morgen", DAY_PART_SEED_IDS.morning, "07:05"),
+      action("Am Nachmittag", DAY_PART_SEED_IDS.afternoon, "14:00"),
     ],
   },
 ];
@@ -82,7 +81,7 @@ describe("Umsetzung: Sortierung innerhalb der Tageszeit", () => {
   });
 });
 
-describe("Einordnung verschobener Nacht-Handlungen", () => {
+describe("Einordnung von Nacht-Handlungen", () => {
   const nightTopics: TargetNode[] = [
     {
       id: "target-1",
@@ -98,6 +97,7 @@ describe("Einordnung verschobener Nacht-Handlungen", () => {
           done: false,
           validFrom: "2026-08-01",
           recurrence: "daily",
+          dayPart: DAY_PART_SEED_IDS.night,
           scheduledTime: "22:00",
         },
         {
@@ -109,6 +109,7 @@ describe("Einordnung verschobener Nacht-Handlungen", () => {
           done: false,
           validFrom: "2026-08-01",
           recurrence: "daily",
+          dayPart: DAY_PART_SEED_IDS.night,
           scheduledTime: "01:00",
         },
         {
@@ -120,13 +121,14 @@ describe("Einordnung verschobener Nacht-Handlungen", () => {
           done: false,
           validFrom: "2026-08-01",
           recurrence: "daily",
+          dayPart: DAY_PART_SEED_IDS.morning,
           scheduledTime: "07:30",
         },
       ],
     },
   ];
 
-  it("zeigt den Vortags-Abschnitt vor dem Morgen und die eigene Nacht danach", () => {
+  it("zeigt die Nacht am Planungsdatum vor dem Morgen, auch nach Mitternacht", () => {
     render(
       <AssessmentOutline
         viewMode="confirmation"
@@ -152,16 +154,9 @@ describe("Einordnung verschobener Nacht-Handlungen", () => {
     );
 
     const order = screen
-      .getAllByText(/^(Nacht \(Vortag\)|Morgen|Nacht|Umlagern frueh|Umlagern spaet|Koerperpflege)$/)
+      .getAllByText(/^(Morgen|Nacht|Umlagern frueh|Umlagern spaet|Koerperpflege)$/)
       .map((el) => el.textContent);
 
-    expect(order).toEqual([
-      "Nacht (Vortag)",
-      "Umlagern frueh",
-      "Morgen",
-      "Koerperpflege",
-      "Nacht",
-      "Umlagern spaet",
-    ]);
+    expect(order).toEqual(["Nacht", "Umlagern frueh", "Umlagern spaet", "Morgen", "Koerperpflege"]);
   });
 });

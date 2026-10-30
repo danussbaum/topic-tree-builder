@@ -97,7 +97,6 @@ export const settingsCategories: SettingsCategory[] = [
       { label: "Disziplinen", implemented: true },
       { label: "Handlungsvorlagen", implemented: true },
       { label: "Hilfsmittel", implemented: true },
-      { label: "Tageszeiten", implemented: true },
     ],
   },
 

@@ -1,12 +1,10 @@
-import { findDayPartById, getDayParts, type DayPartDefinition } from "@/lib/day-parts";
+import { dayPartIndex } from "@/lib/day-parts";
 
 /**
- * Zeitangabe einer Handlung. Die drei Modi schliessen sich aus: entweder gar keine
- * Angabe, oder N Tageszeiten, oder N Uhrzeiten — Tageszeiten und Uhrzeiten werden
- * nie vermischt.
+ * Zeitangabe einer Handlung: keine, oder eine bis mehrere Tageszeiten. Pro
+ * Tageszeit sind optional eine oder mehrere Uhrzeiten möglich — eine Uhrzeit gibt
+ * es nur zusammen mit einer Tageszeit.
  */
-export type ScheduleMode = "none" | "dayParts" | "times";
-
 export interface DayPartEntry {
   /**
    * Stabile Kennung der einzelnen Durchführung. Bei bestehenden Handlungen ist
@@ -14,22 +12,15 @@ export interface DayPartEntry {
    * auch wenn Tageszeit oder Uhrzeit geändert werden.
    */
   id: string;
-  /** Tageszeit-ID — nur im Modus "dayParts" gesetzt */
+  /** Tageszeit-ID */
   dayPart?: string;
-  /** Uhrzeit (HH:mm) — nur im Modus "times" gesetzt */
+  /** Optionale Uhrzeit (HH:mm), nur zusammen mit einer Tageszeit */
   scheduledTime?: string;
 }
 
 let entryCounter = 0;
 export const newDayPartEntryId = () =>
   `dpe-${Date.now().toString(36)}-${(entryCounter++).toString(36)}`;
-
-/** Der Modus ist nicht gespeichert, sondern folgt aus den Einträgen. */
-export function scheduleModeOf(entries: DayPartEntry[]): ScheduleMode {
-  if (entries.some((entry) => entry.scheduledTime?.trim())) return "times";
-  if (entries.some((entry) => entry.dayPart)) return "dayParts";
-  return "none";
-}
 
 /**
  * Vergibt Eintrags-IDs aus der Position. Für Quellen ohne eigene Identität
@@ -41,65 +32,42 @@ export function withPositionalIds(
 ): DayPartEntry[] {
   return entries.map((entry, index) => ({
     ...entry,
-    id: `${entry.dayPart ?? "time"}#${index}`,
+    id: `${entry.dayPart ?? "none"}#${index}`,
   }));
 }
 
-/**
- * Kanonische Reihenfolge: im Uhrzeit-Modus nach Uhrzeit, im Tageszeit-Modus nach
- * dem Beginn der Tageszeit.
- */
-export function sortDayPartEntries(
-  entries: DayPartEntry[],
-  dayParts: DayPartDefinition[] = getDayParts(),
-): DayPartEntry[] {
-  return [...entries].sort((a, b) => {
-    const aTime = a.scheduledTime?.trim() ?? "";
-    const bTime = b.scheduledTime?.trim() ?? "";
-    if (aTime || bTime) {
-      if (aTime === bTime) return 0;
-      if (!aTime) return 1;
-      if (!bTime) return -1;
-      return aTime.localeCompare(bTime);
-    }
-    const aFrom = findDayPartById(a.dayPart, dayParts)?.from ?? "";
-    const bFrom = findDayPartById(b.dayPart, dayParts)?.from ?? "";
-    return aFrom.localeCompare(bFrom);
-  });
+/** Kanonische Reihenfolge: nach Tageszeit (Morgen … Nacht), darin ohne Uhrzeit zuerst, dann nach Uhrzeit. */
+export function sortDayPartEntries(entries: DayPartEntry[]): DayPartEntry[] {
+  return [...entries].sort(
+    (a, b) =>
+      dayPartIndex(a.dayPart) - dayPartIndex(b.dayPart) ||
+      (a.scheduledTime?.trim() ?? "").localeCompare(b.scheduledTime?.trim() ?? ""),
+  );
 }
 
 /**
- * Prüfung vor dem Speichern: Im gewählten Modus muss mindestens ein Eintrag
- * erfasst sein, und dieselbe Tageszeit bzw. dieselbe Uhrzeit darf nicht doppelt
- * vorkommen.
+ * Prüfung vor dem Speichern: Hat eine Tageszeit mehrere Durchführungen, braucht
+ * jede eine eigene, unterschiedliche Uhrzeit — sonst wären sie nicht unterscheidbar.
  */
-export function scheduleEntriesError(
-  entries: DayPartEntry[],
-  mode: ScheduleMode,
-): string | null {
-  if (mode === "none") {
-    // Leere Platzhalter-Zeilen (angelegt, aber nicht ausgefüllt) sind kein "ohne
-    // Zeitangabe", sondern eine unvollständige Erfassung.
-    return entries.length > 0 ? "Jede Durchführung braucht eine eigene, unterschiedliche Uhrzeit." : null;
+export function scheduleEntriesError(entries: DayPartEntry[]): string | null {
+  if (entries.some((entry) => !entry.dayPart && entry.scheduledTime?.trim())) {
+    return "Eine Uhrzeit braucht eine Tageszeit.";
   }
-
-  if (mode === "times") {
-    const times = entries
-      .map((entry) => entry.scheduledTime?.trim())
-      .filter((time): time is string => !!time);
-    if (times.length === 0) return "Es muss mindestens eine Uhrzeit erfasst sein.";
-    if (times.length !== entries.length || new Set(times).size !== times.length) {
-      return "Jede Durchführung braucht eine eigene, unterschiedliche Uhrzeit.";
+  // Eine einzelne Durchführung ohne Tageszeit ist "Ohne Zeitangabe".
+  if (entries.some((entry) => !entry.dayPart) && entries.length > 1) {
+    return "Ohne Zeitangabe ist nur eine Durchführung möglich.";
+  }
+  const byDayPart = new Map<string, string[]>();
+  entries.filter((entry) => entry.dayPart).forEach((entry) => {
+    const times = byDayPart.get(entry.dayPart!) ?? [];
+    times.push(entry.scheduledTime?.trim() ?? "");
+    byDayPart.set(entry.dayPart!, times);
+  });
+  for (const times of byDayPart.values()) {
+    if (times.length < 2) continue;
+    if (times.some((time) => !time) || new Set(times).size !== times.length) {
+      return "Mehrere Durchführungen in derselben Tageszeit brauchen je eine eigene, unterschiedliche Uhrzeit.";
     }
-    return null;
-  }
-
-  const dayPartIds = entries
-    .map((entry) => entry.dayPart)
-    .filter((id): id is string => !!id);
-  if (dayPartIds.length === 0) return "Es muss mindestens eine Tageszeit gewählt sein.";
-  if (new Set(dayPartIds).size !== dayPartIds.length) {
-    return "Dieselbe Tageszeit ist mehrfach erfasst.";
   }
   return null;
 }

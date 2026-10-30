@@ -2,9 +2,9 @@ import { render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AssessmentOutline } from "@/components/assessment/AssessmentOutline";
 import type { ActionNode, TargetNode } from "@/types/assessment";
-import type { ScheduledAction } from "@/lib/day-part-rollover";
+import type { ScheduledAction } from "@/lib/day-part-schedule";
 import { getConfirmationStart, isBeforeConfirmationStart } from "@/lib/confirmation-window";
-import { initialDayParts } from "@/lib/day-parts";
+import { DAY_PARTS } from "@/lib/day-parts";
 
 const buildTargets = (validFrom: string, schedule: ScheduledAction = {}): TargetNode[] => [
   {
@@ -89,12 +89,17 @@ describe("Bestätigung zukünftiger Handlungen", () => {
     expect(isBeforeConfirmationStart(timing("2026-08-18", { scheduledTime: "22:00" }), at("2026-08-19T10:00:00"))).toBe(false);
   });
 
-  it("nimmt im Tageszeit-Modus die Von-Zeit der Zeitspanne", () => {
-    const morning = initialDayParts.find((part) => part.title === "Morgen")!;
+  it("lässt eine Tageszeit ohne Uhrzeit ab Tagesbeginn zu", () => {
+    const morning = DAY_PARTS.find((part) => part.title === "Morgen")!;
     const row = timing("2026-08-19", { dayPart: morning.id });
-    expect(getConfirmationStart(row)).toEqual(new Date(`2026-08-19T${morning.from}:00`));
-    expect(isBeforeConfirmationStart(row, at("2026-08-19T05:00:00"))).toBe(true);
-    expect(isBeforeConfirmationStart(row, at(`2026-08-19T${morning.from}:00`))).toBe(false);
+    expect(getConfirmationStart(row)).toEqual(new Date("2026-08-19T00:00:00"));
+    expect(isBeforeConfirmationStart(row, at("2026-08-19T00:00:00"))).toBe(false);
+  });
+
+  it("nimmt bei Tageszeit mit Uhrzeit die Uhrzeit, ohne Plausibilisierung", () => {
+    const row = timing("2026-08-19", { dayPart: DAY_PARTS[1].id, scheduledTime: "23:30" });
+    expect(isBeforeConfirmationStart(row, at("2026-08-19T23:29:59"))).toBe(true);
+    expect(isBeforeConfirmationStart(row, at("2026-08-19T23:30:00"))).toBe(false);
   });
 
   it("lässt Handlungen ohne Zeitangabe ab Tagesbeginn zu", () => {

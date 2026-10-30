@@ -34,17 +34,9 @@ export const migrateActionNodeGroupIds = (clients: Client[]): Client[] =>
     (action.isUnplanned || !action.groupId) ? { ...action, groupId: uid() } : action,
   );
 
-/**
- * Früher trug eine Handlung eine Tageszeit UND optional eine Uhrzeit. Seit der
- * strikten Trennung gilt: Ist eine Uhrzeit erfasst, gewinnt sie und die Tageszeit
- * entfällt (sie wird bei der Anzeige abgeleitet). Reine Tageszeit-Handlungen
- * behalten ihre Angabe, deren alter Schlüssel wird auf die Tageszeit-ID abgebildet.
- */
+/** Alte Tageszeit-Schlüssel ("morning" …) auf die Tageszeit-ID abbilden; eine Uhrzeit bleibt bei ihrer Tageszeit. */
 const migrateCachedDayParts = (clients: Client[]): Client[] =>
   mapClientActions(clients, (action) => {
-    if (action.scheduledTime?.trim()) {
-      return action.dayPart ? { ...action, dayPart: undefined } : action;
-    }
     if (!action.dayPart) return action;
     const mapped = LEGACY_DAY_PART_IDS[action.dayPart];
     return mapped ? { ...action, dayPart: mapped } : action;

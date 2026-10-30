@@ -1,6 +1,5 @@
 import type { ActionNode, ConfirmedOptionalService } from "@/types/assessment";
-import type { DayPartDefinition } from "@/lib/day-parts";
-import { effectiveDayPart } from "@/lib/day-part-rollover";
+import { effectiveDayPart, scheduleOf } from "@/lib/day-part-schedule";
 
 /**
  * Was beim Bestätigen einer Durchführung aus der Umsetzung gemeldet wird. Die
@@ -24,7 +23,13 @@ export type ConfirmationPayload =
       optionalServices?: ConfirmedOptionalService[];
     }
   | { status: "not_done"; reason: string }
-  | { status: "postponed"; postponedToDate?: string; postponedToTime?: string; postponedReason: string }
+  | {
+      status: "postponed";
+      postponedToDate?: string;
+      postponedToDayPart?: string;
+      postponedToTime?: string;
+      postponedReason: string;
+    }
   | { status: "open" };
 
 export interface ConfirmationAudit {
@@ -36,9 +41,8 @@ export interface ConfirmationAudit {
  * Schreibt die Bestätigung eines einzelnen Termins in die Historie einer Handlung.
  *
  * Zwei Dinge werden dabei bewusst festgehalten statt später abgeleitet:
- * - die **Tageszeit** — im Uhrzeit-Modus ergibt sie sich laufend aus der
- *   Konfiguration, als Snapshot bleibt die Historie von späteren Änderungen an den
- *   Stammdaten unabhängig;
+ * - die **Tageszeit** — nach einer Neuplanung die neue; als Snapshot bleibt die
+ *   Historie von späteren Änderungen am Plan unabhängig;
  * - bei „wie geplant" **geplante Zeit und geplante Anzahl Personen** als tatsächliche
  *   Werte — genau das heisst „wie geplant", und die Auswertung rechnet damit weiter,
  *   auch wenn der Plan danach angepasst wird.
@@ -52,16 +56,17 @@ export const applyConfirmationToAction = (
   date: string,
   payload: ConfirmationPayload,
   audit: ConfirmationAudit,
-  dayParts?: DayPartDefinition[],
 ): ActionNode => {
   const nextConfirmations = { ...(action.confirmations ?? {}) };
-  const dayPartSnapshot = effectiveDayPart(action, dayParts);
-
   const existing = nextConfirmations[date];
+  // Nach einer Neuplanung gilt deren Tageszeit.
+  const dayPartSnapshot = effectiveDayPart(scheduleOf(action, existing));
+
   const postponementAudit = existing
     ? {
         postponedToDate: existing.postponedToDate,
         postponedToTime: existing.postponedToTime,
+        postponedToDayPart: existing.postponedToDayPart,
         postponedBy: existing.postponedBy,
         postponedAt: existing.postponedAt,
       }
@@ -115,6 +120,7 @@ export const applyConfirmationToAction = (
       done: false,
       postponedToDate: payload.postponedToDate,
       postponedToTime: payload.postponedToTime,
+      postponedToDayPart: payload.postponedToDayPart,
       postponedReason: payload.postponedReason,
       postponedBy: audit.confirmedBy,
       postponedAt: audit.confirmedAt,

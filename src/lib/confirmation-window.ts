@@ -1,10 +1,9 @@
-import { effectiveDayPart, type ScheduledAction } from "@/lib/day-part-rollover";
-import { getDayParts, type DayPartDefinition } from "@/lib/day-parts";
+import type { ScheduledAction } from "@/lib/day-part-schedule";
 import type { ActionConfirmation } from "@/types/assessment";
 
 /** Termin einer Zeile der Umsetzung, wie er für die Quittier-Sperre zählt. */
 export interface ConfirmationTiming {
-  /** Kalendertag der Zeile: nach Nacht-Rollover bzw. Verschiebung bereits der effektive. */
+  /** Kalendertag der Zeile: bei einer Verschiebung bereits der effektive. */
   dueDate: string;
   action: ScheduledAction;
   /** Bestätigung am Originaltermin — liefert bei einer Neuplanung die neue Uhrzeit. */
@@ -12,20 +11,11 @@ export interface ConfirmationTiming {
 }
 
 /**
- * Frühester Zeitpunkt, ab dem quittiert werden darf: die geplante Uhrzeit, im
- * Tageszeit-Modus die Von-Zeit der konfigurierten Zeitspanne (Beispiel: "Morgen"
- * 06:00-11:00 → ab 06:00 am geplanten Tag). Handlungen ohne jede Zeitangabe bleiben
- * ganztags quittierbar.
+ * Frühester Zeitpunkt, ab dem quittiert werden darf: die (neu) geplante Uhrzeit,
+ * sonst der Beginn des Tages. Die Tageszeit allein hat kein Zeitfenster.
  */
-export const getConfirmationStart = (
-  { dueDate, action, confirmation }: ConfirmationTiming,
-  dayParts: DayPartDefinition[] = getDayParts(),
-): Date => {
-  const time =
-    confirmation?.postponedToTime?.trim() ||
-    action.scheduledTime?.trim() ||
-    effectiveDayPart(action, dayParts)?.from ||
-    "00:00";
+export const getConfirmationStart = ({ dueDate, action, confirmation }: ConfirmationTiming): Date => {
+  const time = confirmation?.postponedToTime?.trim() || action.scheduledTime?.trim() || "00:00";
   return new Date(`${dueDate}T${time}:00`);
 };
 
@@ -38,11 +28,8 @@ export const getConfirmationStart = (
  * Die Neuplanung (postponed) ist davon ausgenommen, sie bleibt für zukünftige Termine
  * im Fenster von +/- 1 Woche möglich (siehe reschedule.ts).
  */
-export const isBeforeConfirmationStart = (
-  timing: ConfirmationTiming,
-  now: Date,
-  dayParts?: DayPartDefinition[],
-) => now < getConfirmationStart(timing, dayParts);
+export const isBeforeConfirmationStart = (timing: ConfirmationTiming, now: Date) =>
+  now < getConfirmationStart(timing);
 
 /**
  * Vorbelegtes Datum beim Erfassen in der Umsetzung: der Tag im Fokus, aber nie

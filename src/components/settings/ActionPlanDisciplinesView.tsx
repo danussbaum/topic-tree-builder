@@ -7,6 +7,7 @@ import {
 } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import { AuthorizedRolesMultiSelect } from "@/components/settings/AuthorizedRolesMultiSelect";
 import { DisciplineMultiSelect } from "@/components/settings/DisciplineMultiSelect";
 import {
@@ -42,6 +43,7 @@ export const ActionPlanDisciplinesView = forwardRef<
   const [isPanelMounted, setIsPanelMounted] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [draftTitle, setDraftTitle] = useState("");
+  const [showMissingTitle, setShowMissingTitle] = useState(false);
   const [draftAuthorizedRoleIds, setDraftAuthorizedRoleIds] = useState<
     string[]
   >([]);
@@ -82,7 +84,8 @@ export const ActionPlanDisciplinesView = forwardRef<
   const openCreatePanel = () => {
     setIsCreating(true);
     setSelectedDisciplineId(null);
-    setDraftTitle("Neue Disziplin");
+    setDraftTitle("");
+    setShowMissingTitle(false);
     setDraftAuthorizedRoleIds([]);
     setDraftCategoryIds([]);
     setIsPanelMounted(true);
@@ -94,6 +97,7 @@ export const ActionPlanDisciplinesView = forwardRef<
     setIsCreating(false);
     setSelectedDisciplineId(disciplineId);
     setDraftTitle(discipline.title);
+    setShowMissingTitle(false);
     setDraftAuthorizedRoleIds(discipline.authorizedRoleIds);
     setDraftCategoryIds(discipline.categoryIds);
     setIsPanelMounted(true);
@@ -110,7 +114,11 @@ export const ActionPlanDisciplinesView = forwardRef<
   };
 
   const saveDiscipline = () => {
-    const title = draftTitle.trim() || "Neue Disziplin";
+    const title = draftTitle.trim();
+    if (!title) {
+      setShowMissingTitle(true);
+      return;
+    }
     if (isCreating) {
       setDisciplines((prev) => [
         ...prev,
@@ -217,10 +225,23 @@ export const ActionPlanDisciplinesView = forwardRef<
             <div className="flex-1 overflow-y-auto px-6 py-6">
               <div className="grid grid-cols-[200px_minmax(0,1fr)_auto] items-start gap-x-4 gap-y-3">
                 <label className="pt-2 text-sm text-foreground">Titel</label>
-                <Input
-                  value={draftTitle}
-                  onChange={(event) => setDraftTitle(event.target.value)}
-                />
+                <div>
+                  <Input
+                    value={draftTitle}
+                    aria-invalid={showMissingTitle}
+                    aria-describedby={showMissingTitle ? "discipline-title-error" : undefined}
+                    onChange={(event) => {
+                      setDraftTitle(event.target.value);
+                      setShowMissingTitle(false);
+                    }}
+                    className={cn(showMissingTitle && "border-destructive")}
+                  />
+                  {showMissingTitle && (
+                    <p id="discipline-title-error" className="mt-1 text-xs text-destructive">
+                      Der Titel ist zwingend.
+                    </p>
+                  )}
+                </div>
                 <span className="pt-2 text-xs text-muted-foreground">
                   immer editierbar
                 </span>

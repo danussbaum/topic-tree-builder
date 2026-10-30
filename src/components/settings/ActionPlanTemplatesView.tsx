@@ -48,7 +48,6 @@ import { cn } from "@/lib/utils";
 import { DayPartChipSelector } from "@/components/assessment/DayPartChipSelector";
 import {
   scheduleEntriesError,
-  scheduleModeOf,
   withPositionalIds,
   type DayPartEntry,
 } from "@/lib/day-part-entries";
@@ -464,7 +463,7 @@ export const ActionPlanTemplatesView = forwardRef<
           columnIndex += 1; // uhrzeit veränderbar
           columnIndex += 1; // uhrzeit zwingend
           if (uhrzeitValue && value && value !== "none") {
-            nextFields[field.key] = `${value}(${uhrzeitValue})`;
+            nextFields[field.key] = `${value} ${uhrzeitValue}`;
           }
         }
 
@@ -662,12 +661,16 @@ export const ActionPlanTemplatesView = forwardRef<
         (issue) => !issue.startsWith("Code:"),
       ),
     ];
-    // Eine angelegte, aber leere Uhrzeit darf nicht still als "ohne Zeitangabe" landen.
-    const scheduleIssue = scheduleEntriesError(
-      draftDayPartEntries,
-      scheduleModeOf(draftDayPartEntries),
-    );
+    const scheduleIssue = scheduleEntriesError(draftDayPartEntries);
     if (scheduleIssue) issues.push(`Tageszeit: ${scheduleIssue}`);
+    templateFieldMeta
+      .filter((field) => field.key === "dauer" || field.key === "personen")
+      .forEach((field) => {
+        const value = draftFields[field.key]?.trim();
+        if (value && !/^\d+$/.test(value)) {
+          issues.push(`${field.label}: muss eine ganze Zahl >= 0 sein`);
+        }
+      });
     setTemplateSaveErrors(issues);
     if (issues.length > 0) return;
     const categoryId = availableDraftCategories.some((category) => category.id === draftCategoryId)

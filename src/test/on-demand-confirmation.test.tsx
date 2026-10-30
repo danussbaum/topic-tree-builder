@@ -163,137 +163,39 @@ describe("Handlungen nach Bedarf in der Umsetzung", () => {
     expect(dialog.getByRole("combobox", { name: "Zeitangabe" })).toBeDisabled();
   });
 
-  it("erfasst aus dem Vortags-Abschnitt auf den Vortag mit Uhrzeit nach Mitternacht", async () => {
-    // Eine Nacht-Handlung um 01:00 am 11.05. erscheint am 12.05. als Vortags-Abschnitt — damit
-    // gibt es diesen Abschnitt am gewählten Tag.
+  it("erfasst aus dem Nacht-Abschnitt am selben Datum, auch mit Uhrzeit nach Mitternacht", async () => {
     const nachts: ActionNode = {
       ...dailyAction,
       id: "action-night",
       groupId: "group-night",
       title: "Lagerung",
+      dayPart: DAY_PART_SEED_IDS.night,
       scheduledTime: "01:00",
     };
     const bedarfNachts: ActionNode = {
       ...onDemandAction,
+      dayPart: DAY_PART_SEED_IDS.night,
       scheduledTime: "02:00",
     };
     const { onAddOnDemandAction } = renderOutline([nachts, bedarfNachts]);
 
+    // Kein Vortags-Abschnitt mehr: die Nacht gehört zum Planungsdatum.
+    expect(screen.queryByText("Nacht (Vortag)")).not.toBeInTheDocument();
     const trigger = screen
       .getAllByRole("button", { name: "Handlung erfassen" })
-      .find((button) => button.closest("div")?.textContent?.includes("Vortag"))!;
+      .find((button) => button.closest("div")?.textContent?.includes("Nacht"))!;
     fireEvent.keyDown(trigger, { key: "Enter" });
     fireEvent.click(await screen.findByRole("menuitem", { name: "Handlung nach Bedarf erstellen" }));
 
     const dialog = within(await screen.findByRole("dialog", { name: "Handlung nach Bedarf erstellen" }));
-    expect(dialog.getByText("Nacht vom 11.05.2026 auf den 12.05.2026")).toBeInTheDocument();
+    expect(dialog.getByText("12.05.2026")).toBeInTheDocument();
 
     await selectAction(dialog, /Bedarfsmedikation/);
+    fireEvent.change(dialog.getByLabelText("Uhrzeit"), { target: { value: "02:00" } });
     fireEvent.click(dialog.getByRole("button", { name: "Bestätigen" }));
 
-    // Vortag + Nacht + Uhrzeit nach Mitternacht ⇒ die Durchführung landet wieder im Vortags-Abschnitt.
     expect(onAddOnDemandAction).toHaveBeenCalledWith(
-      expect.objectContaining({ date: "2026-05-11", dayPart: "none", scheduledTime: "02:00" }),
-    );
-  });
-
-  it("meldet die fehlende Vortags-Uhrzeit erst beim Bestätigen", async () => {
-    const nachts: ActionNode = {
-      ...dailyAction,
-      id: "action-night",
-      groupId: "group-night",
-      title: "Lagerung",
-      scheduledTime: "01:00",
-    };
-    // Geplant um 22:00 — das rollt nicht zurück und darf darum nicht übernommen werden.
-    const bedarfAbends: ActionNode = {
-      ...onDemandAction,
-      scheduledTime: "22:00",
-    };
-    const { onAddOnDemandAction } = renderOutline([nachts, bedarfAbends]);
-
-    const trigger = screen
-      .getAllByRole("button", { name: "Handlung erfassen" })
-      .find((button) => button.closest("div")?.textContent?.includes("Vortag"))!;
-    fireEvent.keyDown(trigger, { key: "Enter" });
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Handlung nach Bedarf erstellen" }));
-
-    const dialog = within(await screen.findByRole("dialog", { name: "Handlung nach Bedarf erstellen" }));
-    await selectAction(dialog, /Bedarfsmedikation/);
-
-    // 22:00 rollt nicht zurück und wird darum nicht übernommen — der Hinweis fehlt aber noch.
-    expect(dialog.getByLabelText("Uhrzeit")).toHaveValue("");
-    expect(dialog.queryByText(/Zwingend zwischen 00:00 und 06:00/)).not.toBeInTheDocument();
-
-    fireEvent.click(dialog.getByRole("button", { name: "Bestätigen" }));
-    expect(dialog.getByText(/Zwingend zwischen 00:00 und 06:00/)).toBeInTheDocument();
-    expect(onAddOnDemandAction).not.toHaveBeenCalled();
-
-    fireEvent.change(dialog.getByLabelText("Uhrzeit"), { target: { value: "03:30" } });
-    expect(dialog.queryByText(/Zwingend zwischen 00:00 und 06:00/)).not.toBeInTheDocument();
-    fireEvent.click(dialog.getByRole("button", { name: "Bestätigen" }));
-    expect(onAddOnDemandAction).toHaveBeenCalledWith(
-      expect.objectContaining({ date: "2026-05-11", dayPart: "none", scheduledTime: "03:30" }),
-    );
-  });
-
-  it("erfasst auch eine ungeplante Handlung im Vortags-Abschnitt auf den Vortag", async () => {
-    const nachts: ActionNode = {
-      ...dailyAction,
-      id: "action-night",
-      groupId: "group-night",
-      title: "Lagerung",
-      scheduledTime: "01:00",
-    };
-    const onAddUnplannedAction = vi.fn();
-    render(
-      <AssessmentOutline
-        viewMode="confirmation"
-        selectedDate="2026-05-12"
-        onSelectedDateChange={vi.fn()}
-        confirmationPeriod="day"
-        targets={targetsWith([nachts])}
-        hideConfirmationHeader
-        filterModel={{ statuses: ["open", "postponed"] }}
-        onUpdateTarget={vi.fn()}
-        onUpdateAction={vi.fn()}
-        onUpdateActionField={vi.fn()}
-        onConfirmAction={vi.fn()}
-        onAddTarget={vi.fn()}
-        onAddAction={vi.fn()}
-        onDeleteTarget={vi.fn()}
-        onDeleteAction={vi.fn()}
-        onUpdateActionGroup={vi.fn()}
-        onReactivateTarget={vi.fn()}
-        onDeleteActionGroup={vi.fn()}
-        onAddUnplannedAction={onAddUnplannedAction}
-      />,
-    );
-
-    const trigger = screen
-      .getAllByRole("button", { name: "Handlung erfassen" })
-      .find((button) => button.closest("div")?.textContent?.includes("Vortag"))!;
-    fireEvent.keyDown(trigger, { key: "Enter" });
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Ungeplante Handlung erstellen" }));
-
-    const dialog = within(await screen.findByRole("dialog", { name: "Ungeplante Handlung erstellen" }));
-    fireEvent.click(dialog.getByRole("button", { name: /Ohne Vorlage/ }));
-    // Die Bezeichnung ist Pflicht — hier geht es aber allein um die Vortags-Regel.
-    fireEvent.change(dialog.getByLabelText("Bezeichnung *"), { target: { value: "Lagerung nachts" } });
-
-    // Der Hinweis erscheint erst beim Bestätigen ohne gültige Uhrzeit.
-    expect(dialog.queryByText(/Zwingend zwischen 00:00 und 06:00/)).not.toBeInTheDocument();
-    fireEvent.click(dialog.getByRole("button", { name: "Bestätigen" }));
-    expect(dialog.getByText(/Zwingend zwischen 00:00 und 06:00/)).toBeInTheDocument();
-    expect(onAddUnplannedAction).not.toHaveBeenCalled();
-
-    fireEvent.change(dialog.getByLabelText("Uhrzeit"), { target: { value: "04:15" } });
-    fireEvent.click(dialog.getByRole("button", { name: "Bestätigen" }));
-
-    expect(onAddUnplannedAction).toHaveBeenCalledWith(
-      "2026-05-11",
-      DAY_PART_SEED_IDS.night,
-      expect.objectContaining({ dateFrom: "2026-05-11", dateTo: "2026-05-11", scheduledTime: "04:15" }),
+      expect.objectContaining({ date: "2026-05-12", dayPart: DAY_PART_SEED_IDS.night, scheduledTime: "02:00" }),
     );
   });
 

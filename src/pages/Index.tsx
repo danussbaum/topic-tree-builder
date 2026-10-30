@@ -34,10 +34,9 @@ import {
 } from "lucide-react";
 import {
   effectiveDayPart,
-  rollsToNextDay,
   scheduleSortKey,
   shiftISODate,
-} from "@/lib/day-part-rollover";
+} from "@/lib/day-part-schedule";
 import { isTargetClosed } from "@/lib/target-status";
 import { getDayParts } from "@/lib/day-parts";
 import { applyConfirmationToAction, type ConfirmationPayload } from "@/lib/action-confirmation";
@@ -289,14 +288,11 @@ const getDueDatesInPeriod = (
 ) => {
   if (!action.recurrence) return [];
 
-  // Nacht-Handlungen vor 12:00 gehören zur Nacht des Vortages: Wiederholung und
-  // Gültigkeit werden auf dem Planungstag geprüft, fällig sind sie am Folgetag.
-  const rollover = rollsToNextDay(action) ? 1 : 0;
+  // Fällig ist immer das geplante Datum, auch bei Nacht-Uhrzeiten nach Mitternacht.
   const isDue = (dueDate: string) => {
-    const planDate = rollover ? shiftISODate(dueDate, -rollover) : dueDate;
-    if (action.validFrom && planDate < action.validFrom) return false;
-    if (action.validTo && planDate > action.validTo) return false;
-    return isRecurringOnDate(action, new Date(`${planDate}T00:00:00`));
+    if (action.validFrom && dueDate < action.validFrom) return false;
+    if (action.validTo && dueDate > action.validTo) return false;
+    return isRecurringOnDate(action, new Date(`${dueDate}T00:00:00`));
   };
 
   if (period === "day") {
@@ -342,11 +338,14 @@ const getVisibleConfirmationRows = (
   const targetsWithUnplanned = [...client.targets, buildUnplannedTarget(client)];
 
   targetsWithUnplanned.forEach((target) => {
+    // Gleiche Auswahl wie die Umsetzungsansicht, damit Export und Auswertungen dem Bildschirm entsprechen.
+    const isClosed = isTargetClosed(target);
+    if (filterModel.showClosedTargets ? !isClosed : isClosed) return;
     target.actions.forEach((action) => {
+      if (!action.validFrom || !action.recurrence) return;
       // Verschobene Nacht-Einträge sind einen Tag nach ihrem Planungstag fällig.
-      const rolloverDays = rollsToNextDay(action) ? 1 : 0;
-      if (action.validFrom && shiftISODate(action.validFrom, rolloverDays) > end) return;
-      if (action.validTo && shiftISODate(action.validTo, rolloverDays) < start) return;
+      if (action.validFrom && action.validFrom > end) return;
+      if (action.validTo && action.validTo < start) return;
 
       const dueDates = getDueDatesInPeriod(action, selectedDate, period, lastNDays);
       dueDates.forEach((dueDate) => {
@@ -422,6 +421,7 @@ const CONFIRMATION_EXPORT_HEADERS = [
   "Resultat",
   "Beobachtungen",
   "Verschoben auf Datum",
+  "Verschoben auf Tageszeit",
   "Verschoben auf Uhrzeit",
   "Verschiebungsgrund",
   "Verschoben von",
@@ -1275,11 +1275,11 @@ const Index = () => {
         .map((value) => weekdayMap[value.trim().toLowerCase()])
         .filter((value): value is Weekday => Boolean(value));
 
-      // Strikte Trennung: ein Eintrag trägt entweder eine Tageszeit oder eine Uhrzeit.
+      // Eine Uhrzeit gibt es nur zusammen mit einer Tageszeit.
       const toScheduleEntry = ({ dayPart, scheduledTime }: { dayPart?: string; scheduledTime?: string }) =>
-        scheduledTime?.trim()
-          ? { dayPart: undefined, scheduledTime }
-          : { dayPart: dayPart && dayPart !== "none" ? dayPart : undefined, scheduledTime: undefined };
+        dayPart && dayPart !== "none"
+          ? { dayPart, scheduledTime: scheduledTime?.trim() || undefined }
+          : { dayPart: undefined, scheduledTime: undefined };
 
       const tageszeitEntries = (panelDayPartEntries !== undefined
         ? panelDayPartEntries
@@ -1585,13 +1585,12 @@ const Index = () => {
         if (target?.validTo && value > target.validTo) return currentAction;
       }
 
-      // Strikte Trennung: Tageszeit und Uhrzeit schliessen sich aus — wird das eine
-      // gesetzt, fällt das andere weg.
-      if (field === "dayPart" && value) {
-        return { ...currentAction, dayPart: value as string, scheduledTime: undefined };
+      // Ohne Tageszeit keine Uhrzeit.
+      if (field === "dayPart" && (!value || value === "none")) {
+        return { ...currentAction, dayPart: undefined, scheduledTime: undefined };
       }
-      if (field === "scheduledTime" && value) {
-        return { ...currentAction, scheduledTime: value as string, dayPart: undefined };
+      if (field === "scheduledTime" && value && !currentAction.dayPart) {
+        return currentAction;
       }
 
       return { ...currentAction, [field]: value };
@@ -1650,14 +1649,14 @@ const Index = () => {
             ? groupActions.find((a) => a.id === existingActionId)
             : undefined;
           if (existing) {
-            return { ...existing, ...sharedFields, dayPart: actionDayPart, scheduledTime };
+            return { ...existing, ...sharedFields, dayPart: actionDayPart, scheduledTime: actionDayPart ? scheduledTime : undefined };
           }
           return {
             id: uid(),
             groupId,
             ...sharedFields,
             dayPart: actionDayPart,
-            scheduledTime,
+            scheduledTime: actionDayPart ? scheduledTime : undefined,
             status: "open" as const,
             done: false,
           };
@@ -1979,6 +1978,9 @@ const Index = () => {
       Resultat: confirmation?.result ?? "",
       Beobachtungen: confirmation?.observations ?? "",
       "Verschoben auf Datum": confirmation?.postponedToDate ?? "",
+      "Verschoben auf Tageszeit": confirmation?.postponedToDayPart
+        ? (effectiveDayPart({ dayPart: confirmation.postponedToDayPart })?.title ?? "ohne")
+        : "",
       "Verschoben auf Uhrzeit": confirmation?.postponedToTime ?? "",
       "Verschiebungsgrund": confirmation?.postponedReason ?? "",
       "Verschoben von": confirmation?.postponedBy ?? "",
@@ -2886,7 +2888,6 @@ const Index = () => {
                                   return { ...prev, dayParts: dayParts.length > 0 ? dayParts : undefined };
                                 })
                               }
-                              title={`${dayPart.from} – ${dayPart.to}`}
                               className={cn(
                                 "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium transition-colors",
                                 isActive
@@ -3511,7 +3512,7 @@ const Index = () => {
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setPendingTargetValidTo(null)}>
-              Nein
+              Abbrechen
             </Button>
             <Button
               onClick={() => {

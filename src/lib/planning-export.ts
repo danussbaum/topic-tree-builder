@@ -18,7 +18,7 @@ import {
 import { initialActionPlanDisciplines, type ActionPlanDiscipline } from "@/lib/action-plan-disciplines";
 import { buildClientReferenceNumbers, CLIENT_REFERENCE_HEADER } from "@/lib/client-reference-number";
 import { getDayParts, type DayPartDefinition } from "@/lib/day-parts";
-import { effectiveDayPart, scheduleSortKey } from "@/lib/day-part-rollover";
+import { effectiveDayPart, scheduleSortKey } from "@/lib/day-part-schedule";
 import type {
   ActionNode,
   Client,
@@ -141,7 +141,7 @@ const weekdayText = (action: ActionNode) =>
 const dayPartsText = (nodes: ActionNode[], dayParts: DayPartDefinition[]) => {
   const counts: Array<{ title: string; count: number }> = [];
   nodes.forEach((node) => {
-    const title = effectiveDayPart(node, dayParts)?.title ?? NO_DAY_PART_LABEL;
+    const title = effectiveDayPart(node)?.title ?? NO_DAY_PART_LABEL;
     const existing = counts.find((entry) => entry.title === title);
     if (existing) existing.count += 1;
     else counts.push({ title, count: 1 });
@@ -246,12 +246,12 @@ export const buildPlanningExportRows = (
               return Array.from(groups.values())
                 .map((nodes) =>
                   [...nodes].sort((a, b) =>
-                    scheduleSortKey(a, dayParts).localeCompare(scheduleSortKey(b, dayParts)),
+                    scheduleSortKey(a).localeCompare(scheduleSortKey(b)),
                   ),
                 )
                 .sort(
                   (a, b) =>
-                    scheduleSortKey(a[0], dayParts).localeCompare(scheduleSortKey(b[0], dayParts)) ||
+                    scheduleSortKey(a[0]).localeCompare(scheduleSortKey(b[0])) ||
                     (a[0].title || "").localeCompare(b[0].title || ""),
                 )
                 .map((nodes) => {

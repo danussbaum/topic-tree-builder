@@ -3,7 +3,7 @@ import {
   buildPlanningExportRows,
   PLANNING_EXPORT_HEADERS,
 } from "@/lib/planning-export";
-import { DAY_PART_SEED_IDS, initialDayParts } from "@/lib/day-parts";
+import { DAY_PART_SEED_IDS, DAY_PARTS } from "@/lib/day-parts";
 import { initialActionPlanResources } from "@/lib/action-plan-resources";
 import { buildDefaultTemplateFields } from "@/lib/action-plan-templates";
 import { initialActionPlanDisciplines } from "@/lib/action-plan-disciplines";
@@ -13,7 +13,7 @@ import type { ActionNode, Client } from "@/types/assessment";
 const options = {
   disciplines: initialActionPlanDisciplines,
   resources: initialActionPlanResources,
-  dayParts: initialDayParts,
+  dayParts: DAY_PARTS,
 };
 
 const action = (overrides: Partial<ActionNode> & { id: string; groupId: string }): ActionNode => ({
@@ -106,12 +106,12 @@ describe("buildPlanningExportRows", () => {
     expect(rows[0].Tageszeiten).toBe("2 × Morgen | Abend");
   });
 
-  it("nimmt Uhrzeiten der Gruppe auf und leitet die Tageszeit daraus ab", () => {
+  it("nimmt Tageszeit und Uhrzeiten der Gruppe auf", () => {
     const rows = buildPlanningExportRows(
       [
         withPlan([
-          action({ id: "a1", groupId: "g1", scheduledTime: "07:30" }),
-          action({ id: "a2", groupId: "g1", scheduledTime: "19:00" }),
+          action({ id: "a1", groupId: "g1", dayPart: DAY_PART_SEED_IDS.morning, scheduledTime: "07:30" }),
+          action({ id: "a2", groupId: "g1", dayPart: DAY_PART_SEED_IDS.evening, scheduledTime: "19:00" }),
         ]),
       ],
       options,

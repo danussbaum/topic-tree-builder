@@ -99,16 +99,18 @@ describe("Vorbelegung der Zeitangabe in der Planung", () => {
     ]);
   };
 
-  const modeIsSelected = (panel: ReturnType<typeof within>, label: string) =>
+  const isPressed = (panel: ReturnType<typeof within>, label: string) =>
     panel.getByRole("button", { name: label }).getAttribute("aria-pressed") === "true";
+  const noDayPartSelected = (panel: ReturnType<typeof within>) =>
+    ["Morgen", "Mittag", "Nachmittag", "Abend", "Nacht"].every((label) => !isPressed(panel, label));
 
   it("belegt ohne Vorlage nichts vor", async () => {
     const { panel } = await openNewActionPanel();
 
     fireEvent.click(panel.getByRole("button", { name: /Ohne Vorlage/ }));
 
-    expect(modeIsSelected(panel, "Ohne Zeitangabe")).toBe(true);
-    expect(panel.queryByRole("button", { name: "Morgen" })).not.toBeInTheDocument();
+    expect(noDayPartSelected(panel)).toBe(true);
+    expect(panel.getByText("Ohne Zeitangabe")).toBeInTheDocument();
   });
 
   it("übernimmt 'Ohne Zeitangabe' aus der Handlungsart", async () => {
@@ -120,8 +122,7 @@ describe("Vorbelegung der Zeitangabe in der Planung", () => {
     fireEvent.change(panel.getByPlaceholderText(/Vorlage/i), { target: { value: "Ohne Zeit" } });
     fireEvent.click(await panel.findByText("Ohne Zeit"));
 
-    expect(modeIsSelected(panel, "Ohne Zeitangabe")).toBe(true);
-    expect(panel.queryByRole("button", { name: "Morgen" })).not.toBeInTheDocument();
+    expect(noDayPartSelected(panel)).toBe(true);
   });
 
   it("übernimmt die Tageszeiten der Handlungsart", async () => {
@@ -131,20 +132,31 @@ describe("Vorbelegung der Zeitangabe in der Planung", () => {
     fireEvent.change(panel.getByPlaceholderText(/Vorlage/i), { target: { value: "Mit Tageszeit" } });
     fireEvent.click(await panel.findByText("Mit Tageszeit"));
 
-    expect(modeIsSelected(panel, "Tageszeiten")).toBe(true);
-    expect(panel.getByRole("button", { name: "Abend" })).toHaveAttribute("aria-pressed", "true");
-    expect(panel.getByRole("button", { name: "Morgen" })).toHaveAttribute("aria-pressed", "false");
+    expect(isPressed(panel, "Abend")).toBe(true);
+    expect(isPressed(panel, "Morgen")).toBe(false);
   });
 
-  it("übernimmt die Uhrzeiten der Handlungsart", async () => {
-    saveTemplate("Mit Uhrzeit", "07:30,11:00");
+  it("übernimmt Tageszeit und Uhrzeiten der Handlungsart", async () => {
+    saveTemplate("Mit Uhrzeit", "Morgen 07:30,Mittag 11:00");
     const { panel } = await openNewActionPanel();
 
     fireEvent.change(panel.getByPlaceholderText(/Vorlage/i), { target: { value: "Mit Uhrzeit" } });
     fireEvent.click(await panel.findByText("Mit Uhrzeit"));
 
-    expect(modeIsSelected(panel, "Uhrzeiten")).toBe(true);
-    expect(panel.getByLabelText("Uhrzeit 1")).toHaveValue("07:30");
-    expect(panel.getByLabelText("Uhrzeit 2")).toHaveValue("11:00");
+    expect(panel.getByLabelText("Uhrzeit Morgen 1")).toHaveValue("07:30");
+    expect(panel.getByLabelText("Uhrzeit Mittag 1")).toHaveValue("11:00");
+  });
+
+  it("speichert eine Handlung aus einer Vorlage ohne Tageszeit", async () => {
+    saveTemplate("Ohne Zeit", "none");
+    const onAddAction = vi.fn();
+    const { panel } = await openNewActionPanel(onAddAction);
+
+    fireEvent.change(panel.getByPlaceholderText(/Vorlage/i), { target: { value: "Ohne Zeit" } });
+    fireEvent.click(await panel.findByText("Ohne Zeit"));
+    fireEvent.click(panel.getByRole("button", { name: /^Speichern$/ }));
+
+    expect(panel.queryByText("Eine Uhrzeit braucht eine Tageszeit.")).not.toBeInTheDocument();
+    expect(panel.queryByText("Pflichtfeld – bitte ausfüllen")).not.toBeInTheDocument();
   });
 });

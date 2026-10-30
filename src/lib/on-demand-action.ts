@@ -55,9 +55,9 @@ export const buildOnDemandOccurrence = (
   ...source,
   id: uid(),
   groupId: uid(),
-  // Strikte Trennung: mit Uhrzeit wird die Tageszeit abgeleitet, nicht gespeichert.
-  dayPart: scheduledTime?.trim() || dayPart === "none" ? undefined : dayPart,
-  scheduledTime,
+  // Eine Uhrzeit gibt es nur zusammen mit einer Tageszeit.
+  dayPart: dayPart === "none" ? undefined : dayPart,
+  scheduledTime: dayPart === "none" ? undefined : scheduledTime,
   validFrom: date,
   validTo: date,
   recurrence: "daily",
